@@ -64,6 +64,31 @@ final class BrickyUITests: XCTestCase {
         }
     }
 
+    // MARK: - Mosaic Studio Flow
+
+    func testNavigationToMosaicStudio() {
+        skipOnboarding()
+        app.launch()
+
+        // The Mosaic Studio quick-action card lives below the fold; scroll to it.
+        let mosaicButton = app.buttons["Mosaic Studio"].firstMatch
+        if !mosaicButton.waitForExistence(timeout: 5) {
+            app.swipeUp()
+        }
+        guard mosaicButton.waitForExistence(timeout: 5) else {
+            XCTFail("Mosaic Studio button not found on Home")
+            return
+        }
+        mosaicButton.tap()
+
+        // Pushed view should show the Mosaic Studio navigation title.
+        let mosaicTitle = app.navigationBars["Mosaic Studio"].firstMatch
+        XCTAssertTrue(
+            mosaicTitle.waitForExistence(timeout: 5),
+            "Mosaic Studio screen should appear after tapping the card"
+        )
+    }
+
     // MARK: - Demo Mode Flow
 
     func testDemoModeFlow() {

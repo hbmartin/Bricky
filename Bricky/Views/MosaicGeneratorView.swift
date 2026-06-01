@@ -23,39 +23,37 @@ struct MosaicGeneratorView: View {
     private let contentMaxWidth: CGFloat = 640
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    if viewModel.isProUser {
-                        content
-                    } else {
-                        proUpsell
-                    }
+        ScrollView {
+            VStack(spacing: 24) {
+                if viewModel.isProUser {
+                    content
+                } else {
+                    proUpsell
                 }
-                .frame(maxWidth: contentMaxWidth)
-                .frame(maxWidth: .infinity)
-                .padding()
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle(L10n.mosaicTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: pickerItem) { _, newItem in
-                Task { await loadPickedImage(newItem) }
-            }
-            .alert(
-                L10n.mosaicErrorImageEncoding,
-                isPresented: Binding(
-                    get: { imageLoadError != nil },
-                    set: { if !$0 { imageLoadError = nil } }
-                )
-            ) {
-                Button(L10n.done, role: .cancel) {}
-            } message: {
-                Text(imageLoadError ?? "")
-            }
-            .sheet(item: $shareItem) { item in
-                ShareSheet(items: [item.url])
-            }
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity)
+            .padding()
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.mosaicTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: pickerItem) { _, newItem in
+            Task { await loadPickedImage(newItem) }
+        }
+        .alert(
+            L10n.mosaicErrorImageEncoding,
+            isPresented: Binding(
+                get: { imageLoadError != nil },
+                set: { if !$0 { imageLoadError = nil } }
+            )
+        ) {
+            Button(L10n.done, role: .cancel) {}
+        } message: {
+            Text(imageLoadError ?? "")
+        }
+        .sheet(item: $shareItem) { item in
+            ShareSheet(items: [item.url])
         }
     }
 
@@ -99,7 +97,8 @@ struct MosaicGeneratorView: View {
     // MARK: - Photo Picker
 
     private var photoSection: some View {
-        VStack(spacing: 12) {
+        let hasImage = viewModel.sourceImage != nil
+        return VStack(spacing: 12) {
             if let image = viewModel.sourceImage {
                 Image(uiImage: image)
                     .resizable()
@@ -116,9 +115,9 @@ struct MosaicGeneratorView: View {
 
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 Label(
-                    viewModel.sourceImage == nil
-                        ? L10n.mosaicChoosePhoto
-                        : L10n.mosaicChangePhoto,
+                    hasImage
+                        ? L10n.mosaicChangePhoto
+                        : L10n.mosaicChoosePhoto,
                     systemImage: "photo.on.rectangle"
                 )
                 .font(.body.weight(.semibold))
@@ -468,5 +467,7 @@ private extension MosaicGeneratorView {
 }
 
 #Preview {
-    MosaicGeneratorView()
+    NavigationStack {
+        MosaicGeneratorView()
+    }
 }

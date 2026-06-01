@@ -323,6 +323,44 @@ struct HomeView: View {
             .accessibilityLabel("Find a Brick")
             .accessibilityHint("Search across the full LEGO catalog and your saved scans")
 
+            // Mosaic Studio — turn a photo into a buildable LEGO mosaic
+            NavigationLink(destination: MosaicGeneratorView()) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.2))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "square.grid.3x3.fill")
+                            .font(.title2)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.mosaicTitle)
+                            .font(.headline)
+                        Text(L10n.mosaicSubheadline)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.legoRed, Color.legoRed.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.legoRed.opacity(0.3), radius: 8, y: 4)
+                )
+                .foregroundStyle(.white)
+            }
+            .accessibilityLabel(L10n.mosaicTitle)
+            .accessibilityHint("Turn a photo into a buildable LEGO brick mosaic")
+
             Button {
                 showingDemoMode = true
             } label: {

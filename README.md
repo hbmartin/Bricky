@@ -7,6 +7,7 @@ An iOS app that uses AR, computer vision, and AI to scan and identify LEGO piece
 - **AR Brick Scanning** — Point your camera at LEGO pieces and identify them in real-time using Vision framework detection with confidence scoring and spatial tracking
 - **Inventory Management** — Organize scanned pieces by color, category, and dimensions; group pieces into storage bins with physical locations
 - **Build Suggestions** — AI-powered engine that recommends buildable projects based on your available inventory with match percentage calculations
+- **Mosaic Studio** *(Bricky Pro)* — Turn any photo into a buildable single-layer LEGO mosaic; the backend returns an LDraw model, step-by-step instructions PDF, and a complete parts list you can share
 - **Minifigure Detection** — Identify and catalog LEGO minifigures by anatomical parts (head, torso, arms, legs, accessories) using Azure AI and CoreML
 - **Piece & Set Catalog** — Browse the LEGO piece catalog with set information; track owned sets and completion status
 - **Community Sharing** — Post builds with photos, captions, and difficulty ratings; like and comment on others' creations
@@ -55,6 +56,13 @@ Bricky/
 ├── ViewModels/     # View models
 └── Views/          # SwiftUI views organized by feature
 ```
+
+## Documentation
+
+- [Architecture](docs/architecture.md) — App architecture and design patterns
+- [Features](docs/features.md) — Detailed feature descriptions and status
+- [Changelog](CHANGELOG.md) — Release history
+- [Contributing](CONTRIBUTING.md) — Development conventions and workflow
 
 ## License
 

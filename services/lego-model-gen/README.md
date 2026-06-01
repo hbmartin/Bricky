@@ -42,3 +42,19 @@ python3 -m venv .venv
 ```
 
 Determinism and cross-artifact brick-count consistency are enforced by the suite.
+
+## iOS client
+
+The Bricky iOS app consumes this API through **Mosaic Studio** (Home → Mosaic
+Studio). The client layer is:
+
+- `Models/MosaicJob.swift` — job/result/parts DTOs
+- `Services/MosaicGenerationService.swift` — `actor` API client (submit, poll,
+  fetch result, download artifacts)
+- `ViewModels/MosaicGeneratorViewModel.swift` — submit → poll → load-result flow
+- `Views/MosaicGeneratorView.swift` — photo picker, size presets, parts list,
+  artifact share sheet
+
+The base URL is configured via `AppConfig.mosaicApiBaseURL` (UserDefaults key
+`bricky.mosaic.apiBaseURL`, env `BRICKY_MOSAIC_API_URL`, default
+`http://localhost:8000`).
