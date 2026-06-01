@@ -81,3 +81,134 @@ enum L10n {
     static let removeFromFavorites = String(localized: "accessibility.removeFromFavorites")
     static let shareBuild = String(localized: "accessibility.shareBuild")
 }
+
+// MARK: - LEGO Mosaic Generator
+
+extension L10n {
+
+    // UI strings
+    static let mosaicTitle = String(
+        localized: "mosaic.title",
+        defaultValue: "Mosaic Studio"
+    )
+    static let mosaicHeadline = String(
+        localized: "mosaic.headline",
+        defaultValue: "Turn a Photo Into a LEGO Mosaic"
+    )
+    static let mosaicSubheadline = String(
+        localized: "mosaic.subheadline",
+        defaultValue: "Pick a photo and \(AppConfig.appName) builds a brick-by-brick mosaic with a parts list and printable instructions."
+    )
+    static let mosaicChoosePhoto = String(
+        localized: "mosaic.choosePhoto",
+        defaultValue: "Choose Photo"
+    )
+    static let mosaicChangePhoto = String(
+        localized: "mosaic.changePhoto",
+        defaultValue: "Change Photo"
+    )
+    static let mosaicMosaicSize = String(
+        localized: "mosaic.mosaicSize",
+        defaultValue: "Mosaic Size"
+    )
+    static let mosaicGenerate = String(
+        localized: "mosaic.generate",
+        defaultValue: "Generate Mosaic"
+    )
+    static let mosaicGenerating = String(
+        localized: "mosaic.generating",
+        defaultValue: "Generating Mosaic…"
+    )
+    static let mosaicSubmitting = String(
+        localized: "mosaic.submitting",
+        defaultValue: "Uploading Photo…"
+    )
+    static let mosaicResultTitle = String(
+        localized: "mosaic.resultTitle",
+        defaultValue: "Your Mosaic"
+    )
+    static let mosaicPartsList = String(
+        localized: "mosaic.partsList",
+        defaultValue: "Parts List"
+    )
+    static let mosaicTotalParts = String(
+        localized: "mosaic.totalParts",
+        defaultValue: "Total Parts"
+    )
+    static let mosaicDownloadModel = String(
+        localized: "mosaic.downloadModel",
+        defaultValue: "Share LDraw Model"
+    )
+    static let mosaicDownloadInstructions = String(
+        localized: "mosaic.downloadInstructions",
+        defaultValue: "Share Instructions PDF"
+    )
+    static let mosaicStartOver = String(
+        localized: "mosaic.startOver",
+        defaultValue: "Start Over"
+    )
+    static let mosaicTryAgain = String(
+        localized: "mosaic.tryAgain",
+        defaultValue: "Try Again"
+    )
+    static let mosaicProTitle = String(
+        localized: "mosaic.proTitle",
+        defaultValue: "Mosaic Studio Is a Pro Feature"
+    )
+    static let mosaicProMessage = String(
+        localized: "mosaic.proMessage",
+        defaultValue: "Upgrade to \(AppConfig.appName) Pro to turn your photos into buildable LEGO mosaics."
+    )
+    static let mosaicColumnPart = String(
+        localized: "mosaic.columnPart",
+        defaultValue: "Part"
+    )
+    static let mosaicColumnColor = String(
+        localized: "mosaic.columnColor",
+        defaultValue: "Color"
+    )
+    static let mosaicColumnQty = String(
+        localized: "mosaic.columnQty",
+        defaultValue: "Qty"
+    )
+
+    static func mosaicGridSummary(_ width: Int, _ height: Int) -> String {
+        String(
+            localized: "mosaic.gridSummary",
+            defaultValue: "\(width) × \(height) studs"
+        )
+    }
+
+    // Error strings (surfaced by MosaicGenerationService.ServiceError)
+    static let mosaicErrorImageEncoding = String(
+        localized: "mosaic.error.imageEncoding",
+        defaultValue: "Couldn't prepare that photo. Try a different image."
+    )
+    static let mosaicErrorUnreachable = String(
+        localized: "mosaic.error.unreachable",
+        defaultValue: "Can't reach the mosaic service. Check your connection and try again."
+    )
+    static let mosaicErrorNotReady = String(
+        localized: "mosaic.error.notReady",
+        defaultValue: "The mosaic isn't ready yet. Please wait a moment."
+    )
+    static let mosaicErrorDecoding = String(
+        localized: "mosaic.error.decoding",
+        defaultValue: "The mosaic service returned an unexpected response."
+    )
+    static let mosaicErrorArtifactURL = String(
+        localized: "mosaic.error.artifactURL",
+        defaultValue: "That mosaic file link is invalid."
+    )
+    static let mosaicErrorServerGeneric = String(
+        localized: "mosaic.error.serverGeneric",
+        defaultValue: "The mosaic service couldn't complete your request."
+    )
+
+    static func mosaicErrorServer(_ status: Int) -> String {
+        String(
+            localized: "mosaic.error.server",
+            defaultValue: "The mosaic service returned an error (\(status))."
+        )
+    }
+}

@@ -89,4 +89,32 @@ enum AppConfig {
 
     /// Support email.
     static let supportEmail = "support@\(appName.lowercased()).app"
+
+    // MARK: - LEGO Mosaic Backend
+
+    /// Base URL for the LEGO Model Generation backend
+    /// (`services/lego-model-gen`).
+    ///
+    /// Resolution order (most → least specific):
+    /// 1. UserDefaults key `bricky.mosaic.apiBaseURL` (settable for QA/dev).
+    /// 2. Environment variable `BRICKY_MOSAIC_API_URL`.
+    /// 3. Local default `http://localhost:8000` — the backend is not yet
+    ///    deployed, so out of the box the client reports an honest
+    ///    "can't reach the service" error rather than pretending to work.
+    static var mosaicApiBaseURL: URL {
+        let key = "\(defaultsPrefix).mosaic.apiBaseURL"
+        if let stored = UserDefaults.standard.string(forKey: key),
+           let url = URL(string: stored) {
+            return url
+        }
+        if let env = ProcessInfo.processInfo.environment["BRICKY_MOSAIC_API_URL"],
+           let url = URL(string: env) {
+            return url
+        }
+        return URL(string: "http://localhost:8000")!
+    }
+
+    /// Hard cap on uploaded source-image size, mirroring the backend's
+    /// 20 MB request limit.
+    static let mosaicMaxUploadBytes = 20 * 1024 * 1024
 }

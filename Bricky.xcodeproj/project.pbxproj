@@ -168,6 +168,12 @@
 		B0805CCD3938B979B9F105CB /* LegoClipVision.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = A6114165C0944AC3D7AB74E3 /* LegoClipVision.mlpackage */; };
 		B0A6769DF69696ACE5374B0F /* FindABrickHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2643F3D5FD09C928C4DC109 /* FindABrickHubView.swift */; };
 		B1BFD5D55D748748506D0D82 /* MosaicGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90AB31D1220D65C2689E58F5 /* MosaicGrid.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* MosaicJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* MosaicJob.swift */; };
+		A1B2C3D4E5F60718293A4B6C /* MosaicGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B6D /* MosaicGenerationService.swift */; };
+		A1B2C3D4E5F60718293A4B7C /* MosaicGeneratorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B7D /* MosaicGeneratorViewModel.swift */; };
+		A1B2C3D4E5F60718293A4B8C /* MosaicGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B8D /* MosaicGeneratorView.swift */; };
+		A1B2C3D4E5F60718293A4B9C /* MosaicGenerationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B9D /* MosaicGenerationServiceTests.swift */; };
+		A1B2C3D4E5F60718293A4BAC /* MosaicGeneratorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4BAD /* MosaicGeneratorViewModelTests.swift */; };
 		B285874AEBBD6B60D562C1EE /* MeshBoundaryStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DC66A819E7BB6589233FB1 /* MeshBoundaryStrategy.swift */; };
 		B3E8AE3A9647E286C420E40D /* AddCustomFigureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5FBCA96D5048523251CF69 /* AddCustomFigureView.swift */; };
 		B4C89046439354DBD1934C9C /* ScanLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289A94F8D51F6A81BB03795F /* ScanLocationTests.swift */; };
@@ -400,6 +406,12 @@
 		9001A7238D055A31B3B8C09B /* SetCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetCollectionView.swift; sourceTree = "<group>"; };
 		9072021918DBCE54D853FB5E /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		90AB31D1220D65C2689E58F5 /* MosaicGrid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGrid.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* MosaicJob.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicJob.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B6D /* MosaicGenerationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGenerationService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B7D /* MosaicGeneratorViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGeneratorViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B8D /* MosaicGeneratorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGeneratorView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B9D /* MosaicGenerationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGenerationServiceTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4BAD /* MosaicGeneratorViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MosaicGeneratorViewModelTests.swift; sourceTree = "<group>"; };
 		91B042C4549FDD1E117F6E44 /* STLExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STLExporter.swift; sourceTree = "<group>"; };
 		94735FD2C6A5358AF7B8DC47 /* DailyChallengeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeCard.swift; sourceTree = "<group>"; };
 		94EC4AD6FE61E96D5770C947 /* ScanCoverageTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCoverageTracker.swift; sourceTree = "<group>"; };
@@ -655,6 +667,7 @@
 				CE2D8454F143148278DCEAF8 /* UserFigureImageStorage.swift */,
 				6474CD34FB5DAD9EBBEAD02D /* VisionUtilities.swift */,
 				56251A01BAF9E2085E6F8667 /* MosaicGenerator.swift */,
+				A1B2C3D4E5F60718293A4B6D /* MosaicGenerationService.swift */,
 				37771A0787156F8024F08E88 /* MinifigureIdentificationService+ColorCascade.swift */,
 				AE053A96798C491A3E81DAC1 /* MinifigureIdentificationService+VisualRefinement.swift */,
 				7449FC696B8C21689C0E8066 /* MinifigureIdentificationService+ColorEvidence.swift */,
@@ -670,6 +683,7 @@
 				982B984D8E7D946CCC0E2EEC /* BuildSuggestionsViewModel.swift */,
 				727291AC9F944667FFD0396C /* CameraViewModel.swift */,
 				4D6CD37B1D3BC2D6BAB6B90D /* CommunityViewModel.swift */,
+				A1B2C3D4E5F60718293A4B7D /* MosaicGeneratorViewModel.swift */,
 				A33A0DBCEE1FF6A32C7D8AA4 /* PieceCatalogViewModel.swift */,
 			);
 			path = ViewModels;
@@ -742,6 +756,8 @@
 				7BB981FEF620BC4F5DD53E89 /* ClipEmbeddingServiceTests.swift */,
 				D90CE2975DE2C38F0D802ED6 /* CodableRoundTripTests.swift */,
 				6235F31196148177708FAD03 /* ContinuousScanCoordinatorTests.swift */,
+				A1B2C3D4E5F60718293A4B9D /* MosaicGenerationServiceTests.swift */,
+				A1B2C3D4E5F60718293A4BAD /* MosaicGeneratorViewModelTests.swift */,
 				CCF424256CABAAAC24AE320A /* FavoritesStoreTests.swift */,
 				8F44C3A349FB7B59F7690004 /* FindABrickTests.swift */,
 				4FF3F97DEB042BAD5BFDDD65 /* HelpAndTipsTests.swift */,
@@ -799,6 +815,7 @@
 				83AD14346743A75D0BA8A27F /* Comment.swift */,
 				2DD6DCED0E9A382C3B24A27F /* CommunityPost.swift */,
 				81040741125F65C2B8ED671E /* DailyChallenge.swift */,
+				A1B2C3D4E5F60718293A4B5D /* MosaicJob.swift */,
 				F83CC8DA6570B80F29F9C562 /* LegoPiece.swift */,
 				CF3F043020FE5C5E9432A511 /* LegoProject.swift */,
 				8BD3A9F8333CC94A28950903 /* LegoSet.swift */,
@@ -823,6 +840,7 @@
 				1F4E25FB64DBA81C66E90F86 /* BuildSuggestionsView.swift */,
 				ECFDC4C269BA2D9DE559517D /* BuildTimerView.swift */,
 				A989E630393136FB68A0F3D2 /* CameraScanView.swift */,
+				A1B2C3D4E5F60718293A4B8D /* MosaicGeneratorView.swift */,
 				8B5940F2D1173F092D494003 /* ColorCalibrationWizardView.swift */,
 				C8D0ECADC055CC9471CBF5FC /* CommentsView.swift */,
 				985E30E418139D7252D46E77 /* CommunityFeedView.swift */,
@@ -1199,6 +1217,10 @@
 				62D1637D8073AE7C5602E699 /* VisionUtilities.swift in Sources */,
 				5648A48E2EC65C3EC1060AFE /* ZoomableImageView.swift in Sources */,
 				B1BFD5D55D748748506D0D82 /* MosaicGrid.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* MosaicJob.swift in Sources */,
+				A1B2C3D4E5F60718293A4B6C /* MosaicGenerationService.swift in Sources */,
+				A1B2C3D4E5F60718293A4B7C /* MosaicGeneratorViewModel.swift in Sources */,
+				A1B2C3D4E5F60718293A4B8C /* MosaicGeneratorView.swift in Sources */,
 				7EEFC7A9938F5C32A238CEF8 /* MosaicGenerator.swift in Sources */,
 				7F642A4EAD976A7151F26ABE /* MinifigureIdentificationService+ColorCascade.swift in Sources */,
 				E7E7F3F9A493CD95B70FB143 /* MinifigureIdentificationService+VisualRefinement.swift in Sources */,
@@ -1259,6 +1281,8 @@
 				0CB06964DAEB8A916BF4938B /* SprintKEngagementTests.swift in Sources */,
 				C2E8CEBC6A55988AC82EBF36 /* TopographicMeshRendererTests.swift in Sources */,
 				A040CB3324F9259F2F804F29 /* MosaicGeneratorTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B9C /* MosaicGenerationServiceTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4BAC /* MosaicGeneratorViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
