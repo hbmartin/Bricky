@@ -20,6 +20,7 @@ struct MosaicGeneratorView: View {
     @State private var isPreparingShare = false
     @State private var partsSort: PartsSort = .quantity
     @State private var showPaywall = false
+    @State private var showCamera = false
 
     /// Caps form-control width so inputs never stretch edge-to-edge on iPad.
     private let contentMaxWidth: CGFloat = 640
@@ -55,6 +56,12 @@ struct MosaicGeneratorView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            MosaicCameraPicker { image in
+                viewModel.sourceImage = image
+            }
+            .ignoresSafeArea()
         }
     }
 
@@ -114,19 +121,34 @@ struct MosaicGeneratorView: View {
                 emptyPhotoPlaceholder
             }
 
-            PhotosPicker(selection: $pickerItem, matching: .images) {
-                Label(
-                    hasImage
-                        ? L10n.mosaicChangePhoto
-                        : L10n.mosaicChoosePhoto,
-                    systemImage: "photo.on.rectangle"
-                )
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    Label(
+                        hasImage
+                            ? L10n.mosaicChangePhoto
+                            : L10n.mosaicChoosePhoto,
+                        systemImage: "photo.on.rectangle"
+                    )
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isBusy)
+
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Label(L10n.mosaicTakePhoto, systemImage: "camera")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isBusy)
+                }
             }
-            .buttonStyle(.bordered)
-            .disabled(viewModel.isBusy)
         }
     }
 
@@ -547,6 +569,44 @@ private extension MosaicGeneratorView {
     struct ShareItem: Identifiable {
         let id = UUID()
         let url: URL
+    }
+}
+
+// MARK: - Camera Picker
+
+/// Minimal `UIImagePickerController` wrapper for capturing a mosaic source
+/// photo with the camera. Mirrors the add-figure flow's picker so the mosaic
+/// studio stays simple and offline-first — no AVFoundation session to manage.
+private struct MosaicCameraPicker: UIViewControllerRepresentable {
+    let onImage: (UIImage) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.allowsEditing = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onImage: (UIImage) -> Void
+        init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            picker.dismiss(animated: true)
+            if let image = (info[.originalImage] as? UIImage)?.normalizedOrientation() {
+                onImage(image)
+            }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
     }
 }
 

@@ -107,6 +107,10 @@ extension L10n {
         localized: "mosaic.changePhoto",
         defaultValue: "Change Photo"
     )
+    static let mosaicTakePhoto = String(
+        localized: "mosaic.takePhoto",
+        defaultValue: "Take Photo"
+    )
     static let mosaicMosaicSize = String(
         localized: "mosaic.mosaicSize",
         defaultValue: "Mosaic Size"
