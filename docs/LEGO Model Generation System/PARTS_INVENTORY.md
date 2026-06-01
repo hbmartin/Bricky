@@ -103,10 +103,15 @@ parts:
   color: Bright Red  
   qty: 42  
   ldraw_color: 4  
-  bricklink_color: 21  
-  rebrickable_color: 1  
+  bricklink_color: 5  
+  rebrickable_color: 4  
 
 total_parts: 1234
+
+> The IDs above are the **correct** cross-system values for Bright Red
+> (LDraw 4, BrickLink 5, Rebrickable 4), resolved from `colors.csv` per
+> DATA_CONTRACTS.md §6. Do **not** hand-enter BrickLink 21 (Light Purple) or
+> Rebrickable 1 (Blue) — see the warning in §3.1.
 
 ---
 

@@ -451,4 +451,63 @@ final class MinifigureIdentificationServiceTests: XCTestCase {
 
         XCTAssertEqual(ranked.first?.figure?.id, blackHelmetFig.id)
     }
+
+    // MARK: - Pure color helpers (module-visible after service split)
+
+    func testClosestLegoColorMatchesPureRed() {
+        let match = MinifigureIdentificationService.shared.closestLegoColor(r: 196, g: 30, b: 24)
+        XCTAssertEqual(match?.color, .red)
+        XCTAssertEqual(match?.distance ?? .infinity, 0, accuracy: 4000)
+    }
+
+    func testClosestLegoColorMatchesPureBlack() {
+        let match = MinifigureIdentificationService.shared.closestLegoColor(r: 8, g: 8, b: 8)
+        XCTAssertEqual(match?.color, .black)
+    }
+
+    func testExtractDominantColorsOnSolidImageReturnsThatColor() throws {
+        let image = try XCTUnwrap(colorBlockImage(blocks: [
+            (r: 40, g: 160, b: 52, startY: 0, endY: 120)
+        ]))
+        let dominant = MinifigureIdentificationService.shared.extractDominantColors(from: image)
+        let first = try XCTUnwrap(dominant.first)
+        let lego = MinifigureIdentificationService.shared.closestLegoColor(r: first.r, g: first.g, b: first.b)?.color
+        XCTAssertEqual(lego, .green)
+    }
+
+    func testCropVerticalBandReturnsRequestedFraction() throws {
+        let image = try XCTUnwrap(colorBlockImage(blocks: [
+            (r: 246, g: 205, b: 55, startY: 0, endY: 120)
+        ], width: 80, height: 120))
+        let band = MinifigureIdentificationService.shared.cropVerticalBand(image, top: 0.25, bottom: 0.75)
+        XCTAssertEqual(band.width, 80)
+        XCTAssertEqual(band.height, 60)
+    }
+
+    // MARK: - distanceToConfidence
+
+    func testDistanceToConfidenceAnchorPoints() {
+        let f = MinifigureIdentificationService.distanceToConfidence
+        XCTAssertEqual(f(0.0), 0.95, accuracy: 0.001)
+        XCTAssertEqual(f(0.4), 0.88, accuracy: 0.001)
+        XCTAssertEqual(f(0.7), 0.78, accuracy: 0.001)
+        XCTAssertEqual(f(1.0), 0.55, accuracy: 0.005)
+    }
+
+    func testDistanceToConfidenceIsMonotonicallyDecreasing() {
+        let f = MinifigureIdentificationService.distanceToConfidence
+        var previous = f(0.0)
+        for step in stride(from: 0.1, through: 2.0, by: 0.1) {
+            let current = f(Float(step))
+            XCTAssertLessThanOrEqual(current, previous + 0.0001,
+                                     "Confidence should not increase as distance grows (d=\(step))")
+            previous = current
+        }
+    }
+
+    func testDistanceToConfidenceFloorAtLargeDistance() {
+        let f = MinifigureIdentificationService.distanceToConfidence
+        XCTAssertEqual(f(5.0), 0.30, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(f(100.0), 0.30)
+    }
 }

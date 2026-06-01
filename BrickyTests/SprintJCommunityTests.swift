@@ -321,6 +321,7 @@ final class CloudKitCommunityServiceTests: XCTestCase {
 
 // MARK: - CommunityViewModel Tests
 
+@MainActor
 final class CommunityViewModelTests: XCTestCase {
 
     func testDefaultFilter() {

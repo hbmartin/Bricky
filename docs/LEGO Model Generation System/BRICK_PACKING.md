@@ -70,4 +70,43 @@ DATA_CONTRACTS.md): 1×1 → `3024`, 1×2 → `3023`, 1×3 → `3623`, 1×4 → 
   { "x": 0, "y": 0, "length": 4, "color": "Bright Red", "part": "3710" },
   { "x": 4, "y": 0, "length": 2, "color": "Bright Red", "part": "3023" },
   { "x": 6, "y": 0, "length": 1, "color": "Bright Red", "part": "3024" }
-]
+]```
+
+The brick list is the authoritative Brick List Contract (see DATA_CONTRACTS.md
+§4); LDraw export, instructions, and the parts list all consume it unchanged.
+
+---
+
+## 5. Invariants (enforced in tests)
+
+Every packer version — v1 through v3 — must satisfy the same correctness
+invariants. Only the *quality* of the packing (seam alignment, cost) improves
+across versions; the contract never weakens.
+
+1. **Full coverage** — Σ `length` over all bricks equals the number of
+   non-`null` grid cells. Every colored stud is covered exactly once.
+2. **No overlap** — No two bricks occupy the same stud.
+3. **Color fidelity** — Each brick's `color` matches the grid cells it covers; a
+   single brick never spans two different colors.
+4. **Part/length consistency** — `part` is pinned by `length` via the shared part
+   table (1→`3024`, 2→`3023`, 3→`3623`, 4→`3710`). No inline magic numbers.
+5. **Determinism** — The same color grid produces a byte-identical brick list
+   across runs (no randomness in the MVP packer).
+
+---
+
+## 6. MVP Scope
+
+The MVP ships **v1 (row-based packing)** only. v2 (stability-aware) and v3
+(cost-optimized) are documented here as the forward roadmap but are out of scope
+for the first release (see MVP_PLAN.md §2). The v1 allowed-part set is 1×1, 1×2,
+1×3, and 1×4 plates laid flat (studs up).
+
+---
+
+## 7. Summary
+
+Brick packing converts the quantized color grid into an ordered, fully-covering,
+non-overlapping brick list. The MVP uses simple per-row run-length tiling (v1);
+later versions add seam-aware stability (v2) and cost optimization (v3) without
+changing the output contract or its invariants.
