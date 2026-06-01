@@ -56,27 +56,53 @@ final class MosaicGeneratorViewModel: ObservableObject {
     @Published private(set) var thumbnail: UIImage?
     @Published private(set) var partsList: MosaicPartsList?
 
-    /// User-selected target size. Defaults to the medium (48×48) preset.
+    /// User-editable caption for the finished mosaic.
+    @Published var caption: String = ""
+    /// User-editable longer description for the finished mosaic.
+    @Published var captionDescription: String = ""
+    /// Whether a caption has been generated for the current result.
+    @Published private(set) var isCaptionGenerated = false
+
+    /// User-selected target size. Defaults to the medium (48×48) preset for Pro
+    /// users, and the free preset for everyone else.
     @Published var selectedPreset: MosaicGridPreset = .medium
+
+    /// The single mosaic size available on the free tier. All larger sizes
+    /// require Bricky Pro.
+    static let freePreset: MosaicGridPreset = .small
 
     // MARK: - Dependencies
 
     private let isProProvider: @MainActor () -> Bool
     private var generationTask: Task<Void, Never>?
+    private let history: MosaicScanHistoryStore
+    private var historyId: UUID?
 
     init(
-        isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro }
+        isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro },
+        history: MosaicScanHistoryStore? = nil
     ) {
         self.isProProvider = isProProvider
+        self.history = history ?? .shared
+        // Free users default to (and can only use) the free preset.
+        if !isProProvider() {
+            self.selectedPreset = Self.freePreset
+        }
     }
 
     // MARK: - Derived State
 
-    /// Mosaic generation is a Pro feature; free users see an honest upsell.
     var isProUser: Bool { isProProvider() }
+
+    /// Whether the given size is available to the current user. The free preset
+    /// is always available; all larger sizes require Bricky Pro.
+    func isPresetUnlocked(_ preset: MosaicGridPreset) -> Bool {
+        isProUser || preset == Self.freePreset
+    }
 
     var canGenerate: Bool {
         guard sourceImage != nil else { return false }
+        guard isPresetUnlocked(selectedPreset) else { return false }
         switch phase {
         case .submitting, .processing:
             return false
@@ -118,12 +144,18 @@ final class MosaicGeneratorViewModel: ObservableObject {
     func generate() {
         guard let image = sourceImage else { return }
         guard !isBusy else { return }
+        // Larger sizes are gated behind Pro; never generate a locked size.
+        guard isPresetUnlocked(selectedPreset) else { return }
 
         cancel()
         result = nil
         thumbnail = nil
         partsList = nil
         snappedGrid = nil
+        caption = ""
+        captionDescription = ""
+        isCaptionGenerated = false
+        historyId = nil
         phase = .submitting
 
         let preset = selectedPreset
@@ -146,7 +178,33 @@ final class MosaicGeneratorViewModel: ObservableObject {
         thumbnail = nil
         partsList = nil
         snappedGrid = nil
+        caption = ""
+        captionDescription = ""
+        isCaptionGenerated = false
+        historyId = nil
         phase = .idle
+    }
+
+    /// Generate an honest caption and description from the finished mosaic.
+    func generateCaption() {
+        guard let parts = partsList, let grid = snappedGrid, let result else { return }
+        let generated = MosaicCaptionGenerator.generate(
+            width: grid.width,
+            height: grid.height,
+            parts: parts,
+            brickCount: result.brickCount
+        )
+        caption = generated.caption
+        captionDescription = generated.description
+        isCaptionGenerated = true
+        persistCaption()
+    }
+
+    /// Save the current (possibly user-edited) caption and description back to
+    /// the saved history entry.
+    func persistCaption() {
+        guard let historyId else { return }
+        history.updateCaption(id: historyId, caption: caption, detail: captionDescription)
     }
 
     // MARK: - Flow
@@ -178,6 +236,19 @@ final class MosaicGeneratorViewModel: ObservableObject {
             let local = try writeArtifacts(output, jobId: jobId)
             if Task.isCancelled { return }
             result = local
+            historyId = history.record(
+                gridWidth: output.grid.width,
+                gridHeight: output.grid.height,
+                brickCount: output.brickCount,
+                studCount: output.studCount,
+                totalParts: output.parts.totalParts,
+                parts: output.parts.parts,
+                presetLabel: preset.label,
+                sourceImage: image,
+                thumbnail: output.thumbnail,
+                ldrText: output.ldrText,
+                pdfData: output.pdfData
+            )
             phase = .completed
         } catch is CancellationError {
             // User cancelled — cancel() already cleared the task.

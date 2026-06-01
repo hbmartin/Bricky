@@ -147,6 +147,26 @@ extension L10n {
         localized: "mosaic.startOver",
         defaultValue: "Start Over"
     )
+    static let mosaicGenerateCaption = String(
+        localized: "mosaic.generateCaption",
+        defaultValue: "Generate Caption & Description"
+    )
+    static let mosaicRegenerateCaption = String(
+        localized: "mosaic.regenerateCaption",
+        defaultValue: "Regenerate"
+    )
+    static let mosaicCaptionLabel = String(
+        localized: "mosaic.captionLabel",
+        defaultValue: "Caption"
+    )
+    static let mosaicDescriptionLabel = String(
+        localized: "mosaic.descriptionLabel",
+        defaultValue: "Description"
+    )
+    static let mosaicCaptionSectionTitle = String(
+        localized: "mosaic.captionSectionTitle",
+        defaultValue: "Caption & Description"
+    )
     static let mosaicTryAgain = String(
         localized: "mosaic.tryAgain",
         defaultValue: "Try Again"
@@ -158,6 +178,10 @@ extension L10n {
     static let mosaicProMessage = String(
         localized: "mosaic.proMessage",
         defaultValue: "Upgrade to \(AppConfig.appName) Pro to turn your photos into buildable LEGO mosaics."
+    )
+    static let mosaicProBadge = String(
+        localized: "mosaic.proBadge",
+        defaultValue: "Pro"
     )
     static let mosaicColumnPart = String(
         localized: "mosaic.columnPart",

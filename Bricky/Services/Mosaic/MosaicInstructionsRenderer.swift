@@ -109,7 +109,8 @@ enum MosaicInstructionsRenderer {
         drawCentered("\(brickCount) bricks", y: 1.85 * inch, font: .systemFont(ofSize: 12))
 
         let mosaic = renderMosaic(grid: grid, palette: palette, cellPx: 10)
-        drawImageCentered(mosaic, top: pageSize.height - 2.2 * inch, maxHeight: 6.0 * inch)
+        let mosaicTop = 2.3 * inch
+        drawImageCentered(mosaic, top: mosaicTop, maxHeight: pageSize.height - mosaicTop - inch)
     }
 
     private static func drawPartsPages(_ ctx: UIGraphicsPDFRendererContext, parts: MosaicPartsList) {

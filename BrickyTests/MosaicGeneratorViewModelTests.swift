@@ -121,4 +121,53 @@ final class MosaicGeneratorViewModelTests: XCTestCase {
         XCTAssertNil(vm.partsList)
         XCTAssertNil(vm.snappedGrid)
     }
+
+    // MARK: - Free / Pro size gating
+
+    func testFreeUserDefaultsToFreePreset() {
+        let vm = makeViewModel(isPro: false)
+        XCTAssertEqual(vm.selectedPreset, MosaicGeneratorViewModel.freePreset)
+        XCTAssertEqual(MosaicGeneratorViewModel.freePreset, .small)
+    }
+
+    func testFreeUserOnlyUnlocksFreePreset() {
+        let vm = makeViewModel(isPro: false)
+        XCTAssertTrue(vm.isPresetUnlocked(.small))
+        XCTAssertFalse(vm.isPresetUnlocked(.medium))
+        XCTAssertFalse(vm.isPresetUnlocked(.large))
+        XCTAssertFalse(vm.isPresetUnlocked(.max))
+    }
+
+    func testProUserUnlocksAllPresets() {
+        let vm = makeViewModel(isPro: true)
+        for preset in MosaicGridPreset.allCases {
+            XCTAssertTrue(vm.isPresetUnlocked(preset))
+        }
+    }
+
+    func testFreeUserCanGenerateFreePreset() {
+        let vm = makeViewModel(isPro: false)
+        vm.selectedPreset = .small
+        vm.sourceImage = solidImage(.red)
+        XCTAssertTrue(vm.canGenerate)
+    }
+
+    func testFreeUserCannotGenerateLockedPreset() {
+        let vm = makeViewModel(isPro: false)
+        vm.selectedPreset = .large
+        vm.sourceImage = solidImage(.red)
+        XCTAssertFalse(vm.canGenerate)
+
+        // Defense in depth: generate() must not start a locked-size job.
+        vm.generate()
+        XCTAssertEqual(vm.phase, .idle)
+        XCTAssertNil(vm.result)
+    }
+
+    func testProUserCanGenerateLargerPreset() {
+        let vm = makeViewModel(isPro: true)
+        vm.selectedPreset = .medium
+        vm.sourceImage = solidImage(.red)
+        XCTAssertTrue(vm.canGenerate)
+    }
 }

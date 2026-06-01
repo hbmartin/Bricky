@@ -7,6 +7,7 @@ struct HomeView: View {
     @StateObject private var inventoryStore = InventoryStore.shared
     @StateObject private var scanHistory = ScanHistoryStore.shared
     @StateObject private var minifigureScanHistory = MinifigureScanHistoryStore.shared
+    @StateObject private var mosaicScanHistory = MosaicScanHistoryStore.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var authService = AuthenticationService.shared
     @State private var showingDemoMode = false
@@ -65,6 +66,11 @@ struct HomeView: View {
                     minifigureScanHistorySection
                 }
 
+                // Mosaic scan history
+                if !mosaicScanHistory.entries.isEmpty {
+                    mosaicScanHistorySection
+                }
+
                 // How it works
                 howItWorks
             }
@@ -73,6 +79,7 @@ struct HomeView: View {
         .refreshable {
             scanHistory.reload()
             minifigureScanHistory.reload()
+            mosaicScanHistory.reload()
         }
         .navigationTitle("\(AppConfig.appName)")
         .navigationDestination(for: UUID.self) { inventoryId in
@@ -1023,6 +1030,102 @@ struct HomeView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(entry.confidence >= 0.75 ? .green : entry.confidence >= 0.5 ? .orange : .red)
                 Text("match")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+    }
+
+    // MARK: - Mosaic Scan History
+
+    @ViewBuilder
+    private var mosaicScanHistorySection: some View {
+        let recentEntries = Array(mosaicScanHistory.entries.prefix(4))
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Mosaic Scans")
+                    .font(.headline)
+                Spacer()
+                NavigationLink {
+                    MosaicScanHistoryView()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "list.bullet")
+                        Text("View All (\(mosaicScanHistory.entries.count))")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(themeManager.colorTheme.primary)
+                }
+            }
+
+            ForEach(recentEntries) { entry in
+                NavigationLink {
+                    MosaicScanHistoryView()
+                } label: {
+                    mosaicScanEntryRow(entry)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func mosaicScanEntryRow(_ entry: MosaicScanHistoryStore.ScanEntry) -> some View {
+        HStack(spacing: 12) {
+            if let img = mosaicScanHistory.thumbnail(for: entry) {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: 56, height: 56)
+                    .overlay {
+                        Image(systemName: "square.grid.3x3.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.caption.isEmpty ? "LEGO Mosaic" : entry.caption)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if !entry.presetLabel.isEmpty {
+                        Text(entry.presetLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(entry.date, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Text("\(entry.gridWidth)×\(entry.gridHeight) • \(entry.totalParts) parts")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text("\(entry.brickCount)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.colorTheme.primary)
+                Text("bricks")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

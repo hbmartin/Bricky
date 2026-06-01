@@ -10,7 +10,8 @@ import PhotosUI
 /// backend is unreachable the user sees a real error and a retry, not a fake
 /// result.
 ///
-/// Mosaic generation is a Bricky Pro feature; free users get an honest upsell.
+/// The smallest mosaic size is free; larger sizes require Bricky Pro and surface
+/// an honest paywall when a free user taps them.
 struct MosaicGeneratorView: View {
     @StateObject private var viewModel = MosaicGeneratorViewModel()
     @State private var pickerItem: PhotosPickerItem?
@@ -18,6 +19,7 @@ struct MosaicGeneratorView: View {
     @State private var shareItem: ShareItem?
     @State private var isPreparingShare = false
     @State private var partsSort: PartsSort = .quantity
+    @State private var showPaywall = false
 
     /// Caps form-control width so inputs never stretch edge-to-edge on iPad.
     private let contentMaxWidth: CGFloat = 640
@@ -25,11 +27,7 @@ struct MosaicGeneratorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                if viewModel.isProUser {
-                    content
-                } else {
-                    proUpsell
-                }
+                content
             }
             .frame(maxWidth: contentMaxWidth)
             .frame(maxWidth: .infinity)
@@ -54,6 +52,9 @@ struct MosaicGeneratorView: View {
         }
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.url])
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 
@@ -150,15 +151,47 @@ struct MosaicGeneratorView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(L10n.mosaicMosaicSize)
                 .font(.subheadline.weight(.semibold))
-            Picker(L10n.mosaicMosaicSize, selection: $viewModel.selectedPreset) {
+            HStack(spacing: 8) {
                 ForEach(MosaicGridPreset.allCases) { preset in
-                    Text(preset.label).tag(preset)
+                    presetButton(preset)
                 }
             }
-            .pickerStyle(.segmented)
-            .disabled(viewModel.isBusy)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func presetButton(_ preset: MosaicGridPreset) -> some View {
+        let isSelected = viewModel.selectedPreset == preset
+        let isUnlocked = viewModel.isPresetUnlocked(preset)
+        return Button {
+            if isUnlocked {
+                viewModel.selectedPreset = preset
+            } else {
+                showPaywall = true
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Text(preset.label)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if !isUnlocked {
+                    Label(L10n.mosaicProBadge, systemImage: "lock.fill")
+                        .font(.caption2.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.blue : Color(.tertiarySystemFill))
+            )
+            .foregroundStyle(isSelected ? Color.white : (isUnlocked ? Color.primary : Color.secondary))
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isBusy)
+        .accessibilityLabel(isUnlocked ? preset.label : "\(preset.label), Pro")
     }
 
     private var generateButton: some View {
@@ -267,6 +300,8 @@ struct MosaicGeneratorView: View {
                 partsListView(parts)
             }
 
+            captionSection
+
             artifactButtons
             startOverButton
         }
@@ -327,6 +362,75 @@ struct MosaicGeneratorView: View {
         }
     }
 
+    // MARK: - Caption & Description
+
+    private var captionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.mosaicCaptionSectionTitle)
+                .font(.headline)
+
+            if viewModel.isCaptionGenerated {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.mosaicCaptionLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextField(
+                            L10n.mosaicCaptionLabel,
+                            text: $viewModel.caption,
+                            axis: .vertical
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: viewModel.caption) { _, _ in
+                            viewModel.persistCaption()
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.mosaicDescriptionLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: $viewModel.captionDescription)
+                            .frame(minHeight: 96)
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color(.tertiarySystemBackground))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(Color(.separator))
+                            )
+                            .onChange(of: viewModel.captionDescription) { _, _ in
+                                viewModel.persistCaption()
+                            }
+                    }
+
+                    Button {
+                        viewModel.generateCaption()
+                    } label: {
+                        Label(L10n.mosaicRegenerateCaption, systemImage: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else {
+                Button {
+                    viewModel.generateCaption()
+                } label: {
+                    Label(L10n.mosaicGenerateCaption, systemImage: "sparkles")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                }
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
     private var artifactButtons: some View {
         VStack(spacing: 10) {
             artifactButton(
@@ -360,6 +464,7 @@ struct MosaicGeneratorView: View {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
+            .padding(.horizontal, 16)
         }
         .background(Color.blue)
         .foregroundStyle(.white)
@@ -379,27 +484,6 @@ struct MosaicGeneratorView: View {
                 .padding(.vertical, 12)
         }
         .buttonStyle(.bordered)
-    }
-
-    // MARK: - Pro Upsell
-
-    private var proUpsell: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "crown")
-                .font(.system(size: 44))
-                .foregroundStyle(.yellow)
-            Text(L10n.mosaicProTitle)
-                .font(.title3.weight(.bold))
-                .multilineTextAlignment(.center)
-            Text(L10n.mosaicProMessage)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Helpers

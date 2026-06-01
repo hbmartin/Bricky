@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		003C7A49C898B6FFC6FB08F6 /* MosaicScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9DE099980B1D4EA87566B9 /* MosaicScanHistoryView.swift */; };
 		0408860D310950DE51177782 /* LegoClipVision_config.json in Resources */ = {isa = PBXBuildFile; fileRef = EDE565380F0069B147EF9380 /* LegoClipVision_config.json */; };
 		041D123D659D0A07C7666148 /* ShareCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CF02322D2006E0C99F8B44 /* ShareCreationView.swift */; };
 		04C452E195B06060AC82EBF4 /* LDrawColorMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B86874852D5B48B3807DEF9 /* LDrawColorMap.swift */; };
@@ -55,6 +56,7 @@
 		2F2A9CABE64F2BEA701D2AF7 /* report-20260531-222304.md in Resources */ = {isa = PBXBuildFile; fileRef = D7991FA33D4491747A3AD85B /* report-20260531-222304.md */; };
 		2FDBC76750C77736B6A673E2 /* report-20260427-013325.md in Resources */ = {isa = PBXBuildFile; fileRef = 229985718743F6B33E77856B /* report-20260427-013325.md */; };
 		30D5276335F1ACB479608392 /* MinifigureAddToCatalogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC75E5D0A15D3C00526F5FE /* MinifigureAddToCatalogSheet.swift */; };
+		314D46A9BB6713147D17CDD3 /* MosaicCaptionGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDA73590BF3342373FEF527A /* MosaicCaptionGeneratorTests.swift */; };
 		315FE5FAA801B8C56FE53538 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF232513B9E25E5D6A958E31 /* AppConfig.swift */; };
 		35786DA2B66428B54EFFF0A1 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727291AC9F944667FFD0396C /* CameraViewModel.swift */; };
 		3753741E07C6D0314B8DFB61 /* CameraViewModelARTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAF34A45E595FE235AD9969 /* CameraViewModelARTests.swift */; };
@@ -125,6 +127,7 @@
 		69ADBF16A74187AD7DE6B4A6 /* mosaic-palette-mvp-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = B5356E12D256C6E2A74B79A4 /* mosaic-palette-mvp-v1.json */; };
 		6A438D773318DDA2B50A82D9 /* MinifigureScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F5A40CFF97FF2D821A76DA /* MinifigureScanHistoryView.swift */; };
 		6AD109C830B95C194224A87E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11C8A0F0AB126A3FC62A2A4 /* HomeView.swift */; };
+		6AF975212B3A6FB9A6D5F334 /* MosaicScanHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1072C8F306EA42B3734BAE9D /* MosaicScanHistoryStoreTests.swift */; };
 		6B7F5CE0D1BC6B10FB4C9134 /* CloudKitCommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E451E7463159D06800E2112 /* CloudKitCommunityService.swift */; };
 		6DA47EE301A62B6F15A24D38 /* clip_embeddings.bin in Resources */ = {isa = PBXBuildFile; fileRef = 5FCCEE648179E1E149AC6C1D /* clip_embeddings.bin */; };
 		6E876296716A1ECA382DF400 /* ScannerGroundTruthHarnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E22D971F163092F0000B3CD /* ScannerGroundTruthHarnessTests.swift */; };
@@ -153,6 +156,7 @@
 		814765156EC3BB0AD1A9E33F /* lego_minifigure_shell_worker_ shell010 _fig-005115.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 9F186580C7074F532BB826B1 /* lego_minifigure_shell_worker_ shell010 _fig-005115.jpeg */; };
 		81E181F84F0776526C5E0333 /* report-20260427-014726.md in Resources */ = {isa = PBXBuildFile; fileRef = 6617E51C62F4EA0143E9F98A /* report-20260427-014726.md */; };
 		8280ED874D3B24A20300260A /* PileTopographicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5BA6480A08BA0EBA5559C9 /* PileTopographicView.swift */; };
+		82BFBFE98CC87E02A0187684 /* MosaicScanHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 434C1E164DBB68B6D366B982 /* MosaicScanHistoryStore.swift */; };
 		8315073307EC87D8432464C1 /* HybridFigureAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25C2442A5A513C4D8F057EA0 /* HybridFigureAnalyzer.swift */; };
 		8437436BAF820B041765C10A /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA5F48D69BDDE11E58AA1E9 /* FavoritesStore.swift */; };
 		84FD24D86AE74B0278D6A8D9 /* MinifigImages in Resources */ = {isa = PBXBuildFile; fileRef = 21E8CE05EE2EE49A13C94740 /* MinifigImages */; };
@@ -177,6 +181,7 @@
 		91E714F19CA3F390D3972519 /* MosaicColorScience.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46817B9A6D66A09A92C89BFF /* MosaicColorScience.swift */; };
 		928E5A471D7B723A45C1E500 /* lego_minifigure_ice_planet_male_sp018_fig-000113.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 5607DAD2893764F5AF47F3A2 /* lego_minifigure_ice_planet_male_sp018_fig-000113.jpeg */; };
 		92A351CDB3FF9CDD1B6D9127 /* MinifigureScanTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EC01325E356B7DA99DE9FA /* MinifigureScanTuning.swift */; };
+		93B288C0CEFBC7F311AFC32C /* MosaicCaptionGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649D7A797250B2F920128690 /* MosaicCaptionGenerator.swift */; };
 		95B0EFA598F937D751738193 /* SprintDFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71ABC00264BEE119191B3AA /* SprintDFeatureTests.swift */; };
 		96900AF879493DFD873B37D9 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3390E508D00CAA57346A79AB /* AnalyticsService.swift */; };
 		97D1059930F03189B13BEC1B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC425B20D8B2BADA0FB3C317 /* SettingsView.swift */; };
@@ -332,6 +337,7 @@
 		0C9598800607FE66FCA7EB02 /* MinifigureScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureScanHistoryStore.swift; sourceTree = "<group>"; };
 		0CBB702DF4BD9264251C72D1 /* LDrawTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawTests.swift; sourceTree = "<group>"; };
 		0F02C2039E4A6BBECE32EAF6 /* FaceEmbeddingIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceEmbeddingIndex.swift; sourceTree = "<group>"; };
+		1072C8F306EA42B3734BAE9D /* MosaicScanHistoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicScanHistoryStoreTests.swift; sourceTree = "<group>"; };
 		10DCC98BF2ADC75548CD3C0F /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		11A52E74B4552366C5A59D95 /* PieceLocationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieceLocationView.swift; sourceTree = "<group>"; };
 		11D4702006A271A5D25E71D6 /* report-20260531-215338.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260531-215338.md"; sourceTree = "<group>"; };
@@ -396,6 +402,7 @@
 		40F5A0FA3E0551C2CF84341D /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
 		41895B88ED3E0CDA22B6EB36 /* InventoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryDetailView.swift; sourceTree = "<group>"; };
 		42F5A40CFF97FF2D821A76DA /* MinifigureScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureScanHistoryView.swift; sourceTree = "<group>"; };
+		434C1E164DBB68B6D366B982 /* MosaicScanHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicScanHistoryStore.swift; sourceTree = "<group>"; };
 		441BA4C0E0F0868E0AA8CDE4 /* MinifigureImageCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureImageCacheTests.swift; sourceTree = "<group>"; };
 		45B2160322523EAA7DAA9C44 /* MinifigureIdentificationService+ColorCascade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MinifigureIdentificationService+ColorCascade.swift"; sourceTree = "<group>"; };
 		45D235600C5D0BCDBE60EE7D /* MinifigureCollectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureCollectionStore.swift; sourceTree = "<group>"; };
@@ -424,6 +431,7 @@
 		61338725147C0143FDFD72F5 /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileView.swift; sourceTree = "<group>"; };
 		6235F31196148177708FAD03 /* ContinuousScanCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuousScanCoordinatorTests.swift; sourceTree = "<group>"; };
 		6474CD34FB5DAD9EBBEAD02D /* VisionUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionUtilities.swift; sourceTree = "<group>"; };
+		649D7A797250B2F920128690 /* MosaicCaptionGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicCaptionGenerator.swift; sourceTree = "<group>"; };
 		64BF55BE400C39A582C522D8 /* StorageBin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageBin.swift; sourceTree = "<group>"; };
 		65176BAA967167A1BD3877BB /* report-20260427-005637.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-005637.md"; sourceTree = "<group>"; };
 		6617E51C62F4EA0143E9F98A /* report-20260427-014726.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-014726.md"; sourceTree = "<group>"; };
@@ -531,6 +539,7 @@
 		BAC6BCC2E625333E59FFB6CE /* LegoProjectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegoProjectTests.swift; sourceTree = "<group>"; };
 		BD41E24B5621F0DC7B403E7C /* BrickognizeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrickognizeServiceTests.swift; sourceTree = "<group>"; };
 		BD67ACED53FB11867E16E482 /* report-20260427-015843.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-015843.md"; sourceTree = "<group>"; };
+		BD9DE099980B1D4EA87566B9 /* MosaicScanHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicScanHistoryView.swift; sourceTree = "<group>"; };
 		BDF6118D1B7D9C6012302D5C /* ColorCalibrationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorCalibrationStore.swift; sourceTree = "<group>"; };
 		C13C9D04D0DEEB3BC1283624 /* TorsoEmbeddingIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorsoEmbeddingIndex.swift; sourceTree = "<group>"; };
 		C1AA631EAC9DCAA62EF95165 /* BrickyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -589,6 +598,7 @@
 		ECC883C3B9260A99734D2106 /* LiDARTopographicRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARTopographicRendererTests.swift; sourceTree = "<group>"; };
 		ECFDC4C269BA2D9DE559517D /* BuildTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildTimerView.swift; sourceTree = "<group>"; };
 		ED9B4D5912641455ED012E81 /* BuildSuggestionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildSuggestionsViewModelTests.swift; sourceTree = "<group>"; };
+		EDA73590BF3342373FEF527A /* MosaicCaptionGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicCaptionGeneratorTests.swift; sourceTree = "<group>"; };
 		EDE565380F0069B147EF9380 /* LegoClipVision_config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = LegoClipVision_config.json; sourceTree = "<group>"; };
 		F037CAB99D8B39CE75C95ED9 /* report-20260427-005834.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-005834.md"; sourceTree = "<group>"; };
 		F0427FC1808749431CAC8258 /* report-20260427-010302.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-010302.md"; sourceTree = "<group>"; };
@@ -755,6 +765,7 @@
 				F8EC01325E356B7DA99DE9FA /* MinifigureScanTuning.swift */,
 				F05AC84333E4482214E0DFB2 /* MinifigureTrainingStore.swift */,
 				2782245B609B25E939705779 /* MosaicGenerator.swift */,
+				434C1E164DBB68B6D366B982 /* MosaicScanHistoryStore.swift */,
 				C22FABFA3E44FCE643ABCB87 /* NaturalLanguageSearchService.swift */,
 				E8CCDD6FBB615821CE170B56 /* ObjectRecognitionService.swift */,
 				1F44F56B0CFE34F8018C3769 /* OrganicBoundaryTracker.swift */,
@@ -870,6 +881,7 @@
 		9C897FF81F24CC63BDE56775 /* Mosaic */ = {
 			isa = PBXGroup;
 			children = (
+				649D7A797250B2F920128690 /* MosaicCaptionGenerator.swift */,
 				16CE0D8C133FE211E6CF4AC8 /* MosaicColorGrid.swift */,
 				46817B9A6D66A09A92C89BFF /* MosaicColorScience.swift */,
 				F6B86352A39704B5B359B3C5 /* MosaicEngine.swift */,
@@ -926,9 +938,11 @@
 				6FD3890394088A8DB19DECD5 /* MinifigureIdentificationServiceTests.swift */,
 				441BA4C0E0F0868E0AA8CDE4 /* MinifigureImageCacheTests.swift */,
 				D49447E4BE19517E0C82FC57 /* MinifigurePartClassifierTests.swift */,
+				EDA73590BF3342373FEF527A /* MosaicCaptionGeneratorTests.swift */,
 				26AAB22D9F2EDDF4771B8D26 /* MosaicEngineGoldenTests.swift */,
 				B15D449953A714BAE4705875 /* MosaicGeneratorTests.swift */,
 				02000198F15ECF55357361A9 /* MosaicGeneratorViewModelTests.swift */,
+				1072C8F306EA42B3734BAE9D /* MosaicScanHistoryStoreTests.swift */,
 				964FE1B654CF64B4AC5F6C26 /* MosaicVisionTests.swift */,
 				8CD8A66880643479583100CE /* PhotoSubjectClassifierTests.swift */,
 				76E9DC5E0CF122DD6988BE8C /* PieceCatalogViewModelTests.swift */,
@@ -1022,6 +1036,7 @@
 				0213EE4A27704B4FF8FD871B /* MinifigureScanView.swift */,
 				1E440C896D7EDC0AB683ACC5 /* ModelViewerView.swift */,
 				815403900D6C26B4CBBAD13B /* MosaicGeneratorView.swift */,
+				BD9DE099980B1D4EA87566B9 /* MosaicScanHistoryView.swift */,
 				FE9DA55DA345FE7951948094 /* MultiScanFindResultsView.swift */,
 				D83531232B8BF9A9B795E914 /* OnboardingView.swift */,
 				877449AA444CB12ACB349003 /* PaywallView.swift */,
@@ -1368,6 +1383,7 @@
 				E6B3126504A261F5DDAD6D6C /* MinifigureScanView.swift in Sources */,
 				45657379F1C5741CF0D78752 /* MinifigureTrainingStore.swift in Sources */,
 				DE4E2645BB357B9F065CBFE7 /* ModelViewerView.swift in Sources */,
+				93B288C0CEFBC7F311AFC32C /* MosaicCaptionGenerator.swift in Sources */,
 				76513C5915D940EFFD111363 /* MosaicColorGrid.swift in Sources */,
 				91E714F19CA3F390D3972519 /* MosaicColorScience.swift in Sources */,
 				0A3DBE2681CC9F3F4F9EAA82 /* MosaicEngine.swift in Sources */,
@@ -1381,6 +1397,8 @@
 				FBA1B59A5BA53C77E1FBE364 /* MosaicPacker.swift in Sources */,
 				5FF12AFA42817B185B9AB41C /* MosaicPalette.swift in Sources */,
 				37A6C070A5FEE152BBE594CF /* MosaicPartsAggregator.swift in Sources */,
+				82BFBFE98CC87E02A0187684 /* MosaicScanHistoryStore.swift in Sources */,
+				003C7A49C898B6FFC6FB08F6 /* MosaicScanHistoryView.swift in Sources */,
 				58283081EEC8DB393B88322F /* MosaicVision.swift in Sources */,
 				A300C642700D56ABAFE3E411 /* MultiScanFindResultsView.swift in Sources */,
 				0A1045951C46F88007550076 /* NaturalLanguageSearchService.swift in Sources */,
@@ -1481,9 +1499,11 @@
 				2D10DD9EC183DBB261FBCF2D /* MinifigureIdentificationServiceTests.swift in Sources */,
 				459A330FF64F5A3758B8B288 /* MinifigureImageCacheTests.swift in Sources */,
 				05377A8DA04EE7EBB0D73A7C /* MinifigurePartClassifierTests.swift in Sources */,
+				314D46A9BB6713147D17CDD3 /* MosaicCaptionGeneratorTests.swift in Sources */,
 				BB877E5346B0F6C8459F657C /* MosaicEngineGoldenTests.swift in Sources */,
 				52CE8A52365755F19F2406C6 /* MosaicGeneratorTests.swift in Sources */,
 				5F94C88928DE7902079E118B /* MosaicGeneratorViewModelTests.swift in Sources */,
+				6AF975212B3A6FB9A6D5F334 /* MosaicScanHistoryStoreTests.swift in Sources */,
 				69618A69EEADFA7C569D5548 /* MosaicVisionTests.swift in Sources */,
 				68F6E5869ED1BEA50EB399FC /* PhotoSubjectClassifierTests.swift in Sources */,
 				CFE0338FD0406EE392C5A882 /* PieceCatalogViewModelTests.swift in Sources */,

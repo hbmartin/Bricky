@@ -49,3 +49,6 @@ Carthage/Checkouts/
 
 # Ground-truth harness reports (regenerated each run)
 BrickyTests/GroundTruth/reports/*.md
+
+# Agent Dashboard temp images
+.agent-dashboard/
