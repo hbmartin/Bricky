@@ -135,9 +135,34 @@ struct PaywallView: View {
 
     private var pricingSection: some View {
         VStack(spacing: 12) {
-            if subscription.products.isEmpty && subscription.purchaseError == nil {
+            switch subscription.productsLoadState {
+            case .loading:
                 ProgressView("Loading plans...")
-            } else if let error = subscription.purchaseError {
+            case .unavailable:
+                VStack(spacing: 8) {
+                    Text("Plans are unavailable right now.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Text("Check your connection and try again in a moment.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        Task { await subscription.reloadProducts() }
+                    } label: {
+                        Text("Try Again")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.legoBlue)
+                    }
+                }
+                .padding(.vertical, 8)
+            case .loaded:
+                EmptyView()
+            }
+
+            if let error = subscription.purchaseError {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)

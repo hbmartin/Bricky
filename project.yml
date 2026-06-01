@@ -117,3 +117,27 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Bricky
+
+schemes:
+  Bricky:
+    build:
+      targets:
+        Bricky: all
+    run:
+      config: Debug
+      # Local StoreKit products so the paywall loads (and purchases work) in
+      # the simulator without configuring/approving IAPs in App Store Connect.
+      storeKitConfiguration: Bricky.storekit
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - BrickyTests
+        - BrickyUITests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+

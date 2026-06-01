@@ -19,9 +19,20 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Published State
 
+    /// Lifecycle of the StoreKit product fetch, so the paywall can show an
+    /// honest state instead of spinning forever when StoreKit returns no
+    /// products (e.g. no `.storekit` config in the scheme, or the IAPs aren't
+    /// configured/approved in App Store Connect).
+    enum ProductsLoadState {
+        case loading
+        case loaded
+        case unavailable
+    }
+
     @Published private(set) var isPro: Bool = false
     @Published private(set) var isFamilyShared: Bool = false
     @Published private(set) var products: [Product] = []
+    @Published private(set) var productsLoadState: ProductsLoadState = .loading
     @Published private(set) var purchaseError: String?
     @Published private(set) var isLoading = false
     @Published private(set) var dailyScanCount: Int = 0
@@ -189,12 +200,47 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Product Fetching
 
+    private struct ProductFetchTimeout: Error {}
+
+    /// Public entry point for the paywall's "Try Again" button.
+    func reloadProducts() async {
+        await fetchProducts()
+    }
+
     private func fetchProducts() async {
+        productsLoadState = .loading
         do {
-            let storeProducts = try await Product.products(for: Self.productIDs)
+            let storeProducts = try await withProductTimeout(seconds: 15) {
+                try await Product.products(for: Self.productIDs)
+            }
             products = storeProducts.sorted { $0.price < $1.price }
+            // An empty (non-throwing) result means StoreKit found none of the
+            // requested product IDs — surface an honest "unavailable" state
+            // rather than leaving the paywall on an infinite spinner.
+            productsLoadState = products.isEmpty ? .unavailable : .loaded
         } catch {
-            purchaseError = "Failed to load products."
+            products = []
+            productsLoadState = .unavailable
+        }
+    }
+
+    /// Races an async operation against a timeout so a hung network request
+    /// can't keep the paywall spinning indefinitely.
+    private func withProductTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw ProductFetchTimeout()
+            }
+            guard let result = try await group.next() else {
+                throw ProductFetchTimeout()
+            }
+            group.cancelAll()
+            return result
         }
     }
 

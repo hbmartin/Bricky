@@ -414,7 +414,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Developer")
                 } footer: {
-                    Text("Grants Pro access without a real purchase. Synced via iCloud to all your devices signed into the same Apple ID. Tap Version 7 times to hide this section again.")
+                    Text("Pro Override grants Pro access without a real purchase, synced via iCloud to all your devices. Tap Version 7 times to hide this section again.")
                 }
             }
 

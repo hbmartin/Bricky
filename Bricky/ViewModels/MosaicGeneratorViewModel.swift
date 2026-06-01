@@ -1,14 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// Drives the LEGO mosaic generation flow: submit a photo to the backend,
-/// poll for progress, then surface the finished artifacts (thumbnail, parts
-/// list, downloadable LDraw/PDF).
+/// Drives the LEGO mosaic generation flow entirely **on-device**: turn a photo
+/// into a stud-aligned mosaic, then surface the finished artifacts (thumbnail,
+/// parts list, exportable LDraw/PDF).
 ///
-/// All core scanning/inventory features in Bricky are offline-first; mosaic
-/// generation is the exception because it requires the backend renderer. When
-/// the service is unreachable the view model fails **honestly** with an
-/// actionable message — it never fabricates a result.
+/// All of Bricky is offline-first, and mosaic generation is no exception —
+/// there is no backend. Work runs on a detached task via `MosaicEngine`; if
+/// anything fails the view model reports an honest, actionable message and
+/// never fabricates a result. Mosaic generation is a Bricky Pro feature.
 @MainActor
 final class MosaicGeneratorViewModel: ObservableObject {
 
@@ -32,12 +32,18 @@ final class MosaicGeneratorViewModel: ObservableObject {
             case .pdf: return "instructions.pdf"
             }
         }
+    }
 
-        func urlString(in result: MosaicJobResult) -> String {
-            switch self {
-            case .ldraw: return result.ldrURL
-            case .pdf: return result.pdfURL
-            }
+    /// A completed on-device build: artifacts already written to a temporary
+    /// job directory, ready to share. No network URLs.
+    struct LocalResult: Equatable {
+        let jobId: String
+        let directory: URL
+        let brickCount: Int
+        let studCount: Int
+
+        func fileURL(for kind: ArtifactKind) -> URL {
+            directory.appendingPathComponent(kind.filename)
         }
     }
 
@@ -46,7 +52,7 @@ final class MosaicGeneratorViewModel: ObservableObject {
     @Published var sourceImage: UIImage?
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var snappedGrid: MosaicJobGrid?
-    @Published private(set) var result: MosaicJobResult?
+    @Published private(set) var result: LocalResult?
     @Published private(set) var thumbnail: UIImage?
     @Published private(set) var partsList: MosaicPartsList?
 
@@ -55,18 +61,12 @@ final class MosaicGeneratorViewModel: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let service: MosaicGenerationService
     private let isProProvider: @MainActor () -> Bool
-    private let pollInterval: Duration
-    private var pollingTask: Task<Void, Never>?
+    private var generationTask: Task<Void, Never>?
 
     init(
-        service: MosaicGenerationService = .shared,
-        pollInterval: Duration = .seconds(2),
         isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro }
     ) {
-        self.service = service
-        self.pollInterval = pollInterval
         self.isProProvider = isProProvider
     }
 
@@ -114,7 +114,7 @@ final class MosaicGeneratorViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    /// Submit the current source image and begin polling for completion.
+    /// Generate a mosaic from the current source image.
     func generate() {
         guard let image = sourceImage else { return }
         guard !isBusy else { return }
@@ -127,16 +127,15 @@ final class MosaicGeneratorViewModel: ObservableObject {
         phase = .submitting
 
         let preset = selectedPreset
-        pollingTask = Task { [weak self] in
+        generationTask = Task { [weak self] in
             await self?.runGeneration(image: image, preset: preset)
         }
     }
 
-    /// Cancel an in-flight generation and return to idle (preserving any
-    /// previously completed result is unnecessary — the user restarted).
+    /// Cancel an in-flight generation and return to the prior state.
     func cancel() {
-        pollingTask?.cancel()
-        pollingTask = nil
+        generationTask?.cancel()
+        generationTask = nil
     }
 
     /// Reset everything back to the initial state.
@@ -153,33 +152,35 @@ final class MosaicGeneratorViewModel: ObservableObject {
     // MARK: - Flow
 
     private func runGeneration(image: UIImage, preset: MosaicGridPreset) async {
+        let jobId = UUID().uuidString
+        let studs = preset.studs
+
         do {
-            let creation = try await service.submitJob(
-                image: image,
-                width: preset.studs,
-                height: preset.studs
-            )
-            if Task.isCancelled { return }
-            snappedGrid = creation.grid
-            phase = .processing(percent: 0)
+            // Heavy Vision/Core Graphics work runs off the main actor.
+            let output: MosaicEngineOutput = try await Task.detached(priority: .userInitiated) {
+                try MosaicEngine.shared.generate(
+                    image: image,
+                    width: studs,
+                    height: studs
+                ) { fraction in
+                    Task { @MainActor [weak self] in
+                        self?.applyProgress(fraction)
+                    }
+                }
+            }.value
 
-            let finished = try await pollUntilDone(jobId: creation.jobId)
             if Task.isCancelled { return }
 
-            switch finished.status {
-            case .done:
-                try await loadResult(jobId: creation.jobId)
-            case .error:
-                phase = .failed(finished.message ?? L10n.mosaicErrorServerGeneric)
-            default:
-                phase = .failed(L10n.mosaicErrorServerGeneric)
-            }
+            snappedGrid = output.snappedGrid
+            thumbnail = output.thumbnail
+            partsList = output.parts
+
+            let local = try writeArtifacts(output, jobId: jobId)
+            if Task.isCancelled { return }
+            result = local
+            phase = .completed
         } catch is CancellationError {
-            // User cancelled — leave state as-is (cancel() already cleared task).
-        } catch let error as MosaicGenerationService.ServiceError {
-            if !Task.isCancelled {
-                phase = .failed(error.localizedDescription)
-            }
+            // User cancelled — cancel() already cleared the task.
         } catch {
             if !Task.isCancelled {
                 phase = .failed(error.localizedDescription)
@@ -187,31 +188,30 @@ final class MosaicGeneratorViewModel: ObservableObject {
         }
     }
 
-    /// Poll `GET /jobs/{id}` until the job reaches a terminal state.
-    private func pollUntilDone(jobId: String) async throws -> MosaicJobProgress {
-        while true {
-            try Task.checkCancellation()
-            let progress = try await service.jobStatus(id: jobId)
-            phase = .processing(percent: progress.percent)
-
-            if progress.status == .done || progress.status == .error {
-                return progress
-            }
-            try await Task.sleep(for: pollInterval)
-        }
+    private func applyProgress(_ fraction: Double) {
+        guard isBusy else { return }
+        let percent = min(100, max(0, Int((fraction * 100).rounded())))
+        phase = .processing(percent: percent)
     }
 
-    private func loadResult(jobId: String) async throws {
-        let jobResult = try await service.jobResult(id: jobId)
-        if Task.isCancelled { return }
-        result = jobResult
+    /// Write the LDraw and PDF artifacts to a temporary per-job directory.
+    private func writeArtifacts(_ output: MosaicEngineOutput, jobId: String) throws -> LocalResult {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mosaic-\(jobId)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        // Best-effort artifact hydration — a missing thumbnail or parts file
-        // must not turn a successful build into a failure.
-        thumbnail = try? await service.fetchThumbnail(from: jobResult)
-        partsList = try? await service.fetchPartsList(from: jobResult)
+        let ldrURL = directory.appendingPathComponent(ArtifactKind.ldraw.filename)
+        try Data(output.ldrText.utf8).write(to: ldrURL, options: .atomic)
 
-        phase = .completed
+        let pdfURL = directory.appendingPathComponent(ArtifactKind.pdf.filename)
+        try output.pdfData.write(to: pdfURL, options: .atomic)
+
+        return LocalResult(
+            jobId: jobId,
+            directory: directory,
+            brickCount: output.brickCount,
+            studCount: output.studCount
+        )
     }
 }
 
@@ -219,24 +219,12 @@ final class MosaicGeneratorViewModel: ObservableObject {
 
 extension MosaicGeneratorViewModel {
 
-    /// Download an artifact and write it to a temporary file suitable for a
-    /// share sheet. Returns `nil` (never a fake file) when there is no result
-    /// or the download fails.
+    /// Return the on-disk URL for an artifact, suitable for a share sheet.
+    /// Returns `nil` (never a fake file) when there is no result or the file is
+    /// missing.
     func prepareArtifactFile(kind: ArtifactKind) async -> URL? {
         guard let result else { return nil }
-        do {
-            let data = try await service.downloadArtifact(at: kind.urlString(in: result))
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("mosaic-\(result.jobId)", isDirectory: true)
-            try FileManager.default.createDirectory(
-                at: directory,
-                withIntermediateDirectories: true
-            )
-            let fileURL = directory.appendingPathComponent(kind.filename)
-            try data.write(to: fileURL, options: .atomic)
-            return fileURL
-        } catch {
-            return nil
-        }
+        let url = result.fileURL(for: kind)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 }
