@@ -39,9 +39,9 @@ final class BuildSuggestionsViewModel: ObservableObject {
 
     func generateSuggestions(from pieces: [LegoPiece]) {
         isLoading = true
-        // Simulate a brief loading for better UX
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self else { return }
+        // Brief delay for better UX before surfacing results
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
             self.suggestions = self.engine.getSuggestions(for: pieces)
             self.isLoading = false
         }

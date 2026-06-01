@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 /// View model for the community feed, managing post display and filtering
+@MainActor
 final class CommunityViewModel: ObservableObject {
     @Published var selectedFilter: FeedFilter = .recent
     @Published var searchText: String = ""

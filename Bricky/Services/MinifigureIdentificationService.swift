@@ -1004,10 +1004,10 @@ final class MinifigureIdentificationService: ObservableObject {
             if composite > 0 && s.torso > 0 {
                 let finalComposite = min(composite + ocrBoost + classicSpaceBoost, 1.0)
                 if ocrBoost > 0 {
-                    print("[TorsoOCR] boost \(fig.id) '\(fig.name)' +\(String(format: "%.2f", ocrBoost)) → \(String(format: "%.3f", finalComposite))")
+                    Self.logger.debug("[TorsoOCR] boost \(fig.id) '\(fig.name)' +\(String(format: "%.2f", ocrBoost)) → \(String(format: "%.3f", finalComposite))")
                 }
                 if classicSpaceBoost > 0 {
-                    print("[ClassicSpace] boost \(fig.id) '\(fig.name)' +\(String(format: "%.2f", classicSpaceBoost)) → \(String(format: "%.3f", finalComposite))")
+                    Self.logger.debug("[ClassicSpace] boost \(fig.id) '\(fig.name)' +\(String(format: "%.2f", classicSpaceBoost)) → \(String(format: "%.3f", finalComposite))")
                 }
                 matches.append((fig, finalComposite, s, torsoConfident))
             }
@@ -1405,18 +1405,18 @@ final class MinifigureIdentificationService: ObservableObject {
         }
 
         if let top = hits.first {
-            print("[CLIPEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)")
+            Self.logger.debug("[CLIPEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)")
         }
         if hits.count >= 5 {
             let top5 = hits.prefix(5).map { String(format: "%.3f", $0.cosine) }.joined(separator: ", ")
-            print("[CLIPEmbed] top-5 cosines: \(top5)")
+            Self.logger.debug("[CLIPEmbed] top-5 cosines: \(top5)")
         }
 
         // CLIP injection threshold — lower than DINOv2 because CLIP's
         // domain-specific training produces more spread in cosine scores.
         let injectionThreshold: Float = 0.30
         let usefulHits = hits.filter { $0.cosine >= injectionThreshold }
-        print("[CLIPEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(injectionThreshold)")
+        Self.logger.debug("[CLIPEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(injectionThreshold)")
 
         var rawCosineMap: [String: Float] = [:]
         for hit in usefulHits {
@@ -1429,7 +1429,7 @@ final class MinifigureIdentificationService: ObservableObject {
             let top1 = Double(hits[0].cosine)
             let top5val = Double(hits[4].cosine)
             embeddingDiscrimination = top1 - top5val
-            print("[CLIPEmbed] discrimination (top1-top5): \(String(format: "%.4f", embeddingDiscrimination)) — \(embeddingDiscrimination > 0.06 ? "GOOD" : embeddingDiscrimination > 0.03 ? "MODERATE" : "POOR")")
+            Self.logger.debug("[CLIPEmbed] discrimination (top1-top5): \(String(format: "%.4f", embeddingDiscrimination)) — \(embeddingDiscrimination > 0.06 ? "GOOD" : embeddingDiscrimination > 0.03 ? "MODERATE" : "POOR")")
         }
 
         let existingIds: Set<String> = Set(fastResults.compactMap { $0.figure?.id })
@@ -1646,14 +1646,14 @@ final class MinifigureIdentificationService: ObservableObject {
         if torsoService.isAvailable {
             let hits = await torsoService.nearestFigures(for: torsoCG, topK: 40)
             if let top = hits.first {
-                print("[TorsoEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)  |  threshold=\(injectionThreshold)")
+                Self.logger.debug("[TorsoEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)  |  threshold=\(injectionThreshold)")
             }
             if hits.count >= 5 {
                 let top5 = hits.prefix(5).map { String(format: "%.3f", $0.cosine) }.joined(separator: ", ")
-                print("[TorsoEmbed] top-5 cosines: \(top5)")
+                Self.logger.debug("[TorsoEmbed] top-5 cosines: \(top5)")
             }
             let usefulHits = hits.filter { $0.cosine >= injectionThreshold }
-            print("[TorsoEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(injectionThreshold)")
+            Self.logger.debug("[TorsoEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(injectionThreshold)")
 
             // Store raw cosines for every hit.
             for hit in usefulHits {
@@ -1667,7 +1667,7 @@ final class MinifigureIdentificationService: ObservableObject {
                 let top1 = Double(hits[0].cosine)
                 let top5val = Double(hits[4].cosine)
                 embeddingDiscrimination = top1 - top5val
-                print("[TorsoEmbed] discrimination (top1-top5): \(String(format: "%.4f", embeddingDiscrimination)) — \(embeddingDiscrimination > 0.04 ? "GOOD" : embeddingDiscrimination > 0.02 ? "MODERATE" : "POOR")")
+                Self.logger.debug("[TorsoEmbed] discrimination (top1-top5): \(String(format: "%.4f", embeddingDiscrimination)) — \(embeddingDiscrimination > 0.04 ? "GOOD" : embeddingDiscrimination > 0.02 ? "MODERATE" : "POOR")")
             }
 
             // Boost existing color-cascade candidates that also appear
@@ -1710,10 +1710,10 @@ final class MinifigureIdentificationService: ObservableObject {
         if faceService.isAvailable, let faceCG {
             let hits = await faceService.nearestFigures(for: faceCG, topK: 12)
             if let top = hits.first {
-                print("[FaceEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)  |  threshold=\(faceInjectionThreshold)")
+                Self.logger.debug("[FaceEmbed] top-1 cosine=\(top.cosine) id=\(top.figureId)  |  threshold=\(faceInjectionThreshold)")
             }
             let usefulHits = hits.filter { $0.cosine >= faceInjectionThreshold }
-            print("[FaceEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(faceInjectionThreshold)")
+            Self.logger.debug("[FaceEmbed] \(usefulHits.count)/\(hits.count) hits pass threshold \(faceInjectionThreshold)")
             let mergedIds = Set(merged.compactMap { $0.figure?.id })
             for hit in usefulHits where !mergedIds.contains(hit.figureId) {
                 guard let figure = MinifigureCatalog.shared.figure(id: hit.figureId) else { continue }
@@ -2074,7 +2074,7 @@ final class MinifigureIdentificationService: ObservableObject {
             adjustedEmbeddingWeight = 0.13
             adjustedVisualWeight = 0.67
         }
-        print("[Phase2] embedding discrimination=\(String(format: "%.4f", embeddingDiscrimination)) → visual weight=\(String(format: "%.0f%%", adjustedVisualWeight * 100)), embedding weight=\(String(format: "%.0f%%", adjustedEmbeddingWeight * 100)), color cascade weight=\(String(format: "%.0f%%", colorCascadeWeight * 100))")
+        Self.logger.debug("[Phase2] embedding discrimination=\(String(format: "%.4f", embeddingDiscrimination)) → visual weight=\(String(format: "%.0f%%", adjustedVisualWeight * 100)), embedding weight=\(String(format: "%.0f%%", adjustedEmbeddingWeight * 100)), color cascade weight=\(String(format: "%.0f%%", colorCascadeWeight * 100))")
 
         // ── EMBEDDING-AWARE PRE-SORT ──
         //
@@ -2146,15 +2146,15 @@ final class MinifigureIdentificationService: ObservableObject {
 
         // Diagnostic: show how the pre-sort reorders vs pure visual.
         if let topByBlend = sortedByBlend.first {
-            print("[Phase2-PreSort] #1 by blend: \(topByBlend.figure.id) blend=\(String(format: "%.3f", topByBlend.blendedConf)) vis=\(String(format: "%.3f", topByBlend.visualConf)) emb=\(String(format: "%.3f", topByBlend.embConf)) color=\(String(format: "%.3f", topByBlend.colorConfidence)) dist=\(String(format: "%.2f", topByBlend.distance))")
+            Self.logger.debug("[Phase2-PreSort] #1 by blend: \(topByBlend.figure.id) blend=\(String(format: "%.3f", topByBlend.blendedConf)) vis=\(String(format: "%.3f", topByBlend.visualConf)) emb=\(String(format: "%.3f", topByBlend.embConf)) color=\(String(format: "%.3f", topByBlend.colorConfidence)) dist=\(String(format: "%.2f", topByBlend.distance))")
         }
         if sortedByBlend.count >= 2 {
             let e = sortedByBlend[1]
-            print("[Phase2-PreSort] #2 by blend: \(e.figure.id) blend=\(String(format: "%.3f", e.blendedConf)) vis=\(String(format: "%.3f", e.visualConf)) emb=\(String(format: "%.3f", e.embConf)) color=\(String(format: "%.3f", e.colorConfidence)) dist=\(String(format: "%.2f", e.distance))")
+            Self.logger.debug("[Phase2-PreSort] #2 by blend: \(e.figure.id) blend=\(String(format: "%.3f", e.blendedConf)) vis=\(String(format: "%.3f", e.visualConf)) emb=\(String(format: "%.3f", e.embConf)) color=\(String(format: "%.3f", e.colorConfidence)) dist=\(String(format: "%.2f", e.distance))")
         }
         // Show what pure-visual would have picked
         if let topByVis = allEntries.min(by: { $0.distance < $1.distance }), topByVis.figure.id != sortedByBlend.first?.figure.id {
-            print("[Phase2-PreSort] NOTE: pure-visual #1 was \(topByVis.figure.id) dist=\(String(format: "%.2f", topByVis.distance)) — embedding-aware pre-sort changed the winner")
+            Self.logger.debug("[Phase2-PreSort] NOTE: pure-visual #1 was \(topByVis.figure.id) dist=\(String(format: "%.2f", topByVis.distance)) — embedding-aware pre-sort changed the winner")
         }
 
         var visualResults = sortedByBlend.prefix(20).enumerated().map { (idx, entry) -> ResolvedCandidate in
@@ -3417,10 +3417,10 @@ final class MinifigureIdentificationService: ObservableObject {
             }
         } catch {
             // OCR failure is non-fatal — we just won't have text signal
-            print("[TorsoOCR] recognition failed: \(error.localizedDescription)")
+            Self.logger.debug("[TorsoOCR] recognition failed: \(error.localizedDescription)")
         }
         if !detectedText.isEmpty {
-            print("[TorsoOCR] detected text: \(detectedText.joined(separator: ", "))")
+            Self.logger.debug("[TorsoOCR] detected text: \(detectedText.joined(separator: ", "))")
         }
 
         return TorsoSignature(

@@ -519,7 +519,7 @@ final class CameraViewModel: ObservableObject {
                 let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
                 if let cgImage = self.frameImageCIContext.createCGImage(ciImage, from: ciImage.extent) {
                     let image = UIImage(cgImage: cgImage)
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         self.latestFrameImage = image
                     }
                 }
@@ -545,7 +545,7 @@ final class CameraViewModel: ObservableObject {
                 let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
                 if let cgImage = self.frameImageCIContext.createCGImage(ciImage, from: ciImage.extent) {
                     let image = UIImage(cgImage: cgImage)
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         self.latestFrameImage = image
                     }
                 }
