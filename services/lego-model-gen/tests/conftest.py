@@ -44,6 +44,38 @@ def two_band_image(top=(201, 26, 9), bottom=(0, 85, 191), size=(128, 128)) -> Im
     return img
 
 
+def fixture_image(size=(256, 256)) -> Image.Image:
+    """A deterministic, multi-color test pattern for golden-file regression.
+
+    Four solid quadrants (red / blue / yellow / green) plus a black diagonal
+    stripe produce varied same-color runs and several palette colors, exercising
+    the packer's run-length splitting without any randomness.
+    """
+    w, h = size
+    img = Image.new("RGB", size)
+    px = img.load()
+    red, blue, yellow, green, black = (
+        (201, 26, 9),
+        (0, 85, 191),
+        (242, 205, 55),
+        (35, 120, 65),
+        (11, 13, 29),
+    )
+    for y in range(h):
+        for x in range(w):
+            if abs(x - y) < w // 16:  # diagonal stripe
+                px[x, y] = black
+            elif x < w // 2 and y < h // 2:
+                px[x, y] = red
+            elif x >= w // 2 and y < h // 2:
+                px[x, y] = blue
+            elif x < w // 2 and y >= h // 2:
+                px[x, y] = yellow
+            else:
+                px[x, y] = green
+    return img
+
+
 def png_bytes(image: Image.Image) -> bytes:
     buf = io.BytesIO()
     image.save(buf, format="PNG")

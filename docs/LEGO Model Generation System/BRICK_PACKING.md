@@ -10,8 +10,9 @@ This document describes algorithms for converting a LEGO‑color grid into a set
 1. For each row:
    - Identify runs of same color.
    - Fill runs with longest allowed bricks.
-2. Allowed bricks:
+2. Allowed bricks (pinned by the shared part table — see §4):
    - 1×4  
+   - 1×3  
    - 1×2  
    - 1×1
 

@@ -84,7 +84,8 @@ The worker performs all heavy processing.
 ### Step 4 — Brick Packing (Simple)
 
 - Row‑based packing
-- Allowed parts: 1×4, 1×2, 1×1
+- Allowed parts: 1×4, 1×3, 1×2, 1×1 (pinned by the shared part table — see
+  DATA_CONTRACTS.md / LDRAW_EXPORT.md §4)
 - No stability or cost optimization
 
 ### Step 5 — LDraw Export
