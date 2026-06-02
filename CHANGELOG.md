@@ -12,6 +12,31 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Added
 
+- **Who or What Is This?** — AI subject recognition. Point Bricky at a photo and
+  it identifies famous people, cartoon/film characters, landmarks and famous
+  places, and musicians using cloud GPT-4o vision. Launches from the Home screen.
+  Gated behind Bricky Pro with a fair-use monthly allowance
+  (`AppConfig.proMonthlyAIRecognitionLimit`, default 100/month) so the Azure cost
+  is covered by the subscription; free users see an honest upsell. The Azure
+  OpenAI key never ships in the app — the app calls a server proxy that verifies
+  the StoreKit entitlement (signed JWS), enforces the quota, and calls GPT-4o.
+  - `Models/RecognizedSubject.swift` — subject, category, and result DTOs.
+  - `Services/ImageRecognitionService.swift` — proxy client with honest,
+    localized error mapping (offline, not-entitled, quota-exceeded, etc.).
+  - `ViewModels/ImageRecognitionViewModel.swift` — idle → recognizing → results /
+    empty / failed / upsell state machine.
+  - `Views/ImageRecognitionView.swift` + Home entry point.
+  - `Views/CameraImagePicker.swift` — shared camera/library picker (extracted from
+    Mosaic Studio so both flows reuse it).
+  - `SubscriptionManager` monthly AI-recognition quota with calendar-month reset
+    and signed-entitlement (`currentEntitlementJWS()`) support.
+  - `AppConfig.aiRecognitionEndpoint` configuration (UserDefaults/env override,
+    default `https://bricky-recognition.azurewebsites.net/api/recognizeImage`).
+- **Bricky recognition proxy** (`services/recognition-proxy`) — Azure Functions v4
+  (TypeScript) service that holds the Azure OpenAI key, verifies the StoreKit
+  entitlement server-side, enforces a per-user monthly quota in Azure Table
+  Storage, and calls GPT-4o vision with a strict "famous subjects only, never
+  guess private individuals" system prompt.
 - **Mosaic Studio** — turn any photo into a buildable single-layer LEGO mosaic.
   Launches from the Home screen quick-actions (Home → Mosaic Studio). Submits a
   photo to the LEGO Model Generation backend, polls for progress, and returns an
@@ -34,6 +59,12 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Tests
 
+- `BrickyTests/ImageRecognitionTests.swift` (8 tests) covers the proxy client
+  response/error mapping and lenient subject decoding; `ImageRecognitionViewModelTests`
+  (3 tests) and `SubscriptionManagerAIQuotaTests` (3 tests) cover the Pro-gating
+  state machine and monthly quota accounting. `services/recognition-proxy`
+  ships `test/openai.test.ts` and `test/entitlement.test.ts` (15 tests) covering
+  GPT-4o response parsing and StoreKit entitlement verification.
 - `BrickyTests/MosaicGenerationServiceTests.swift` (9 tests) and
   `BrickyTests/MosaicGeneratorViewModelTests.swift` (6 tests) cover the iOS client
   end to end with a stubbed `URLProtocol`.

@@ -1,0 +1,26 @@
+{
+  "name": "bricky-recognition-proxy",
+  "version": "1.0.0",
+  "description": "Azure Functions proxy for Bricky AI subject recognition (StoreKit entitlement + quota + Azure OpenAI GPT-4o vision).",
+  "private": true,
+  "main": "dist/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rm -rf dist",
+    "prestart": "npm run build",
+    "start": "func start",
+    "test": "node --test --import tsx ./test/*.test.ts"
+  },
+  "dependencies": {
+    "@azure/data-tables": "^13.3.0",
+    "@azure/functions": "^4.5.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

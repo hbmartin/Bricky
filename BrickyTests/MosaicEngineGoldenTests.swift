@@ -153,4 +153,48 @@ final class MosaicEngineGoldenTests: XCTestCase {
             XCTAssertEqual(parts.parts[index], exp, "part line \(index)")
         }
     }
+
+    // MARK: - Per-Step Piece Breakdown (instructions)
+
+    func testStepPieceLinesAggregatesRowPiecesByLengthAndColor() {
+        // Row 0: Red 1x4 + Red 1x2 + Blue 1x1.  Row 1: Blue 1x1.
+        let bricks = [
+            MosaicBrick(x: 0, y: 0, length: 4, color: "Red"),
+            MosaicBrick(x: 4, y: 0, length: 2, color: "Red"),
+            MosaicBrick(x: 6, y: 0, length: 1, color: "Blue"),
+            MosaicBrick(x: 0, y: 1, length: 1, color: "Blue")
+        ]
+
+        let row0 = MosaicInstructionsRenderer.stepPieceLines(bricks: bricks, row: 0)
+        // Sorted by length then color: 1x1 Blue, 1x2 Red, 1x4 Red.
+        XCTAssertEqual(row0.count, 3)
+        XCTAssertEqual(row0[0].label, "1×1 Plate — Blue")
+        XCTAssertEqual(row0[0].qty, 1)
+        XCTAssertEqual(row0[1].label, "1×2 Plate — Red")
+        XCTAssertEqual(row0[1].qty, 1)
+        XCTAssertEqual(row0[2].label, "1×4 Plate — Red")
+        XCTAssertEqual(row0[2].qty, 1)
+
+        let row1 = MosaicInstructionsRenderer.stepPieceLines(bricks: bricks, row: 1)
+        XCTAssertEqual(row1.count, 1)
+        XCTAssertEqual(row1[0].label, "1×1 Plate — Blue")
+        XCTAssertEqual(row1[0].qty, 1)
+    }
+
+    func testStepPieceLinesCombinesDuplicatePieces() {
+        let bricks = [
+            MosaicBrick(x: 0, y: 0, length: 1, color: "White"),
+            MosaicBrick(x: 1, y: 0, length: 1, color: "White"),
+            MosaicBrick(x: 2, y: 0, length: 1, color: "White")
+        ]
+        let lines = MosaicInstructionsRenderer.stepPieceLines(bricks: bricks, row: 0)
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertEqual(lines[0].label, "1×1 Plate — White")
+        XCTAssertEqual(lines[0].qty, 3)
+    }
+
+    func testStepPieceLinesEmptyForRowWithNoBricks() {
+        let bricks = [MosaicBrick(x: 0, y: 0, length: 1, color: "Black")]
+        XCTAssertTrue(MosaicInstructionsRenderer.stepPieceLines(bricks: bricks, row: 5).isEmpty)
+    }
 }

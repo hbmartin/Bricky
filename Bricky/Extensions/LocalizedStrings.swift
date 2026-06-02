@@ -147,6 +147,120 @@ extension L10n {
         localized: "mosaic.downloadInstructions",
         defaultValue: "Share Instructions PDF"
     )
+    static let mosaicRegenerate = String(
+        localized: "mosaic.regenerate",
+        defaultValue: "Regenerate Mosaic"
+    )
+    static let mosaicPreview = String(
+        localized: "mosaic.preview",
+        defaultValue: "Preview"
+    )
+    static let mosaicViewMosaic = String(
+        localized: "mosaic.viewMosaic",
+        defaultValue: "Mosaic"
+    )
+    static let mosaicViewOriginal = String(
+        localized: "mosaic.viewOriginal",
+        defaultValue: "Original Photo"
+    )
+    static let mosaicOriginalUnavailable = String(
+        localized: "mosaic.originalUnavailable",
+        defaultValue: "Original photo unavailable"
+    )
+
+    // MARK: - AI Subject Recognition (Pro)
+
+    static let recognitionTitle = String(
+        localized: "recognition.title",
+        defaultValue: "Who or What Is This?"
+    )
+    static let recognitionSubtitle = String(
+        localized: "recognition.subtitle",
+        defaultValue: "Identify celebrities, characters, famous places, landmarks, and musicians in a photo."
+    )
+    static let recognitionChoosePhoto = String(
+        localized: "recognition.choosePhoto",
+        defaultValue: "Choose Photo"
+    )
+    static let recognitionChangePhoto = String(
+        localized: "recognition.changePhoto",
+        defaultValue: "Change Photo"
+    )
+    static let recognitionTakePhoto = String(
+        localized: "recognition.takePhoto",
+        defaultValue: "Take Photo"
+    )
+    static let recognitionIdentify = String(
+        localized: "recognition.identify",
+        defaultValue: "Identify"
+    )
+    static let recognitionWorking = String(
+        localized: "recognition.working",
+        defaultValue: "Identifying…"
+    )
+    static let recognitionResultsTitle = String(
+        localized: "recognition.resultsTitle",
+        defaultValue: "Best Guesses"
+    )
+    static let recognitionConfidenceLabel = String(
+        localized: "recognition.confidenceLabel",
+        defaultValue: "Confidence"
+    )
+    static let recognitionEmptyTitle = String(
+        localized: "recognition.emptyTitle",
+        defaultValue: "Nothing Recognized"
+    )
+    static let recognitionEmptyMessage = String(
+        localized: "recognition.emptyMessage",
+        defaultValue: "We couldn't confidently identify a famous subject in this photo. Try a clearer shot."
+    )
+    static let recognitionUpsellTitle = String(
+        localized: "recognition.upsellTitle",
+        defaultValue: "A Bricky Pro Feature"
+    )
+    static let recognitionUpsellMessage = String(
+        localized: "recognition.upsellMessage",
+        defaultValue: "AI subject recognition is included with Bricky Pro. Upgrade to identify people, characters, and famous places."
+    )
+    static let recognitionUpgrade = String(
+        localized: "recognition.upgrade",
+        defaultValue: "Upgrade to Pro"
+    )
+    static let recognitionPrivacyNote = String(
+        localized: "recognition.privacyNote",
+        defaultValue: "Photos are sent securely for analysis and not stored. Identifications are AI best-guesses, not facts — especially for real people."
+    )
+    static func recognitionRemaining(_ count: Int) -> String {
+        String(
+            localized: "recognition.remaining",
+            defaultValue: "\(count) left this month"
+        )
+    }
+    static let recognitionErrorNotConfigured = String(
+        localized: "recognition.error.notConfigured",
+        defaultValue: "AI recognition isn't available right now. Please try again later."
+    )
+    static let recognitionErrorOffline = String(
+        localized: "recognition.error.offline",
+        defaultValue: "AI recognition needs an internet connection. Reconnect and try again."
+    )
+    static let recognitionErrorNotEntitled = String(
+        localized: "recognition.error.notEntitled",
+        defaultValue: "We couldn't verify your Bricky Pro subscription. Restore purchases in Settings and try again."
+    )
+    static let recognitionErrorQuotaExceeded = String(
+        localized: "recognition.error.quota",
+        defaultValue: "You've used all your AI recognitions for this month. Your allowance resets next month."
+    )
+    static let recognitionErrorImageEncoding = String(
+        localized: "recognition.error.imageEncoding",
+        defaultValue: "We couldn't process that photo. Try a different image."
+    )
+    static let recognitionErrorServer = String(
+        localized: "recognition.error.server",
+        defaultValue: "Recognition failed. Please try again in a moment."
+    )
+
     static let mosaicStartOver = String(
         localized: "mosaic.startOver",
         defaultValue: "Start Over"

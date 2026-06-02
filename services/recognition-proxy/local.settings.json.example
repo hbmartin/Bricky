@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "AZURE_OPENAI_ENDPOINT": "https://<resource>.openai.azure.com",
+    "AZURE_OPENAI_API_KEY": "<set-via-key-vault-in-cloud>",
+    "AZURE_OPENAI_DEPLOYMENT": "gpt-4o",
+    "AZURE_OPENAI_API_VERSION": "2024-08-01-preview",
+    "APPSTORE_ISSUER_ID": "<app-store-connect-issuer-id>",
+    "APPSTORE_BUNDLE_ID": "com.bricky.app",
+    "APPSTORE_ENVIRONMENT": "Sandbox",
+    "MONTHLY_QUOTA": "100",
+    "QUOTA_TABLE_CONNECTION": "UseDevelopmentStorage=true"
+  }
+}

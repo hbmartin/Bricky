@@ -368,6 +368,45 @@ struct HomeView: View {
             .accessibilityLabel(L10n.mosaicTitle)
             .accessibilityHint("Turn a photo into a buildable LEGO brick mosaic")
 
+            // AI Subject Recognition — identify people, characters & famous places
+            NavigationLink(destination: ImageRecognitionView()) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.2))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "sparkle.magnifyingglass")
+                            .font(.title2)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.recognitionTitle)
+                            .font(.headline)
+                        Text(L10n.recognitionSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.legoBlue, Color.legoBlue.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.legoBlue.opacity(0.3), radius: 8, y: 4)
+                )
+                .foregroundStyle(.white)
+            }
+            .accessibilityLabel(L10n.recognitionTitle)
+            .accessibilityHint("Identify celebrities, characters, and famous places in a photo")
+
             Button {
                 showingDemoMode = true
             } label: {

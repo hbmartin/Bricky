@@ -37,6 +37,11 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var dailyScanCount: Int = 0
 
+    /// AI subject recognitions used in the current calendar month. Mirrors the
+    /// server-side quota for a responsive UI; the proxy remains the source of
+    /// truth and the only place that can actually authorize an Azure call.
+    @Published private(set) var aiRecognitionCount: Int = 0
+
     /// Developer override that grants Pro access without a real purchase.
     /// Stored in `NSUbiquitousKeyValueStore` so it follows the user's iCloud
     /// account across devices and survives reinstalls. Hidden behind a 7-tap
@@ -56,6 +61,8 @@ final class SubscriptionManager: ObservableObject {
     private let defaults = UserDefaults.standard
     private let scanCountKey = AppConfig.dailyScanCountKey
     private let scanDateKey = AppConfig.dailyScanDateKey
+    private let aiCountKey = AppConfig.aiRecognitionCountKey
+    private let aiMonthKey = AppConfig.aiRecognitionMonthKey
     private let kvStore = NSUbiquitousKeyValueStore.default
     private static let kvOverrideKey = AppConfig.developerProOverrideKey
 
@@ -69,6 +76,7 @@ final class SubscriptionManager: ObservableObject {
         self.developerProOverride = kvStore.bool(forKey: Self.kvOverrideKey)
 
         loadDailyScanCount()
+        loadAIRecognitionCount()
         transactionListener = listenForTransactions()
         // Apply the override immediately so the user doesn't see the paywall
         // flicker before StoreKit returns.
@@ -116,6 +124,31 @@ final class SubscriptionManager: ObservableObject {
         saveDailyScanCount()
     }
 
+    // MARK: - AI Subject Recognition Quota (Pro-only, monthly)
+
+    /// Pro users only — AI subject recognition is a cloud, Pro-gated feature.
+    /// Free users are never offered it (they see an upsell instead).
+    var canUseAIRecognition: Bool {
+        isPro && aiRecognitionsRemaining > 0
+    }
+
+    /// Recognitions left in the current calendar month for a Pro user.
+    /// Non-Pro users always read 0.
+    var aiRecognitionsRemaining: Int {
+        guard isPro else { return 0 }
+        resetAIRecognitionCountIfNeeded()
+        return max(0, AppConfig.proMonthlyAIRecognitionLimit - aiRecognitionCount)
+    }
+
+    /// Local mirror increment, called after the proxy reports a successful
+    /// recognition. The server enforces the real quota; this only keeps the UI
+    /// honest between launches.
+    func recordAIRecognition() {
+        resetAIRecognitionCountIfNeeded()
+        aiRecognitionCount += 1
+        saveAIRecognitionCount()
+    }
+
     // MARK: - Computed Product Helpers
 
     var monthlyProduct: Product? {
@@ -130,6 +163,21 @@ final class SubscriptionManager: ObservableObject {
         guard isPro else { return nil }
         // Check which product is currently active
         return "\(AppConfig.appName) Pro"
+    }
+
+    /// Signed JWS representation of the user's current Pro entitlement, sent to
+    /// the recognition proxy so the server can independently verify the user
+    /// actually paid before spending an Azure call. Returns `nil` when there is
+    /// no real StoreKit entitlement (e.g. developer override only) — the proxy
+    /// must reject those rather than burn budget on an unverifiable client.
+    func currentEntitlementJWS() async -> String? {
+        for await result in Transaction.currentEntitlements {
+            if let transaction = try? checkVerified(result),
+               Self.productIDs.contains(transaction.productID) {
+                return result.jwsRepresentation
+            }
+        }
+        return nil
     }
 
     // MARK: - StoreKit 2 Purchase
@@ -285,6 +333,41 @@ final class SubscriptionManager: ObservableObject {
         if !Calendar.current.isDateInToday(lastDate) {
             dailyScanCount = 0
             defaults.set(0, forKey: scanCountKey)
+        }
+    }
+
+    // MARK: - Monthly AI Recognition Count Tracking
+
+    /// Current month marker as `yyyy-MM` so the count resets when the calendar
+    /// month rolls over, independent of time zone drift.
+    private var currentMonthMarker: String {
+        let comps = Calendar.current.dateComponents([.year, .month], from: Date())
+        let year = comps.year ?? 0
+        let month = comps.month ?? 0
+        return String(format: "%04d-%02d", year, month)
+    }
+
+    private func loadAIRecognitionCount() {
+        resetAIRecognitionCountIfNeeded()
+        aiRecognitionCount = defaults.integer(forKey: aiCountKey)
+    }
+
+    private func saveAIRecognitionCount() {
+        defaults.set(aiRecognitionCount, forKey: aiCountKey)
+        defaults.set(currentMonthMarker, forKey: aiMonthKey)
+    }
+
+    private func resetAIRecognitionCountIfNeeded() {
+        let storedMonth = defaults.string(forKey: aiMonthKey)
+        guard let storedMonth else {
+            // First use: stamp the month without touching the count.
+            defaults.set(currentMonthMarker, forKey: aiMonthKey)
+            return
+        }
+        if storedMonth != currentMonthMarker {
+            aiRecognitionCount = 0
+            defaults.set(0, forKey: aiCountKey)
+            defaults.set(currentMonthMarker, forKey: aiMonthKey)
         }
     }
 }

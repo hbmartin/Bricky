@@ -55,6 +55,32 @@ enum AppConfig {
     /// Annual subscription product ID.
     static let iapAnnualProductId = "\(bundleId).pro.annual"
 
+    // MARK: - AI Subject Recognition (cloud, Pro-gated)
+
+    /// Base URL of the server proxy that holds the Azure OpenAI key, verifies
+    /// the user's StoreKit entitlement, enforces the monthly quota, and calls
+    /// GPT-4o vision. The key is NEVER shipped in the app — the proxy is the
+    /// only place that can reach Azure OpenAI. Overridable at runtime via the
+    /// `BRICKY_RECOGNITION_ENDPOINT` Info.plist value / environment for staging.
+    static var aiRecognitionEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_RECOGNITION_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_RECOGNITION_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/recognizeImage")
+    }
+
+    /// Pro users' monthly AI recognition allowance. Sized so revenue comfortably
+    /// exceeds the Azure GPT-4o image cost + Apple's fee, and keeps total spend
+    /// under the development cost cap while testing. Free users get zero — this
+    /// is a Pro-only capability.
+    static let proMonthlyAIRecognitionLimit = 100
+
+    private static func infoPlistString(_ key: String) -> String? {
+        Bundle.main.object(forInfoDictionaryKey: key) as? String
+    }
+
     // MARK: - Keychain Keys (derived from prefix)
 
     static let keychainAccount = defaultsPrefix
@@ -74,6 +100,13 @@ enum AppConfig {
     static let dailyScanDateKey = "\(defaultsPrefix).daily.scanDate"
     static let analyticsEnabledKey = "\(defaultsPrefix).analytics.enabled"
     static let developerProOverrideKey = "\(defaultsPrefix).developer.proOverride"
+
+    /// Count of AI subject recognitions used in the current calendar month.
+    static let aiRecognitionCountKey = "\(defaultsPrefix).ai.recognitionCount"
+
+    /// First-day-of-month marker (yyyy-MM) the count above belongs to, so it
+    /// resets automatically when the month rolls over.
+    static let aiRecognitionMonthKey = "\(defaultsPrefix).ai.recognitionMonth"
 
     // MARK: - Notifications
 

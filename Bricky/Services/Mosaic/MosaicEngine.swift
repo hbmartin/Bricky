@@ -87,7 +87,8 @@ struct MosaicEngine {
             grid: grid,
             parts: parts,
             palette: palette,
-            brickCount: bricks.count
+            brickCount: bricks.count,
+            bricks: bricks
         )
         progress(1.0)
 

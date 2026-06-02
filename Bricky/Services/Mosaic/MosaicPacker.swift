@@ -18,6 +18,14 @@ enum MosaicContract {
     /// Plate length in studs → LDraw part id (DATA_CONTRACTS §7).
     static let partByLength: [Int: String] = [1: "3024", 2: "3023", 3: "3623", 4: "3710"]
 
+    /// Plate length in studs → human-readable piece name (instructions UI).
+    static let plateNameByLength: [Int: String] = [
+        1: "1×1 Plate",
+        2: "1×2 Plate",
+        3: "1×3 Plate",
+        4: "1×4 Plate"
+    ]
+
     /// Lengths the packer may emit, greedy longest-first.
     static let allowedLengths: [Int] = [4, 3, 2, 1]
 
@@ -28,6 +36,10 @@ enum MosaicContract {
         // The packer only ever emits 1...4, so this is always present; fall
         // back to the 1x1 plate id rather than crashing on programmer error.
         partByLength[length] ?? "3024"
+    }
+
+    static func plateName(forLength length: Int) -> String {
+        plateNameByLength[length] ?? "Plate"
     }
 }
 

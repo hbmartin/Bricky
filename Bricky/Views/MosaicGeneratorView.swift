@@ -21,9 +21,20 @@ struct MosaicGeneratorView: View {
     @State private var partsSort: PartsSort = .quantity
     @State private var showPaywall = false
     @State private var showCamera = false
+    @State private var didApplyPrefill = false
+
+    /// Optional photo to pre-load (e.g. "Regenerate" from a saved mosaic).
+    private let prefillImage: UIImage?
+    /// Optional size to pre-select alongside `prefillImage`.
+    private let prefillPreset: MosaicGridPreset?
 
     /// Caps form-control width so inputs never stretch edge-to-edge on iPad.
     private let contentMaxWidth: CGFloat = 640
+
+    init(prefillImage: UIImage? = nil, prefillPreset: MosaicGridPreset? = nil) {
+        self.prefillImage = prefillImage
+        self.prefillPreset = prefillPreset
+    }
 
     var body: some View {
         ScrollView {
@@ -37,6 +48,7 @@ struct MosaicGeneratorView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(L10n.mosaicTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: applyPrefillIfNeeded)
         .onChange(of: pickerItem) { _, newItem in
             Task { await loadPickedImage(newItem) }
         }
@@ -58,7 +70,7 @@ struct MosaicGeneratorView: View {
             PaywallView()
         }
         .fullScreenCover(isPresented: $showCamera) {
-            MosaicCameraPicker { image in
+            CameraImagePicker { image in
                 viewModel.sourceImage = image
             }
             .ignoresSafeArea()
@@ -521,6 +533,20 @@ struct MosaicGeneratorView: View {
         }
     }
 
+    /// Seed the generator with a photo/size handed in by a caller (e.g. the
+    /// "Regenerate Mosaic" action on a saved mosaic). Runs once; the user can
+    /// still pick a different photo or size afterward.
+    @MainActor
+    private func applyPrefillIfNeeded() {
+        guard !didApplyPrefill else { return }
+        didApplyPrefill = true
+        guard let prefillImage, viewModel.sourceImage == nil else { return }
+        viewModel.sourceImage = prefillImage
+        if let prefillPreset, viewModel.isPresetUnlocked(prefillPreset) {
+            viewModel.selectedPreset = prefillPreset
+        }
+    }
+
     private func loadPickedImage(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         do {
@@ -577,39 +603,6 @@ private extension MosaicGeneratorView {
 /// Minimal `UIImagePickerController` wrapper for capturing a mosaic source
 /// photo with the camera. Mirrors the add-figure flow's picker so the mosaic
 /// studio stays simple and offline-first — no AVFoundation session to manage.
-private struct MosaicCameraPicker: UIViewControllerRepresentable {
-    let onImage: (UIImage) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.delegate = context.coordinator
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
-        picker.allowsEditing = false
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onImage: (UIImage) -> Void
-        init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            picker.dismiss(animated: true)
-            if let image = (info[.originalImage] as? UIImage)?.normalizedOrientation() {
-                onImage(image)
-            }
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            picker.dismiss(animated: true)
-        }
-    }
-}
-
 #Preview {
     NavigationStack {
         MosaicGeneratorView()

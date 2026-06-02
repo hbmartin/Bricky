@@ -83,7 +83,8 @@ enum MosaicInstructionsRenderer {
         grid: MosaicColorGrid,
         parts: MosaicPartsList,
         palette: MosaicPalette,
-        brickCount: Int
+        brickCount: Int,
+        bricks: [MosaicBrick]
     ) -> Data {
         let bounds = CGRect(origin: .zero, size: pageSize)
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
@@ -91,7 +92,7 @@ enum MosaicInstructionsRenderer {
         return renderer.pdfData { ctx in
             drawCoverPage(ctx, grid: grid, palette: palette, brickCount: brickCount)
             drawPartsPages(ctx, parts: parts)
-            drawStepPages(ctx, grid: grid, palette: palette)
+            drawStepPages(ctx, grid: grid, palette: palette, bricks: bricks)
         }
     }
 
@@ -145,7 +146,8 @@ enum MosaicInstructionsRenderer {
     private static func drawStepPages(
         _ ctx: UIGraphicsPDFRendererContext,
         grid: MosaicColorGrid,
-        palette: MosaicPalette
+        palette: MosaicPalette,
+        bricks: [MosaicBrick]
     ) {
         for row in 0..<grid.height {
             ctx.beginPage()
@@ -160,8 +162,66 @@ enum MosaicInstructionsRenderer {
                 font: .systemFont(ofSize: 11)
             )
             let img = renderMosaic(grid: grid, palette: palette, cellPx: 12, upToRow: row, highlightRow: row)
-            drawImageCentered(img, top: 1.6 * inch, maxHeight: 7.0 * inch)
+            let imageBottom = drawImageCentered(img, top: 1.6 * inch, maxHeight: 4.6 * inch)
+            drawStepPieces(ctx, bricks: bricks, row: row, top: imageBottom + 0.4 * inch)
         }
+    }
+
+    /// Draw the "pieces used this step" breakdown for a single row, paginating
+    /// onto continuation pages if the list runs past the page bottom.
+    private static func drawStepPieces(
+        _ ctx: UIGraphicsPDFRendererContext,
+        bricks: [MosaicBrick],
+        row: Int,
+        top: CGFloat
+    ) {
+        let headerFont = UIFont.boldSystemFont(ofSize: 12)
+        let rowFont = UIFont.systemFont(ofSize: 11)
+        let bottomMargin = pageSize.height - inch
+
+        var y = min(top, bottomMargin - 0.5 * inch)
+        drawString("Pieces this step", at: CGPoint(x: inch, y: y), font: headerFont)
+        y += 0.3 * inch
+
+        let lines = stepPieceLines(bricks: bricks, row: row)
+        guard !lines.isEmpty else {
+            drawString("No pieces in this row.", at: CGPoint(x: inch, y: y), font: rowFont)
+            return
+        }
+
+        for line in lines {
+            if y > bottomMargin {
+                ctx.beginPage()
+                y = inch
+                drawString("Pieces this step (cont.)", at: CGPoint(x: inch, y: y), font: headerFont)
+                y += 0.3 * inch
+            }
+            drawString(line.label, at: CGPoint(x: inch, y: y), font: rowFont)
+            drawString("× \(line.qty)", at: CGPoint(x: inch + 4.0 * inch, y: y), font: rowFont)
+            y += 0.22 * inch
+        }
+    }
+
+    /// Aggregate the bricks placed in `row` into `(piece name + color, qty)`
+    /// lines, ordered by plate length then color for stable output.
+    static func stepPieceLines(bricks: [MosaicBrick], row: Int) -> [(label: String, qty: Int)] {
+        var counts: [PieceKey: Int] = [:]
+        for brick in bricks where brick.y == row {
+            counts[PieceKey(length: brick.length, color: brick.color), default: 0] += 1
+        }
+        return counts.keys
+            .sorted { lhs, rhs in
+                if lhs.length != rhs.length { return lhs.length < rhs.length }
+                return lhs.color < rhs.color
+            }
+            .map { key in
+                (label: "\(MosaicContract.plateName(forLength: key.length)) — \(key.color)", qty: counts[key] ?? 0)
+            }
+    }
+
+    private struct PieceKey: Hashable {
+        let length: Int
+        let color: String
     }
 
     // MARK: - Drawing Primitives (top-left origin, like ReportLab content here)
@@ -179,17 +239,20 @@ enum MosaicInstructionsRenderer {
     }
 
     /// Draw an image centered horizontally, scaled to fit within
-    /// `(pageWidth - 2in) × maxHeight`, with its top edge at `top`.
-    private static func drawImageCentered(_ image: UIImage, top: CGFloat, maxHeight: CGFloat) {
+    /// `(pageWidth - 2in) × maxHeight`, with its top edge at `top`. Returns the
+    /// y-coordinate of the drawn image's bottom edge (or `top` if not drawn).
+    @discardableResult
+    private static func drawImageCentered(_ image: UIImage, top: CGFloat, maxHeight: CGFloat) -> CGFloat {
         let maxW = pageSize.width - 2 * inch
         let iw = image.size.width
         let ih = image.size.height
-        guard iw > 0, ih > 0 else { return }
+        guard iw > 0, ih > 0 else { return top }
         let scale = min(maxW / iw, maxHeight / ih)
         let w = iw * scale
         let h = ih * scale
         let x = (pageSize.width - w) / 2
         image.draw(in: CGRect(x: x, y: top, width: w, height: h))
+        return top + h
     }
 
     private static func uiColor(_ color: MosaicPaletteColor) -> UIColor {

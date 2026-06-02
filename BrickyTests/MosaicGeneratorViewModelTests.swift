@@ -171,3 +171,58 @@ final class MosaicGeneratorViewModelTests: XCTestCase {
         XCTAssertTrue(vm.canGenerate)
     }
 }
+
+// MARK: - Regenerate (saved-mosaic → Mosaic Studio prefill)
+
+/// The "Regenerate Mosaic" action on a saved mosaic re-opens Mosaic Studio
+/// seeded with the original photo and the mosaic's saved size. These tests
+/// cover the mapping + Pro-gating that the regenerate flow depends on.
+@MainActor
+final class MosaicRegeneratePrefillTests: XCTestCase {
+
+    private func solidImage(_ color: UIColor) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200))
+        return renderer.image { ctx in
+            color.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 200, height: 200))
+        }
+    }
+
+    /// A saved entry stores its grid width; regenerate maps that back to the
+    /// matching preset so the user re-runs at the same size.
+    func testSavedGridWidthMapsBackToPreset() {
+        XCTAssertEqual(MosaicGridPreset(rawValue: 32), .small)
+        XCTAssertEqual(MosaicGridPreset(rawValue: 48), .medium)
+        XCTAssertEqual(MosaicGridPreset(rawValue: 64), .large)
+        XCTAssertEqual(MosaicGridPreset(rawValue: 96), .max)
+        XCTAssertNil(MosaicGridPreset(rawValue: 100))
+    }
+
+    /// Seeding a Pro user with a saved photo + size makes the studio ready to
+    /// regenerate immediately.
+    func testProUserPrefillIsReadyToRegenerate() {
+        let vm = MosaicGeneratorViewModel(isProProvider: { true })
+        let preset = MosaicGridPreset(rawValue: 64)
+        XCTAssertNotNil(preset)
+        vm.sourceImage = solidImage(.blue)
+        if let preset, vm.isPresetUnlocked(preset) {
+            vm.selectedPreset = preset
+        }
+        XCTAssertEqual(vm.selectedPreset, .large)
+        XCTAssertTrue(vm.canGenerate)
+    }
+
+    /// A free user regenerating a Pro-sized mosaic keeps the free preset and
+    /// cannot start the locked-size job — honest gating, no silent upgrade.
+    func testFreeUserPrefillFallsBackToFreePresetForLockedSize() {
+        let vm = MosaicGeneratorViewModel(isProProvider: { false })
+        let preset = MosaicGridPreset(rawValue: 96) // Pro-only size
+        vm.sourceImage = solidImage(.green)
+        if let preset, vm.isPresetUnlocked(preset) {
+            vm.selectedPreset = preset
+        }
+        // Locked size was rejected; free preset retained.
+        XCTAssertEqual(vm.selectedPreset, MosaicGeneratorViewModel.freePreset)
+        XCTAssertTrue(vm.canGenerate)
+    }
+}

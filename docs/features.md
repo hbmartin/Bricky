@@ -13,6 +13,7 @@ Detailed feature descriptions and status for Bricky. For a short summary see the
 | AR brick scanning | ✅ 🧪 | Real-time piece detection with confidence scoring and spatial tracking via ARKit + Vision. |
 | Photo scanning | ✅ | Scan a picked or captured still image; trace the area to scan. Works without a live camera. |
 | Minifigure identification | ✅ | Fast color cascade → CoreML torso embedding → head/face refinement against a 16K+ figure catalog. |
+| AI subject recognition | ✅ 🔒 | "Who or What Is This?" — identify famous people, cartoon/film characters, landmarks and famous places, and musicians in a photo via cloud GPT-4o vision. Launch from **Home → Who or What Is This?**. Pro feature with a fair-use monthly allowance; the Azure key stays server-side behind the recognition proxy. |
 | Pre-scan analysis | ✅ | Auto-detects whether the frame is a brick pile or a minifigure before scanning. |
 | Color calibration | ✅ | Camera color-calibration wizard for more accurate piece identification. |
 | LiDAR topographic rendering | ✅ 🧪 | 3D mesh visualization and pile geometry analysis on compatible devices. |
@@ -43,7 +44,7 @@ Detailed feature descriptions and status for Bricky. For a short summary see the
 | Community sharing | ✅ | Post builds with photos, captions, and difficulty ratings; like and comment. CloudKit-backed, degrades gracefully offline. |
 | User profile | ✅ | Sign in with Apple; profile surface from the Home avatar. |
 | iCloud sync | ✅ | User data syncs via iCloud key-value store and documents. |
-| Bricky Pro subscription | ✅ 🔒 | StoreKit 2 subscription that lifts scan limits and unlocks premium surfaces such as Mosaic Studio. |
+| Bricky Pro subscription | ✅ 🔒 | StoreKit 2 subscription that lifts scan limits and unlocks premium surfaces such as Mosaic Studio and AI subject recognition. |
 
 ## Mosaic Studio details
 

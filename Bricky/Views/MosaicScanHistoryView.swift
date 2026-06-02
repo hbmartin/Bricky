@@ -231,6 +231,15 @@ private struct MosaicScanHistoryDetailSheet: View {
     @State private var caption: String
     @State private var detail: String
     @State private var shareURL: ShareURLItem?
+    @State private var imageMode: ImageMode = .mosaic
+    @State private var previewImage: PreviewImageItem?
+    @State private var showRegenerate = false
+
+    /// Which image the detail screen is currently showing.
+    private enum ImageMode: Hashable {
+        case mosaic
+        case original
+    }
 
     init(entry: MosaicScanHistoryStore.ScanEntry) {
         self.entry = entry
@@ -248,7 +257,7 @@ private struct MosaicScanHistoryDetailSheet: View {
 
                     detailsCard
 
-                    shareButtons
+                    actionButtons
                 }
                 .padding()
             }
@@ -269,22 +278,81 @@ private struct MosaicScanHistoryDetailSheet: View {
         .sheet(item: $shareURL) { item in
             ShareSheet(items: [item.url])
         }
+        .fullScreenCover(item: $previewImage) { item in
+            MosaicImagePreviewView(image: item.image, title: item.title)
+        }
+        .fullScreenCover(isPresented: $showRegenerate) {
+            regenerateCover
+        }
+    }
+
+    /// The original source photo, if it was persisted with this mosaic.
+    private var originalImage: UIImage? {
+        store.sourceImage(for: entry)
+    }
+
+    /// The size preset the mosaic was generated with, when recognizable.
+    private var savedPreset: MosaicGridPreset? {
+        MosaicGridPreset(rawValue: entry.gridWidth)
     }
 
     // MARK: - Sections
 
     @ViewBuilder
     private var mosaicImage: some View {
-        if let image = store.thumbnail(for: entry) ?? store.sourceImage(for: entry) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color(.separator))
-                )
+        VStack(spacing: 12) {
+            if originalImage != nil {
+                Picker("", selection: $imageMode) {
+                    Text(L10n.mosaicViewMosaic).tag(ImageMode.mosaic)
+                    Text(L10n.mosaicViewOriginal).tag(ImageMode.original)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if let image = displayedImage {
+                Button {
+                    previewImage = PreviewImageItem(
+                        image: image,
+                        title: imageMode == .original
+                            ? L10n.mosaicViewOriginal
+                            : L10n.mosaicViewMosaic
+                    )
+                } label: {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Color(.separator))
+                        )
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.caption.weight(.semibold))
+                                .padding(8)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .padding(10)
+                        }
+                }
+                .buttonStyle(.plain)
+            } else if imageMode == .original {
+                Text(L10n.mosaicOriginalUnavailable)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+            }
+        }
+    }
+
+    /// The image currently selected by the Mosaic/Original toggle.
+    private var displayedImage: UIImage? {
+        switch imageMode {
+        case .mosaic:
+            return store.thumbnail(for: entry) ?? originalImage
+        case .original:
+            return originalImage
         }
     }
 
@@ -340,8 +408,16 @@ private struct MosaicScanHistoryDetailSheet: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
     }
 
-    private var shareButtons: some View {
+    private var actionButtons: some View {
         VStack(spacing: 10) {
+            if originalImage != nil {
+                actionButton(
+                    title: L10n.mosaicRegenerate,
+                    systemImage: "arrow.triangle.2.circlepath"
+                ) {
+                    showRegenerate = true
+                }
+            }
             if let url = store.ldrURL(for: entry) {
                 shareButton(title: L10n.mosaicDownloadModel, systemImage: "cube", url: url)
             }
@@ -349,6 +425,41 @@ private struct MosaicScanHistoryDetailSheet: View {
                 shareButton(title: L10n.mosaicDownloadInstructions, systemImage: "doc.text", url: url)
             }
         }
+    }
+
+    /// Opens Mosaic Studio pre-loaded with this mosaic's original photo and
+    /// size, so the user can tweak and regenerate. Only reachable when the
+    /// original photo was saved.
+    @ViewBuilder
+    private var regenerateCover: some View {
+        NavigationStack {
+            MosaicGeneratorView(
+                prefillImage: originalImage,
+                prefillPreset: savedPreset
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.done) { showRegenerate = false }
+                }
+            }
+        }
+    }
+
+    private func actionButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
     }
 
     private func shareButton(title: String, systemImage: String, url: URL) -> some View {
@@ -374,4 +485,83 @@ private struct MosaicScanHistoryDetailSheet: View {
 private struct ShareURLItem: Identifiable {
     let id = UUID()
     let url: URL
+}
+
+private struct PreviewImageItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    let title: String
+}
+
+// MARK: - Full-screen image preview
+
+/// A full-screen, pinch-to-zoom / drag preview of a mosaic or its source photo.
+private struct MosaicImagePreviewView: View {
+    let image: UIImage
+    let title: String
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var scale: CGFloat = 1
+    @GestureState private var pinch: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @GestureState private var drag: CGSize = .zero
+
+    private let minScale: CGFloat = 1
+    private let maxScale: CGFloat = 5
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { _ in
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .scaleEffect(scale * pinch)
+                    .offset(x: offset.width + drag.width, y: offset.height + drag.height)
+                    .gesture(magnification)
+                    .simultaneousGesture(dragGesture)
+                    .onTapGesture(count: 2, perform: toggleZoom)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.done) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var magnification: some Gesture {
+        MagnificationGesture()
+            .updating($pinch) { value, state, _ in state = value }
+            .onEnded { value in
+                scale = min(max(scale * value, minScale), maxScale)
+                if scale == minScale { offset = .zero }
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .updating($drag) { value, state, _ in
+                if scale > minScale { state = value.translation }
+            }
+            .onEnded { value in
+                guard scale > minScale else { return }
+                offset.width += value.translation.width
+                offset.height += value.translation.height
+            }
+    }
+
+    private func toggleZoom() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if scale > minScale {
+                scale = minScale
+                offset = .zero
+            } else {
+                scale = 2.5
+            }
+        }
+    }
 }
