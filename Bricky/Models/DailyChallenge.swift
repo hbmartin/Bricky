@@ -86,6 +86,13 @@ struct BuildPuzzle: Identifiable {
         revealedClues < clues.count
     }
 
+    /// How far the visual reveal has progressed (0 = first clue, 1 = all clues shown).
+    /// Drives the progressive silhouette de-blur in the puzzle view.
+    var revealFraction: Double {
+        guard clues.count > 1 else { return 1 }
+        return Double(revealedClues - 1) / Double(clues.count - 1)
+    }
+
     /// Score based on how few clues were needed (max 100)
     var score: Int {
         guard isGuessed else { return 0 }

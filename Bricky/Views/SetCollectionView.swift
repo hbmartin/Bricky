@@ -46,6 +46,11 @@ struct SetCollectionView: View {
             // Sets
             setsSection
         }
+        .navigationDestination(for: String.self) { setNumber in
+            if let legoSet = catalog.set(byNumber: setNumber) {
+                SetDetailView(legoSet: legoSet)
+            }
+        }
         .searchable(text: $searchText, prompt: "Search sets by name or number")
         .navigationTitle("Set Collection")
         .navigationBarTitleDisplayMode(.inline)
@@ -141,11 +146,6 @@ struct SetCollectionView: View {
         } header: {
             Text("\(filteredSets.count) Sets")
         }
-        .navigationDestination(for: String.self) { setNumber in
-            if let legoSet = catalog.set(byNumber: setNumber) {
-                SetDetailView(legoSet: legoSet)
-            }
-        }
     }
 
     private func setRow(_ legoSet: LegoSet) -> some View {
@@ -190,7 +190,9 @@ struct SetCollectionView: View {
                 completionBadge(pct)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
         .swipeActions(edge: .trailing) {
             if collectionStore.isInCollection(legoSet.setNumber) {
                 Button(role: .destructive) {

@@ -26,6 +26,7 @@
 		0CB06964DAEB8A916BF4938B /* SprintKEngagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2405A5152F897DE922C9EE48 /* SprintKEngagementTests.swift */; };
 		0CB2275A1BF6AD2B1742A1FA /* report-20260427-010302.md in Resources */ = {isa = PBXBuildFile; fileRef = F0427FC1808749431CAC8258 /* report-20260427-010302.md */; };
 		0D494F0879D5C9E7DB730720 /* AllScanHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D713EAF593C0B518C5330A15 /* AllScanHistoryView.swift */; };
+		0D8EA5A6D5831C2C5B571F2C /* PuzzleVisualsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE90646F52A24AD29A931CD /* PuzzleVisualsTests.swift */; };
 		0D98362F69A6AAEF3707C95E /* MinifigureIdentificationService+TorsoSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = D046FE7B968B7489D4F87C65 /* MinifigureIdentificationService+TorsoSignature.swift */; };
 		106499506BC3D8BF2EC9087E /* report-20260427-005317.md in Resources */ = {isa = PBXBuildFile; fileRef = 80301FADF352803CAFC58493 /* report-20260427-005317.md */; };
 		11281C7B158EF2DCA81E6FF8 /* FavoritesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF424256CABAAAC24AE320A /* FavoritesStoreTests.swift */; };
@@ -188,6 +189,7 @@
 		95B0EFA598F937D751738193 /* SprintDFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71ABC00264BEE119191B3AA /* SprintDFeatureTests.swift */; };
 		96900AF879493DFD873B37D9 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3390E508D00CAA57346A79AB /* AnalyticsService.swift */; };
 		97D1059930F03189B13BEC1B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC425B20D8B2BADA0FB3C317 /* SettingsView.swift */; };
+		988276F39785FC4EF0C530DF /* PuzzleVisualComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1DECC1E2738E49612964621 /* PuzzleVisualComponents.swift */; };
 		99B960B8AD1E5F2C097C940A /* report-20260531-215338.md in Resources */ = {isa = PBXBuildFile; fileRef = 11D4702006A271A5D25E71D6 /* report-20260531-215338.md */; };
 		9B09A1DBF37FDBEA078DDE8B /* MinifigureImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CCEE644C88405251311A3A /* MinifigureImageView.swift */; };
 		9BAD55D23EA93C1F4F363826 /* FindInPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560991FDB62CF7CD69BA8F84 /* FindInPhotoView.swift */; };
@@ -554,6 +556,7 @@
 		BDF6118D1B7D9C6012302D5C /* ColorCalibrationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorCalibrationStore.swift; sourceTree = "<group>"; };
 		C13C9D04D0DEEB3BC1283624 /* TorsoEmbeddingIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorsoEmbeddingIndex.swift; sourceTree = "<group>"; };
 		C1AA631EAC9DCAA62EF95165 /* BrickyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1DECC1E2738E49612964621 /* PuzzleVisualComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PuzzleVisualComponents.swift; sourceTree = "<group>"; };
 		C22FABFA3E44FCE643ABCB87 /* NaturalLanguageSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageSearchService.swift; sourceTree = "<group>"; };
 		C34F62C4664682E64D816799 /* ScanMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMapView.swift; sourceTree = "<group>"; };
 		C3FCA450ACD4DD3B120DCB10 /* CameraImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraImagePicker.swift; sourceTree = "<group>"; };
@@ -572,6 +575,7 @@
 		CC337C3CA7930100725641C0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CCF424256CABAAAC24AE320A /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		CDAF34A45E595FE235AD9969 /* CameraViewModelARTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModelARTests.swift; sourceTree = "<group>"; };
+		CDE90646F52A24AD29A931CD /* PuzzleVisualsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PuzzleVisualsTests.swift; sourceTree = "<group>"; };
 		CE2D8454F143148278DCEAF8 /* UserFigureImageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserFigureImageStorage.swift; sourceTree = "<group>"; };
 		CE3E5BE1A034252914030F45 /* clip_embeddings_index.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = clip_embeddings_index.json; sourceTree = "<group>"; };
 		CE7D68885517565EA509A4A5 /* report-20260427-014902.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-014902.md"; sourceTree = "<group>"; };
@@ -962,6 +966,7 @@
 				8CD8A66880643479583100CE /* PhotoSubjectClassifierTests.swift */,
 				76E9DC5E0CF122DD6988BE8C /* PieceCatalogViewModelTests.swift */,
 				37EB1E5C30DA1B6027B16C1F /* PileGeometryServiceTests.swift */,
+				CDE90646F52A24AD29A931CD /* PuzzleVisualsTests.swift */,
 				7D48E65B45D0B22A22CF6291 /* ScanAutoStopMonitorTests.swift */,
 				289A94F8D51F6A81BB03795F /* ScanLocationTests.swift */,
 				2E22D971F163092F0000B3CD /* ScannerGroundTruthHarnessTests.swift */,
@@ -1072,6 +1077,7 @@
 				B237F4AB897A20C02940F668 /* PreScanAnalysisView.swift */,
 				A10725F43D64040D81314A92 /* PrivacyPolicyView.swift */,
 				D6E97D4FC646BBBC60D65238 /* PuzzleView.swift */,
+				C1DECC1E2738E49612964621 /* PuzzleVisualComponents.swift */,
 				DFB51EB9DADD42EB559FAD70 /* ScanCoverageOverlayView.swift */,
 				6C2272923D35B2120D8C0F4B /* ScanGuideView.swift */,
 				C34F62C4664682E64D816799 /* ScanMapView.swift */,
@@ -1451,6 +1457,7 @@
 				672E3C051DF88366CCCC04CE /* PrivacyPolicyView.swift in Sources */,
 				CC45C8546897DBA00FFE73FA /* PuzzleEngine.swift in Sources */,
 				DC9DE6AA5050C071A445DC36 /* PuzzleView.swift in Sources */,
+				988276F39785FC4EF0C530DF /* PuzzleVisualComponents.swift in Sources */,
 				E3ADACF1DBD7864C04E500D1 /* RecognizedSubject.swift in Sources */,
 				8BF98A43B36968309CD81C02 /* STLExporter.swift in Sources */,
 				277EA536808369FADD7468E6 /* ScanAutoStopMonitor.swift in Sources */,
@@ -1532,6 +1539,7 @@
 				68F6E5869ED1BEA50EB399FC /* PhotoSubjectClassifierTests.swift in Sources */,
 				CFE0338FD0406EE392C5A882 /* PieceCatalogViewModelTests.swift in Sources */,
 				ED133DF6663F69C047A0AC48 /* PileGeometryServiceTests.swift in Sources */,
+				0D8EA5A6D5831C2C5B571F2C /* PuzzleVisualsTests.swift in Sources */,
 				EAA7D5B871EB1FCAB73B51F5 /* ScanAutoStopMonitorTests.swift in Sources */,
 				B4C89046439354DBD1934C9C /* ScanLocationTests.swift in Sources */,
 				B6F42166FB1A517BAAD51A2D /* ScanSessionTests.swift in Sources */,

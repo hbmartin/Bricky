@@ -3,9 +3,14 @@ import SwiftUI
 /// Build puzzle game view — guess the build from progressive clues
 struct PuzzleView: View {
     @ObservedObject private var engine = PuzzleEngine.shared
+    @ObservedObject private var subscriptions = SubscriptionManager.shared
     @State private var guessText = ""
     @State private var showWrongGuess = false
     @State private var answerChoices: [String] = []
+    @State private var showConfetti = false
+    @State private var showPaywall = false
+    @State private var showShareSheet = false
+    @State private var shareText = ""
 
     var body: some View {
         ScrollView {
@@ -16,7 +21,7 @@ struct PuzzleView: View {
                     tip: .firstPuzzle,
                     icon: "puzzlepiece.fill",
                     title: "How Puzzles Work",
-                    message: "Read progressive clues about a LEGO build and guess which one it is. Fewer clues = higher score! Tap 'New Puzzle' to start.",
+                    message: "Watch the mystery build come into focus as you reveal clues, then guess what it is. Fewer clues = higher score, and a win streak earns bonus points!",
                     color: .purple
                 )
 
@@ -32,11 +37,26 @@ struct PuzzleView: View {
                     startSection
                 }
 
+                packProgressSection
+
                 if !engine.puzzleHistory.isEmpty {
                     historySection
                 }
             }
             .padding()
+        }
+        .overlay {
+            if showConfetti {
+                PuzzleConfettiView()
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [shareText])
         }
         .navigationTitle("Build Puzzles")
     }
@@ -51,11 +71,82 @@ struct PuzzleView: View {
                     .font(.title3)
                     .fontWeight(.bold)
                 Spacer()
-                Text("\(engine.puzzleHistory.count) puzzles")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if engine.currentStreak >= 2 {
+                    streakChip
+                } else {
+                    Text("\(engine.puzzleHistory.count) puzzles")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
+    }
+
+    private var streakChip: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flame.fill")
+                .font(.caption)
+            Text("\(engine.currentStreak) streak")
+                .font(.caption)
+                .fontWeight(.bold)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(
+                LinearGradient(
+                    colors: [.orange, .legoRed],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        )
+    }
+
+    /// Shows how many puzzles in the current pack the player has unlocked, and
+    /// — for free players — an honest upsell to the full Pro puzzle pack.
+    private var packProgressSection: some View {
+        let limit = subscriptions.puzzlePoolLimit
+        let solved = engine.solvedCount(inPackOf: limit)
+        return VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "square.grid.2x2.fill")
+                    .foregroundStyle(Color.legoBlue)
+                Text(subscriptions.isPro ? "Pro Puzzle Pack" : "Starter Puzzle Pack")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("\(solved)/\(limit) solved")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: Double(min(solved, limit)), total: Double(limit))
+                .tint(Color.legoBlue)
+
+            if !subscriptions.isPro {
+                Button {
+                    showPaywall = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.open.fill")
+                        Text("Unlock \(SubscriptionManager.proPuzzleLimit - SubscriptionManager.freePuzzleLimit) more puzzles with Pro")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.blue)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var startSection: some View {
@@ -74,7 +165,7 @@ struct PuzzleView: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                engine.generatePuzzle()
+                engine.generatePuzzle(poolLimit: subscriptions.puzzlePoolLimit)
                 if let puzzle = engine.currentPuzzle {
                     answerChoices = engine.getAnswerChoices(for: puzzle)
                 }
@@ -93,16 +184,15 @@ struct PuzzleView: View {
 
     private func puzzleSection(_ puzzle: BuildPuzzle) -> some View {
         VStack(spacing: 16) {
-            // Silhouette placeholder
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.15))
-                    .frame(height: 160)
+            // Progressive silhouette — de-blurs as clues are revealed.
+            PuzzleSilhouetteView(
+                systemImage: puzzle.project.imageSystemName,
+                revealFraction: puzzle.revealFraction,
+                isSolved: false
+            )
 
-                Image(systemName: "questionmark")
-                    .font(.system(size: 50, weight: .bold))
-                    .foregroundStyle(Color.gray.opacity(0.4))
-            }
+            // Color-palette hint derived from the build's required pieces.
+            PuzzlePaletteHint(colors: engine.paletteColors(for: puzzle.project))
 
             // Clues revealed so far
             VStack(alignment: .leading, spacing: 8) {
@@ -182,21 +272,39 @@ struct PuzzleView: View {
 
     private func revealedSection(_ puzzle: BuildPuzzle) -> some View {
         VStack(spacing: 16) {
-            Image(systemName: puzzle.project.imageSystemName)
-                .font(.system(size: 60))
-                .foregroundStyle(Color.legoRed)
+            PuzzleSilhouetteView(
+                systemImage: puzzle.project.imageSystemName,
+                revealFraction: 1,
+                isSolved: true
+            )
 
             Text(puzzle.project.name)
                 .font(.title2)
                 .fontWeight(.bold)
 
+            // Real "built from these pieces" preview — rendered from the build's
+            // actual required pieces, shown only after solving so it can't leak.
+            PuzzlePiecesStrip(pieces: engine.featuredPieces(for: puzzle.project))
+
             if puzzle.score > 0 {
-                HStack {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(.yellow)
-                    Text("+\(puzzle.score) points")
-                        .font(.headline)
-                        .foregroundStyle(Color.legoRed)
+                VStack(spacing: 6) {
+                    HStack {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                        Text("+\(puzzle.score) points")
+                            .font(.headline)
+                            .foregroundStyle(Color.legoRed)
+                    }
+                    if engine.lastStreakBonus > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(.orange)
+                            Text("+\(engine.lastStreakBonus) streak bonus (\(engine.currentStreak) in a row!)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 }
             } else {
                 Text("Better luck next time!")
@@ -209,8 +317,24 @@ struct PuzzleView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            if puzzle.score > 0 {
+                Button {
+                    shareText = engine.shareText(for: puzzle)
+                    showShareSheet = true
+                } label: {
+                    Label("Share Result", systemImage: "square.and.arrow.up")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
             Button {
-                engine.generatePuzzle()
+                engine.generatePuzzle(poolLimit: subscriptions.puzzlePoolLimit)
                 if let newPuzzle = engine.currentPuzzle {
                     answerChoices = engine.getAnswerChoices(for: newPuzzle)
                 }
@@ -255,9 +379,17 @@ struct PuzzleView: View {
         if engine.submitGuess(choice) {
             showWrongGuess = false
             HapticManager.notification(.success)
+            triggerConfetti()
         } else {
             showWrongGuess = true
             HapticManager.notification(.error)
+        }
+    }
+
+    private func triggerConfetti() {
+        withAnimation { showConfetti = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+            withAnimation { showConfetti = false }
         }
     }
 }

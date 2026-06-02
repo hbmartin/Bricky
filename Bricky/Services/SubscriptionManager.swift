@@ -17,6 +17,13 @@ final class SubscriptionManager: ObservableObject {
     static let freeDailyScanLimit = 3
     static let freeBuildVisibleLimit = 20
 
+    /// Build-puzzle packs. Free players get a stable starter pack; Pro unlocks
+    /// the full rotation. The pools are deterministic (ordered by name) so the
+    /// "X of N unlocked" progress is consistent across launches and the free
+    /// pack is always a strict subset of the Pro pack.
+    static let freePuzzleLimit = 10
+    static let proPuzzleLimit = 50
+
     // MARK: - Published State
 
     /// Lifecycle of the StoreKit product fetch, so the paywall can show an
@@ -118,6 +125,11 @@ final class SubscriptionManager: ObservableObject {
         isPro || index < Self.freeBuildVisibleLimit
     }
 
+    /// Number of build puzzles available to the current player. Free players get
+    /// the starter pack; Pro unlocks the full pack.
+    var puzzlePoolLimit: Int {
+        isPro ? Self.proPuzzleLimit : Self.freePuzzleLimit
+    }
     func recordScan() {
         resetDailyCountIfNeeded()
         dailyScanCount += 1

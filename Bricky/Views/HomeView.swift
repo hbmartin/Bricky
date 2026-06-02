@@ -10,6 +10,7 @@ struct HomeView: View {
     @StateObject private var mosaicScanHistory = MosaicScanHistoryStore.shared
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var authService = AuthenticationService.shared
+    @ObservedObject private var subscriptions = SubscriptionManager.shared
     @State private var showingDemoMode = false
     @State private var selectedHistorySession: ScanSession?
     @State private var navigateToHistory = false
@@ -34,11 +35,19 @@ struct HomeView: View {
     /// User profile sheet shown from the avatar button.
     @State private var showProfile = false
 
+    /// Bricky Pro paywall, presented from the Home upgrade banner.
+    @State private var showPaywall = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Hero section
                 heroSection
+
+                // Upgrade to Pro — only shown to free users.
+                if !subscriptions.isPro {
+                    proUpgradeBanner
+                }
 
                 // Quick actions
                 quickActions
@@ -106,6 +115,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showProfile) {
             NavigationStack { UserProfileView() }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
         .sheet(isPresented: $showingDemoMode) {
             DemoModeView(session: cameraViewModel.scanSession)
@@ -210,6 +222,54 @@ struct HomeView: View {
         .padding(.top)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(AppConfig.appName). Scan, Discover, Build. Point your camera at LEGO bricks to discover what you can build.")
+    }
+
+    // MARK: - Upgrade to Pro Banner
+
+    private var proUpgradeBanner: some View {
+        Button {
+            showPaywall = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.22))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "crown.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Upgrade to \(AppConfig.appName) Pro")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text("Unlimited scans, AI recognition, the full puzzle pack, and more.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            .padding(16)
+            .background(
+                LinearGradient(
+                    colors: [.legoBlue, .purple],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .shadow(color: .legoBlue.opacity(0.35), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Upgrade to \(AppConfig.appName) Pro. Unlimited scans, AI recognition, and the full puzzle pack.")
     }
 
     // MARK: - Quick Actions

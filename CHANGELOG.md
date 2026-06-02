@@ -12,6 +12,31 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Added
 
+- **Pro puzzle packs** — Build Puzzles now ship as a free Starter Pack (10
+  puzzles) and a Pro Pack (50 puzzles). Free players guess from a stable,
+  deterministic 10-puzzle subset; Bricky Pro unlocks the full rotation. The
+  puzzle screen shows pack progress ("X / N solved") and free players see an
+  honest upsell to unlock the rest — no fake content, the starter pack is a
+  strict subset of the Pro pack.
+  - `SubscriptionManager.freePuzzleLimit` (10) / `proPuzzleLimit` (50) and
+    `puzzlePoolLimit` gate the eligible puzzle pool by entitlement.
+  - `PuzzleEngine.puzzlePool(limit:)` / `generatePuzzle(poolLimit:)` /
+    `solvedCount(inPackOf:)` provide deterministic, name-ordered packs.
+- **Shareable puzzle results** — Solving a puzzle offers a Wordle-style share
+  card (filled/empty square grid for clues used, win streak, and score) via the
+  standard share sheet. `PuzzleEngine.shareText(for:)`.
+
+### Changed
+
+- **Upgrade to Pro is now front-and-center.** The Home screen shows a prominent
+  "Upgrade to Bricky Pro" banner (crown, gradient, one-tap to the paywall) for
+  free users; it disappears once Pro is active. Previously the paywall was only
+  reachable from deeper feature screens.
+- **Solved puzzles show a real "Built from these pieces" preview** — a strip of
+  thumbnails rendered from the build's actual required pieces (true category,
+  color, and dimensions via `PieceImageGenerator`), shown only after solving so
+  it never leaks the answer. `PuzzleEngine.featuredPieces(for:limit:)`.
+
 - **Who or What Is This?** — AI subject recognition. Point Bricky at a photo and
   it identifies famous people, cartoon/film characters, landmarks and famous
   places, and musicians using cloud GPT-4o vision. Launches from the Home screen.
