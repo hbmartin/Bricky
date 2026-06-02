@@ -41,7 +41,7 @@ Carthage/Checkouts/
 *.swp
 *.swo
 *~
-.vscode/
+
 .idea/
 
 # Large model files
