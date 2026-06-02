@@ -7,9 +7,9 @@
     "AZURE_OPENAI_API_KEY": "<set-via-key-vault-in-cloud>",
     "AZURE_OPENAI_DEPLOYMENT": "gpt-4o",
     "AZURE_OPENAI_API_VERSION": "2024-08-01-preview",
-    "APPSTORE_ISSUER_ID": "<app-store-connect-issuer-id>",
     "APPSTORE_BUNDLE_ID": "com.bricky.app",
     "APPSTORE_ENVIRONMENT": "Sandbox",
+    "APPSTORE_VERIFY_CHAIN": "false",
     "MONTHLY_QUOTA": "100",
     "QUOTA_TABLE_CONNECTION": "UseDevelopmentStorage=true"
   }

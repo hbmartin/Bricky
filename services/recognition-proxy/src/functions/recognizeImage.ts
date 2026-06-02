@@ -71,6 +71,8 @@ export async function recognizeImage(
     const entitlement = verifyEntitlement(body.entitlementToken, {
       bundleId: requireEnv('APPSTORE_BUNDLE_ID'),
       environment: requireEnv('APPSTORE_ENVIRONMENT'),
+      // Production cryptographically verifies Apple's JWS signature chain.
+      verifyChain: env('APPSTORE_VERIFY_CHAIN') === 'true',
     });
 
     // --- enforce monthly quota server-side ---
@@ -101,7 +103,11 @@ export async function recognizeImage(
 
 app.http('recognizeImage', {
   methods: ['POST'],
-  authLevel: 'function',
+  // Anonymous at the platform layer: the real authentication is the
+  // Apple-signed StoreKit entitlement JWS, verified server-side in
+  // `verifyEntitlement`. A Functions key shipped inside the iOS binary would
+  // be trivially extractable and is not a real secret, so we don't rely on it.
+  authLevel: 'anonymous',
   route: 'recognizeImage',
   handler: recognizeImage,
 });

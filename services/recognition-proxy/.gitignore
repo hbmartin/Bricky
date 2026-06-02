@@ -3,3 +3,5 @@ dist/
 local.settings.json
 .DS_Store
 *.log
+.deploy/
+deploy.zip

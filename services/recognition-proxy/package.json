@@ -10,7 +10,9 @@
     "clean": "rm -rf dist",
     "prestart": "npm run build",
     "start": "func start",
-    "test": "node --test --import tsx ./test/*.test.ts"
+    "test": "node --test --import tsx ./test/*.test.ts",
+    "try:web": "npm run build && node tools/local-recognizer.mjs",
+    "try:cli": "npm run build && node tools/local-recognizer.mjs"
   },
   "dependencies": {
     "@azure/data-tables": "^13.3.0",

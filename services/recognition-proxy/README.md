@@ -60,9 +60,9 @@ The iOS `AzureOpenAIRecognitionClient` maps these statuses directly.
 | `AZURE_OPENAI_API_KEY`           | **Key Vault reference** — never inline                |
 | `AZURE_OPENAI_DEPLOYMENT`        | GPT-4o vision deployment name                          |
 | `AZURE_OPENAI_API_VERSION`       | e.g. `2024-08-01-preview`                             |
-| `APPSTORE_ISSUER_ID`             | App Store Connect API issuer (entitlement verify)      |
 | `APPSTORE_BUNDLE_ID`             | `com.bricky.app`                                       |
-| `APPSTORE_ENVIRONMENT`           | `Production` or `Sandbox`                              |
+| `APPSTORE_ENVIRONMENT`           | `Production` or `Sandbox` (must match the token)       |
+| `APPSTORE_VERIFY_CHAIN`          | `true` to cryptographically verify Apple's JWS chain   |
 | `MONTHLY_QUOTA`                  | Fair-use cap per user per month (default `100`)        |
 | `QUOTA_TABLE_CONNECTION`         | Azure Table Storage connection string for quota counts |
 

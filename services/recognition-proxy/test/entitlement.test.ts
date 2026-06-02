@@ -66,3 +66,65 @@ test('rejects an environment mismatch', () => {
     (e: unknown) => e instanceof ProxyError && e.status === 403,
   );
 });
+
+// --- Apple JWS signature-chain verification (verifyChain: true) ---
+
+const chainOpts = { ...opts, verifyChain: true };
+
+// A throwaway self-signed EC P-256 cert + key (NOT chained to Apple Root CA).
+// Used to forge a structurally-valid, validly-signed token that must still be
+// rejected because it is not anchored to Apple's pinned root.
+const FAKE_CERT_DER_B64 =
+  'MIIBVTCB/AIJAIwYmT5pAd2bMAoGCCqGSM49BAMCMDMxEjAQBgNVBAMMCU5vdCBBcHBsZTEQMA4GA1UE' +
+  'CgwHRm9yZ2VyeTELMAkGA1UEBhMCVVMwHhcNMjYwNjAyMDQ0ODMwWhcNMzYwNTMwMDQ0ODMwWjAzMRIw' +
+  'EAYDVQQDDAlOb3QgQXBwbGUxEDAOBgNVBAoMB0ZvcmdlcnkxCzAJBgNVBAYTAlVTMFkwEwYHKoZIzj0C' +
+  'AQYIKoZIzj0DAQcDQgAEO5vWrPwLjXwZKDTXPFbIpbx0Nqq7V34E1pojgcW8i02F05hm+VKIVLIs+Kic' +
+  '1G1kKXL4NeIdSV4j8GuEVOiHMDAKBggqhkjOPQQDAgNIADBFAiBXa64vmedBbtfRzFAw2JZh9OOrxw42' +
+  'nXYRHI0YIPpCfwIhALiK0ZNkgqCnPWvAPjBxevwHxoqvsou+FnEVfXH4rUN+';
+
+const FAKE_KEY_PEM = [
+  '-----BEGIN EC PRIVATE KEY-----',
+  'MHcCAQEEIEpWiPoNT1ANeGicI6gMOkVZigLLVCEis1LAcXSYbOeaoAoGCCqGSM49',
+  'AwEHoUQDQgAEO5vWrPwLjXwZKDTXPFbIpbx0Nqq7V34E1pojgcW8i02F05hm+VKI',
+  'VLIs+Kic1G1kKXL4NeIdSV4j8GuEVOiHMA==',
+  '-----END EC PRIVATE KEY-----',
+].join('\n');
+
+test('verifyChain rejects an unsigned token (no x5c header)', () => {
+  assert.throws(
+    () => verifyEntitlement(token(validPayload), chainOpts),
+    (e: unknown) =>
+      e instanceof ProxyError && e.status === 403 && e.code === 'not_entitled',
+  );
+});
+
+test('verifyChain rejects a token whose x5c is not a real certificate', () => {
+  const forged = jwt.sign(validPayload, FAKE_KEY_PEM, {
+    algorithm: 'ES256',
+    header: { alg: 'ES256', x5c: ['not-a-cert', 'also-not-a-cert'] },
+  });
+  assert.throws(
+    () => verifyEntitlement(forged, chainOpts),
+    (e: unknown) => e instanceof ProxyError && e.status === 403,
+  );
+});
+
+test('verifyChain rejects a validly-signed token not anchored to Apple root', () => {
+  // Signature is valid for the leaf, but the chain is a single self-signed
+  // cert that does not chain to Apple Root CA - G3 -> must be rejected.
+  const forged = jwt.sign(validPayload, FAKE_KEY_PEM, {
+    algorithm: 'ES256',
+    header: { alg: 'ES256', x5c: [FAKE_CERT_DER_B64, FAKE_CERT_DER_B64] },
+  });
+  assert.throws(
+    () => verifyEntitlement(forged, chainOpts),
+    (e: unknown) =>
+      e instanceof ProxyError && e.status === 403 && e.code === 'not_entitled',
+  );
+});
+
+test('verifyChain disabled (dev) still accepts an unsigned fixture', () => {
+  // Regression guard: local/dev path must remain decode-only.
+  const result = verifyEntitlement(token(validPayload), opts);
+  assert.equal(result.userKey, 'orig-123');
+});
