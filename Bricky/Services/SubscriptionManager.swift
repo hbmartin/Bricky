@@ -192,6 +192,22 @@ final class SubscriptionManager: ObservableObject {
         return nil
     }
 
+    /// Token the AI recognition proxy should verify before spending an Azure
+    /// call. Prefers the real Apple-signed StoreKit JWS. When Pro is granted
+    /// only via the developer override (no real receipt), falls back to the
+    /// developer-bypass token, which the proxy honors solely when its
+    /// `DEV_BYPASS_TOKEN` is configured (dev only). Returns `nil` for free
+    /// users so the caller shows an upsell instead of calling the proxy.
+    func recognitionEntitlementToken() async -> String? {
+        if let jws = await currentEntitlementJWS() {
+            return jws
+        }
+        if developerProOverride {
+            return AppConfig.aiRecognitionDevBypassToken
+        }
+        return nil
+    }
+
     // MARK: - StoreKit 2 Purchase
 
     func purchase(_ product: Product) async {

@@ -28,6 +28,27 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Changed
 
+- **Scan Bricks now opens a landing screen.** Tapping "Scan Bricks" from Home
+  shows a titled intro screen ("Scan Bricks") with a brief description and two
+  clear entry points — **Pre-Scan Analysis** (live camera auto-detection) and
+  **Scan a Photo** (pick/take an existing image). The standalone "Scan a Photo"
+  button was removed from the Home screen since it now lives here. Content is
+  width-capped and centered so the buttons don't stretch edge-to-edge on iPad.
+- **Pre-Scan Analysis has a single exit.** Removed the redundant "X" button from
+  the camera screen; a back chevron and the "Cancel" button both return to the
+  Scan Bricks landing screen (previously some exits dropped the user all the way
+  back to Home).
+
+### Fixed
+
+- **Developer Pro override now works with AI recognition.** Using the developer
+  Pro override (7-tap toggle in Settings → About) no longer fails the
+  "Who or What Is This?" feature with a "couldn't verify your Bricky Pro
+  subscription" error. The app sends a server-gated dev bypass token that the
+  recognition proxy accepts only when `DEV_BYPASS_TOKEN` is configured (unset in
+  production, so it is inert for real users). Real StoreKit entitlements are
+  unchanged and still take precedence.
+
 - **Upgrade to Pro is now front-and-center.** The Home screen shows a prominent
   "Upgrade to Bricky Pro" banner (crown, gradient, one-tap to the paywall) for
   free users; it disappears once Pro is active. Previously the paywall was only

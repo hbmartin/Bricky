@@ -19,7 +19,6 @@ struct HomeView: View {
     @State private var showImportError = false
     @State private var importedCount: Int = 0
     @State private var showImportSuccess = false
-    @State private var showingPhotoScan = false
     /// Sprint C — geolocation. When true, scan history is filtered to entries
     /// within `ScanSettings.locationFilterRadiusKm` of the user's current
     /// location.
@@ -121,9 +120,6 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingDemoMode) {
             DemoModeView(session: cameraViewModel.scanSession)
-        }
-        .fullScreenCover(isPresented: $showingPhotoScan) {
-            PhotoScanView()
         }
         .fullScreenCover(isPresented: $showAllScanHistory) {
             AllScanHistoryView()
@@ -312,45 +308,6 @@ struct HomeView: View {
             }
             .accessibilityLabel("Scan Bricks")
             .accessibilityHint("Pre-scan analysis to detect bricks or minifigures")
-
-            Button {
-                showingPhotoScan = true
-            } label: {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.2))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.title2)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Scan a Photo")
-                            .font(.headline)
-                        Text("Pick or take a picture and trace the area to scan")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.legoGreen, Color.legoGreen.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: Color.legoGreen.opacity(0.3), radius: 8, y: 4)
-                )
-                .foregroundStyle(.white)
-            }
-            .accessibilityLabel("Scan a Photo")
-            .accessibilityHint("Opens the photo picker so you can scan an existing image")
 
             // Sprint 2 / B4 — Find a Brick hub
             NavigationLink(destination: FindABrickHubView()) {

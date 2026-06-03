@@ -77,6 +77,25 @@ enum AppConfig {
     /// is a Pro-only capability.
     static let proMonthlyAIRecognitionLimit = 100
 
+    /// Developer-bypass entitlement token for AI recognition. When Pro is
+    /// granted via the in-app developer override (the 7-tap toggle), there is
+    /// no real StoreKit receipt to send the proxy, so the app instead sends
+    /// this `dev-override:<secret>` token. The proxy ONLY honors it when its
+    /// `DEV_BYPASS_TOKEN` app setting matches the `<secret>` portion — and that
+    /// setting is left UNSET in production, so this path is inert there.
+    ///
+    /// Overridable at runtime via the `BRICKY_RECOGNITION_DEV_TOKEN` Info.plist
+    /// value / environment. The baked secret must match the proxy's
+    /// `DEV_BYPASS_TOKEN` app setting (see services/recognition-proxy/README).
+    static var aiRecognitionDevBypassToken: String? {
+        if let raw = infoPlistString("BRICKY_RECOGNITION_DEV_TOKEN") ??
+            ProcessInfo.processInfo.environment["BRICKY_RECOGNITION_DEV_TOKEN"],
+           !raw.isEmpty {
+            return raw
+        }
+        return "dev-override:8f3c2a9e7b14d05f96a1c3e8d2b47f60"
+    }
+
     private static func infoPlistString(_ key: String) -> String? {
         Bundle.main.object(forInfoDictionaryKey: key) as? String
     }

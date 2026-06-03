@@ -76,9 +76,10 @@ final class ImageRecognitionViewModel: ObservableObject {
             phase = .failed(ImageRecognitionError.quotaExceeded.localizedDescription)
             return
         }
-        guard let token = await subscriptions.currentEntitlementJWS() else {
-            // Pro via developer override but no real StoreKit receipt — the
-            // proxy can't verify this, so don't burn budget. Honest message.
+        guard let token = await subscriptions.recognitionEntitlementToken() else {
+            // Pro via developer override but no real StoreKit receipt and no
+            // configured dev-bypass token — the proxy can't verify this, so
+            // don't burn budget. Honest message.
             phase = .failed(ImageRecognitionError.notEntitled.localizedDescription)
             return
         }

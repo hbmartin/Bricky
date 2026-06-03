@@ -569,7 +569,7 @@
 		C8D0ECADC055CC9471CBF5FC /* CommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsView.swift; sourceTree = "<group>"; };
 		C90F86A1A391930008F7E9E3 /* InventoryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryStoreTests.swift; sourceTree = "<group>"; };
 		C9F61A4D5298AC42938A8707 /* bricks.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = bricks.json; sourceTree = "<group>"; };
-		CB22C3F83B16E4FD476197C9 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB22C3F83B16E4FD476197C9 /* Bricky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB5679E5D0D3AF567C66682F /* CloudSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncManager.swift; sourceTree = "<group>"; };
 		CB7F6B73A4C1F0326C15CAD4 /* FindPieceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindPieceView.swift; sourceTree = "<group>"; };
 		CC337C3CA7930100725641C0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -1201,7 +1201,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 5AECB471472270F14B585431 /* Build configuration list for PBXProject "Bricky the Bick Scanner" */;
+			buildConfigurationList = 5AECB471472270F14B585431 /* Build configuration list for PBXProject "Bricky the Brick Scanner" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -1612,6 +1612,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Bricky/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Bricky;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1696,6 +1698,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Bricky/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Bricky;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1856,7 +1860,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		5AECB471472270F14B585431 /* Build configuration list for PBXProject "Bricky the Bick Scanner" */ = {
+		5AECB471472270F14B585431 /* Build configuration list for PBXProject "Bricky the Brick Scanner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E1F3DCAD0FA84F77FF8DD1F8 /* Debug */,

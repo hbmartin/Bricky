@@ -2,13 +2,124 @@ import SwiftUI
 import UIKit
 import Combine
 
-/// Pre-scan analysis view: shows a camera preview with a scan frame,
+/// Landing screen for the **Scan Bricks** feature. Explains what the feature
+/// does and offers two entry points:
+/// - **Pre-Scan Analysis** — opens the live camera that auto-detects whether the
+///   frame is a brick pile or a minifigure, then routes to the right scanner.
+/// - **Scan a Photo** — opens the photo picker / trace flow on an existing image.
+///
+/// Reached via Home → Scan Bricks (a navigation push), so it keeps a back arrow
+/// to Home. Cancelling out of Pre-Scan Analysis returns here rather than home.
+struct PreScanAnalysisView: View {
+    @State private var showPhotoScan = false
+    @State private var startPreScan = false
+
+    /// Caps form-control width so buttons never stretch edge-to-edge on iPad.
+    private let contentMaxWidth: CGFloat = 480
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.legoBlue.opacity(0.15))
+                            .frame(width: 88, height: 88)
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(Color.legoBlue)
+                    }
+                    .padding(.top, 8)
+
+                    Text("Scan Bricks")
+                        .font(.largeTitle.bold())
+                        .multilineTextAlignment(.center)
+
+                    Text("Point your camera at a LEGO minifigure or a pile of bricks. Bricky automatically detects what it's looking at and identifies the pieces — or pick an existing photo to scan instead.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(spacing: 12) {
+                    Button {
+                        startPreScan = true
+                    } label: {
+                        actionLabel(
+                            icon: "viewfinder",
+                            title: "Pre-Scan Analysis",
+                            subtitle: "Auto-detect a minifigure or brick pile with the camera"
+                        )
+                    }
+                    .accessibilityHint("Opens the camera and detects the scan type automatically")
+
+                    Button {
+                        showPhotoScan = true
+                    } label: {
+                        actionLabel(
+                            icon: "photo.on.rectangle.angled",
+                            title: "Scan a Photo",
+                            subtitle: "Pick or take a picture and trace the area to scan"
+                        )
+                    }
+                    .accessibilityHint("Opens the photo picker so you can scan an existing image")
+                }
+            }
+            .frame(maxWidth: contentMaxWidth)
+            .frame(maxWidth: .infinity)
+            .padding()
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Scan Bricks")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $startPreScan) {
+            PreScanCameraView()
+        }
+        .fullScreenCover(isPresented: $showPhotoScan) {
+            PhotoScanView()
+        }
+    }
+
+    /// Shared card-style label for the two entry-point buttons.
+    private func actionLabel(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color.legoBlue.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(Color.legoBlue)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .foregroundStyle(.tertiary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+}
+
+/// Pre-scan analysis camera: shows a camera preview with a scan frame,
 /// lets the user tap "Start Scan" to begin type detection, then routes
 /// to the appropriate scanner (brick pile or minifigure).
 ///
 /// The captured frame is passed to MinifigureScanView so identification
 /// can start immediately without requiring another photo.
-struct PreScanAnalysisView: View {
+struct PreScanCameraView: View {
     @StateObject private var camera = CameraManager()
     @Environment(\.dismiss) private var dismiss
 
@@ -77,6 +188,8 @@ struct PreScanAnalysisView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: phase)
         .statusBarHidden()
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             camera.checkPermissions()
         }
@@ -98,12 +211,13 @@ struct PreScanAnalysisView: View {
     private var topBar: some View {
         HStack {
             Button { dismiss() } label: {
-                Image(systemName: "xmark")
+                Image(systemName: "chevron.left")
                     .font(.title3.weight(.semibold))
                     .padding(12)
                     .background(Circle().fill(.black.opacity(0.55)))
                     .foregroundStyle(.white)
             }
+            .accessibilityLabel("Back")
             Spacer()
             Text("Pre-Scan Analysis")
                 .font(.subheadline.weight(.semibold))

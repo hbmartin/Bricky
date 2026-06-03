@@ -165,6 +165,19 @@ final class ImageRecognitionViewModelTests: XCTestCase {
         }
     }
 
+    /// Captures the entitlement token the view model sends and returns a canned
+    /// result so we can assert the developer-bypass path actually calls through.
+    private actor TokenCapturingService: ImageRecognitionService {
+        private(set) var capturedToken: String?
+        private let result: RecognitionResult
+        init(result: RecognitionResult) { self.result = result }
+        func recognize(in image: UIImage, entitlementToken: String) async throws -> RecognitionResult {
+            capturedToken = entitlementToken
+            return result
+        }
+        func token() -> String? { capturedToken }
+    }
+
     private var sampleImage: UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { ctx in
             UIColor.systemRed.setFill()
@@ -181,17 +194,31 @@ final class ImageRecognitionViewModelTests: XCTestCase {
         XCTAssertTrue(vm.requiresUpgrade)
     }
 
-    func testProUserWithoutRealReceiptFailsNotEntitled() async {
+    func testDeveloperOverrideSendsDevBypassTokenAndCallsService() async {
         // Developer override grants `isPro` but produces no StoreKit JWS, so the
-        // VM must refuse to spend budget and report an honest failure.
+        // VM falls back to the developer-bypass token and calls the proxy. The
+        // proxy (not the app) decides whether to honor that token.
         SubscriptionManager.shared.developerProOverride = true
-        let vm = ImageRecognitionViewModel(service: NeverCalledService())
+        guard SubscriptionManager.shared.aiRecognitionsRemaining > 0 else {
+            // Monthly quota already exhausted in this environment — skip.
+            return
+        }
+        let subject = RecognizedSubject(
+            name: "Eiffel Tower", category: .landmark,
+            confidence: 0.9, summary: "Tower in Paris.", location: "Paris"
+        )
+        let service = TokenCapturingService(
+            result: RecognitionResult(subjects: [subject], remainingQuota: 50)
+        )
+        let vm = ImageRecognitionViewModel(service: service)
         vm.setImage(sampleImage)
         await vm.recognize()
-        if case .failed(let message) = vm.phase {
-            XCTAssertEqual(message, ImageRecognitionError.notEntitled.localizedDescription)
+        let captured = await service.token()
+        XCTAssertEqual(captured, AppConfig.aiRecognitionDevBypassToken)
+        if case .results(let subjects) = vm.phase {
+            XCTAssertEqual(subjects.first?.name, "Eiffel Tower")
         } else {
-            XCTFail("Expected .failed(notEntitled), got \(vm.phase)")
+            XCTFail("Expected .results, got \(vm.phase)")
         }
     }
 

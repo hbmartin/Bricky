@@ -1,4 +1,4 @@
-import { X509Certificate } from 'node:crypto';
+import { X509Certificate, timingSafeEqual } from 'node:crypto';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { ProxyError } from './types.js';
 
@@ -14,15 +14,64 @@ import { ProxyError } from './types.js';
  * any payload field. For local/dev (`verifyChain` false) we decode and
  * structurally validate the payload only.
  *
- * We intentionally do NOT accept developer-override-only Pro users — those have
- * no real receipt, so their JWS is absent and this throws `not_entitled`,
- * preventing budget burn on unverifiable clients.
+ * Developer-override Pro users have no real receipt. They are only honored via
+ * a separate, server-gated developer bypass token (see `verifyDevBypassToken`)
+ * which is OFF unless `DEV_BYPASS_TOKEN` is configured on the proxy — production
+ * leaves it unset, so unverifiable clients still get `not_entitled`.
  */
 
 const PRO_PRODUCT_IDS = new Set([
   'com.bricky.app.pro.monthly',
   'com.bricky.app.pro.annual',
 ]);
+
+/**
+ * Prefix the iOS app prepends to the shared developer-bypass secret when Pro is
+ * granted via the in-app developer override (which produces no StoreKit JWS).
+ */
+export const DEV_BYPASS_PREFIX = 'dev-override:';
+
+/** Stable quota key used for all developer-bypass traffic. */
+const DEV_BYPASS_USER_KEY = 'dev-override';
+
+/** Constant-time string comparison that never short-circuits on length. */
+function constantTimeEquals(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, 'utf8');
+  const bBuf = Buffer.from(b, 'utf8');
+  if (aBuf.length !== bBuf.length) {
+    // Compare against self to keep the timing profile uniform, then fail.
+    timingSafeEqual(aBuf, aBuf);
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
+}
+
+/**
+ * Resolves a developer-bypass entitlement when (and only when) the proxy has a
+ * `DEV_BYPASS_TOKEN` secret configured AND the supplied token is the matching
+ * `dev-override:<secret>` value. This lets the developer test the Pro AI
+ * recognition feature using the in-app developer override (which has no real
+ * Apple receipt) without exposing the path on any proxy where the secret is
+ * unset (e.g. production).
+ *
+ * Returns `null` when the token is not a developer-bypass token, or when no
+ * secret is configured — callers then fall through to real StoreKit
+ * verification, which rejects the token. Throws `not_entitled` when the token
+ * IS a bypass token but the secret does not match.
+ */
+export function verifyDevBypassToken(
+  token: string | undefined,
+  secret: string | undefined,
+): VerifiedEntitlement | null {
+  if (!secret || !token || !token.startsWith(DEV_BYPASS_PREFIX)) {
+    return null;
+  }
+  const provided = token.slice(DEV_BYPASS_PREFIX.length);
+  if (!constantTimeEquals(provided, secret)) {
+    throw new ProxyError(401, 'not_entitled', 'Invalid developer bypass token.');
+  }
+  return { userKey: DEV_BYPASS_USER_KEY, productId: 'dev-override' };
+}
 
 interface StoreKitTransactionPayload extends JwtPayload {
   transactionId?: string;

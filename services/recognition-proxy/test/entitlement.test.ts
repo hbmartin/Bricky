@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
-import { verifyEntitlement } from '../src/entitlement.js';
+import { verifyEntitlement, verifyDevBypassToken, DEV_BYPASS_PREFIX } from '../src/entitlement.js';
 import { ProxyError } from '../src/types.js';
 
 const opts = { bundleId: 'com.bricky.app', environment: 'Production' };
@@ -127,4 +127,34 @@ test('verifyChain disabled (dev) still accepts an unsigned fixture', () => {
   // Regression guard: local/dev path must remain decode-only.
   const result = verifyEntitlement(token(validPayload), opts);
   assert.equal(result.userKey, 'orig-123');
+});
+
+// --- Developer bypass token (DEV_BYPASS_TOKEN configured) ---
+
+const DEV_SECRET = 'test-dev-secret-123';
+const DEV_TOKEN = `${DEV_BYPASS_PREFIX}${DEV_SECRET}`;
+
+test('verifyDevBypassToken returns null when no secret is configured', () => {
+  assert.equal(verifyDevBypassToken(DEV_TOKEN, undefined), null);
+});
+
+test('verifyDevBypassToken returns null for a non-bypass token', () => {
+  assert.equal(verifyDevBypassToken(token(validPayload), DEV_SECRET), null);
+});
+
+test('verifyDevBypassToken accepts a matching secret and returns a stable userKey', () => {
+  const result = verifyDevBypassToken(DEV_TOKEN, DEV_SECRET);
+  assert.ok(result);
+  assert.equal(result?.userKey, 'dev-override');
+});
+
+test('verifyDevBypassToken rejects a bypass token with the wrong secret', () => {
+  assert.throws(
+    () => verifyDevBypassToken(`${DEV_BYPASS_PREFIX}wrong`, DEV_SECRET),
+    (e: unknown) => e instanceof ProxyError && e.status === 401 && e.code === 'not_entitled',
+  );
+});
+
+test('verifyDevBypassToken returns null for an undefined token', () => {
+  assert.equal(verifyDevBypassToken(undefined, DEV_SECRET), null);
 });

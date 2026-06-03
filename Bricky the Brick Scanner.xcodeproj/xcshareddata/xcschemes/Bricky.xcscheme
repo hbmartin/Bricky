@@ -17,7 +17,7 @@
                BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
                BuildableName = "Bricky.app"
                BlueprintName = "Bricky"
-               ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+               ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,7 +33,7 @@
             BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
-            ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+            ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -45,7 +45,7 @@
                BlueprintIdentifier = "A3F947E9F37A2CA3F47C23C7"
                BuildableName = "BrickyTests.xctest"
                BlueprintName = "BrickyTests"
-               ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+               ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -55,7 +55,7 @@
                BlueprintIdentifier = "7181CD0E37D1DDC8F71737B2"
                BuildableName = "BrickyUITests.xctest"
                BlueprintName = "BrickyUITests"
-               ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+               ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -77,7 +77,7 @@
             BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
-            ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+            ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <StoreKitConfigurationFileReference
@@ -97,7 +97,7 @@
             BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
-            ReferencedContainer = "container:Bricky the Bick Scanner.xcodeproj">
+            ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

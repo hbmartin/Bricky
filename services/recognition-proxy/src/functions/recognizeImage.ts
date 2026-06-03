@@ -4,7 +4,7 @@ import {
   type HttpResponseInit,
   type InvocationContext,
 } from '@azure/functions';
-import { verifyEntitlement } from '../entitlement.js';
+import { verifyEntitlement, verifyDevBypassToken } from '../entitlement.js';
 import { recognizeWithOpenAI, type OpenAIConfig } from '../openai.js';
 import { TableQuotaStore, type QuotaStore } from '../quota.js';
 import {
@@ -68,12 +68,17 @@ export async function recognizeImage(
     }
 
     // --- verify entitlement (active Bricky Pro) ---
-    const entitlement = verifyEntitlement(body.entitlementToken, {
-      bundleId: requireEnv('APPSTORE_BUNDLE_ID'),
-      environment: requireEnv('APPSTORE_ENVIRONMENT'),
-      // Production cryptographically verifies Apple's JWS signature chain.
-      verifyChain: env('APPSTORE_VERIFY_CHAIN') === 'true',
-    });
+    // A developer-bypass token is only honored when DEV_BYPASS_TOKEN is set on
+    // this proxy (dev only); otherwise we fall through to real Apple-signed
+    // StoreKit verification.
+    const entitlement =
+      verifyDevBypassToken(body.entitlementToken, env('DEV_BYPASS_TOKEN')) ??
+      verifyEntitlement(body.entitlementToken, {
+        bundleId: requireEnv('APPSTORE_BUNDLE_ID'),
+        environment: requireEnv('APPSTORE_ENVIRONMENT'),
+        // Production cryptographically verifies Apple's JWS signature chain.
+        verifyChain: env('APPSTORE_VERIFY_CHAIN') === 'true',
+      });
 
     // --- enforce monthly quota server-side ---
     const { remaining } = await quotaStore().consume(entitlement.userKey);
