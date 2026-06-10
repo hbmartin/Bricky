@@ -1,5 +1,8 @@
 import XCTest
 @testable import Bricky
+#if canImport(UIKit)
+import UIKit
+#endif
 
 final class LegoPieceTests: XCTestCase {
 
@@ -83,5 +86,14 @@ final class LegoPieceTests: XCTestCase {
         // Test a known color
         XCTAssertEqual(LegoColor.red.hex, 0xC91A09)
         XCTAssertEqual(LegoColor.blue.hex, 0x0055BF)
+    }
+
+    func testBrickyHomeIconAssetIsAvailable() {
+#if canImport(UIKit)
+        XCTAssertNotNil(
+            UIImage(named: "BrickyHomeIcon"),
+            "BrickyHomeIcon asset must exist for HomeView hero icon"
+        )
+#endif
     }
 }

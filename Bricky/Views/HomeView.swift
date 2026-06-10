@@ -39,7 +39,7 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 18) {
                 // Hero section
                 heroSection
 
@@ -82,14 +82,15 @@ struct HomeView: View {
                 // How it works
                 howItWorks
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom)
+            .padding(.top, 6)
         }
         .refreshable {
             scanHistory.reload()
             minifigureScanHistory.reload()
             mosaicScanHistory.reload()
         }
-        .navigationTitle("\(AppConfig.appName)")
         .navigationDestination(for: UUID.self) { inventoryId in
             InventoryDetailView(inventoryId: inventoryId)
         }
@@ -173,36 +174,17 @@ struct HomeView: View {
     // MARK: - Hero Section
 
     private var heroSection: some View {
-        VStack(spacing: 16) {
-            // App icon area
-            ZStack {
-                // Animated glow ring
-                Circle()
-                    .fill(
-                        AngularGradient(
-                            colors: [.legoRed, .legoOrange, .legoYellow, .legoGreen, .legoBlue, .legoRed],
-                            center: .center
-                        )
-                    )
-                    .frame(width: 108, height: 108)
-                    .blur(radius: 6)
-                    .opacity(0.6)
+        return VStack(spacing: 10) {
+            GeometryReader { proxy in
+                let heroIconSize = min(proxy.size.width * 0.94, 350)
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: themeManager.colorTheme.gradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: "cube.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                Image("BrickyHomeIcon")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: heroIconSize, height: heroIconSize)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(height: 342)
             .accessibilityHidden(true)
 
             Text("Scan. Discover. Build.")
@@ -215,7 +197,7 @@ struct HomeView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
-        .padding(.top)
+        .padding(.top, 0)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(AppConfig.appName). Scan, Discover, Build. Point your camera at LEGO bricks to discover what you can build.")
     }
