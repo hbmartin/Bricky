@@ -44,8 +44,8 @@ final class BrickyUITests: XCTestCase {
         app.launch()
 
         // Home should have key elements
-        let scanButton = app.buttons["Scan Bricks"].firstMatch
-        XCTAssertTrue(scanButton.waitForExistence(timeout: 5), "Scan Bricks button should exist")
+        let scanButton = app.buttons["Scanner"].firstMatch
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 5), "Scanner button should exist")
 
         let demoButton = app.buttons["Try Demo Mode"].firstMatch
         XCTAssertTrue(demoButton.waitForExistence(timeout: 5), "Demo Mode button should exist")
@@ -118,9 +118,9 @@ final class BrickyUITests: XCTestCase {
         skipOnboarding()
         app.launch()
 
-        let scanButton = app.buttons["Scan Bricks"].firstMatch
+        let scanButton = app.buttons["Scanner"].firstMatch
         guard scanButton.waitForExistence(timeout: 5) else {
-            XCTFail("Scan Bricks button not found")
+            XCTFail("Scanner button not found")
             return
         }
         scanButton.tap()
@@ -165,7 +165,7 @@ final class BrickyUITests: XCTestCase {
         app.launch()
 
         // Navigate forward
-        let scanButton = app.buttons["Scan Bricks"].firstMatch
+        let scanButton = app.buttons["Scanner"].firstMatch
         guard scanButton.waitForExistence(timeout: 5) else { return }
         scanButton.tap()
 

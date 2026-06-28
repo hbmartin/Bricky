@@ -264,7 +264,7 @@ struct HomeView: View {
                             .font(.title2)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Scan Bricks")
+                        Text("Scanner")
                             .font(.headline)
                         Text("Auto-detects minifigures or brick piles")
                             .font(.caption)
@@ -288,7 +288,7 @@ struct HomeView: View {
                 )
                 .foregroundStyle(.white)
             }
-            .accessibilityLabel("Scan Bricks")
+            .accessibilityLabel("Scanner")
             .accessibilityHint("Pre-scan analysis to detect bricks or minifigures")
 
             // Sprint 2 / B4 — Find a Brick hub

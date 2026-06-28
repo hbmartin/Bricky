@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 import Combine
 
-/// Landing screen for the **Scan Bricks** feature. Explains what the feature
+/// Landing screen for the **Scanner** feature. Explains what the feature
 /// does and offers two entry points:
 /// - **Pre-Scan Analysis** — opens the live camera that auto-detects whether the
 ///   frame is a brick pile or a minifigure, then routes to the right scanner.
 /// - **Scan a Photo** — opens the photo picker / trace flow on an existing image.
 ///
-/// Reached via Home → Scan Bricks (a navigation push), so it keeps a back arrow
+/// Reached via Home → Scanner (a navigation push), so it keeps a back arrow
 /// to Home. Cancelling out of Pre-Scan Analysis returns here rather than home.
 struct PreScanAnalysisView: View {
     @State private var showPhotoScan = false
@@ -31,7 +31,7 @@ struct PreScanAnalysisView: View {
                     }
                     .padding(.top, 8)
 
-                    Text("Scan Bricks")
+                    Text("Scanner")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
 
@@ -71,7 +71,7 @@ struct PreScanAnalysisView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("Scan Bricks")
+        .navigationTitle("Scanner")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $startPreScan) {
             PreScanCameraView()
