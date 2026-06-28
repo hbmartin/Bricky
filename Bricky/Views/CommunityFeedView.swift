@@ -8,6 +8,10 @@ struct CommunityFeedView: View {
     @State private var showShareCreation = false
     @State private var showProfile = false
     @State private var selectedPost: CommunityPost?
+    /// Post being edited via the context menu / detail modal.
+    @State private var postToEdit: CommunityPost?
+    /// Post pending deletion, awaiting confirmation.
+    @State private var postPendingDelete: CommunityPost?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -58,6 +62,40 @@ struct CommunityFeedView: View {
             NavigationStack {
                 CommunityPostDetailView(post: post)
             }
+        }
+        .sheet(item: $postToEdit) { post in
+            NavigationStack {
+                EditPostView(post: post)
+            }
+        }
+        .confirmationDialog(
+            "Delete this post?",
+            isPresented: deleteConfirmationBinding,
+            titleVisibility: .visible,
+            presenting: postPendingDelete
+        ) { post in
+            Button("Delete Post", role: .destructive) {
+                deletePost(post)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { post in
+            Text("\"\(post.projectName)\" will be permanently removed. This can't be undone.")
+        }
+    }
+
+    /// Bridges the optional `postPendingDelete` to the boolean the
+    /// confirmation dialog expects, clearing it when dismissed.
+    private var deleteConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { postPendingDelete != nil },
+            set: { if !$0 { postPendingDelete = nil } }
+        )
+    }
+
+    private func deletePost(_ post: CommunityPost) {
+        Task {
+            try? await communityService.deletePost(post.id)
+            await MainActor.run { HapticManager.notification(.success) }
         }
     }
 
@@ -117,6 +155,20 @@ struct CommunityFeedView: View {
                     }
                     .onTapGesture {
                         selectedPost = post
+                    }
+                    .contextMenu {
+                        if post.isOwned(by: auth.userIdentifier) {
+                            Button {
+                                postToEdit = post
+                            } label: {
+                                Label("Edit Post", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                postPendingDelete = post
+                            } label: {
+                                Label("Delete Post", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -318,7 +370,20 @@ struct CommunityPostCard: View {
 struct CommunityPostDetailView: View {
     let post: CommunityPost
     @ObservedObject private var communityService = CloudKitCommunityService.shared
+    @ObservedObject private var auth = AuthenticationService.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var showEdit = false
+    @State private var showDeleteConfirmation = false
+
+    private var isOwner: Bool {
+        post.isOwned(by: auth.userIdentifier)
+    }
+
+    /// The latest version of the post from the service (so edits made in the
+    /// edit sheet are reflected here), falling back to the passed-in copy.
+    private var currentPost: CommunityPost {
+        communityService.posts.first(where: { $0.id == post.id }) ?? post
+    }
 
     var body: some View {
         ScrollView {
@@ -419,6 +484,30 @@ struct CommunityPostDetailView: View {
                     }
                 }
                 .padding(.top, 8)
+
+                // Owner actions — edit and delete the post.
+                if isOwner {
+                    HStack(spacing: 12) {
+                        Button {
+                            showEdit = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.legoBlue)
+
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.legoRed)
+                    }
+                    .padding(.top, 4)
+                }
             }
             .padding()
         }
@@ -427,6 +516,33 @@ struct CommunityPostDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") { dismiss() }
+            }
+        }
+        .sheet(isPresented: $showEdit) {
+            NavigationStack {
+                EditPostView(post: currentPost)
+            }
+        }
+        .confirmationDialog(
+            "Delete this post?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Post", role: .destructive) {
+                deletePost()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\"\(post.projectName)\" will be permanently removed. This can't be undone.")
+        }
+    }
+
+    private func deletePost() {
+        Task {
+            try? await communityService.deletePost(post.id)
+            await MainActor.run {
+                HapticManager.notification(.success)
+                dismiss()
             }
         }
     }

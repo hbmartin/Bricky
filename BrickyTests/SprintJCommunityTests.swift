@@ -251,6 +251,62 @@ final class CommunityPostTests: XCTestCase {
         }
     }
 
+    // MARK: - Ownership (edit / delete gating)
+
+    private func makePost(authorId: String) -> CommunityPost {
+        CommunityPost(
+            authorId: authorId, authorName: "Builder",
+            projectName: "My Build", projectCategory: "Art & Mosaic",
+            projectDifficulty: "Easy"
+        )
+    }
+
+    func testIsOwnedByMatchingAuthor() {
+        let post = makePost(authorId: "user_123")
+        XCTAssertTrue(post.isOwned(by: "user_123"))
+    }
+
+    func testIsNotOwnedByDifferentUser() {
+        let post = makePost(authorId: "user_123")
+        XCTAssertFalse(post.isOwned(by: "user_999"))
+    }
+
+    func testIsNotOwnedWhenUserIsNil() {
+        let post = makePost(authorId: "user_123")
+        XCTAssertFalse(post.isOwned(by: nil))
+    }
+
+    func testIsNotOwnedWhenUserIsEmpty() {
+        let post = makePost(authorId: "user_123")
+        XCTAssertFalse(post.isOwned(by: ""))
+    }
+
+    func testEditingPreservesImmutableFields() {
+        // Mirrors EditPostView.saveChanges: edit mutable fields on a copy and
+        // confirm identity / counts / authorship / timestamp are preserved.
+        let original = CommunityPost(
+            authorId: "owner_1", authorName: "Jane",
+            projectName: "Castle", projectCategory: "Art & Mosaic",
+            projectDifficulty: "Easy", caption: "Old caption",
+            likeCount: 7, commentCount: 3
+        )
+
+        var edited = original
+        edited.projectName = "Grand Castle"
+        edited.projectCategory = "Vehicle"
+        edited.projectDifficulty = "Hard"
+        edited.caption = "New caption"
+
+        XCTAssertEqual(edited.id, original.id)
+        XCTAssertEqual(edited.authorId, original.authorId)
+        XCTAssertEqual(edited.createdAt, original.createdAt)
+        XCTAssertEqual(edited.likeCount, 7)
+        XCTAssertEqual(edited.commentCount, 3)
+        XCTAssertEqual(edited.projectName, "Grand Castle")
+        XCTAssertEqual(edited.caption, "New caption")
+        XCTAssertTrue(edited.isOwned(by: "owner_1"))
+    }
+
     func testAllDifficultiesParseable() {
         for difficulty in Difficulty.allCases {
             let post = CommunityPost(

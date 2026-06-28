@@ -313,3 +313,172 @@ struct ShareBuildSuggestionView: View {
         }
     }
 }
+
+// MARK: - Edit Post
+
+/// Edit an existing community post the current user authored. Mirrors the
+/// share-creation form but is pre-filled and saves via `updatePost`.
+struct EditPostView: View {
+    let post: CommunityPost
+
+    @ObservedObject private var communityService = CloudKitCommunityService.shared
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var projectName: String
+    @State private var caption: String
+    @State private var selectedCategory: ProjectCategory
+    @State private var selectedDifficulty: Difficulty
+    @State private var selectedImage: UIImage?
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    init(post: CommunityPost) {
+        self.post = post
+        _projectName = State(initialValue: post.projectName)
+        _caption = State(initialValue: post.caption)
+        _selectedCategory = State(initialValue: post.category ?? .decoration)
+        _selectedDifficulty = State(initialValue: post.difficulty ?? .medium)
+        _selectedImage = State(initialValue: post.imageData.flatMap(UIImage.init(data:)))
+    }
+
+    private var trimmedName: String {
+        projectName.trimmingCharacters(in: .whitespaces)
+    }
+
+    var body: some View {
+        Form {
+            // Photo section
+            Section {
+                PhotosPicker(selection: $photoPickerItem, matching: .images) {
+                    if let image = selectedImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                Image(systemName: "camera.fill")
+                                    .font(.largeTitle)
+                                    .foregroundStyle(Color.legoBlue)
+                                Text("Change Photo")
+                                    .font(.headline)
+                            }
+                            .padding(.vertical, 40)
+                            Spacer()
+                        }
+                    }
+                }
+                .onChange(of: photoPickerItem) { _, newItem in
+                    Task {
+                        if let data = try? await newItem?.loadTransferable(type: Data.self),
+                           let uiImage = UIImage(data: data) {
+                            selectedImage = uiImage
+                        }
+                    }
+                }
+            } header: {
+                Text("Photo")
+            }
+
+            // Build details
+            Section {
+                TextField("Build Name", text: $projectName)
+
+                Picker("Category", selection: $selectedCategory) {
+                    ForEach(ProjectCategory.allCases, id: \.self) { category in
+                        Label(category.rawValue.capitalized, systemImage: category.systemImage)
+                            .tag(category)
+                    }
+                }
+
+                Picker("Difficulty", selection: $selectedDifficulty) {
+                    ForEach(Difficulty.allCases, id: \.self) { diff in
+                        Text(diff.rawValue.capitalized).tag(diff)
+                    }
+                }
+            } header: {
+                Text("Build Details")
+            }
+
+            // Caption
+            Section {
+                TextField("Tell others about your build...", text: $caption, axis: .vertical)
+                    .lineLimit(3...6)
+            } header: {
+                Text("Caption")
+            }
+
+            // Save button
+            Section {
+                Button {
+                    Task { await saveChanges() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if isSaving {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Label("Save Changes", systemImage: "checkmark.circle.fill")
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .disabled(trimmedName.isEmpty || isSaving)
+                .listRowBackground(
+                    trimmedName.isEmpty
+                        ? Color.gray.opacity(0.3)
+                        : Color.legoBlue
+                )
+                .foregroundStyle(.white)
+
+                if let error = saveError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .navigationTitle("Edit Build")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+        }
+    }
+
+    // MARK: - Save
+
+    private func saveChanges() async {
+        isSaving = true
+        saveError = nil
+
+        var updated = post
+        updated.projectName = trimmedName
+        updated.projectCategory = selectedCategory.rawValue
+        updated.projectDifficulty = selectedDifficulty.rawValue
+        updated.caption = caption.trimmingCharacters(in: .whitespaces)
+        if let image = selectedImage {
+            updated.imageData = image.jpegData(compressionQuality: 0.7)
+        }
+
+        do {
+            try await communityService.updatePost(updated)
+            await MainActor.run {
+                isSaving = false
+                dismiss()
+            }
+        } catch {
+            await MainActor.run {
+                saveError = error.localizedDescription
+                isSaving = false
+            }
+        }
+    }
+}

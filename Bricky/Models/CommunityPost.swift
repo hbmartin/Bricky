@@ -55,4 +55,11 @@ struct CommunityPost: Identifiable, Codable {
     var difficulty: Difficulty? {
         Difficulty(rawValue: projectDifficulty)
     }
+
+    /// Whether the post was authored by the given user. Used to gate
+    /// owner-only actions such as editing and deleting.
+    func isOwned(by userId: String?) -> Bool {
+        guard let userId, !userId.isEmpty else { return false }
+        return authorId == userId
+    }
 }

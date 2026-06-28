@@ -171,6 +171,34 @@ final class CloudKitCommunityService: ObservableObject {
         }
     }
 
+    /// Updates the editable fields of an existing post (name, category,
+    /// difficulty, caption, and optionally the image). Immutable fields such
+    /// as author and creation date are preserved. The current like/comment
+    /// counts on the server record are left untouched.
+    func updatePost(_ post: CommunityPost) async throws {
+        let recordId = CKRecord.ID(recordName: post.id)
+        let record = try await publicDB.record(for: recordId)
+
+        record["projectName"] = post.projectName
+        record["projectCategory"] = post.projectCategory
+        record["projectDifficulty"] = post.projectDifficulty
+        record["caption"] = post.caption
+
+        if let imageData = post.imageData {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(post.id)-edit.jpg")
+            try imageData.write(to: tempURL)
+            record["image"] = CKAsset(fileURL: tempURL)
+        }
+
+        try await publicDB.save(record)
+
+        await MainActor.run {
+            if let index = self.posts.firstIndex(where: { $0.id == post.id }) {
+                self.posts[index] = post
+            }
+        }
+    }
+
     func fetchUserPosts(userId: String) async -> [CommunityPost] {
         let predicate = NSPredicate(format: "authorId == %@", userId)
         let query = CKQuery(recordType: Self.postRecordType, predicate: predicate)
