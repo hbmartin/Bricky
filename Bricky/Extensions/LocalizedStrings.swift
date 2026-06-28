@@ -261,6 +261,109 @@ extension L10n {
         defaultValue: "Recognition failed. Please try again in a moment."
     )
 
+    // MARK: - AI Set Identification (developer-only, cloud)
+
+    static let setIdTitle = String(
+        localized: "setId.title",
+        defaultValue: "Identify a Set"
+    )
+    static let setIdSubtitle = String(
+        localized: "setId.subtitle",
+        defaultValue: "Scan an already-built model and find out which official LEGO set it is."
+    )
+    static let setIdChoosePhoto = String(
+        localized: "setId.choosePhoto",
+        defaultValue: "Choose Photo"
+    )
+    static let setIdChangePhoto = String(
+        localized: "setId.changePhoto",
+        defaultValue: "Change Photo"
+    )
+    static let setIdTakePhoto = String(
+        localized: "setId.takePhoto",
+        defaultValue: "Take Photo"
+    )
+    static let setIdIdentify = String(
+        localized: "setId.identify",
+        defaultValue: "Identify Set"
+    )
+    static let setIdWorking = String(
+        localized: "setId.working",
+        defaultValue: "Identifying…"
+    )
+    static let setIdResultsTitle = String(
+        localized: "setId.resultsTitle",
+        defaultValue: "Best Matches"
+    )
+    static let setIdConfidenceLabel = String(
+        localized: "setId.confidenceLabel",
+        defaultValue: "Confidence"
+    )
+    static let setIdUnverifiedBadge = String(
+        localized: "setId.unverifiedBadge",
+        defaultValue: "Unverified guess"
+    )
+    static let setIdEmptyTitle = String(
+        localized: "setId.emptyTitle",
+        defaultValue: "No Set Recognized"
+    )
+    static let setIdEmptyMessage = String(
+        localized: "setId.emptyMessage",
+        defaultValue: "We couldn't confidently identify a LEGO set in this photo. Try a clearer, well-lit shot of the whole model."
+    )
+    static let setIdUpsellTitle = String(
+        localized: "setId.upsellTitle",
+        defaultValue: "A Bricky Pro Feature"
+    )
+    static let setIdUpsellMessage = String(
+        localized: "setId.upsellMessage",
+        defaultValue: "AI set identification is part of a Bricky Pro subscription. Identify which official set a built model is from a single photo."
+    )
+    static let setIdUpgrade = String(
+        localized: "setId.upgrade",
+        defaultValue: "Upgrade to Pro"
+    )
+    static let setIdPrivacyNote = String(
+        localized: "setId.privacyNote",
+        defaultValue: "Photos are sent securely for analysis and not stored. Matches are AI best-guesses grounded against a reference catalog — confirm before trusting."
+    )
+    static func setIdRemaining(_ count: Int) -> String {
+        String(
+            localized: "setId.remaining",
+            defaultValue: "\(count) left this month"
+        )
+    }
+    static func setIdPieceCount(_ count: Int) -> String {
+        String(
+            localized: "setId.pieceCount",
+            defaultValue: "\(count) pieces"
+        )
+    }
+    static let setIdErrorNotConfigured = String(
+        localized: "setId.error.notConfigured",
+        defaultValue: "Set identification isn't available right now. Please try again later."
+    )
+    static let setIdErrorOffline = String(
+        localized: "setId.error.offline",
+        defaultValue: "Set identification needs an internet connection. Reconnect and try again."
+    )
+    static let setIdErrorNotEntitled = String(
+        localized: "setId.error.notEntitled",
+        defaultValue: "We couldn't verify access to set identification. Restore purchases in Settings and try again."
+    )
+    static let setIdErrorQuotaExceeded = String(
+        localized: "setId.error.quota",
+        defaultValue: "You've used all your AI identifications for this month. Your allowance resets next month."
+    )
+    static let setIdErrorImageEncoding = String(
+        localized: "setId.error.imageEncoding",
+        defaultValue: "We couldn't process that photo. Try a different image."
+    )
+    static let setIdErrorServer = String(
+        localized: "setId.error.server",
+        defaultValue: "Set identification failed. Please try again in a moment."
+    )
+
     static let mosaicStartOver = String(
         localized: "mosaic.startOver",
         defaultValue: "Start Over"

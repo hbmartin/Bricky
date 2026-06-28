@@ -147,6 +147,14 @@ final class SubscriptionManager: ObservableObject {
         developerProOverride && aiRecognitionsRemaining > 0
     }
 
+    /// LEGO **set** identification (scan a built model → which set is it) is the
+    /// same kind of developer-only cloud GPT-4o vision call as subject
+    /// recognition, so it is gated identically (developer override + shared
+    /// monthly safety cap) and is never reachable by a normal Pro purchase.
+    var canIdentifySets: Bool {
+        canUseAIRecognition
+    }
+
     /// Recognitions left in the current calendar month for the developer.
     /// Always 0 for anyone without the developer override.
     var aiRecognitionsRemaining: Int {

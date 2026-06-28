@@ -15,11 +15,45 @@ final class LegoSetCatalog {
     }
 
     func set(byNumber number: String) -> LegoSet? {
-        setIndex[number]
+        setIndex[number] ?? setIndex[Self.normalizeSetNumber(number)]
     }
 
     func sets(byTheme theme: String) -> [LegoSet] {
         themeIndex[theme] ?? []
+    }
+
+    /// Grounds an AI set proposal against the reference catalog so a guess is
+    /// only ever shown as *verified* when it maps to a real set. Resolution
+    /// order: exact (normalized) set number → exact name + year → exact name.
+    /// Returns `nil` when nothing matches; callers must then treat the proposal
+    /// as an unverified best-guess (never as confirmed fact).
+    func resolve(setNumber: String, name: String? = nil, year: Int? = nil) -> LegoSet? {
+        if let byNumber = set(byNumber: setNumber) {
+            return byNumber
+        }
+        guard let name, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        let target = Self.normalizeName(name)
+        let nameMatches = sets.filter { Self.normalizeName($0.name) == target }
+        if let year, let exact = nameMatches.first(where: { $0.year == year }) {
+            return exact
+        }
+        return nameMatches.first
+    }
+
+    /// Strips a trailing variant suffix (e.g. `"75192-1"` → `"75192"`) and
+    /// surrounding whitespace so the model's loose number maps to a catalog row.
+    static func normalizeSetNumber(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let dash = trimmed.firstIndex(of: "-") {
+            return String(trimmed[..<dash])
+        }
+        return trimmed
+    }
+
+    private static func normalizeName(_ raw: String) -> String {
+        raw.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "’", with: "'")
     }
 
     var allThemes: [String] {

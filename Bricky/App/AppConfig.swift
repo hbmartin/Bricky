@@ -71,6 +71,20 @@ enum AppConfig {
         return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/recognizeImage")
     }
 
+    /// Server proxy endpoint that identifies a built LEGO set from a photo via
+    /// GPT-4o vision. Same proxy deployment and key handling as
+    /// `aiRecognitionEndpoint` — the Azure key is NEVER shipped in the app, and
+    /// set identification is a hidden, developer-only feature (unlocked by the
+    /// in-app override). Overridable via `BRICKY_SET_ID_ENDPOINT`.
+    static var setIdentificationEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_SET_ID_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_SET_ID_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/identifySet")
+    }
+
     /// Monthly AI recognition allowance. Cloud AI is developer-only, so this is
     /// just a safety cap on the developer's own Azure GPT-4o spend; it keeps
     /// total spend under the development cost cap while testing. Everyone without

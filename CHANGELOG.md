@@ -12,6 +12,29 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Added
 
+- **AI LEGO set identification (developer-only).** The Scanner can now identify
+  which official LEGO set an *already-built model* is from a single photo. It
+  proposes up to three candidate sets via cloud GPT-4o vision, then **grounds**
+  each proposal against the bundled `LegoSetCatalog` so verified matches show
+  authoritative name/theme/year/piece-count and unresolved guesses are clearly
+  flagged "Unverified guess" — never presented as fact. Like cloud subject
+  recognition, this is a hidden, developer-only feature: the **"Identify a Set"**
+  entry only appears on the Scanner landing when the in-app developer Pro
+  override is enabled, and it is gated on `developerProOverride` (sharing the
+  same monthly Azure safety cap). It is reserved as the flagship of a future
+  paid monthly tier.
+  - `Models/IdentifiedSet.swift` — `IdentifiedSet` / `SetIdentificationResult`
+    with lenient decoding and catalog grounding.
+  - `Services/SetIdentificationService.swift` — `AzureOpenAISetClient` calling
+    the recognition proxy; `LegoSetCatalog.resolve(setNumber:name:year:)`
+    grounding helper.
+  - `ViewModels/SetIdentificationViewModel.swift` — idle → identifying →
+    results / empty / failed / upsell, with verified-first ranking.
+  - `Views/SetIdentificationView.swift` + dev-gated Scanner entry point.
+  - Proxy: `services/recognition-proxy/src/functions/identifySet.ts`
+    (`POST /api/identifySet`) + `identifySetWithOpenAI` / `parseSets`.
+  - Tests: `BrickyTests/SetIdentificationTests.swift` (16 tests) and
+    `services/recognition-proxy/test/identifySet.test.ts` (10 tests).
 - **Pro puzzle packs** — Build Puzzles now ship as a free Starter Pack (10
   puzzles) and a Pro Pack (50 puzzles). Free players guess from a stable,
   deterministic 10-puzzle subset; Bricky Pro unlocks the full rotation. The
@@ -44,15 +67,19 @@ is `CURRENT_PROJECT_VERSION`.
   GPT-4o vision. (StoreKit JWS verification is retained in the proxy as dormant
   infrastructure for a possible future paid tier.)
 
-- **Scan Bricks now opens a landing screen.** Tapping "Scan Bricks" from Home
-  shows a titled intro screen ("Scan Bricks") with a brief description and two
+- **Scan Bricks renamed to "Scanner."** The Home quick-action button and its
+  landing screen (title, navigation title, accessibility label) now read
+  "Scanner" to reflect that it identifies bricks, minifigures, and — for the
+  developer — built sets.
+- **Scan Bricks now opens a landing screen.** Tapping "Scanner" from Home
+  shows a titled intro screen ("Scanner") with a brief description and two
   clear entry points — **Pre-Scan Analysis** (live camera auto-detection) and
   **Scan a Photo** (pick/take an existing image). The standalone "Scan a Photo"
   button was removed from the Home screen since it now lives here. Content is
   width-capped and centered so the buttons don't stretch edge-to-edge on iPad.
 - **Pre-Scan Analysis has a single exit.** Removed the redundant "X" button from
   the camera screen; a back chevron and the "Cancel" button both return to the
-  Scan Bricks landing screen (previously some exits dropped the user all the way
+  Scanner landing screen (previously some exits dropped the user all the way
   back to Home).
 
 ### Fixed

@@ -13,6 +13,8 @@ import Combine
 struct PreScanAnalysisView: View {
     @State private var showPhotoScan = false
     @State private var startPreScan = false
+    @State private var showSetIdentification = false
+    @ObservedObject private var subscriptions = SubscriptionManager.shared
 
     /// Caps form-control width so buttons never stretch edge-to-edge on iPad.
     private let contentMaxWidth: CGFloat = 480
@@ -64,6 +66,22 @@ struct PreScanAnalysisView: View {
                         )
                     }
                     .accessibilityHint("Opens the photo picker so you can scan an existing image")
+
+                    // LEGO set identification is a hidden, developer-only cloud
+                    // feature (GPT-4o vision). It only appears as a scanner
+                    // option when the in-app developer Pro override is enabled.
+                    if subscriptions.developerProOverride {
+                        Button {
+                            showSetIdentification = true
+                        } label: {
+                            actionLabel(
+                                icon: "shippingbox.and.arrow.backward",
+                                title: "Identify a Set",
+                                subtitle: "Scan an already-built model to find out which LEGO set it is"
+                            )
+                        }
+                        .accessibilityHint("Opens the AI set identifier for a built model")
+                    }
                 }
             }
             .frame(maxWidth: contentMaxWidth)
@@ -75,6 +93,9 @@ struct PreScanAnalysisView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $startPreScan) {
             PreScanCameraView()
+        }
+        .navigationDestination(isPresented: $showSetIdentification) {
+            SetIdentificationView()
         }
         .fullScreenCover(isPresented: $showPhotoScan) {
             PhotoScanView()

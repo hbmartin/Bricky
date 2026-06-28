@@ -1,6 +1,7 @@
 import {
   ProxyError,
   SUBJECT_CATEGORIES,
+  type IdentifiedSet,
   type RecognizedSubject,
   type SubjectCategory,
 } from './types.js';
@@ -149,3 +150,129 @@ function clamp01(value: unknown): number {
   if (!Number.isFinite(n)) return 0;
   return Math.min(1, Math.max(0, n));
 }
+
+// ---------------------------------------------------------------------------
+// LEGO set identification
+// ---------------------------------------------------------------------------
+
+const SET_ID_SYSTEM_PROMPT = `You identify which official LEGO set an already-BUILT model in a photo is.
+
+Rules:
+- Return up to 3 candidate sets, most likely first.
+- Only include a set if you are reasonably confident it is a real, official LEGO set. If you cannot confidently identify any official set, return an empty "candidates" array. Do NOT guess at custom builds (MOCs) or invent set numbers.
+- "setNumber" must be the official LEGO set number (digits only, e.g. "75192"); omit any "-1" variant suffix.
+- "confidence" is your honest probability from 0 to 1.
+- "year" is the release year as an integer when known.
+- Keep "summary" to one factual sentence (what the set is / a distinguishing detail).
+Respond ONLY with strict JSON of the form:
+{"candidates":[{"setNumber":string,"name":string,"theme":string,"year":number,"confidence":number,"summary":string}]}`;
+
+export async function identifySetWithOpenAI(
+  imageBase64: string,
+  config: OpenAIConfig,
+  fetchImpl: typeof fetch = fetch,
+): Promise<IdentifiedSet[]> {
+  const url =
+    `${config.endpoint.replace(/\/$/, '')}/openai/deployments/` +
+    `${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
+
+  const body = {
+    messages: [
+      { role: 'system', content: SET_ID_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Which official LEGO set is this built model?' },
+          {
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+          },
+        ],
+      },
+    ],
+    temperature: 0.2,
+    max_tokens: 700,
+    response_format: { type: 'json_object' },
+  };
+
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': config.apiKey,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ProxyError(502, 'upstream_error', 'Recognition service unreachable.');
+  }
+
+  if (!response.ok) {
+    throw new ProxyError(
+      502,
+      'upstream_error',
+      `Recognition upstream returned ${response.status}.`,
+    );
+  }
+
+  const payload = (await response.json()) as AzureChatResponse;
+  const content = payload.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new ProxyError(502, 'upstream_error', 'Empty recognition response.');
+  }
+
+  return parseSets(content);
+}
+
+/** Parses + validates the model's set JSON, discarding malformed entries. */
+export function parseSets(raw: string): IdentifiedSet[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJSON(raw));
+  } catch {
+    throw new ProxyError(502, 'upstream_error', 'Malformed recognition response.');
+  }
+
+  const candidatesRaw = (parsed as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidatesRaw)) return [];
+
+  const out: IdentifiedSet[] = [];
+  for (const item of candidatesRaw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const obj = item as Record<string, unknown>;
+
+    const name = typeof obj.name === 'string' ? obj.name.trim() : '';
+    if (!name) continue;
+
+    const setNumber =
+      typeof obj.setNumber === 'string'
+        ? obj.setNumber.trim()
+        : typeof obj.setNumber === 'number'
+          ? String(obj.setNumber)
+          : '';
+
+    out.push({
+      setNumber,
+      name,
+      theme:
+        typeof obj.theme === 'string' && obj.theme.trim().length > 0
+          ? obj.theme.trim()
+          : undefined,
+      year: normalizeYear(obj.year),
+      confidence: clamp01(obj.confidence),
+      summary: typeof obj.summary === 'string' ? obj.summary.trim() : '',
+    });
+  }
+  return out;
+}
+
+function normalizeYear(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  const year = Math.trunc(n);
+  if (year < 1949 || year > 2100) return undefined; // LEGO bricks debuted 1949
+  return year;
+}
+

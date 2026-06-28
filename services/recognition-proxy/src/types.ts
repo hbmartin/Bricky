@@ -45,6 +45,31 @@ export interface RecognitionRequest {
   entitlementToken: string;
 }
 
+/**
+ * One LEGO set proposed by the vision model for a scanned built model. The iOS
+ * app grounds each proposal against its bundled set catalog before display.
+ */
+export interface IdentifiedSet {
+  /** Official set number, e.g. "75192". */
+  setNumber: string;
+  name: string;
+  theme?: string;
+  year?: number;
+  /** Clamped 0...1. */
+  confidence: number;
+  summary: string;
+}
+
+export interface SetIdentificationResult {
+  candidates: IdentifiedSet[];
+  remainingQuota: number;
+}
+
+export interface SetIdentificationRequest {
+  imageBase64: string;
+  entitlementToken: string;
+}
+
 export type ErrorCode =
   | 'bad_request'
   | 'not_entitled'
