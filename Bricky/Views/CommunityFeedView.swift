@@ -410,7 +410,7 @@ struct CommunityPostDetailView: View {
                     Spacer()
 
                     ShareLink(
-                        item: "Check out \"\(post.projectName)\" on \(AppConfig.appName)! #BrickVision #LEGO",
+                        item: "Check out \"\(post.projectName)\" on \(AppConfig.appName)! \(AppConfig.hashtag) #LEGO",
                         subject: Text(post.projectName),
                         message: Text(post.caption)
                     ) {

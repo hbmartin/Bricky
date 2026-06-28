@@ -79,8 +79,8 @@ final class SprintGAppStoreTests: XCTestCase {
     func testCanScanRespectsLimit() {
         let sub = SubscriptionManager.shared
         // Reset the daily count by clearing UserDefaults
-        UserDefaults.standard.removeObject(forKey: "brickvision.daily.scanCount")
-        UserDefaults.standard.removeObject(forKey: "brickvision.daily.scanDate")
+        UserDefaults.standard.removeObject(forKey: AppConfig.dailyScanCountKey)
+        UserDefaults.standard.removeObject(forKey: AppConfig.dailyScanDateKey)
 
         // After reset, we can't directly test the private loadDailyScanCount,
         // but the manager should still function

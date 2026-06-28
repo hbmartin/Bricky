@@ -4,7 +4,7 @@ This folder is **populated by a download script** — it is intentionally empty 
 
 ## What is this?
 
-[LDraw](https://www.ldraw.org/) is the open-standard 3D LEGO part library, with **~17,000 official parts** maintained by the LEGO community since 1995. BrickVision uses these `.dat` files to render accurate 3D previews of identified pieces, instead of the old procedural approximations.
+[LDraw](https://www.ldraw.org/) is the open-standard 3D LEGO part library, with **~17,000 official parts** maintained by the LEGO community since 1995. Bricky uses these `.dat` files to render accurate 3D previews of identified pieces, instead of the old procedural approximations.
 
 ## Setup
 
@@ -16,7 +16,7 @@ From the repo root, run:
 
 The script will:
 1. Download the official `complete.zip` from ldraw.org (~80 MB)
-2. Extract a curated subset of parts that match BrickVision's catalog (~5–15 MB on disk)
+2. Extract a curated subset of parts that match Bricky's catalog (~5–15 MB on disk)
 3. Place them into this folder in the standard LDraw layout:
 
 ```
@@ -31,7 +31,7 @@ After running the script, regenerate the Xcode project and rebuild:
 
 ```sh
 xcodegen generate
-xcodebuild build -project BrickVision.xcodeproj -scheme BrickVision \
+xcodebuild build -project "Bricky the Brick Scanner.xcodeproj" -scheme Bricky \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
@@ -41,4 +41,4 @@ LDraw parts are distributed under the [Creative Commons Attribution License 4.0 
 
 ## Without this folder
 
-If `LDraw/` is missing or empty, BrickVision falls back to procedural geometry (the old behavior). The build will still succeed — LDraw parts are an optional enhancement.
+If `LDraw/` is missing or empty, Bricky falls back to procedural geometry (the old behavior). The build will still succeed — LDraw parts are an optional enhancement.

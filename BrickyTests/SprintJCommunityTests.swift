@@ -371,9 +371,9 @@ final class CommunityEntitlementsTests: XCTestCase {
 
     func testICloudContainerIdentifier() {
         // Verify the container ID pattern
-        let containerId = "iCloud.com.brickvision.app"
+        let containerId = AppConfig.iCloudContainer
         XCTAssertTrue(containerId.hasPrefix("iCloud."))
-        XCTAssertTrue(containerId.contains("brickvision"))
+        XCTAssertTrue(containerId.contains("bricky"))
     }
 }
 

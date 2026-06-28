@@ -1114,10 +1114,10 @@ extension Notification.Name {
     /// Posted when a scan flow finishes (confirm or add-to-catalog).
     /// Catalog view observes this and pushes the figure's detail view.
     /// `userInfo["minifigId"]` is the `Minifigure.id` to display.
-    static let minifigureScanCompleted = Notification.Name("BrickVision.minifigureScanCompleted")
+    static let minifigureScanCompleted = Notification.Name("\(AppConfig.appName).minifigureScanCompleted")
 
     /// Posted whenever a scan flow ends (confirm, cancel, or close)
     /// and the user should be returned to the root home screen.
     /// ContentView's NavigationStack observes this and resets its path.
-    static let scanFlowShouldPopToRoot = Notification.Name("BrickVision.scanFlowShouldPopToRoot")
+    static let scanFlowShouldPopToRoot = Notification.Name("\(AppConfig.appName).scanFlowShouldPopToRoot")
 }

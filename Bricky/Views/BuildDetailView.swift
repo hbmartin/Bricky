@@ -465,13 +465,13 @@ struct BuildDetailView: View {
         let project = suggestion.project
         let pieceCount = project.requiredPieces.reduce(0) { $0 + $1.quantity }
         return """
-        Check out this LEGO build idea from BrickVision!
+        Check out this LEGO build idea from \(AppConfig.appName)!
 
         \(project.name) - \(project.difficulty.rawValue)
         \(project.description)
         \(pieceCount) pieces • ~\(project.estimatedMinutes) min
 
-        #BrickVision #LEGO
+        \(AppConfig.hashtag) #LEGO
         """
     }
 }

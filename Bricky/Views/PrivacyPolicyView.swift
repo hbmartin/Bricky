@@ -17,7 +17,7 @@ struct PrivacyPolicyView: View {
 
                         policySection("Data We Collect") {
                             """
-                            BrickVision collects minimal data:
+                            \(AppConfig.appName) collects minimal data:
 
                             \u{2022} Camera images: Processed entirely on-device for brick scanning. Images never leave your device.
                             \u{2022} Analytics events: If you opt in, we collect anonymous usage events (e.g., scans started, builds viewed) to improve the app. No personally identifiable information is included.
@@ -34,7 +34,7 @@ struct PrivacyPolicyView: View {
 
                         policySection("Children's Privacy (COPPA)") {
                             """
-                            BrickVision does not require an account to use. We do not knowingly collect personal information from children under 13. The app is designed to be safe for all ages:
+                            \(AppConfig.appName) does not require an account to use. We do not knowingly collect personal information from children under 13. The app is designed to be safe for all ages:
 
                             \u{2022} No account creation required
                             \u{2022} No social features that expose personal information
@@ -72,7 +72,7 @@ struct PrivacyPolicyView: View {
                         }
 
                         policySection("Contact") {
-                            "For privacy questions or data requests, contact: privacy@brickvision.app"
+                            "For privacy questions or data requests, contact: privacy@\(AppConfig.appName.lowercased()).app"
                         }
                     }
                 }
