@@ -98,6 +98,11 @@ final class CloudKitCommunityService: ObservableObject {
     func fetchPosts(limit: Int = 50) async {
         await MainActor.run { isLoading = true; error = nil }
 
+        // Snapshot the current posts so we can preserve optimistic local posts
+        // (e.g. one the user just shared) that CloudKit may not have indexed
+        // yet due to eventual consistency.
+        let existing = await MainActor.run { self.posts }
+
         let query = CKQuery(recordType: Self.postRecordType, predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
 
@@ -116,7 +121,15 @@ final class CloudKitCommunityService: ObservableObject {
                 }
             }
 
-            let finalPosts = fetchedPosts
+            // Re-add recently created local posts the server hasn't returned yet
+            // so a just-shared build doesn't momentarily vanish from the feed.
+            let fetchedIds = Set(fetchedPosts.map(\.id))
+            let recencyCutoff = Date().addingTimeInterval(-300)
+            let pendingLocalPosts = existing.filter {
+                !fetchedIds.contains($0.id) && $0.createdAt > recencyCutoff
+            }
+
+            let finalPosts = pendingLocalPosts + fetchedPosts
             await MainActor.run {
                 self.posts = finalPosts
                 self.isLoading = false

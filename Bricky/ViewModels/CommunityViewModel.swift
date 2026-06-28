@@ -6,11 +6,30 @@ import SwiftUI
 final class CommunityViewModel: ObservableObject {
     @Published var selectedFilter: FeedFilter = .recent
     @Published var searchText: String = ""
+    /// Optional category refinement applied on top of the feed filter.
+    @Published var categoryFilter: ProjectCategory?
+    /// Optional difficulty refinement applied on top of the feed filter.
+    @Published var difficultyFilter: Difficulty?
 
     enum FeedFilter: String, CaseIterable {
         case recent = "Recent"
         case popular = "Popular"
         case myPosts = "My Posts"
+    }
+
+    /// Whether any of the refinement filters (category / difficulty) are active.
+    var hasActiveRefinements: Bool {
+        categoryFilter != nil || difficultyFilter != nil
+    }
+
+    /// Number of active refinement filters, for badging the filter control.
+    var activeRefinementCount: Int {
+        (categoryFilter != nil ? 1 : 0) + (difficultyFilter != nil ? 1 : 0)
+    }
+
+    func clearRefinements() {
+        categoryFilter = nil
+        difficultyFilter = nil
     }
 
     var filteredPosts: [CommunityPost] {
@@ -26,6 +45,17 @@ final class CommunityViewModel: ObservableObject {
         case .myPosts:
             let userId = AuthenticationService.shared.userIdentifier
             result = result.filter { $0.authorId == userId }
+            result.sort { $0.createdAt > $1.createdAt }
+        }
+
+        // Apply category refinement
+        if let categoryFilter {
+            result = result.filter { $0.category == categoryFilter }
+        }
+
+        // Apply difficulty refinement
+        if let difficultyFilter {
+            result = result.filter { $0.difficulty == difficultyFilter }
         }
 
         // Apply search

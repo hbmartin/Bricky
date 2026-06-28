@@ -29,6 +29,9 @@ struct CommunityFeedView: View {
         .navigationTitle("Community")
         .toolbar {
             if auth.isSignedIn {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    filterMenu
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showProfile = true
@@ -99,10 +102,119 @@ struct CommunityFeedView: View {
         }
     }
 
+    // MARK: - Filter Controls
+
+    /// Toolbar menu offering category and difficulty refinements.
+    private var filterMenu: some View {
+        Menu {
+            Menu("Category") {
+                Button {
+                    viewModel.categoryFilter = nil
+                } label: {
+                    Label("All Categories", systemImage: viewModel.categoryFilter == nil ? "checkmark" : "")
+                }
+                Divider()
+                ForEach(ProjectCategory.allCases, id: \.self) { category in
+                    Button {
+                        viewModel.categoryFilter = category
+                    } label: {
+                        Label(
+                            category.rawValue,
+                            systemImage: viewModel.categoryFilter == category ? "checkmark" : category.systemImage
+                        )
+                    }
+                }
+            }
+
+            Menu("Difficulty") {
+                Button {
+                    viewModel.difficultyFilter = nil
+                } label: {
+                    Label("All Difficulties", systemImage: viewModel.difficultyFilter == nil ? "checkmark" : "")
+                }
+                Divider()
+                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                    Button {
+                        viewModel.difficultyFilter = difficulty
+                    } label: {
+                        Label(
+                            difficulty.rawValue,
+                            systemImage: viewModel.difficultyFilter == difficulty ? "checkmark" : ""
+                        )
+                    }
+                }
+            }
+
+            if viewModel.hasActiveRefinements {
+                Divider()
+                Button(role: .destructive) {
+                    viewModel.clearRefinements()
+                } label: {
+                    Label("Clear Filters", systemImage: "xmark.circle")
+                }
+            }
+        } label: {
+            Image(systemName: viewModel.hasActiveRefinements
+                  ? "line.3.horizontal.decrease.circle.fill"
+                  : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel("Filter posts")
+    }
+
+    /// Horizontal row of removable chips for the active category / difficulty.
+    private var activeFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if let category = viewModel.categoryFilter {
+                    filterChip(label: category.rawValue, systemImage: category.systemImage) {
+                        viewModel.categoryFilter = nil
+                    }
+                }
+                if let difficulty = viewModel.difficultyFilter {
+                    filterChip(label: difficulty.rawValue, systemImage: "chart.bar.fill") {
+                        viewModel.difficultyFilter = nil
+                    }
+                }
+                Button {
+                    viewModel.clearRefinements()
+                } label: {
+                    Text("Clear All")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.legoRed)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func filterChip(label: String, systemImage: String, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.caption2)
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(label) filter")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Color.legoBlue.opacity(0.15)))
+        .foregroundStyle(Color.legoBlue)
+    }
+
     // MARK: - Signed In Content
 
     private var signedInContent: some View {
         VStack(spacing: 0) {
+
             // First-use tip
             FeatureTipView(
                 tip: .firstCommunityVisit,
@@ -124,55 +236,66 @@ struct CommunityFeedView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
 
+            // Active refinement chips
+            if viewModel.hasActiveRefinements {
+                activeFilterChips
+            }
+
             if communityService.isLoading && communityService.posts.isEmpty {
                 Spacer()
                 ProgressView("Loading community builds...")
                 Spacer()
-            } else if viewModel.filteredPosts.isEmpty {
-                emptyState
             } else {
-                feedGrid
+                feedContent
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "Search builds...")
-        .refreshable {
-            await viewModel.refresh()
-        }
+        .searchable(text: $viewModel.searchText, prompt: "Search posts...")
         .task {
             await communityService.loadCurrentProfile()
             await viewModel.refresh()
         }
     }
 
-    // MARK: - Feed Grid
+    // MARK: - Feed Content
 
-    private var feedGrid: some View {
+    /// Scrollable feed area (grid or empty state) with pull-to-refresh.
+    /// Wrapping the empty state in the same `ScrollView` lets users pull to
+    /// refresh even when no posts are currently shown.
+    private var feedContent: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(viewModel.filteredPosts) { post in
-                    CommunityPostCard(post: post) {
-                        viewModel.toggleLike(postId: post.id)
-                    }
-                    .onTapGesture {
-                        selectedPost = post
-                    }
-                    .contextMenu {
-                        if post.isOwned(by: auth.userIdentifier) {
-                            Button {
-                                postToEdit = post
-                            } label: {
-                                Label("Edit Post", systemImage: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                postPendingDelete = post
-                            } label: {
-                                Label("Delete Post", systemImage: "trash")
+            if viewModel.filteredPosts.isEmpty {
+                emptyState
+                    .frame(maxWidth: .infinity, minHeight: 420)
+            } else {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(viewModel.filteredPosts) { post in
+                        CommunityPostCard(post: post) {
+                            viewModel.toggleLike(postId: post.id)
+                        }
+                        .onTapGesture {
+                            selectedPost = post
+                        }
+                        .contextMenu {
+                            if post.isOwned(by: auth.userIdentifier) {
+                                Button {
+                                    postToEdit = post
+                                } label: {
+                                    Label("Edit Post", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    postPendingDelete = post
+                                } label: {
+                                    Label("Delete Post", systemImage: "trash")
+                                }
                             }
                         }
                     }
                 }
+                .padding()
             }
-            .padding()
+        }
+        .refreshable {
+            await viewModel.refresh()
         }
     }
 
@@ -181,11 +304,13 @@ struct CommunityFeedView: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label(
-                viewModel.selectedFilter == .myPosts ? "No Posts Yet" : "No Builds Found",
-                systemImage: viewModel.selectedFilter == .myPosts ? "photo.on.rectangle.angled" : "magnifyingglass"
+                emptyStateTitle,
+                systemImage: emptyStateIcon
             )
         } description: {
-            if viewModel.selectedFilter == .myPosts {
+            if viewModel.hasActiveRefinements {
+                Text("No posts match the current filters.")
+            } else if viewModel.selectedFilter == .myPosts {
                 Text("Share your first build with the community!")
             } else if !viewModel.searchText.isEmpty {
                 Text("Try a different search term.")
@@ -193,7 +318,13 @@ struct CommunityFeedView: View {
                 Text("Be the first to share a build!")
             }
         } actions: {
-            if viewModel.selectedFilter == .myPosts {
+            if viewModel.hasActiveRefinements {
+                Button("Clear Filters") {
+                    viewModel.clearRefinements()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.legoBlue)
+            } else if viewModel.selectedFilter == .myPosts {
                 Button("Share a Build") {
                     showShareCreation = true
                 }
@@ -201,6 +332,16 @@ struct CommunityFeedView: View {
                 .tint(Color.legoBlue)
             }
         }
+    }
+
+    private var emptyStateTitle: String {
+        if viewModel.hasActiveRefinements { return "No Matches" }
+        return viewModel.selectedFilter == .myPosts ? "No Posts Yet" : "No Builds Found"
+    }
+
+    private var emptyStateIcon: String {
+        if viewModel.hasActiveRefinements { return "line.3.horizontal.decrease.circle" }
+        return viewModel.selectedFilter == .myPosts ? "photo.on.rectangle.angled" : "magnifyingglass"
     }
 
     // MARK: - Sign In Prompt

@@ -407,6 +407,99 @@ final class CommunityViewModelTests: XCTestCase {
         // Should not crash, returns whatever service has
         XCTAssertNotNil(posts)
     }
+
+    // MARK: - Refinement Filters (category / difficulty)
+
+    private func seedPosts(_ posts: [CommunityPost]) {
+        CloudKitCommunityService.shared.posts = posts
+    }
+
+    private func clearPosts() {
+        CloudKitCommunityService.shared.posts = []
+    }
+
+    private func samplePost(name: String, category: ProjectCategory, difficulty: Difficulty) -> CommunityPost {
+        CommunityPost(
+            authorId: "author", authorName: "Builder",
+            projectName: name,
+            projectCategory: category.rawValue,
+            projectDifficulty: difficulty.rawValue
+        )
+    }
+
+    func testNoRefinementsByDefault() {
+        let vm = CommunityViewModel()
+        XCTAssertNil(vm.categoryFilter)
+        XCTAssertNil(vm.difficultyFilter)
+        XCTAssertFalse(vm.hasActiveRefinements)
+        XCTAssertEqual(vm.activeRefinementCount, 0)
+    }
+
+    func testCategoryRefinementFilters() {
+        defer { clearPosts() }
+        seedPosts([
+            samplePost(name: "Car", category: .vehicle, difficulty: .easy),
+            samplePost(name: "House", category: .building, difficulty: .easy),
+            samplePost(name: "Truck", category: .vehicle, difficulty: .hard)
+        ])
+
+        let vm = CommunityViewModel()
+        vm.categoryFilter = .vehicle
+
+        let names = Set(vm.filteredPosts.map(\.projectName))
+        XCTAssertEqual(names, ["Car", "Truck"])
+        XCTAssertTrue(vm.hasActiveRefinements)
+        XCTAssertEqual(vm.activeRefinementCount, 1)
+    }
+
+    func testDifficultyRefinementFilters() {
+        defer { clearPosts() }
+        seedPosts([
+            samplePost(name: "Car", category: .vehicle, difficulty: .easy),
+            samplePost(name: "House", category: .building, difficulty: .easy),
+            samplePost(name: "Truck", category: .vehicle, difficulty: .hard)
+        ])
+
+        let vm = CommunityViewModel()
+        vm.difficultyFilter = .easy
+
+        let names = Set(vm.filteredPosts.map(\.projectName))
+        XCTAssertEqual(names, ["Car", "House"])
+    }
+
+    func testCombinedCategoryAndDifficultyRefinement() {
+        defer { clearPosts() }
+        seedPosts([
+            samplePost(name: "Car", category: .vehicle, difficulty: .easy),
+            samplePost(name: "Truck", category: .vehicle, difficulty: .hard),
+            samplePost(name: "House", category: .building, difficulty: .hard)
+        ])
+
+        let vm = CommunityViewModel()
+        vm.categoryFilter = .vehicle
+        vm.difficultyFilter = .hard
+
+        XCTAssertEqual(vm.filteredPosts.map(\.projectName), ["Truck"])
+        XCTAssertEqual(vm.activeRefinementCount, 2)
+    }
+
+    func testClearRefinements() {
+        defer { clearPosts() }
+        seedPosts([
+            samplePost(name: "Car", category: .vehicle, difficulty: .easy),
+            samplePost(name: "House", category: .building, difficulty: .hard)
+        ])
+
+        let vm = CommunityViewModel()
+        vm.categoryFilter = .vehicle
+        vm.difficultyFilter = .easy
+        vm.clearRefinements()
+
+        XCTAssertNil(vm.categoryFilter)
+        XCTAssertNil(vm.difficultyFilter)
+        XCTAssertFalse(vm.hasActiveRefinements)
+        XCTAssertEqual(vm.filteredPosts.count, 2)
+    }
 }
 
 // MARK: - Entitlements Tests
