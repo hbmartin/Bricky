@@ -16,7 +16,7 @@ final class SprintGAppStoreTests: XCTestCase {
 
     @MainActor
     func testFreeTierLimitsAreDefined() {
-        XCTAssertEqual(SubscriptionManager.freeDailyScanLimit, 3, "Free daily scan limit should be 3")
+        XCTAssertEqual(SubscriptionManager.freeDailyScanLimit, 5, "Free daily scan limit should be 5")
         XCTAssertEqual(SubscriptionManager.freeBuildVisibleLimit, 20, "Free build visible limit should be 20")
     }
 

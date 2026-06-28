@@ -14,7 +14,7 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Free Tier Limits
 
-    static let freeDailyScanLimit = 3
+    static let freeDailyScanLimit = 5
     static let freeBuildVisibleLimit = 20
 
     /// Build-puzzle packs. Free players get a stable starter pack; Pro unlocks
