@@ -1,8 +1,13 @@
 # App Store Connect — Bricky Pro In-App Purchase Setup
 
 This guide covers configuring Bricky's monetization in **App Store Connect**:
-creating the one-time **Bricky Pro** purchase and retiring the old
-subscription products.
+creating the one-time **Bricky Pro** purchase.
+
+> **Current status (verified):** App Store Connect has **no existing in-app
+> purchases or subscriptions**. The old monthly/annual subscriptions only ever
+> existed in the local `Bricky.storekit` test file and were **never created in
+> App Store Connect**, so there is nothing to retire (Section B is N/A). The only
+> task is to create the single non-consumable **Bricky Pro** in Section A.
 
 ## Background
 
@@ -13,16 +18,15 @@ a purchasable product.
 
 You **cannot convert** a subscription into a one-time purchase in App Store
 Connect — they are different product types, each with their own permanent
-product ID. So the migration is: **create a new Non-Consumable** and separately
-**remove the old subscriptions from sale**.
+product ID.
 
 ### Product IDs
 
 | Product | Type | Product ID | Status |
 |---|---|---|---|
 | Bricky Pro | Non-Consumable | `com.bricky.app.pro` | **Create this** |
-| Bricky Pro Monthly | Auto-Renewable Subscription | `com.bricky.app.pro.monthly` | **Retire** |
-| Bricky Pro Annual | Auto-Renewable Subscription | `com.bricky.app.pro.annual` | **Retire** |
+| Bricky Pro Monthly | Auto-Renewable Subscription | `com.bricky.app.pro.monthly` | N/A — never created in ASC |
+| Bricky Pro Annual | Auto-Renewable Subscription | `com.bricky.app.pro.annual` | N/A — never created in ASC |
 
 The product ID must match `AppConfig.iapProProductId` in the app
 (`Bricky/App/AppConfig.swift`).
@@ -49,37 +53,25 @@ The product ID must match `AppConfig.iapProProductId` in the app
    - **Display Name:** `Bricky Pro`
    - **Description:** e.g. "Unlock unlimited scans, the full build library,
      3D & STL export, iCloud sync, and more."
-9. **Review Information:** upload a screenshot (a shot of the paywall is fine)
-   and add review notes.
-10. Click **Save**. Status becomes **Ready to Submit**.
-11. **Attach it to a version for first review:** open your app **version** page
-    (the iOS version you're submitting) → scroll to **In-App Purchases** → **+**
-    → select `Bricky Pro`. First-time IAPs are reviewed alongside an app version.
+9. **Review Information — Screenshot (required):** this must be a **real device
+   screenshot** of the paywall at a valid iPhone/iPad resolution (e.g.
+   1290×2796, 1284×2778, 1242×2688). **A 1024×1024 square is rejected here** —
+   that size belongs to the *optional* promotional Image field, not this one.
+   See [Section D](#d-review-screenshot-vs-promotional-image) below.
+10. Add **Review Notes** (optional but helpful) describing the full Pro feature
+    set for the reviewer.
+11. Click **Save**. Status becomes **Ready to Submit**.
+12. **Attach it to a version for first review:** open your app **version** page
+    (the iOS version you're submitting) → scroll to **In-App Purchases and
+    Subscriptions** → **+** → select `Bricky Pro`. First-time IAPs are reviewed
+    alongside an app version.
 
-## B. Retire the two old subscriptions
+## B. Retire the old subscriptions — N/A
 
-> **In this project this section is N/A.** The monthly/annual subscriptions only
-> ever existed in the local `Bricky.storekit` test file — they were **never
-> created in App Store Connect**. The **Subscriptions** section is empty, so there
-> is nothing to retire. Just create the non-consumable in Section A and leave the
-> Subscriptions section empty. The steps below are kept for reference only.
-
-A subscription cannot be deleted once created, but you remove it from sale so no
-one new can buy it.
-
-1. App Store Connect → **Bricky** → **Subscriptions** (left sidebar).
-2. Open the **Bricky Pro** subscription group.
-3. Click the **Monthly** product (`com.bricky.app.pro.monthly`):
-   - If status is **Ready to Submit / Developer Removed from Sale** (never
-     released): set **Cleared for Sale = No** / **Remove from Sale** → Save.
-   - If it was ever **Approved/Live**: open it → under **Availability / Pricing**
-     choose **Remove from Sale**. Existing subscribers (if any) keep access until
-     they cancel; no new sign-ups are allowed.
-4. Repeat for the **Annual** product (`com.bricky.app.pro.annual`).
-5. Optional: rename their Reference Names to `RETIRED – Bricky Pro Monthly/Annual`
-   so they're obviously deprecated internally.
-6. If the subscription group is now empty/unused, leave it — Apple does not allow
-   deleting groups, and an empty retired group is harmless.
+**Nothing to do.** The Subscriptions section in App Store Connect is empty: the
+monthly/annual products only ever existed in the local `Bricky.storekit` test
+file and were never created in App Store Connect. Leave the Subscriptions section
+empty and do **not** click *Create* there.
 
 ## C. Gotchas
 
@@ -96,10 +88,37 @@ one new can buy it.
   load — StoreKit returns no products and the paywall shows "Plans are
   unavailable."
 
+## D. Review Screenshot vs. Promotional Image
+
+The IAP page has **two different image fields** with **different requirements** —
+this trips people up:
+
+| Field | Required? | What it is | Dimensions |
+|---|---|---|---|
+| **Screenshot** | **Required** | Review screenshot of the IAP inside the app | A **real device screenshot** size (e.g. 1290×2796, 1284×2778, 1242×2688). **NOT 1024×1024.** |
+| **Image** | Optional | Promotional image for the App Store product page / offer & win-back codes | **Exactly 1024×1024**, PNG/JPG, 72 dpi, RGB, flattened, no rounded corners |
+
+### Screenshot (required) — how to get a valid one
+Upload an actual screenshot of the paywall from a device or simulator — those are
+always valid sizes:
+- **iOS Simulator:** run the app → open the paywall → **File ▸ Save Screen** (⌘S).
+- **Real iPhone:** open the paywall → side + volume-up → AirDrop the PNG to your Mac.
+
+A 1024×1024 square is **rejected** in this field ("The dimensions of one or more
+screenshots are wrong").
+
+### Image (optional) — the 1024×1024 mockup
+A ready-made 1024×1024 mockup of the paywall lives at
+[`docs/assets/app-store-iap-screenshot.html`](assets/app-store-iap-screenshot.html).
+Open it in a browser at 100% zoom and screenshot **only the 1024×1024 square**
+(exclude the drop shadow). Use it for the optional **Image** field, or skip the
+Image field entirely — it's not required to submit.
+
 ## Related
 
 - App code: `Bricky/App/AppConfig.swift` (`iapProProductId`),
   `Bricky/Services/SubscriptionManager.swift` (entitlement logic),
   `Bricky/Views/PaywallView.swift` (paywall UI).
+- 1024×1024 promotional-image mockup: `docs/assets/app-store-iap-screenshot.html`.
 - Local testing config: `Bricky.storekit`.
 - Cloud AI (developer-only) proxy: `services/recognition-proxy/`.
