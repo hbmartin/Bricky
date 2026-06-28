@@ -8,9 +8,10 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Product IDs
 
-    static let monthlyProductID = AppConfig.iapMonthlyProductId
-    static let annualProductID = AppConfig.iapAnnualProductId
-    static let productIDs: Set<String> = [monthlyProductID, annualProductID]
+    /// Bricky Pro is a single one-time (non-consumable) purchase — there is no
+    /// subscription.
+    static let proProductID = AppConfig.iapProProductId
+    static let productIDs: Set<String> = [proProductID]
 
     // MARK: - Free Tier Limits
 
@@ -136,18 +137,20 @@ final class SubscriptionManager: ObservableObject {
         saveDailyScanCount()
     }
 
-    // MARK: - AI Subject Recognition Quota (Pro-only, monthly)
+    // MARK: - AI Subject Recognition (developer-only, cloud)
 
-    /// Pro users only — AI subject recognition is a cloud, Pro-gated feature.
-    /// Free users are never offered it (they see an upsell instead).
+    /// Cloud AI subject recognition is a hidden, developer-only capability. It is
+    /// unlocked ONLY by the in-app developer override (the 7-tap trick) — never
+    /// by a normal Pro purchase — and involves no subscription or extra charge.
+    /// The monthly count is just a safety cap on the developer's own Azure spend.
     var canUseAIRecognition: Bool {
-        isPro && aiRecognitionsRemaining > 0
+        developerProOverride && aiRecognitionsRemaining > 0
     }
 
-    /// Recognitions left in the current calendar month for a Pro user.
-    /// Non-Pro users always read 0.
+    /// Recognitions left in the current calendar month for the developer.
+    /// Always 0 for anyone without the developer override.
     var aiRecognitionsRemaining: Int {
-        guard isPro else { return 0 }
+        guard developerProOverride else { return 0 }
         resetAIRecognitionCountIfNeeded()
         return max(0, AppConfig.proMonthlyAIRecognitionLimit - aiRecognitionCount)
     }
@@ -163,49 +166,24 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Computed Product Helpers
 
-    var monthlyProduct: Product? {
-        products.first { $0.id == Self.monthlyProductID }
-    }
-
-    var annualProduct: Product? {
-        products.first { $0.id == Self.annualProductID }
+    /// The single Bricky Pro one-time purchase product.
+    var proProduct: Product? {
+        products.first { $0.id == Self.proProductID }
     }
 
     var activeSubscriptionName: String? {
         guard isPro else { return nil }
-        // Check which product is currently active
         return "\(AppConfig.appName) Pro"
     }
 
-    /// Signed JWS representation of the user's current Pro entitlement, sent to
-    /// the recognition proxy so the server can independently verify the user
-    /// actually paid before spending an Azure call. Returns `nil` when there is
-    /// no real StoreKit entitlement (e.g. developer override only) — the proxy
-    /// must reject those rather than burn budget on an unverifiable client.
-    func currentEntitlementJWS() async -> String? {
-        for await result in Transaction.currentEntitlements {
-            if let transaction = try? checkVerified(result),
-               Self.productIDs.contains(transaction.productID) {
-                return result.jwsRepresentation
-            }
-        }
-        return nil
-    }
-
-    /// Token the AI recognition proxy should verify before spending an Azure
-    /// call. Prefers the real Apple-signed StoreKit JWS. When Pro is granted
-    /// only via the developer override (no real receipt), falls back to the
-    /// developer-bypass token, which the proxy honors solely when its
-    /// `DEV_BYPASS_TOKEN` is configured (dev only). Returns `nil` for free
-    /// users so the caller shows an upsell instead of calling the proxy.
+    /// Token the AI recognition proxy verifies before spending an Azure call.
+    /// Cloud AI is developer-only, so the only valid token is the developer-
+    /// bypass token, returned solely when the in-app developer override is on.
+    /// The proxy honors it only when its `DEV_BYPASS_TOKEN` is configured (which
+    /// is left set on the developer's own deployment and unset everywhere else).
     func recognitionEntitlementToken() async -> String? {
-        if let jws = await currentEntitlementJWS() {
-            return jws
-        }
-        if developerProOverride {
-            return AppConfig.aiRecognitionDevBypassToken
-        }
-        return nil
+        guard developerProOverride else { return nil }
+        return AppConfig.aiRecognitionDevBypassToken
     }
 
     // MARK: - StoreKit 2 Purchase

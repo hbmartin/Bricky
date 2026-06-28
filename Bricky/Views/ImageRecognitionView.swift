@@ -4,8 +4,8 @@ import PhotosUI
 /// AI Subject Recognition — identify celebrities, cartoon characters, famous
 /// places/landmarks, and musicians in a photo.
 ///
-/// This is an explicitly **cloud, Pro-gated** feature: a free user sees an
-/// honest upsell, a Pro user sees their remaining monthly allowance, and any
+/// This is an explicitly **cloud, developer-only** feature, hidden from normal
+/// users: it's reachable only when the in-app developer override is on. Any
 /// failure (offline, quota, server) renders a real message — never a fabricated
 /// identification. The longest-edge-capped layout keeps controls from
 /// stretching edge-to-edge on iPad.
@@ -43,7 +43,7 @@ struct ImageRecognitionView: View {
         .onChange(of: pickerItem) { _, newItem in
             Task { await loadPickedImage(newItem) }
         }
-        .onChange(of: subscriptions.isPro) { _, _ in
+        .onChange(of: subscriptions.developerProOverride) { _, _ in
             viewModel.refreshQuota()
         }
         .alert(

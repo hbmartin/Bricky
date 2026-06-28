@@ -1,7 +1,8 @@
 import SwiftUI
 import StoreKit
 
-/// Paywall view showing feature comparison and subscription options.
+/// Paywall view showing the feature comparison and the one-time Bricky Pro
+/// unlock ($4.99). There is no subscription.
 struct PaywallView: View {
     @ObservedObject private var subscription = SubscriptionManager.shared
     @Environment(\.dismiss) private var dismiss
@@ -80,7 +81,6 @@ struct PaywallView: View {
             featureRow("Piece Catalog", free: checkmark, pro: checkmark)
             featureRow("Color Recognition", free: checkmark, pro: checkmark)
             featureRow("AI Build Ideas", free: dash, pro: checkmark)
-            featureRow("Cloud AI Scanning", free: dash, pro: checkmark)
             featureRow("3D Model Export", free: dash, pro: checkmark)
             featureRow("STL Print Export", free: dash, pro: checkmark)
             featureRow("iCloud Sync", free: dash, pro: checkmark)
@@ -169,37 +169,21 @@ struct PaywallView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if let monthly = subscription.monthlyProduct {
-                productButton(monthly, label: "Monthly", badge: nil)
-            }
-
-            if let annual = subscription.annualProduct {
-                let savingsText = monthlySavings(annual: annual)
-                productButton(annual, label: "Annual", badge: savingsText)
+            if let pro = subscription.proProduct {
+                productButton(pro)
             }
         }
     }
 
-    private func productButton(_ product: Product, label: String, badge: String?) -> some View {
+    private func productButton(_ product: Product) -> some View {
         Button {
             Task { await subscription.purchase(product) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(label)
-                            .fontWeight(.semibold)
-                        if let badge {
-                            Text(badge)
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.legoYellow.opacity(0.3))
-                                .clipShape(Capsule())
-                        }
-                    }
-                    Text(product.displayPrice + (label == "Annual" ? "/year" : "/month"))
+                    Text("Unlock \(AppConfig.appName) Pro")
+                        .fontWeight(.semibold)
+                    Text(product.displayPrice + " · one-time purchase")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.9))
                 }
@@ -221,14 +205,6 @@ struct PaywallView: View {
         .disabled(subscription.isLoading)
     }
 
-    private func monthlySavings(annual: Product) -> String? {
-        guard let monthly = subscription.monthlyProduct else { return nil }
-        let annualMonthly = annual.price / 12
-        let savings = ((monthly.price - annualMonthly) / monthly.price * 100)
-        let percent = Int(truncating: savings as NSDecimalNumber)
-        return percent > 0 ? "Save \(percent)%" : nil
-    }
-
     // MARK: - Restore
 
     private var restoreSection: some View {
@@ -246,10 +222,10 @@ struct PaywallView: View {
 
     private var legalSection: some View {
         VStack(spacing: 4) {
-            Text("Subscriptions auto-renew until cancelled.")
+            Text("One-time purchase. No subscription.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text("Payment will be charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless it is cancelled at least 24 hours before the end of the current period.")
+            Text("Payment will be charged to your Apple ID account at confirmation of purchase. \(AppConfig.appName) Pro unlocks permanently and can be restored on your other devices.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

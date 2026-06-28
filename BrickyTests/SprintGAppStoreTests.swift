@@ -22,17 +22,26 @@ final class SprintGAppStoreTests: XCTestCase {
 
     @MainActor
     func testProductIDsExist() {
-        XCTAssertFalse(SubscriptionManager.monthlyProductID.isEmpty)
-        XCTAssertFalse(SubscriptionManager.annualProductID.isEmpty)
-        XCTAssertTrue(SubscriptionManager.monthlyProductID.hasPrefix("com.bricky."))
-        XCTAssertTrue(SubscriptionManager.annualProductID.hasPrefix("com.bricky."))
+        XCTAssertFalse(SubscriptionManager.proProductID.isEmpty)
+        XCTAssertTrue(SubscriptionManager.proProductID.hasPrefix("com.bricky."))
     }
 
     @MainActor
-    func testProductIDSetContainsBothProducts() {
-        XCTAssertEqual(SubscriptionManager.productIDs.count, 2)
-        XCTAssertTrue(SubscriptionManager.productIDs.contains(SubscriptionManager.monthlyProductID))
-        XCTAssertTrue(SubscriptionManager.productIDs.contains(SubscriptionManager.annualProductID))
+    func testProductIDSetContainsProProduct() {
+        XCTAssertEqual(SubscriptionManager.productIDs.count, 1)
+        XCTAssertTrue(SubscriptionManager.productIDs.contains(SubscriptionManager.proProductID))
+    }
+
+    @MainActor
+    func testAIRecognitionRequiresDeveloperOverride() {
+        let sub = SubscriptionManager.shared
+        // Cloud AI is a hidden, developer-only feature. Without the developer
+        // override, it's gated and the monthly allowance reads zero — a normal
+        // Pro purchase does NOT unlock it.
+        if !sub.developerProOverride {
+            XCTAssertFalse(sub.canUseAIRecognition)
+            XCTAssertEqual(sub.aiRecognitionsRemaining, 0)
+        }
     }
 
     @MainActor

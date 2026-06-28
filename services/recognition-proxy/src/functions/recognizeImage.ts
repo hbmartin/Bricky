@@ -4,7 +4,7 @@ import {
   type HttpResponseInit,
   type InvocationContext,
 } from '@azure/functions';
-import { verifyEntitlement, verifyDevBypassToken } from '../entitlement.js';
+import { verifyDevBypassToken } from '../entitlement.js';
 import { recognizeWithOpenAI, type OpenAIConfig } from '../openai.js';
 import { TableQuotaStore, type QuotaStore } from '../quota.js';
 import {
@@ -67,18 +67,19 @@ export async function recognizeImage(
       throw new ProxyError(400, 'bad_request', 'Missing imageBase64.');
     }
 
-    // --- verify entitlement (active Bricky Pro) ---
-    // A developer-bypass token is only honored when DEV_BYPASS_TOKEN is set on
-    // this proxy (dev only); otherwise we fall through to real Apple-signed
-    // StoreKit verification.
-    const entitlement =
-      verifyDevBypassToken(body.entitlementToken, env('DEV_BYPASS_TOKEN')) ??
-      verifyEntitlement(body.entitlementToken, {
-        bundleId: requireEnv('APPSTORE_BUNDLE_ID'),
-        environment: requireEnv('APPSTORE_ENVIRONMENT'),
-        // Production cryptographically verifies Apple's JWS signature chain.
-        verifyChain: env('APPSTORE_VERIFY_CHAIN') === 'true',
-      });
+    // --- verify entitlement (developer-only) ---
+    // Cloud AI recognition is a hidden, developer-only feature. The ONLY way to
+    // unlock it is the developer-bypass token, which is honored solely when this
+    // proxy has a matching DEV_BYPASS_TOKEN configured. There is no purchasable
+    // subscription, so the real StoreKit verification path is intentionally not
+    // used here; `verifyEntitlement` is retained for a future paid tier.
+    const entitlement = verifyDevBypassToken(
+      body.entitlementToken,
+      env('DEV_BYPASS_TOKEN'),
+    );
+    if (!entitlement) {
+      throw new ProxyError(403, 'not_entitled', 'Cloud AI recognition is not available.');
+    }
 
     // --- enforce monthly quota server-side ---
     const { remaining } = await quotaStore().consume(entitlement.userKey);

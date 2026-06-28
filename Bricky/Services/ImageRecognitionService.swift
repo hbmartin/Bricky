@@ -49,9 +49,10 @@ enum ImageRecognitionError: LocalizedError, Equatable {
 }
 
 /// Identifies real-world subjects (celebrities, cartoon characters, famous
-/// places/landmarks, musicians, etc.) in a photo. Pro-gated, network-backed.
+/// places/landmarks, musicians, etc.) in a photo. Hidden, developer-only,
+/// network-backed.
 protocol ImageRecognitionService: Sendable {
-    /// Recognize subjects in `image`. Caller must pass a valid StoreKit
+    /// Recognize subjects in `image`. Caller must pass a valid developer-bypass
     /// entitlement proof (`entitlementToken`) which the proxy verifies before
     /// spending an Azure call.
     func recognize(in image: UIImage, entitlementToken: String) async throws -> RecognitionResult

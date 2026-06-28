@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Drives the AI subject recognition flow: pick a photo → (Pro-gated, quota-
+/// Drives the AI subject recognition flow: pick a photo → (developer-only,
+/// quota-
 /// limited) recognize celebrities, cartoon characters, famous landmarks/places,
 /// musicians, etc. via the cloud proxy.
 ///
@@ -39,19 +40,20 @@ final class ImageRecognitionViewModel: ObservableObject {
         self.remainingThisMonth = subscriptions.aiRecognitionsRemaining
     }
 
-    /// True when the user is a Pro subscriber with quota remaining.
+    /// True when the developer override is on and quota remains.
     var canRecognize: Bool {
         subscriptions.canUseAIRecognition && sourceImage != nil
     }
 
-    /// True for free users — UI shows an upsell rather than a run button.
+    /// True for anyone without the developer override — cloud AI is a hidden,
+    /// developer-only feature, so normal users never reach a run button.
     var requiresUpgrade: Bool {
-        !subscriptions.isPro
+        !subscriptions.developerProOverride
     }
 
-    /// True for Pro users who've used their whole monthly allowance.
+    /// True for the developer once the monthly safety cap is reached.
     var quotaExhausted: Bool {
-        subscriptions.isPro && subscriptions.aiRecognitionsRemaining == 0
+        subscriptions.developerProOverride && subscriptions.aiRecognitionsRemaining == 0
     }
 
     func setImage(_ image: UIImage?) {
@@ -68,7 +70,7 @@ final class ImageRecognitionViewModel: ObservableObject {
     func recognize() async {
         guard let image = sourceImage else { return }
 
-        guard subscriptions.isPro else {
+        guard subscriptions.developerProOverride else {
             phase = .upsell
             return
         }
@@ -77,9 +79,8 @@ final class ImageRecognitionViewModel: ObservableObject {
             return
         }
         guard let token = await subscriptions.recognitionEntitlementToken() else {
-            // Pro via developer override but no real StoreKit receipt and no
-            // configured dev-bypass token — the proxy can't verify this, so
-            // don't burn budget. Honest message.
+            // Developer override on but no configured dev-bypass token — the
+            // proxy can't verify this, so don't burn budget. Honest message.
             phase = .failed(ImageRecognitionError.notEntitled.localizedDescription)
             return
         }

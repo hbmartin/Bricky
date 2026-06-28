@@ -49,19 +49,19 @@ enum AppConfig {
 
     // MARK: - In-App Purchase
 
-    /// Monthly subscription product ID.
-    static let iapMonthlyProductId = "\(bundleId).pro.monthly"
+    /// Bricky Pro product ID. A single one-time (non-consumable) unlock —
+    /// there is no subscription.
+    static let iapProProductId = "\(bundleId).pro"
 
-    /// Annual subscription product ID.
-    static let iapAnnualProductId = "\(bundleId).pro.annual"
-
-    // MARK: - AI Subject Recognition (cloud, Pro-gated)
+    // MARK: - AI Subject Recognition (cloud, developer-only)
 
     /// Base URL of the server proxy that holds the Azure OpenAI key, verifies
-    /// the user's StoreKit entitlement, enforces the monthly quota, and calls
-    /// GPT-4o vision. The key is NEVER shipped in the app — the proxy is the
-    /// only place that can reach Azure OpenAI. Overridable at runtime via the
-    /// `BRICKY_RECOGNITION_ENDPOINT` Info.plist value / environment for staging.
+    /// the developer-bypass token, enforces the monthly quota, and calls GPT-4o
+    /// vision. The key is NEVER shipped in the app — the proxy is the only place
+    /// that can reach Azure OpenAI. Cloud AI is a hidden, developer-only feature
+    /// (unlocked by the in-app override); no normal user can reach it.
+    /// Overridable at runtime via the `BRICKY_RECOGNITION_ENDPOINT` Info.plist
+    /// value / environment.
     static var aiRecognitionEndpoint: URL? {
         if let raw = infoPlistString("BRICKY_RECOGNITION_ENDPOINT") ??
             ProcessInfo.processInfo.environment["BRICKY_RECOGNITION_ENDPOINT"],
@@ -71,10 +71,10 @@ enum AppConfig {
         return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/recognizeImage")
     }
 
-    /// Pro users' monthly AI recognition allowance. Sized so revenue comfortably
-    /// exceeds the Azure GPT-4o image cost + Apple's fee, and keeps total spend
-    /// under the development cost cap while testing. Free users get zero — this
-    /// is a Pro-only capability.
+    /// Monthly AI recognition allowance. Cloud AI is developer-only, so this is
+    /// just a safety cap on the developer's own Azure GPT-4o spend; it keeps
+    /// total spend under the development cost cap while testing. Everyone without
+    /// the developer override gets zero.
     static let proMonthlyAIRecognitionLimit = 100
 
     /// Developer-bypass entitlement token for AI recognition. When Pro is

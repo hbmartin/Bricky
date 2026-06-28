@@ -4,7 +4,21 @@
 
   ],
   "products" : [
-
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "63A5C1D2",
+      "localizations" : [
+        {
+          "description" : "Unlimited scans, the full build library, AI build ideas, cloud scanning, and exports. One-time purchase.",
+          "displayName" : "Bricky Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.bricky.app.pro",
+      "referenceName" : "Bricky Pro",
+      "type" : "NonConsumable"
+    }
   ],
   "settings" : {
     "_applicationInternalID" : "",
@@ -26,65 +40,7 @@
     ]
   },
   "subscriptionGroups" : [
-    {
-      "id" : "21504925",
-      "localizations" : [
 
-      ],
-      "name" : "Bricky Pro",
-      "subscriptions" : [
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "4.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "63A5C1D2",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Unlimited scans, the full build library, AI build ideas, cloud scanning, and exports.",
-              "displayName" : "Bricky Pro (Monthly)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.bricky.app.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Bricky Pro Monthly",
-          "subscriptionGroupID" : "21504925",
-          "type" : "RecurringSubscription"
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "39.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "63A5C1D3",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Everything in Bricky Pro, billed yearly for the best value.",
-              "displayName" : "Bricky Pro (Annual)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.bricky.app.pro.annual",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Bricky Pro Annual",
-          "subscriptionGroupID" : "21504925",
-          "type" : "RecurringSubscription"
-        }
-      ]
-    }
   ],
   "version" : {
     "major" : 4,

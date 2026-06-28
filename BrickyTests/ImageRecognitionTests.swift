@@ -195,9 +195,9 @@ final class ImageRecognitionViewModelTests: XCTestCase {
     }
 
     func testDeveloperOverrideSendsDevBypassTokenAndCallsService() async {
-        // Developer override grants `isPro` but produces no StoreKit JWS, so the
-        // VM falls back to the developer-bypass token and calls the proxy. The
-        // proxy (not the app) decides whether to honor that token.
+        // The developer override is the ONLY way to unlock cloud AI. It produces
+        // no StoreKit receipt, so the VM sends the developer-bypass token and
+        // calls the proxy. The proxy (not the app) decides whether to honor it.
         SubscriptionManager.shared.developerProOverride = true
         guard SubscriptionManager.shared.aiRecognitionsRemaining > 0 else {
             // Monthly quota already exhausted in this environment — skip.

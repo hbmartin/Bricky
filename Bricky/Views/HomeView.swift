@@ -222,7 +222,7 @@ struct HomeView: View {
                     Text("Upgrade to \(AppConfig.appName) Pro")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    Text("Unlimited scans, AI recognition, the full puzzle pack, and more.")
+                    Text("Unlimited scans, the full puzzle pack, 3D & STL export, and more.")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.9))
                         .multilineTextAlignment(.leading)
@@ -247,7 +247,7 @@ struct HomeView: View {
             .shadow(color: .legoBlue.opacity(0.35), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Upgrade to \(AppConfig.appName) Pro. Unlimited scans, AI recognition, and the full puzzle pack.")
+        .accessibilityLabel("Upgrade to \(AppConfig.appName) Pro. Unlimited scans, the full puzzle pack, and 3D & STL export.")
     }
 
     // MARK: - Quick Actions
@@ -367,44 +367,48 @@ struct HomeView: View {
             .accessibilityLabel(L10n.mosaicTitle)
             .accessibilityHint("Turn a photo into a buildable LEGO brick mosaic")
 
-            // AI Subject Recognition — identify people, characters & famous places
-            NavigationLink(destination: ImageRecognitionView()) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.2))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "sparkle.magnifyingglass")
-                            .font(.title2)
+            // AI Subject Recognition — hidden, developer-only cloud feature.
+            // Only visible when the in-app developer override is enabled; normal
+            // users never see it exists.
+            if subscriptions.developerProOverride {
+                NavigationLink(destination: ImageRecognitionView()) {
+                    HStack {
+                        ZStack {
+                            Circle()
+                                .fill(.white.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "sparkle.magnifyingglass")
+                                .font(.title2)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.recognitionTitle)
+                                .font(.headline)
+                            Text(L10n.recognitionSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.white.opacity(0.6))
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.recognitionTitle)
-                            .font(.headline)
-                        Text(L10n.recognitionSubtitle)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.7))
-                            .lineLimit(2)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.legoBlue, Color.legoBlue.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.legoBlue, Color.legoBlue.opacity(0.7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .shadow(color: Color.legoBlue.opacity(0.3), radius: 8, y: 4)
-                )
-                .foregroundStyle(.white)
+                            .shadow(color: Color.legoBlue.opacity(0.3), radius: 8, y: 4)
+                    )
+                    .foregroundStyle(.white)
+                }
+                .accessibilityLabel(L10n.recognitionTitle)
+                .accessibilityHint("Identify celebrities, characters, and famous places in a photo")
             }
-            .accessibilityLabel(L10n.recognitionTitle)
-            .accessibilityHint("Identify celebrities, characters, and famous places in a photo")
 
             Button {
                 showingDemoMode = true

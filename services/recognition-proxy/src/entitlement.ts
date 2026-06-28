@@ -3,6 +3,11 @@ import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { ProxyError } from './types.js';
 
 /**
+ * NOTE: Cloud AI recognition is currently a developer-only feature unlocked
+ * solely via the developer-bypass token (see `verifyDevBypassToken`). The live
+ * `recognizeImage` handler does NOT call `verifyEntitlement` — it is retained
+ * here, fully tested, as reserved infrastructure for a future paid tier.
+ *
  * Verifies a StoreKit 2 JWS (`Transaction.jwsRepresentation`) passed by the
  * iOS app and returns a stable per-user identifier (the original transaction
  * id) when the entitlement represents an **active Bricky Pro** subscription.
@@ -14,10 +19,9 @@ import { ProxyError } from './types.js';
  * any payload field. For local/dev (`verifyChain` false) we decode and
  * structurally validate the payload only.
  *
- * Developer-override Pro users have no real receipt. They are only honored via
- * a separate, server-gated developer bypass token (see `verifyDevBypassToken`)
- * which is OFF unless `DEV_BYPASS_TOKEN` is configured on the proxy — production
- * leaves it unset, so unverifiable clients still get `not_entitled`.
+ * Developer-override users have no real receipt. They are only honored via a
+ * separate, server-gated developer bypass token (see `verifyDevBypassToken`)
+ * which is OFF unless `DEV_BYPASS_TOKEN` is configured on the proxy.
  */
 
 const PRO_PRODUCT_IDS = new Set([

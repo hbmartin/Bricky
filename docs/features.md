@@ -13,7 +13,7 @@ Detailed feature descriptions and status for Bricky. For a short summary see the
 | AR brick scanning | ✅ 🧪 | Real-time piece detection with confidence scoring and spatial tracking via ARKit + Vision. |
 | Photo scanning | ✅ | Scan a picked or captured still image; trace the area to scan. Works without a live camera. |
 | Minifigure identification | ✅ | Fast color cascade → CoreML torso embedding → head/face refinement against a 16K+ figure catalog. |
-| AI subject recognition | ✅ 🔒 | "Who or What Is This?" — identify famous people, cartoon/film characters, landmarks and famous places, and musicians in a photo via cloud GPT-4o vision. Launch from **Home → Who or What Is This?**. Pro feature with a fair-use monthly allowance; the Azure key stays server-side behind the recognition proxy. |
+| AI subject recognition | 🛠️ dev-only | "Who or What Is This?" — identify famous people, cartoon/film characters, landmarks and famous places, and musicians in a photo via cloud GPT-4o vision. **Hidden, developer-only feature** unlocked solely by the in-app developer override; not exposed to users and not part of any paid tier. The Azure key stays server-side behind the recognition proxy, which accepts only the developer-bypass token. |
 | Pre-scan analysis | ✅ | Auto-detects whether the frame is a brick pile or a minifigure before scanning. |
 | Color calibration | ✅ | Camera color-calibration wizard for more accurate piece identification. |
 | LiDAR topographic rendering | ✅ 🧪 | 3D mesh visualization and pile geometry analysis on compatible devices. |

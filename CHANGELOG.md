@@ -28,6 +28,22 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Changed
 
+- **Bricky Pro is a one-time $4.99 purchase.** Replaced the monthly/annual
+  auto-renewing subscriptions with a single non-consumable unlock
+  (`com.bricky.app.pro`). There is no subscription of any kind. The paywall
+  shows one "Unlock Bricky Pro · one-time purchase" button with one-time-purchase
+  legal copy.
+- **Cloud AI subject scanning is now a hidden, developer-only feature.** It is
+  unlocked solely by the in-app developer override (the 7-tap trick) — never by
+  a normal Pro purchase — and involves no subscription or charge to users. The
+  Home entry point is hidden unless the override is on, and the Pro paywall and
+  upgrade banner no longer mention it. `SubscriptionManager` gates AI recognition
+  on `developerProOverride`; the recognition proxy accepts only the developer-
+  bypass token (`DEV_BYPASS_TOKEN`) and otherwise returns `not_entitled`. The
+  monthly count is just a safety cap on the developer's own Azure spend, using
+  GPT-4o vision. (StoreKit JWS verification is retained in the proxy as dormant
+  infrastructure for a possible future paid tier.)
+
 - **Scan Bricks now opens a landing screen.** Tapping "Scan Bricks" from Home
   shows a titled intro screen ("Scan Bricks") with a brief description and two
   clear entry points — **Pre-Scan Analysis** (live camera auto-detection) and
