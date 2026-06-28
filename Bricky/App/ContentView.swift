@@ -16,18 +16,7 @@ struct ContentView: View {
             if isPad {
                 iPadLayout
             } else {
-                NavigationStack(path: $navigationPath) {
-                    HomeView()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .scanFlowShouldPopToRoot)) { _ in
-                    // Pop the entire navigation stack back to Home when a
-                    // scan flow ends (confirm, cancel, or close). Without
-                    // this the user is left on PreScanAnalysisView or the
-                    // scan view itself after finishing identification.
-                    if !navigationPath.isEmpty {
-                        navigationPath = NavigationPath()
-                    }
-                }
+                MainTabView(homePath: $navigationPath)
             }
         } else {
             OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
@@ -40,6 +29,83 @@ struct ContentView: View {
         AdaptiveSplitView()
     }
 }
+
+// MARK: - iPhone Tab Bar
+
+/// Bottom tab strip for iPhone with four primary destinations:
+/// Home, Sets, Feed, and Games. Each tab owns its own `NavigationStack`
+/// so navigation state is preserved independently per tab.
+struct MainTabView: View {
+    /// Navigation path for the Home tab. Bound from `ContentView` so a
+    /// finishing scan flow can pop the Home stack back to its root.
+    @Binding var homePath: NavigationPath
+    @State private var selectedTab: Tab = .home
+
+    enum Tab: String, CaseIterable, Identifiable, Hashable {
+        case home, sets, feed, games
+
+        var id: String { rawValue }
+
+        /// User-facing tab label (Title Case).
+        var title: String {
+            switch self {
+            case .home: return "Home"
+            case .sets: return "Sets"
+            case .feed: return "Feed"
+            case .games: return "Games"
+            }
+        }
+
+        /// SF Symbol shown in the tab bar.
+        var icon: String {
+            switch self {
+            case .home: return "house.fill"
+            case .sets: return "shippingbox.fill"
+            case .feed: return "rectangle.stack.fill"
+            case .games: return "puzzlepiece.fill"
+            }
+        }
+    }
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $homePath) {
+                HomeView()
+            }
+            .tabItem { Label(Tab.home.title, systemImage: Tab.home.icon) }
+            .tag(Tab.home)
+
+            NavigationStack {
+                SetCollectionView()
+            }
+            .tabItem { Label(Tab.sets.title, systemImage: Tab.sets.icon) }
+            .tag(Tab.sets)
+
+            NavigationStack {
+                CommunityFeedView()
+            }
+            .tabItem { Label(Tab.feed.title, systemImage: Tab.feed.icon) }
+            .tag(Tab.feed)
+
+            NavigationStack {
+                PuzzleView()
+            }
+            .tabItem { Label(Tab.games.title, systemImage: Tab.games.icon) }
+            .tag(Tab.games)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .scanFlowShouldPopToRoot)) { _ in
+            // When a scan flow ends (confirm, cancel, or close), return to the
+            // Home tab and pop its navigation stack back to the root. Without
+            // this the user is left on PreScanAnalysisView or the scan view
+            // itself after finishing identification.
+            selectedTab = .home
+            if !homePath.isEmpty {
+                homePath = NavigationPath()
+            }
+        }
+    }
+}
+
 
 // MARK: - iPad Adaptive Split View
 
