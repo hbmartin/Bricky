@@ -58,6 +58,12 @@ The product ID must match `AppConfig.iapProProductId` in the app
 
 ## B. Retire the two old subscriptions
 
+> **In this project this section is N/A.** The monthly/annual subscriptions only
+> ever existed in the local `Bricky.storekit` test file — they were **never
+> created in App Store Connect**. The **Subscriptions** section is empty, so there
+> is nothing to retire. Just create the non-consumable in Section A and leave the
+> Subscriptions section empty. The steps below are kept for reference only.
+
 A subscription cannot be deleted once created, but you remove it from sale so no
 one new can buy it.
 

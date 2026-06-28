@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bricky Pro — App Store IAP Screenshot (1024×1024)</title>
+<style>
+  :root {
+    --bg: #f2f2f7;            /* systemGroupedBackground */
+    --card: #ffffff;          /* systemBackground */
+    --row-divider: #e5e5ea;
+    --header-bg: #e9e9ee;     /* systemGray5-ish */
+    --text: #000000;
+    --secondary: #8a8a8e;
+    --blue: #0a84ff;          /* legoBlue-ish */
+    --green: #34c759;
+    --yellow: #ffcc00;        /* legoYellow */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #d9d9de;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    gap: 16px;
+  }
+
+  /* These hints sit OUTSIDE the 1024×1024 square so they won't be in the shot. */
+  .hint {
+    max-width: 1024px;
+    font-size: 14px;
+    color: #333;
+    background: #fffde7;
+    border: 1px solid #e0d98a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    line-height: 1.45;
+  }
+  .hint code { background: #00000010; padding: 1px 5px; border-radius: 4px; }
+
+  /* The exact 1024×1024 export surface. Screenshot ONLY this element. */
+  .canvas {
+    width: 1024px;
+    height: 1024px;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 72px 32px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+  }
+
+  .crown { margin-bottom: 10px; }
+
+  h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 21px;
+    color: var(--secondary);
+    text-align: center;
+    margin-bottom: 18px;
+  }
+
+  .table {
+    width: 100%;
+    background: var(--card);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 110px 110px;
+    align-items: center;
+    padding: 0 22px;
+    height: 50px;
+    border-bottom: 1px solid var(--row-divider);
+  }
+  .row:last-child { border-bottom: none; }
+
+  .row.head {
+    background: var(--header-bg);
+    height: 46px;
+  }
+  .row.head .cell {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .row.head .pro { color: var(--blue); }
+
+  .cell { font-size: 21px; }
+  .cell.center { text-align: center; }
+  .feature { font-weight: 400; }
+
+  .pill-unlim { color: var(--blue); font-weight: 600; font-size: 20px; }
+  .pill-all   { color: var(--blue); font-weight: 600; font-size: 20px; }
+  .num { font-size: 21px; }
+
+  /* check / dash glyphs as SVG (no emoji) */
+  .glyph { display: inline-flex; vertical-align: middle; }
+
+  .cta {
+    width: 100%;
+    margin-top: 22px;
+    background: var(--blue);
+    border-radius: 16px;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #fff;
+  }
+  .cta .label { font-size: 24px; font-weight: 700; }
+  .cta .sub { font-size: 19px; opacity: 0.92; margin-top: 3px; }
+  .cta .arrow { width: 34px; height: 34px; }
+
+  .restore {
+    margin-top: 16px;
+    color: var(--blue);
+    font-size: 20px;
+    font-weight: 500;
+  }
+
+  .legal {
+    margin-top: 14px;
+    text-align: center;
+    color: var(--secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 720px;
+  }
+</style>
+</head>
+<body>
+  <div class="hint">
+    <strong>App Store IAP screenshot.</strong> The white-shadowed square below is exactly
+    <strong>1024×1024</strong>. Screenshot only that square (on macOS: <code>⌘⇧4</code>, or
+    <code>⌘⇧4</code> then <code>Space</code> to capture the element), at browser zoom 100%.
+    This file is a standalone mockup — it does not affect the app.
+  </div>
+
+  <div class="canvas" id="export">
+    <!-- Crown (SF Symbol crown.fill equivalent) -->
+    <svg class="crown" width="92" height="72" viewBox="0 0 92 72" aria-hidden="true">
+      <path fill="#ffcc00" d="M8 60 L2 18 L26 36 L46 6 L66 36 L90 18 L84 60 Z" />
+      <rect x="8" y="60" width="76" height="9" rx="3" fill="#ffcc00"/>
+    </svg>
+
+    <h1>Unlock Everything</h1>
+    <div class="subtitle">Unlimited scans, full build library, and advanced features.</div>
+
+    <div class="table">
+      <div class="row head">
+        <div class="cell feature">Feature</div>
+        <div class="cell center">Free</div>
+        <div class="cell center pro">Pro</div>
+      </div>
+
+      <div class="row">
+        <div class="cell feature">Daily Scans</div>
+        <div class="cell center num">5</div>
+        <div class="cell center pill-unlim">Unlimited</div>
+      </div>
+      <div class="row">
+        <div class="cell feature">Build Ideas</div>
+        <div class="cell center num">20</div>
+        <div class="cell center pill-all">All 200+</div>
+      </div>
+      <div class="row">
+        <div class="cell feature">Piece Catalog</div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">Color Recognition</div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">AI Build Ideas</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">3D Model Export</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">STL Print Export</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">iCloud Sync</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">CSV/PDF Export</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+      <div class="row">
+        <div class="cell feature">Natural Language Search</div>
+        <div class="cell center"><span class="glyph" data-dash></span></div>
+        <div class="cell center"><span class="glyph" data-check></span></div>
+      </div>
+    </div>
+
+    <div class="cta">
+      <div>
+        <div class="label">Unlock Bricky Pro</div>
+        <div class="sub">$4.99 · one-time purchase</div>
+      </div>
+      <svg class="arrow" viewBox="0 0 36 36" aria-hidden="true">
+        <circle cx="18" cy="18" r="17" fill="#ffffff"/>
+        <path d="M15 11 L23 18 L15 25" fill="none" stroke="#0a84ff" stroke-width="3"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="restore">Restore Purchases</div>
+
+    <div class="legal">
+      One-time purchase. No subscription.<br/>
+      Payment will be charged to your Apple ID account at confirmation of purchase.
+      Bricky Pro unlocks permanently and can be restored on your other devices.
+    </div>
+  </div>
+
+  <script>
+    // Inject SVG check / dash glyphs to match the iOS circle icons.
+    const checkSVG = `<svg width="30" height="30" viewBox="0 0 30 30">
+        <circle cx="15" cy="15" r="14" fill="#34c759"/>
+        <path d="M9 15.5 L13 19.5 L21 10.5" fill="none" stroke="#fff"
+              stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+    const dashSVG = `<svg width="30" height="30" viewBox="0 0 30 30">
+        <circle cx="15" cy="15" r="13.5" fill="none" stroke="#c4c4c9" stroke-width="2"/>
+        <path d="M9 15 H21" fill="none" stroke="#c4c4c9" stroke-width="2.6"
+              stroke-linecap="round"/>
+      </svg>`;
+    document.querySelectorAll('[data-check]').forEach(e => e.innerHTML = checkSVG);
+    document.querySelectorAll('[data-dash]').forEach(e => e.innerHTML = dashSVG);
+  </script>
+</body>
+</html>
