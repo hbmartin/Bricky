@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Model for a LEGO set in the catalog.
 struct LegoSet: Identifiable, Codable, Hashable {
@@ -60,6 +61,55 @@ final class SetCollectionStore: ObservableObject {
 
     func isInCollection(_ setNumber: String) -> Bool {
         collection.contains(where: { $0.setNumber == setNumber })
+    }
+
+    // MARK: - Set Images (scanned/confirmed photo of an owned set)
+
+    private var imagesDir: URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("setImages", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private func imageURL(for setNumber: String) -> URL {
+        imagesDir.appendingPathComponent("\(setNumber).jpg")
+    }
+
+    /// Persist a confirmed photo for a set, downscaled to keep storage small.
+    func saveImage(_ data: Data, for setNumber: String) {
+        try? data.write(to: imageURL(for: setNumber), options: .atomic)
+        objectWillChange.send()
+    }
+
+    func image(for setNumber: String) -> UIImage? {
+        let url = imageURL(for: setNumber)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
+
+    func hasImage(for setNumber: String) -> Bool {
+        FileManager.default.fileExists(atPath: imageURL(for: setNumber).path)
+    }
+
+    /// Fetch the official set photo from Rebrickable's public CDN and store it.
+    /// No API key needed for set images. Returns true on success.
+    @MainActor
+    func fetchRebrickableImage(for setNumber: String) async -> Bool {
+        let candidates = [
+            "https://cdn.rebrickable.com/media/sets/\(setNumber)-1.jpg",
+            "https://cdn.rebrickable.com/media/sets/\(setNumber).jpg"
+        ]
+        for raw in candidates {
+            guard let url = URL(string: raw) else { continue }
+            if let (data, resp) = try? await URLSession.shared.data(from: url),
+               (resp as? HTTPURLResponse)?.statusCode == 200,
+               UIImage(data: data) != nil {
+                saveImage(data, for: setNumber)
+                return true
+            }
+        }
+        return false
     }
 
     /// Calculate completion % of a set against an inventory.

@@ -116,6 +116,7 @@ final class CloudSyncManager: ObservableObject {
                 try await self.uploadInventories()
                 try await self.uploadSetCollection()
                 try await self.uploadStorageBins()
+                try await self.uploadSetImages()
 
                 await MainActor.run {
                     self.syncStatus = .synced
@@ -152,6 +153,7 @@ final class CloudSyncManager: ObservableObject {
                 try await self.downloadAndMergeInventories()
                 try await self.downloadAndMergeSetCollection()
                 try await self.downloadAndMergeStorageBins()
+                try await self.downloadSetImages()
 
                 await MainActor.run {
                     self.syncStatus = .synced
@@ -213,6 +215,21 @@ final class CloudSyncManager: ObservableObject {
         try data.write(to: destURL, options: .atomic)
     }
 
+    /// Mirror saved set photos (Documents/setImages/*.jpg) up to iCloud.
+    private func uploadSetImages() async throws {
+        guard let cloudURL = cloudDocumentsURL else { return }
+        let fm = FileManager.default
+        let localDir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("setImages", isDirectory: true)
+        guard fm.fileExists(atPath: localDir.path) else { return }
+        let cloudDir = cloudURL.appendingPathComponent("setImages", isDirectory: true)
+        try fm.createDirectory(at: cloudDir, withIntermediateDirectories: true)
+        for file in (try? fm.contentsOfDirectory(at: localDir, includingPropertiesForKeys: nil)) ?? [] where file.pathExtension == "jpg" {
+            let dest = cloudDir.appendingPathComponent(file.lastPathComponent)
+            if let data = try? Data(contentsOf: file) { try? data.write(to: dest, options: .atomic) }
+        }
+    }
+
     // MARK: - Download & Merge
 
     private func downloadAndMergeInventories() async throws {
@@ -260,6 +277,24 @@ final class CloudSyncManager: ObservableObject {
 
         await MainActor.run {
             mergeStorageBins(remote: remoteBins)
+        }
+    }
+
+    /// Pull saved set photos from iCloud into Documents/setImages (cloud wins
+    /// when a local copy is missing, so a new device gets the photos).
+    private func downloadSetImages() async throws {
+        guard let cloudURL = cloudDocumentsURL else { return }
+        let fm = FileManager.default
+        let cloudDir = cloudURL.appendingPathComponent("setImages", isDirectory: true)
+        guard fm.fileExists(atPath: cloudDir.path) else { return }
+        let localDir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("setImages", isDirectory: true)
+        try fm.createDirectory(at: localDir, withIntermediateDirectories: true)
+        for file in (try? fm.contentsOfDirectory(at: cloudDir, includingPropertiesForKeys: nil)) ?? [] where file.pathExtension == "jpg" {
+            let dest = localDir.appendingPathComponent(file.lastPathComponent)
+            if !fm.fileExists(atPath: dest.path), let data = try? Data(contentsOf: file) {
+                try? data.write(to: dest, options: .atomic)
+            }
         }
     }
 

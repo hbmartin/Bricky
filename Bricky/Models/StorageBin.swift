@@ -66,6 +66,15 @@ final class StorageBinStore: ObservableObject {
         }
     }
 
+    func assignPieces(_ pieceIds: [UUID], toBin binId: UUID) {
+        guard let idx = bins.firstIndex(where: { $0.id == binId }) else { return }
+        let existing = Set(bins[idx].pieceIds)
+        let added = pieceIds.filter { !existing.contains($0) }
+        guard !added.isEmpty else { return }
+        bins[idx].pieceIds.append(contentsOf: added)
+        saveToDisk()
+    }
+
     func removePiece(_ pieceId: UUID, fromBin binId: UUID) {
         guard let idx = bins.firstIndex(where: { $0.id == binId }) else { return }
         bins[idx].pieceIds.removeAll { $0 == pieceId }

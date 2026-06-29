@@ -48,7 +48,7 @@ final class PuzzleEngine: ObservableObject {
         let pool = puzzlePool(limit: poolLimit)
         guard let project = pool.randomElement() else { return }
         let clues = generateClues(for: project)
-        currentPuzzle = BuildPuzzle(project: project, clues: clues)
+        currentPuzzle = BuildPuzzle(project: project, clues: clues, gridSize: PuzzleSettings.shared.gridSize)
     }
 
     /// The deterministic puzzle pack for a given pack size. Projects are ordered
@@ -71,7 +71,11 @@ final class PuzzleEngine: ObservableObject {
     /// Reveal the next clue
     func revealNextClue() {
         guard var puzzle = currentPuzzle, puzzle.canRevealMore else { return }
-        puzzle.revealedClues += 1
+        if puzzle.revealedClues < puzzle.clues.count { puzzle.revealedClues += 1 }
+        puzzle.revealedCellCount = min(
+            puzzle.cellOrder.count,
+            puzzle.revealedCellCount + PuzzleSettings.shared.revealPerHint
+        )
         currentPuzzle = puzzle
     }
 
@@ -99,6 +103,7 @@ final class PuzzleEngine: ObservableObject {
         guard var puzzle = currentPuzzle else { return }
         puzzle.isGuessed = true
         puzzle.revealedClues = puzzle.clues.count
+        puzzle.revealedCellCount = puzzle.cellOrder.count
         currentPuzzle = puzzle
         // Giving up breaks the win streak and earns no score.
         currentStreak = 0
@@ -139,7 +144,7 @@ final class PuzzleEngine: ObservableObject {
     }
 
     /// Get available answer choices for multiple-choice mode
-    func getAnswerChoices(for puzzle: BuildPuzzle, count: Int = 4) -> [String] {
+    func getAnswerChoices(for puzzle: BuildPuzzle, count: Int = 6) -> [String] {
         let projects = BuildSuggestionEngine.shared.allProjects
         var choices = [puzzle.project.name]
 
@@ -162,23 +167,15 @@ final class PuzzleEngine: ObservableObject {
 
     private func generateClues(for project: LegoProject) -> [String] {
         var clues: [String] = []
-
-        // Clue 1: Category
         clues.append("Category: \(project.category.rawValue)")
-
-        // Clue 2: Difficulty
         clues.append("Difficulty: \(project.difficulty.rawValue)")
-
-        // Clue 3: Piece count
         let totalPieces = project.requiredPieces.reduce(0) { $0 + $1.quantity }
         clues.append("Total pieces needed: \(totalPieces)")
-
-        // Clue 4: Estimated time
         clues.append("Estimated build time: \(project.estimatedTime)")
-
-        // Clue 5: First letter
+        let palette = paletteColors(for: project, limit: 3).map(\.rawValue)
+        if !palette.isEmpty { clues.append("Main colors: \(palette.joined(separator: ", "))") }
+        clues.append("Distinct piece types: \(project.requiredPieces.count)")
         clues.append("Starts with the letter '\(project.name.prefix(1).uppercased())'")
-
         return clues
     }
 

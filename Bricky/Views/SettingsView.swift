@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var scanSettings = ScanSettings.shared
+    @ObservedObject private var puzzleSettings = PuzzleSettings.shared
     @State private var isRunningBenchmark = false
     @State private var showClearHistoryConfirmation = false
     @ObservedObject private var historyStore = ScanHistoryStore.shared
@@ -31,6 +32,7 @@ struct SettingsView: View {
     // don't have to re-expand their preferred sections every time.
     @AppStorage("settings.expanded.appearance") private var expandedAppearance = false
     @AppStorage("settings.expanded.scanning") private var expandedScanning = false
+    @AppStorage("settings.expanded.puzzles") private var expandedPuzzles = false
     @AppStorage("settings.expanded.icloud") private var expandedICloud = false
     @AppStorage("settings.expanded.account") private var expandedAccount = false
     @AppStorage("settings.expanded.subscription") private var expandedSubscription = false
@@ -96,6 +98,29 @@ struct SettingsView: View {
                 }
                 } label: {
                     Label("Appearance", systemImage: "paintpalette.fill")
+                }
+            }
+
+            // MARK: - Puzzles
+            Section {
+                DisclosureGroup(isExpanded: $expandedPuzzles) {
+                    Picker("Puzzle Grid", selection: $puzzleSettings.gridSize) {
+                        ForEach(PuzzleGridPreset.allCases) { preset in
+                            Text(preset.label).tag(preset.rawValue)
+                        }
+                    }
+                    HStack {
+                        Text("Squares Revealed per Hint")
+                        Spacer()
+                        Text("\(puzzleSettings.revealPerHint)")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Text("Each hint uncovers grid size ÷ 4 random squares of the mystery build.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } label: {
+                    Label("Puzzles", systemImage: "puzzlepiece.fill")
                 }
             }
 

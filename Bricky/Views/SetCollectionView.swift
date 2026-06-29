@@ -247,9 +247,31 @@ struct SetDetailView: View {
     let legoSet: LegoSet
     @StateObject private var collectionStore = SetCollectionStore.shared
     @StateObject private var inventoryStore = InventoryStore.shared
+    @State private var showRebrickableConfirm = false
+    @Environment(\.openURL) private var openURL
+    @State private var fetchingImage = false
+
+    /// Public set page on Rebrickable (sets use a "-1" variant suffix).
+    private var rebrickableURL: URL? {
+        URL(string: "https://rebrickable.com/sets/\(legoSet.setNumber)-1/")
+    }
 
     var body: some View {
         List {
+            // Scanned/confirmed photo of the set, if saved
+            if let image = collectionStore.image(for: legoSet.setNumber) {
+                Section {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 220)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+            }
+
             // Set info
             infoSection
 
@@ -287,8 +309,44 @@ struct SetDetailView: View {
             LabeledContent("Theme", value: legoSet.theme)
             LabeledContent("Year", value: String(legoSet.year))
             LabeledContent("Pieces", value: "\(legoSet.pieceCount)")
+            if rebrickableURL != nil {
+                Button {
+                    showRebrickableConfirm = true
+                } label: {
+                    HStack {
+                        Text(legoSet.name)
+                            .underline()
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .foregroundStyle(Color.legoBlue)
+                }
+                .accessibilityLabel("View \(legoSet.name) on Rebrickable")
+            }
+            Button {
+                fetchingImage = true
+                Task {
+                    _ = await collectionStore.fetchRebrickableImage(for: legoSet.setNumber)
+                    fetchingImage = false
+                }
+            } label: {
+                HStack {
+                    Label(collectionStore.hasImage(for: legoSet.setNumber) ? "Refresh Photo from Rebrickable" : "Get Photo from Rebrickable",
+                          systemImage: "photo.badge.arrow.down")
+                    Spacer()
+                    if fetchingImage { ProgressView() }
+                }
+                .foregroundStyle(Color.legoBlue)
+            }
+            .disabled(fetchingImage)
         } header: {
             Text("Details")
+        }
+        .confirmationDialog("Open on Rebrickable?", isPresented: $showRebrickableConfirm, titleVisibility: .visible) {
+            Button("Open") { if let url = rebrickableURL { openURL(url) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This opens \(legoSet.name) in your browser.")
         }
     }
 

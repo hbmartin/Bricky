@@ -184,11 +184,15 @@ struct PuzzleView: View {
 
     private func puzzleSection(_ puzzle: BuildPuzzle) -> some View {
         VStack(spacing: 16) {
-            // Progressive silhouette — de-blurs as clues are revealed.
-            PuzzleSilhouetteView(
+            // Mosaic reveal — random squares uncovered with each hint.
+            PuzzleMosaicRevealView(
                 systemImage: puzzle.project.imageSystemName,
-                revealFraction: puzzle.revealFraction,
-                isSolved: false
+                gridSize: puzzle.gridSize,
+                revealedCells: puzzle.revealedCells,
+                isSolved: false,
+                palette: engine.paletteColors(for: puzzle.project),
+                category: puzzle.project.category,
+                seed: abs(puzzle.project.name.hashValue)
             )
 
             // Color-palette hint derived from the build's required pieces.
@@ -272,10 +276,14 @@ struct PuzzleView: View {
 
     private func revealedSection(_ puzzle: BuildPuzzle) -> some View {
         VStack(spacing: 16) {
-            PuzzleSilhouetteView(
+            PuzzleMosaicRevealView(
                 systemImage: puzzle.project.imageSystemName,
-                revealFraction: 1,
-                isSolved: true
+                gridSize: puzzle.gridSize,
+                revealedCells: puzzle.revealedCells,
+                isSolved: true,
+                palette: engine.paletteColors(for: puzzle.project),
+                category: puzzle.project.category,
+                seed: abs(puzzle.project.name.hashValue)
             )
 
             Text(puzzle.project.name)

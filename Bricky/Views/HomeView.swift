@@ -397,12 +397,12 @@ struct HomeView: View {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.legoBlue, Color.legoBlue.opacity(0.7)],
+                                    colors: [Color.legoGreen, Color.legoGreen.opacity(0.7)],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .shadow(color: Color.legoBlue.opacity(0.3), radius: 8, y: 4)
+                            .shadow(color: Color.legoGreen.opacity(0.3), radius: 8, y: 4)
                     )
                     .foregroundStyle(.white)
                 }

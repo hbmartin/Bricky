@@ -299,6 +299,14 @@ extension L10n {
         localized: "setId.confidenceLabel",
         defaultValue: "Confidence"
     )
+    static let setIdHistoryTitle = String(
+        localized: "setId.historyTitle",
+        defaultValue: "Set Scan History"
+    )
+    static let setIdHistoryEmpty = String(
+        localized: "setId.historyEmpty",
+        defaultValue: "No set scans yet"
+    )
     static let setIdUnverifiedBadge = String(
         localized: "setId.unverifiedBadge",
         defaultValue: "Unverified guess"

@@ -65,13 +65,30 @@ struct BuildPuzzle: Identifiable {
     var isGuessed: Bool
     var attempts: Int
 
-    init(project: LegoProject, clues: [String]) {
+    /// Mosaic reveal: NxN grid, with `revealedCells` exposed so far. Each hint
+    /// uncovers `gridSize / 4` random squares of the mystery build.
+    let gridSize: Int
+    let cellOrder: [Int]
+    var revealedCellCount: Int
+
+    init(project: LegoProject, clues: [String], gridSize: Int = 48) {
         self.project = project
         self.clues = clues
         self.revealedClues = 1
         self.isGuessed = false
         self.attempts = 0
+        self.gridSize = gridSize
+        self.cellOrder = Array(0..<(gridSize * gridSize)).shuffled()
+        let perHint = max(1, gridSize / 4)
+        self.revealedCellCount = perHint
     }
+
+    /// Cells currently visible through the mosaic mask.
+    var revealedCells: Set<Int> {
+        Set(cellOrder.prefix(min(revealedCellCount, cellOrder.count)))
+    }
+
+    var allCellsRevealed: Bool { revealedCellCount >= cellOrder.count }
 
     var currentClue: String? {
         guard revealedClues > 0, revealedClues <= clues.count else { return nil }
@@ -83,7 +100,7 @@ struct BuildPuzzle: Identifiable {
     }
 
     var canRevealMore: Bool {
-        revealedClues < clues.count
+        revealedClues < clues.count || !allCellsRevealed
     }
 
     /// How far the visual reveal has progressed (0 = first clue, 1 = all clues shown).
@@ -97,7 +114,7 @@ struct BuildPuzzle: Identifiable {
     var score: Int {
         guard isGuessed else { return 0 }
         let maxScore = 100
-        let penalty = (revealedClues - 1) * 20
-        return max(maxScore - penalty - (attempts * 5), 10)
+        let penalty = (revealedClues - 1) * 25
+        return max(maxScore - penalty - (attempts * 8), 5)
     }
 }

@@ -30,15 +30,18 @@ final class SetIdentificationViewModel: ObservableObject {
     private let service: SetIdentificationService
     private let subscriptions: SubscriptionManager
     private let catalog: LegoSetCatalog
+    private let history: SetScanHistoryStore
 
     init(
         service: SetIdentificationService = AzureOpenAISetClient(),
         subscriptions: SubscriptionManager = .shared,
-        catalog: LegoSetCatalog = .shared
+        catalog: LegoSetCatalog = .shared,
+        history: SetScanHistoryStore = .shared
     ) {
         self.service = service
         self.subscriptions = subscriptions
         self.catalog = catalog
+        self.history = history
         self.remainingThisMonth = subscriptions.aiRecognitionsRemaining
     }
 
@@ -99,6 +102,7 @@ final class SetIdentificationViewModel: ObservableObject {
             if grounded.isEmpty {
                 phase = .empty
             } else {
+                history.record(candidates: grounded, sourceImage: image)
                 phase = .results(grounded)
             }
         } catch let error as SetIdentificationError {

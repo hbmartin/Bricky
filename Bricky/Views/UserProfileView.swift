@@ -6,6 +6,10 @@ struct UserProfileView: View {
     @ObservedObject private var auth = AuthenticationService.shared
     @Environment(\.dismiss) private var dismiss
 
+    /// Called when a build is tapped, so the feed can switch to My Posts and
+    /// scroll to it. Nil when the profile is shown standalone.
+    var onSelectPost: ((CommunityPost) -> Void)? = nil
+
     @State private var isEditing = false
     @State private var editUsername: String = ""
     @State private var editBio: String = ""
@@ -142,7 +146,13 @@ struct UserProfileView: View {
 
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(userPosts) { post in
-                    PostThumbnail(post: post)
+                    Button {
+                        dismiss()
+                        onSelectPost?(post)
+                    } label: {
+                        PostThumbnail(post: post)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

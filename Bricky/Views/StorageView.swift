@@ -20,7 +20,7 @@ struct StorageView: View {
                 emptyState
             } else {
                 ForEach(binStore.bins) { bin in
-                    NavigationLink(value: bin.id) {
+                    NavigationLink(value: bin) {
                         binRow(bin)
                     }
                     .swipeActions(edge: .trailing) {
@@ -57,10 +57,8 @@ struct StorageView: View {
                 }
             }
         }
-        .navigationDestination(for: UUID.self) { binId in
-            if let bin = binStore.bin(forId: binId) {
-                BinDetailView(binId: bin.id)
-            }
+        .navigationDestination(for: StorageBin.self) { bin in
+            BinDetailView(binId: bin.id)
         }
         .alert("New Storage Bin", isPresented: $showCreateBin) {
             TextField("Bin Name", text: $newBinName)
@@ -133,10 +131,6 @@ struct StorageView: View {
             }
 
             Spacer()
-
-            Image(systemName: "chevron.right")
-                .foregroundStyle(.secondary)
-                .font(.caption)
         }
         .padding(.vertical, 4)
     }
@@ -197,6 +191,7 @@ struct BinDetailView: View {
     @StateObject private var binStore = StorageBinStore.shared
     @StateObject private var inventoryStore = InventoryStore.shared
     @State private var showAssignSheet = false
+    @State private var showImportScan = false
 
     private var bin: StorageBin? {
         binStore.bin(forId: binId)
@@ -263,6 +258,12 @@ struct BinDetailView: View {
                         Text("Pieces")
                         Spacer()
                         Button {
+                            showImportScan = true
+                        } label: {
+                            Label("Import Scan", systemImage: "square.and.arrow.down")
+                                .font(.caption)
+                        }
+                        Button {
                             showAssignSheet = true
                         } label: {
                             Label("Add", systemImage: "plus")
@@ -276,6 +277,9 @@ struct BinDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAssignSheet) {
             AssignPieceView(binId: binId)
+        }
+        .sheet(isPresented: $showImportScan) {
+            ImportScanIntoBinView(binId: binId)
         }
     }
 }
@@ -351,3 +355,80 @@ struct AssignPieceView: View {
         }
     }
 }
+
+// MARK: - Import Scan Into Bin
+
+/// Imports a whole brick scan "into" a bin — like adding a roll of photos to an
+/// album. Each scan's identified pieces are added to the active inventory (one
+/// is created if none exists) and assigned to the bin in a single tap.
+struct ImportScanIntoBinView: View {
+    let binId: UUID
+    @StateObject private var history = ScanHistoryStore.shared
+    @StateObject private var binStore = StorageBinStore.shared
+    @StateObject private var inventoryStore = InventoryStore.shared
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if history.entries.isEmpty {
+                    ContentUnavailableView(
+                        "No Scans Yet",
+                        systemImage: "camera.viewfinder",
+                        description: Text("Scan a pile of bricks first, then import it into this bin.")
+                    )
+                } else {
+                    ForEach(history.entries) { entry in
+                        Button {
+                            importScan(entry)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "tray.full")
+                                    .foregroundStyle(Color.legoOrangeLabel)
+                                    .frame(width: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.date.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.subheadline).fontWeight(.medium)
+                                    Text("\(entry.totalPiecesFound) pieces · \(entry.uniquePieceCount) unique")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "square.and.arrow.down")
+                                    .foregroundStyle(Color.blue)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Import a Scan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    /// Add the scan's pieces to the active inventory and associate them with the bin.
+    private func importScan(_ entry: ScanHistoryStore.HistoryEntry) {
+        let invId = inventoryStore.activeInventoryId
+            ?? inventoryStore.createInventory(name: "My Inventory")
+        let newPieces = entry.pieces.map { p in
+            InventoryStore.InventoryPiece(
+                partNumber: p.partNumber, name: p.name, category: p.category,
+                color: p.color, quantity: p.quantity, dimensions: p.dimensions
+            )
+        }
+        inventoryStore.addPieces(newPieces, to: invId)
+        // addPieces merges by part+color, so map back to the stored ids.
+        let keys = Set(entry.pieces.map { "\($0.partNumber)|\($0.color.rawValue)" })
+        let storedIds = (inventoryStore.activeInventory?.pieces ?? [])
+            .filter { keys.contains("\($0.partNumber)|\($0.color)") }
+            .map(\.id)
+        binStore.assignPieces(storedIds, toBin: binId)
+    }
+}
+

@@ -187,8 +187,8 @@ final class BuildPuzzleTests: XCTestCase {
         var puzzle = BuildPuzzle(project: project, clues: ["A", "B", "C", "D", "E"])
         puzzle.revealedClues = 3
         puzzle.isGuessed = true
-        // 100 - (3-1)*20 - 0*5 = 100 - 40 = 60
-        XCTAssertEqual(puzzle.score, 60)
+        // 100 - (3-1)*25 - 0*8 = 100 - 50 = 50
+        XCTAssertEqual(puzzle.score, 50)
     }
 
     func testBuildPuzzleScoreDecreaseWithAttempts() {
@@ -196,8 +196,8 @@ final class BuildPuzzleTests: XCTestCase {
         var puzzle = BuildPuzzle(project: project, clues: ["A", "B", "C", "D", "E"])
         puzzle.attempts = 4
         puzzle.isGuessed = true
-        // 100 - 0 - 4*5 = 80
-        XCTAssertEqual(puzzle.score, 80)
+        // 100 - 0 - 4*8 = 68
+        XCTAssertEqual(puzzle.score, 68)
     }
 
     func testBuildPuzzleScoreMinimum() {
@@ -206,8 +206,8 @@ final class BuildPuzzleTests: XCTestCase {
         puzzle.revealedClues = 5
         puzzle.attempts = 10
         puzzle.isGuessed = true
-        // 100 - (5-1)*20 - 10*5 = 100 - 80 - 50 = -30 → max(-30, 10) = 10
-        XCTAssertEqual(puzzle.score, 10)
+        // 100 - (5-1)*25 - 10*8 = 100 - 100 - 80 = -80 → max(-80, 5) = 5
+        XCTAssertEqual(puzzle.score, 5)
     }
 
     func testBuildPuzzleScoreZeroWhenNotGuessed() {

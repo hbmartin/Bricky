@@ -12,6 +12,8 @@ struct CommunityFeedView: View {
     @State private var postToEdit: CommunityPost?
     /// Post pending deletion, awaiting confirmation.
     @State private var postPendingDelete: CommunityPost?
+    /// Post to scroll to after switching to My Posts (from the profile screen).
+    @State private var scrollTarget: CommunityPost.ID?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -58,7 +60,10 @@ struct CommunityFeedView: View {
         }
         .sheet(isPresented: $showProfile) {
             NavigationStack {
-                UserProfileView()
+                UserProfileView { post in
+                    viewModel.selectedFilter = .myPosts
+                    scrollTarget = post.id
+                }
             }
         }
         .sheet(item: $selectedPost) { post in
@@ -267,14 +272,16 @@ struct CommunityFeedView: View {
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
             } else {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(viewModel.filteredPosts) { post in
-                        CommunityPostCard(post: post) {
-                            viewModel.toggleLike(postId: post.id)
-                        }
-                        .onTapGesture {
-                            selectedPost = post
-                        }
+                ScrollViewReader { proxy in
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(viewModel.filteredPosts) { post in
+                            CommunityPostCard(post: post) {
+                                viewModel.toggleLike(postId: post.id)
+                            }
+                            .id(post.id)
+                            .onTapGesture {
+                                selectedPost = post
+                            }
                         .contextMenu {
                             if post.isOwned(by: auth.userIdentifier) {
                                 Button {
@@ -289,9 +296,13 @@ struct CommunityFeedView: View {
                                 }
                             }
                         }
+                    }                    }                    .padding()
+                    .onChange(of: scrollTarget) { _, target in
+                        guard let target else { return }
+                        withAnimation { proxy.scrollTo(target, anchor: .top) }
+                        scrollTarget = nil
                     }
                 }
-                .padding()
             }
         }
         .refreshable {

@@ -17,6 +17,8 @@ struct SetIdentificationView: View {
     @State private var imageLoadError: String?
     @State private var showPaywall = false
     @State private var showCamera = false
+    @State private var pendingSave: IdentifiedSet?
+    @State private var savedSetNumber: String?
 
     /// Caps form-control width so inputs never stretch edge-to-edge on iPad.
     private let contentMaxWidth: CGFloat = 640
@@ -41,6 +43,16 @@ struct SetIdentificationView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(L10n.setIdTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    SetScanHistoryView()
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                }
+                .accessibilityLabel(L10n.setIdHistoryTitle)
+            }
+        }
         .onChange(of: pickerItem) { _, newItem in
             Task { await loadPickedImage(newItem) }
         }
@@ -67,6 +79,27 @@ struct SetIdentificationView: View {
             }
             .ignoresSafeArea()
         }
+        .confirmationDialog(
+            "Save to My Sets?",
+            isPresented: Binding(get: { pendingSave != nil }, set: { if !$0 { pendingSave = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingSave
+        ) { set in
+            Button("Save") { saveToCollection(set) }
+            Button("Cancel", role: .cancel) {}
+        } message: { set in
+            Text("Add \(set.displayName) (#\(set.setNumber)) to your collection with this photo?")
+        }
+    }
+
+    /// Confirmed match: add to the set collection and store the scanned photo.
+    private func saveToCollection(_ set: IdentifiedSet) {
+        SetCollectionStore.shared.addSet(set.setNumber)
+        if let image = viewModel.sourceImage,
+           let data = image.jpegData(compressionQuality: 0.8) {
+            SetCollectionStore.shared.saveImage(data, for: set.setNumber)
+        }
+        savedSetNumber = set.setNumber
     }
 
     // MARK: - Header
@@ -204,7 +237,9 @@ struct SetIdentificationView: View {
                 Text(L10n.setIdResultsTitle)
                     .font(.headline)
                 ForEach(candidates) { candidate in
-                    IdentifiedSetCard(set: candidate)
+                    IdentifiedSetCard(set: candidate, isSaved: savedSetNumber == candidate.setNumber) {
+                        pendingSave = candidate
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -284,6 +319,8 @@ struct SetIdentificationView: View {
 /// "best guess — not verified" badge for proposals not found in the catalog.
 private struct IdentifiedSetCard: View {
     let set: IdentifiedSet
+    var isSaved: Bool = false
+    var onSave: (() -> Void)? = nil
 
     private var confidencePercent: Int {
         Int((set.confidence * 100).rounded())
@@ -323,6 +360,16 @@ private struct IdentifiedSetCard: View {
                 }
             }
             Spacer(minLength: 0)
+            if let onSave {
+                Button(action: onSave) {
+                    Image(systemName: isSaved ? "checkmark.circle.fill" : "plus.circle")
+                        .font(.title2)
+                        .foregroundStyle(isSaved ? Color.green : Color.blue)
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaved)
+                .accessibilityLabel(isSaved ? "Saved to My Sets" : "Save to My Sets")
+            }
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
