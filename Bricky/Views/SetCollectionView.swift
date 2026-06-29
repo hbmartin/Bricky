@@ -8,6 +8,7 @@ struct SetCollectionView: View {
     @State private var selectedTheme: String?
     @State private var showOwnedOnly = false
     @AppStorage("setCollection.tileView") private var tileView = false
+    @State private var showSettings = false
 
     private let catalog = LegoSetCatalog.shared
 
@@ -53,21 +54,23 @@ struct SetCollectionView: View {
             }
         }
         .searchable(text: $searchText, prompt: "Search sets by name or number")
+        .refreshable {
+            await collectionStore.downloadMissingThumbnails()
+        }
         .navigationTitle("Set Collection")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Toggle(isOn: $tileView) {
-                    Label("Tile View", systemImage: tileView ? "square.grid.2x2.fill" : "list.bullet")
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
                 }
-                .toggleStyle(.button)
+                .accessibilityLabel("Settings")
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Toggle(isOn: $showOwnedOnly) {
-                    Label("Owned", systemImage: showOwnedOnly ? "checkmark.circle.fill" : "checkmark.circle")
-                }
-                .toggleStyle(.button)
-            }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack { SettingsView() }
         }
     }
 
@@ -155,7 +158,16 @@ struct SetCollectionView: View {
                 }
             }
         } header: {
-            Text("\(filteredSets.count) Sets")
+            HStack {
+                Text("\(filteredSets.count) Sets")
+                Spacer()
+                Toggle(isOn: $tileView) {
+                    Label("Tile View", systemImage: tileView ? "square.grid.2x2.fill" : "list.bullet")
+                        .labelStyle(.iconOnly)
+                }
+                .toggleStyle(.button)
+                .accessibilityLabel(tileView ? "Switch to list view" : "Switch to tile view")
+            }
         }
     }
 
@@ -348,6 +360,7 @@ struct SetDetailView: View {
     @State private var previewPiece: LegoPiece?
     @State private var fetchingBOM = false
     @State private var bomError: String?
+    @State private var showSettings = false
 
     /// Public set page on Rebrickable (sets use a "-1" variant suffix).
     private var rebrickableURL: URL? {
@@ -409,16 +422,15 @@ struct SetDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    if collectionStore.isInCollection(legoSet.setNumber) {
-                        collectionStore.removeSet(legoSet.setNumber)
-                    } else {
-                        collectionStore.addSet(legoSet.setNumber)
-                    }
+                    showSettings = true
                 } label: {
-                    Image(systemName: collectionStore.isInCollection(legoSet.setNumber) ? "checkmark.circle.fill" : "plus.circle")
+                    Image(systemName: "gearshape")
                 }
-                .accessibilityLabel(collectionStore.isInCollection(legoSet.setNumber) ? "Remove from collection" : "Add to collection")
+                .accessibilityLabel("Settings")
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack { SettingsView() }
         }
     }
 

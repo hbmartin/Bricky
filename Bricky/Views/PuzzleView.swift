@@ -11,6 +11,7 @@ struct PuzzleView: View {
     @State private var showPaywall = false
     @State private var showShareSheet = false
     @State private var shareText = ""
+    @State private var showSettings = false
 
     var body: some View {
         ScrollView {
@@ -59,6 +60,19 @@ struct PuzzleView: View {
             ShareSheet(items: [shareText])
         }
         .navigationTitle("Build Puzzles")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack { SettingsView() }
+        }
     }
 
     private var headerSection: some View {
