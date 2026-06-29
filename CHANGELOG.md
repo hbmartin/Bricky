@@ -12,6 +12,42 @@ is `CURRENT_PROJECT_VERSION`.
 
 ### Added
 
+- **Set Collection thumbnails & tile view.** Settings now has a *Set Collection*
+  section with an **Auto-Download Thumbnails** toggle (fetches the official
+  Rebrickable photo whenever a set is identified/added) and a **Download Missing
+  Thumbnails** button showing thumbnail coverage. The Set Collection list shows a
+  green photo-checkmark on any set that has a thumbnail, and a new **Tile View**
+  toolbar toggle shows each set with its thumbnail plus theme/category and year
+  (one record per row, list or tile).
+
+### Changed
+
+- **Set details: tappable missing pieces & instructions link.** Tapping a
+  missing piece now opens the shared 3D preview; the details screen links to the
+  set's building instructions on Rebrickable; and the inventory match section
+  notes completion is approximate (based on a representative sample, not the
+  full bill of materials).
+
+- **Exact set completion via full BOMs.** Completion %, missing pieces, and All
+  Pieces are computed against each set's complete parts list, cached on-device,
+  instead of the bundled sample; the "approximate" disclaimer disappears once a
+  full list is fetched. The list is fetched by the proxy's `GET /api/setParts`
+  using `rebrickable-api-key` from Key Vault, with a per-user iCloud-synced
+  personal key as fallback. Thumbnails and parts lists are cached and flagged per
+  set to avoid repeat API calls; the set details screen offers manual refresh of
+  both. Set details also adds a clear "Add to My Collection" button above missing
+  pieces (the toolbar +/✓ is just a shortcut for the same action).
+- **Community "My Posts" reliability.** Selecting My Posts now also queries the
+  signed-in user's posts directly from CloudKit and merges them into the feed,
+  and switching filters re-fetches — so your builds show up even outside the
+  general feed window.
+- **Minifig lookup uses the shared key via Key Vault.** Minifig search now goes
+  through the proxy's `GET /api/minifigSearch` (same `rebrickable-api-key` from
+  Key Vault) and only falls back to the bundled key if the proxy is unavailable.
+
+
+
+
 - **AI LEGO set identification (developer-only).** The Scanner can now identify
   which official LEGO set an *already-built model* is from a single photo. It
   proposes up to three candidate sets via cloud GPT-4o vision, then **grounds**

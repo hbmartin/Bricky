@@ -191,24 +191,38 @@ actor BrickognizeService {
     private func searchRebrickableForFigure(name: String, catalog: [Minifigure]) async -> FigureMatch? {
         // Normalize the search term: "Blacktron 2" → "Blacktron II"
         let normalized = normalizeForMatching(name)
-        guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://rebrickable.com/api/v3/lego/minifigs/?search=\(encoded)&page_size=5&key=f80c762a9866cefa7111f5cabd5556dd") else {
-            return nil
+
+        struct RebrickableSearchResult: Decodable {
+            let results: [RebrickableMinifig]
+            struct RebrickableMinifig: Decodable {
+                let set_num: String
+                let name: String
+            }
+        }
+
+        // Prefer the proxy (key in Key Vault); fall back to the bundled key.
+        var data: Data?
+        if let proxy = AppConfig.minifigSearchEndpoint,
+           var comps = URLComponents(url: proxy, resolvingAgainstBaseURL: false) {
+            comps.queryItems = [URLQueryItem(name: "q", value: normalized)]
+            if let url = comps.url,
+               let (d, resp) = try? await session.data(from: url),
+               (resp as? HTTPURLResponse)?.statusCode == 200 {
+                data = d
+            }
+        }
+        if data == nil {
+            guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                  let url = URL(string: "https://rebrickable.com/api/v3/lego/minifigs/?search=\(encoded)&page_size=5&key=\(AppConfig.rebrickableMinifigKey)"),
+                  let (d, resp) = try? await session.data(from: url),
+                  (resp as? HTTPURLResponse)?.statusCode == 200 else {
+                return nil
+            }
+            data = d
         }
 
         do {
-            let (data, response) = try await session.data(from: url)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-
-            struct RebrickableSearchResult: Decodable {
-                let results: [RebrickableMinifig]
-                struct RebrickableMinifig: Decodable {
-                    let set_num: String
-                    let name: String
-                }
-            }
-
-            let searchResult = try JSONDecoder().decode(RebrickableSearchResult.self, from: data)
+            let searchResult = try JSONDecoder().decode(RebrickableSearchResult.self, from: data ?? Data())
             // Find the first result that's in our local catalog
             for rb in searchResult.results {
                 if let fig = catalog.first(where: { $0.id == rb.set_num }) {

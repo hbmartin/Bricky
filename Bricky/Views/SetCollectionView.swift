@@ -7,6 +7,7 @@ struct SetCollectionView: View {
     @State private var searchText = ""
     @State private var selectedTheme: String?
     @State private var showOwnedOnly = false
+    @AppStorage("setCollection.tileView") private var tileView = false
 
     private let catalog = LegoSetCatalog.shared
 
@@ -55,6 +56,12 @@ struct SetCollectionView: View {
         .navigationTitle("Set Collection")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Toggle(isOn: $tileView) {
+                    Label("Tile View", systemImage: tileView ? "square.grid.2x2.fill" : "list.bullet")
+                }
+                .toggleStyle(.button)
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Toggle(isOn: $showOwnedOnly) {
                     Label("Owned", systemImage: showOwnedOnly ? "checkmark.circle.fill" : "checkmark.circle")
@@ -139,7 +146,11 @@ struct SetCollectionView: View {
             } else {
                 ForEach(filteredSets) { legoSet in
                     NavigationLink(value: legoSet.setNumber) {
-                        setRow(legoSet)
+                        if tileView {
+                            tileRow(legoSet)
+                        } else {
+                            setRow(legoSet)
+                        }
                     }
                 }
             }
@@ -185,6 +196,13 @@ struct SetCollectionView: View {
 
             Spacer()
 
+            if collectionStore.hasImage(for: legoSet.setNumber) {
+                Image(systemName: "photo.badge.checkmark")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .accessibilityLabel("Thumbnail available")
+            }
+
             if let inventory = inventoryStore.activeInventory {
                 let pct = collectionStore.completionPercentage(for: legoSet, inventory: inventory)
                 completionBadge(pct)
@@ -192,6 +210,82 @@ struct SetCollectionView: View {
         }
         .padding(.vertical, 10)
         .frame(minHeight: 56)
+        .contentShape(Rectangle())
+        .swipeActions(edge: .trailing) {
+            if collectionStore.isInCollection(legoSet.setNumber) {
+                Button(role: .destructive) {
+                    collectionStore.removeSet(legoSet.setNumber)
+                } label: {
+                    Label("Remove", systemImage: "minus.circle")
+                }
+            } else {
+                Button {
+                    collectionStore.addSet(legoSet.setNumber)
+                } label: {
+                    Label("Add", systemImage: "plus.circle")
+                }
+                .tint(Color.blue)
+            }
+        }
+    }
+
+    private func tileRow(_ legoSet: LegoSet) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.systemGray5))
+                if let thumb = collectionStore.image(for: legoSet.setNumber) {
+                    Image(uiImage: thumb)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "shippingbox")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 64, height: 64)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(legoSet.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+
+                    if collectionStore.isInCollection(legoSet.setNumber) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Color.blue)
+                    }
+                }
+
+                Text("#\(legoSet.setNumber) · \(legoSet.pieceCount) pcs")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(legoSet.theme) · \(String(legoSet.year))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                if let inventory = inventoryStore.activeInventory {
+                    let pct = collectionStore.completionPercentage(for: legoSet, inventory: inventory)
+                    completionBadge(pct)
+                }
+                if collectionStore.hasImage(for: legoSet.setNumber) {
+                    Image(systemName: "photo.badge.checkmark")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .accessibilityLabel("Thumbnail available")
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: 80)
         .contentShape(Rectangle())
         .swipeActions(edge: .trailing) {
             if collectionStore.isInCollection(legoSet.setNumber) {
@@ -248,12 +342,35 @@ struct SetDetailView: View {
     @StateObject private var collectionStore = SetCollectionStore.shared
     @StateObject private var inventoryStore = InventoryStore.shared
     @State private var showRebrickableConfirm = false
+    @State private var showInstructionsConfirm = false
     @Environment(\.openURL) private var openURL
     @State private var fetchingImage = false
+    @State private var previewPiece: LegoPiece?
+    @State private var fetchingBOM = false
+    @State private var bomError: String?
 
     /// Public set page on Rebrickable (sets use a "-1" variant suffix).
     private var rebrickableURL: URL? {
         URL(string: "https://rebrickable.com/sets/\(legoSet.setNumber)-1/")
+    }
+
+    /// Building instructions for the set on Rebrickable.
+    private var instructionsURL: URL? {
+        URL(string: "https://rebrickable.com/instructions/\(legoSet.setNumber)-1/")
+    }
+
+    /// Build a renderable piece from a catalog part number + color string so a
+    /// tapped row can open the shared 3D preview. Falls back to a basic brick.
+    private func renderablePiece(partNumber: String, color: String, quantity: Int) -> LegoPiece {
+        let legoColor = LegoColor(fromString: color) ?? .gray
+        if let cat = LegoPartsCatalog.shared.piece(byPartNumber: partNumber) {
+            return LegoPiece(partNumber: cat.partNumber, name: cat.name, category: cat.category,
+                             color: legoColor, dimensions: cat.dimensions, quantity: quantity)
+        }
+        return LegoPiece(partNumber: partNumber, name: "Part \(partNumber)", category: .brick,
+                         color: legoColor,
+                         dimensions: PieceDimensions(studsWide: 2, studsLong: 4, heightUnits: 3),
+                         quantity: quantity)
     }
 
     var body: some View {
@@ -286,6 +403,9 @@ struct SetDetailView: View {
         }
         .navigationTitle(legoSet.name)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $previewPiece) { piece in
+            ModelViewerView(piece: piece)
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -297,6 +417,7 @@ struct SetDetailView: View {
                 } label: {
                     Image(systemName: collectionStore.isInCollection(legoSet.setNumber) ? "checkmark.circle.fill" : "plus.circle")
                 }
+                .accessibilityLabel(collectionStore.isInCollection(legoSet.setNumber) ? "Remove from collection" : "Add to collection")
             }
         }
     }
@@ -323,6 +444,19 @@ struct SetDetailView: View {
                 }
                 .accessibilityLabel("View \(legoSet.name) on Rebrickable")
             }
+            if instructionsURL != nil {
+                Button {
+                    showInstructionsConfirm = true
+                } label: {
+                    HStack {
+                        Label("Building Instructions", systemImage: "book.pages")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .foregroundStyle(Color.legoBlue)
+                }
+                .accessibilityLabel("View building instructions for \(legoSet.name) on Rebrickable")
+            }
             Button {
                 fetchingImage = true
                 Task {
@@ -339,6 +473,32 @@ struct SetDetailView: View {
                 .foregroundStyle(Color.legoBlue)
             }
             .disabled(fetchingImage)
+            if RebrickableSetService().isConfigured {
+                Button {
+                    fetchingBOM = true
+                    bomError = nil
+                    Task {
+                        do { _ = try await collectionStore.fetchFullBOM(for: legoSet.setNumber) }
+                        catch { bomError = error.localizedDescription }
+                        fetchingBOM = false
+                    }
+                } label: {
+                    HStack {
+                        Label(collectionStore.hasFullBOM(for: legoSet.setNumber) ? "Refresh Full Parts List" : "Fetch Full Parts List",
+                              systemImage: "list.bullet.rectangle")
+                        Spacer()
+                        if fetchingBOM { ProgressView() }
+                        else if collectionStore.hasFullBOM(for: legoSet.setNumber) {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        }
+                    }
+                    .foregroundStyle(Color.legoBlue)
+                }
+                .disabled(fetchingBOM)
+                if let bomError {
+                    Text(bomError).font(.caption).foregroundStyle(.red)
+                }
+            }
         } header: {
             Text("Details")
         }
@@ -347,6 +507,12 @@ struct SetDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This opens \(legoSet.name) in your browser.")
+        }
+        .confirmationDialog("Open Instructions on Rebrickable?", isPresented: $showInstructionsConfirm, titleVisibility: .visible) {
+            Button("Open") { if let url = instructionsURL { openURL(url) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This opens the building instructions for \(legoSet.name) in your browser.")
         }
     }
 
@@ -376,7 +542,28 @@ struct SetDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
+
+                if !collectionStore.hasFullBOM(for: legoSet.setNumber) {
+                    Text("Based on a representative sample of this set's pieces — completion is approximate. Fetch the full parts list for exact figures.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    if collectionStore.isInCollection(legoSet.setNumber) {
+                        collectionStore.removeSet(legoSet.setNumber)
+                    } else {
+                        collectionStore.addSet(legoSet.setNumber)
+                    }
+                } label: {
+                    Label(collectionStore.isInCollection(legoSet.setNumber) ? "In My Collection" : "Add to My Collection",
+                          systemImage: collectionStore.isInCollection(legoSet.setNumber) ? "checkmark.seal.fill" : "plus.circle.fill")
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 8)
+                        .background(collectionStore.isInCollection(legoSet.setNumber) ? Color.green : Color.blue, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))            }
         } header: {
             Text("Inventory Match")
         }
@@ -388,25 +575,34 @@ struct SetDetailView: View {
             if !missing.isEmpty {
                 Section {
                     ForEach(missing.prefix(20), id: \.partNumber) { item in
-                        HStack {
-                            if let color = LegoColor(fromString: item.color) {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.legoColor(color))
-                                    .frame(width: 20, height: 20)
-                            }
-                            VStack(alignment: .leading) {
-                                Text(item.partNumber)
+                        Button {
+                            previewPiece = renderablePiece(partNumber: item.partNumber, color: item.color, quantity: item.needed - item.have)
+                        } label: {
+                            HStack {
+                                if let color = LegoColor(fromString: item.color) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.legoColor(color))
+                                        .frame(width: 20, height: 20)
+                                }
+                                VStack(alignment: .leading) {
+                                    Text(item.partNumber)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                    Text(item.color)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("Need \(item.needed - item.have) more")
                                     .font(.caption)
-                                    .fontWeight(.medium)
-                                Text(item.color)
-                                    .font(.caption2)
+                                    .foregroundStyle(.red)
+                                Image(systemName: "cube.transparent")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Text("Need \(item.needed - item.have) more")
-                                .font(.caption)
-                                .foregroundStyle(.red)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                     if missing.count > 20 {
                         Text("+ \(missing.count - 20) more missing")
@@ -423,9 +619,10 @@ struct SetDetailView: View {
     // MARK: - All Pieces
 
     private var allPiecesSection: some View {
-        Section {
-            ForEach(legoSet.pieces.indices, id: \.self) { idx in
-                let piece = legoSet.pieces[idx]
+        let pieces = collectionStore.effectivePieces(for: legoSet)
+        return Section {
+            ForEach(pieces.indices, id: \.self) { idx in
+                let piece = pieces[idx]
                 HStack {
                     if let color = LegoColor(fromString: piece.color) {
                         RoundedRectangle(cornerRadius: 4)
@@ -445,7 +642,7 @@ struct SetDetailView: View {
                 }
             }
         } header: {
-            Text("All Pieces (\(legoSet.pieces.count) types)")
+            Text("All Pieces (\(pieces.count) types)")
         }
     }
 }

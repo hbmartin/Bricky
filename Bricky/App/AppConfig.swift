@@ -114,6 +114,58 @@ enum AppConfig {
         Bundle.main.object(forInfoDictionaryKey: key) as? String
     }
 
+    // MARK: - Rebrickable API
+
+    /// Server proxy that returns a set's full parts list using the team's
+    /// Rebrickable key from Key Vault. Checked first; if it has no key the app
+    /// falls back to a personal key. Overridable via `BRICKY_SET_PARTS_ENDPOINT`.
+    static var setPartsEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_SET_PARTS_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_SET_PARTS_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/setParts")
+    }
+
+    /// Key for the user's personal Rebrickable key, stored on-device and synced
+    /// via iCloud key-value store. Only used as a fallback when the proxy/Key
+    /// Vault has none.
+    static let rebrickableAPIKeyDefaultsKey = "\(defaultsPrefix).rebrickable.apiKey"
+
+    /// Effective personal Rebrickable key (nil when unset). Reads the env/Info
+    /// override, then UserDefaults, then the iCloud KV store. Server BOM lookups
+    /// don't need this — it's the on-device fallback.
+    static var rebrickableAPIKey: String? {
+        if let raw = infoPlistString("BRICKY_REBRICKABLE_API_KEY") ??
+            ProcessInfo.processInfo.environment["BRICKY_REBRICKABLE_API_KEY"],
+           !raw.isEmpty {
+            return raw
+        }
+        let local = UserDefaults.standard.string(forKey: rebrickableAPIKeyDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let local, !local.isEmpty { return local }
+        let cloud = NSUbiquitousKeyValueStore.default.string(forKey: rebrickableAPIKeyDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (cloud?.isEmpty == false) ? cloud : nil
+    }
+
+    /// Shared minifig-lookup key (free tier), used by `BrickognizeService` only
+    /// as a fallback when the proxy/Key Vault has none.
+    static let rebrickableMinifigKey = "f80c762a9866cefa7111f5cabd5556dd"
+
+    /// Proxy minifig search endpoint that uses the Key Vault Rebrickable key.
+    /// Checked first; the bundled key is a fallback. Overridable via
+    /// `BRICKY_MINIFIG_SEARCH_ENDPOINT`.
+    static var minifigSearchEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_MINIFIG_SEARCH_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_MINIFIG_SEARCH_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/minifigSearch")
+    }
+
     // MARK: - Keychain Keys (derived from prefix)
 
     static let keychainAccount = defaultsPrefix

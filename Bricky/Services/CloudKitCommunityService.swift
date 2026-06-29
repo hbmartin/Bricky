@@ -228,6 +228,20 @@ final class CloudKitCommunityService: ObservableObject {
         }
     }
 
+    /// Fetch the current user's posts directly and merge into the feed so the
+    /// "My Posts" filter shows them even when they're outside the general feed
+    /// window or not yet indexed. Surfaces an honest error on failure.
+    func mergeCurrentUserPosts() async {
+        guard let userId = AuthenticationService.shared.userIdentifier else { return }
+        let mine = await fetchUserPosts(userId: userId)
+        guard !mine.isEmpty else { return }
+        await MainActor.run {
+            var byId = Dictionary(uniqueKeysWithValues: self.posts.map { ($0.id, $0) })
+            for post in mine { byId[post.id] = post }
+            self.posts = byId.values.sorted { $0.createdAt > $1.createdAt }
+        }
+    }
+
     // MARK: - Likes
 
     func toggleLike(postId: String) async {

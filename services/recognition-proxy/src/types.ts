@@ -86,6 +86,7 @@ export type ErrorCode =
   | 'quota_exceeded'
   | 'upstream_error'
   | 'not_configured'
+  | 'not_found'
   | 'rate_limited';
 
 export interface ErrorBody {

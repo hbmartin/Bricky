@@ -31,12 +31,29 @@ final class SetCollectionStore: ObservableObject {
 
     @Published var collection: [CollectionEntry] = []
 
+    /// When enabled, the official Rebrickable thumbnail is fetched automatically
+    /// whenever a set is identified/added so the collection list stays illustrated.
+    @Published var autoDownloadThumbnails: Bool {
+        didSet { UserDefaults.standard.set(autoDownloadThumbnails, forKey: Self.autoDownloadKey) }
+    }
+
+    /// True while a bulk thumbnail download is in flight (drives Settings UI).
+    @Published var isDownloadingThumbnails = false
+
+    /// Set numbers whose full bill of materials has been fetched from
+    /// Rebrickable and cached, so completion is computed against real parts.
+    @Published private(set) var fullBOMSetNumbers: Set<String> = []
+
+    private static let autoDownloadKey = "setCollection.autoDownloadThumbnails"
+
     private let storageURL: URL
 
     private init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         storageURL = docs.appendingPathComponent("setCollection.json")
+        autoDownloadThumbnails = UserDefaults.standard.bool(forKey: Self.autoDownloadKey)
         loadFromDisk()
+        fullBOMSetNumbers = Self.cachedBOMSetNumbers()
     }
 
     // MARK: - CRUD
@@ -46,6 +63,9 @@ final class SetCollectionStore: ObservableObject {
         let entry = CollectionEntry(id: UUID(), setNumber: setNumber, owned: true, dateAdded: Date())
         collection.append(entry)
         saveToDisk()
+        if autoDownloadThumbnails, !hasImage(for: setNumber) {
+            Task { await fetchRebrickableImage(for: setNumber) }
+        }
     }
 
     func removeSet(_ setNumber: String) {
@@ -112,14 +132,83 @@ final class SetCollectionStore: ObservableObject {
         return false
     }
 
+    /// Number of sets in the collection that already have a stored thumbnail.
+    var thumbnailCount: Int {
+        collection.filter { hasImage(for: $0.setNumber) }.count
+    }
+
+    /// Download Rebrickable thumbnails for every collected set still missing one.
+    /// Returns the number of thumbnails newly fetched.
+    @MainActor
+    @discardableResult
+    func downloadMissingThumbnails() async -> Int {
+        guard !isDownloadingThumbnails else { return 0 }
+        isDownloadingThumbnails = true
+        defer { isDownloadingThumbnails = false }
+
+        var fetched = 0
+        for entry in collection where !hasImage(for: entry.setNumber) {
+            if await fetchRebrickableImage(for: entry.setNumber) { fetched += 1 }
+        }
+        return fetched
+    }
+
+    // MARK: - Full Bill of Materials (Rebrickable)
+
+    private static func bomDir() -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dir = docs.appendingPathComponent("setBOMs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private static func bomURL(for setNumber: String) -> URL {
+        bomDir().appendingPathComponent("\(setNumber).json")
+    }
+
+    private static func cachedBOMSetNumbers() -> Set<String> {
+        let urls = (try? FileManager.default.contentsOfDirectory(at: bomDir(), includingPropertiesForKeys: nil)) ?? []
+        return Set(urls.filter { $0.pathExtension == "json" }.map { $0.deletingPathExtension().lastPathComponent })
+    }
+
+    /// True when a fetched full parts list is cached for the set.
+    func hasFullBOM(for setNumber: String) -> Bool {
+        fullBOMSetNumbers.contains(setNumber)
+    }
+
+    /// The cached full parts list for a set, or nil when none has been fetched.
+    func fullBOM(for setNumber: String) -> [LegoSet.SetPiece]? {
+        guard let data = try? Data(contentsOf: Self.bomURL(for: setNumber)) else { return nil }
+        return try? JSONDecoder().decode([LegoSet.SetPiece].self, from: data)
+    }
+
+    /// Fetch the full parts list from Rebrickable and cache it. Returns the
+    /// piece-type count on success; throws `RebrickableSetError` otherwise.
+    @MainActor
+    @discardableResult
+    func fetchFullBOM(for setNumber: String, service: RebrickableSetService = RebrickableSetService()) async throws -> Int {
+        let pieces = try await service.fetchParts(for: setNumber)
+        let data = try JSONEncoder().encode(pieces)
+        try data.write(to: Self.bomURL(for: setNumber), options: .atomic)
+        fullBOMSetNumbers.insert(setNumber)
+        return pieces.count
+    }
+
+    /// Pieces used to evaluate completion: the cached full BOM when present,
+    /// otherwise the bundled representative sample.
+    func effectivePieces(for legoSet: LegoSet) -> [LegoSet.SetPiece] {
+        fullBOM(for: legoSet.setNumber) ?? legoSet.pieces
+    }
+
     /// Calculate completion % of a set against an inventory.
     func completionPercentage(for legoSet: LegoSet, inventory: InventoryStore.Inventory) -> Double {
-        guard !legoSet.pieces.isEmpty else { return 0 }
+        let pieces = effectivePieces(for: legoSet)
+        guard !pieces.isEmpty else { return 0 }
 
         var matched = 0
         var total = 0
 
-        for setPiece in legoSet.pieces {
+        for setPiece in pieces {
             total += setPiece.quantity
             let inventoryMatch = inventory.pieces.first(where: {
                 $0.partNumber == setPiece.partNumber && $0.color == setPiece.color
@@ -137,7 +226,7 @@ final class SetCollectionStore: ObservableObject {
     func missingPieces(for legoSet: LegoSet, inventory: InventoryStore.Inventory) -> [(partNumber: String, color: String, needed: Int, have: Int)] {
         var missing: [(partNumber: String, color: String, needed: Int, have: Int)] = []
 
-        for setPiece in legoSet.pieces {
+        for setPiece in effectivePieces(for: legoSet) {
             let have = inventory.pieces.first(where: {
                 $0.partNumber == setPiece.partNumber && $0.color == setPiece.color
             })?.quantity ?? 0

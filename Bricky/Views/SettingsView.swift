@@ -40,6 +40,9 @@ struct SettingsView: View {
     @AppStorage("settings.expanded.help") private var expandedHelp = false
     @AppStorage("settings.expanded.data") private var expandedData = false
     @AppStorage("settings.expanded.about") private var expandedAbout = false
+    @AppStorage("settings.expanded.setCollection") private var expandedSetCollection = false
+    @ObservedObject private var setCollection = SetCollectionStore.shared
+    @State private var rebrickableKey = UserDefaults.standard.string(forKey: AppConfig.rebrickableAPIKeyDefaultsKey) ?? ""
 
     var body: some View {
         Form {
@@ -501,6 +504,54 @@ struct SettingsView: View {
                 }
                 } label: {
                     Label("iCloud Sync", systemImage: "icloud.fill")
+                }
+            }
+
+            // MARK: - Set Collection
+            Section {
+                DisclosureGroup(isExpanded: $expandedSetCollection) {
+                    Toggle("Auto-Download Thumbnails", isOn: $setCollection.autoDownloadThumbnails)
+                    Text("Automatically fetch the official Rebrickable photo whenever a set is identified or added to your collection.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    Text("Rebrickable API Key")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    SecureField("Personal API key (optional)", text: $rebrickableKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onChange(of: rebrickableKey) { _, newValue in
+                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            UserDefaults.standard.set(trimmed, forKey: AppConfig.rebrickableAPIKeyDefaultsKey)
+                            NSUbiquitousKeyValueStore.default.set(trimmed, forKey: AppConfig.rebrickableAPIKeyDefaultsKey)
+                            NSUbiquitousKeyValueStore.default.synchronize()
+                        }
+                    Text("Bricky uses a built-in parts service first; only if it's unavailable does it use your key. A free Rebrickable key is stored on this device and synced via iCloud.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        Task { _ = await setCollection.downloadMissingThumbnails() }
+                    } label: {
+                        HStack {
+                            Label("Download Missing Thumbnails", systemImage: "square.and.arrow.down")
+                            Spacer()
+                            if setCollection.isDownloadingThumbnails {
+                                ProgressView()
+                            } else {
+                                Text("\(setCollection.thumbnailCount)/\(setCollection.collection.count)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .foregroundStyle(Color.legoBlue)
+                    }
+                    .disabled(setCollection.isDownloadingThumbnails || setCollection.collection.isEmpty)
+                } label: {
+                    Label("Set Collection", systemImage: "shippingbox.fill")
                 }
             }
 

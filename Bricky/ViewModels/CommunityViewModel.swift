@@ -73,6 +73,12 @@ final class CommunityViewModel: ObservableObject {
 
     func refresh() async {
         await CloudKitCommunityService.shared.fetchPosts()
+        // "My Posts" filters the locally-fetched feed by author. The general
+        // feed may be capped or eventually-consistent, so also pull the user's
+        // own posts directly and merge them in.
+        if selectedFilter == .myPosts {
+            await CloudKitCommunityService.shared.mergeCurrentUserPosts()
+        }
     }
 
     func toggleLike(postId: String) {

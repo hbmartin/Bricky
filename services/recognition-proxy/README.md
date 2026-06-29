@@ -65,6 +65,7 @@ The iOS `AzureOpenAIRecognitionClient` maps these statuses directly.
 | `APPSTORE_VERIFY_CHAIN`          | `true` to cryptographically verify Apple's JWS chain   |
 | `MONTHLY_QUOTA`                  | Fair-use cap per user per month (default `100`)        |
 | `QUOTA_TABLE_CONNECTION`         | Azure Table Storage connection string for quota counts |
+| `REBRICKABLE_API_KEY`            | **Key Vault reference** to secret `rebrickable-api-key`; powers `GET /api/setParts` (full set BOM) and `GET /api/minifigSearch` (minifig lookup). Optional — if unset the app falls back to a bundled/user key. |
 
 ## Local run
 

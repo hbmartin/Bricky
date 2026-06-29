@@ -259,6 +259,9 @@ struct CommunityFeedView: View {
             await communityService.loadCurrentProfile()
             await viewModel.refresh()
         }
+        .onChange(of: viewModel.selectedFilter) { _, _ in
+            Task { await viewModel.refresh() }
+        }
     }
 
     // MARK: - Feed Content

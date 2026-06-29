@@ -7,6 +7,9 @@ final class SetCollectionImageTests: XCTestCase {
 
     override func tearDown() {
         SetCollectionStore.shared.removeSet(setNumber)
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let img = docs.appendingPathComponent("setImages/\(setNumber).jpg")
+        try? FileManager.default.removeItem(at: img)
         super.tearDown()
     }
 
@@ -25,5 +28,21 @@ final class SetCollectionImageTests: XCTestCase {
 
     func testMissingImageReturnsNil() {
         XCTAssertNil(SetCollectionStore.shared.image(for: "no-such-set-xyz"))
+    }
+
+    func testThumbnailCountTracksSavedImages() {
+        let store = SetCollectionStore.shared
+        store.addSet(setNumber)
+        store.saveImage(jpeg(), for: setNumber)
+        XCTAssertTrue(store.thumbnailCount >= 1)
+        XCTAssertTrue(store.collection.filter { store.hasImage(for: $0.setNumber) }.count >= 1)
+    }
+
+    func testAutoDownloadThumbnailsPersists() {
+        let store = SetCollectionStore.shared
+        let original = store.autoDownloadThumbnails
+        store.autoDownloadThumbnails = true
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: "setCollection.autoDownloadThumbnails"))
+        store.autoDownloadThumbnails = original
     }
 }
