@@ -70,12 +70,23 @@ export interface SetIdentificationRequest {
   entitlementToken: string;
 }
 
+/** A support inquiry submitted from the marketing site contact form. */
+export interface SupportInquiry {
+  email: string;
+  message: string;
+  /** Optional subject/topic; defaults handled server-side. */
+  topic?: string;
+  /** Honeypot field — must be empty; bots tend to fill it. */
+  website?: string;
+}
+
 export type ErrorCode =
   | 'bad_request'
   | 'not_entitled'
   | 'quota_exceeded'
   | 'upstream_error'
-  | 'not_configured';
+  | 'not_configured'
+  | 'rate_limited';
 
 export interface ErrorBody {
   error: string;
