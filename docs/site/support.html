@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bricky — Support</title>
+<style>
+  :root{--bg:#f2f2f7;--card:#fff;--text:#1c1c1e;--secondary:#6b6b70;--blue:#0a84ff;--green:#34c759;--border:#e5e5ea;}
+  @media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--secondary:#9a9aa0;--border:#2c2c2e;}}
+  *{box-sizing:border-box;margin:0;padding:0;} body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;}
+  a{color:var(--blue);text-decoration:none;} .wrap{max-width:560px;margin:0 auto;padding:32px 24px 64px;}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;margin-bottom:20px;}
+  .back{display:inline-block;margin-bottom:20px;} h1{font-size:32px;letter-spacing:-.5px;margin-bottom:24px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;} .card p{color:var(--secondary);margin-bottom:12px;}
+  form{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px;} label{font-weight:700;font-size:14px;margin-top:10px;}
+  input,select,textarea{width:100%;padding:11px 13px;font-size:16px;font-family:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:10px;} select{padding-right:36px;} textarea{resize:vertical;}
+  #sHoney{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;}
+  #sSubmit{margin-top:16px;background:var(--blue);color:#fff;font-weight:700;font-size:16px;padding:13px;border:none;border-radius:12px;cursor:pointer;} #sSubmit:disabled{opacity:.6;cursor:default;}
+  .form-status{min-height:18px;margin-top:8px;font-size:14px;font-weight:600;} .form-status.ok{color:var(--green);} .form-status.err{color:#d01012;}
+  .faq{margin-top:20px;} .faq h4{margin:16px 0 4px;font-size:17px;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><svg width="28" height="22" viewBox="0 0 92 72"><path fill="#ffcc00" d="M8 60 L2 18 L26 36 L46 6 L66 36 L90 18 L84 60 Z"/><rect x="8" y="60" width="76" height="9" rx="3" fill="#ffcc00"/></svg>Bricky</div>
+    <a class="back" href="index.html">← Back to home</a>
+    <h1>Support</h1>
+    <div class="card">
+      <p>Need help, have a feature request, or found a bug? Send us a message and we'll get back to you.</p>
+      <form id="supportForm" novalidate>
+        <label for="sTopic">Topic</label>
+        <select id="sTopic" name="topic">
+          <option value="general">General Question</option>
+          <option value="bug">Bug Report</option>
+          <option value="feature">Feature Request</option>
+          <option value="privacy">Privacy Request</option>
+        </select>
+        <label for="sEmail">Your Email</label>
+        <input id="sEmail" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+        <label for="sMsg">Message</label>
+        <textarea id="sMsg" name="message" rows="5" placeholder="How can we help?" required></textarea>
+        <input type="text" name="website" id="sHoney" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        <button type="submit" id="sSubmit">Send Message</button>
+        <p class="form-status" id="sStatus" role="status"></p>
+      </form>
+      <div class="faq">
+        <h4>Does Bricky work offline?</h4>
+        <p>Yes — scanning, identification, inventory, and build suggestions all run on-device with no connection required.</p>
+        <h4>How do I restore my purchase?</h4>
+        <p>Open Settings inside the app and tap Restore Purchases — Bricky Pro is a one-time purchase tied to your Apple ID.</p>
+        <h4>Where is my data stored?</h4>
+        <p>On your device. With iCloud Sync enabled, it's in your personal iCloud account, never our servers.</p>
+      </div>
+    </div>
+  </div>
+  <script>
+    const SUPPORT_ENDPOINT='https://bricky-recognition.azurewebsites.net/api/submitSupport';
+    const form=document.getElementById('supportForm'),status=document.getElementById('sStatus');
+    form.addEventListener('submit',async e=>{e.preventDefault();const btn=document.getElementById('sSubmit');status.className='form-status';status.textContent='';
+      const payload={topic:sTopic.value,email:sEmail.value.trim(),message:sMsg.value.trim(),website:sHoney.value};
+      btn.disabled=true;btn.textContent='Sending…';
+      try{const res=await fetch(SUPPORT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(res.ok){form.reset();status.className='form-status ok';status.textContent='Thanks! Your message was sent.';}
+        else{const b=await res.json().catch(()=>({}));status.className='form-status err';status.textContent=b.error||'Something went wrong. Please try again.';}
+      }catch{status.className='form-status err';status.textContent='Network error. Please try again.';}
+      finally{btn.disabled=false;btn.textContent='Send Message';}});
+  </script>
+</body>
+</html>

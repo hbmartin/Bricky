@@ -136,7 +136,7 @@
       <nav class="nav-links">
         <a href="#features">Features</a>
         <a href="#pro">Pro</a>
-        <a href="#support">Support</a>
+        <a href="support.html">Support</a>
       </nav>
     </div>
   </header>
@@ -149,7 +149,6 @@
     </section>
 
     <section id="features">
-      <h2>What Bricky does</h2>
       <div class="grid" id="featureGrid"></div>
     </section>
 
@@ -180,37 +179,6 @@
         <div class="legal">One-time purchase. No subscription. Bricky Pro unlocks permanently and can be restored on your other devices.</div>
       </div>
     </section>
-
-    <section id="support">
-      <h2>Support</h2>
-      <div class="card">
-        <p>Need help, have a feature request, or found a bug? Send us a message and we'll get back to you.</p>
-        <form id="supportForm" novalidate>
-          <label for="sTopic">Topic</label>
-          <select id="sTopic" name="topic">
-            <option value="general">General Question</option>
-            <option value="bug">Bug Report</option>
-            <option value="feature">Feature Request</option>
-            <option value="privacy">Privacy Request</option>
-          </select>
-          <label for="sEmail">Your Email</label>
-          <input id="sEmail" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
-          <label for="sMsg">Message</label>
-          <textarea id="sMsg" name="message" rows="5" placeholder="How can we help?" required></textarea>
-          <input type="text" name="website" id="sHoney" tabindex="-1" autocomplete="off" aria-hidden="true" />
-          <button type="submit" id="sSubmit">Send Message</button>
-          <p class="form-status" id="sStatus" role="status"></p>
-        </form>
-        <div class="faq">
-          <h4>Does Bricky work offline?</h4>
-          <p>Yes — scanning, identification, inventory, and build suggestions all run on-device with no connection required.</p>
-          <h4>How do I restore my purchase?</h4>
-          <p>Open Settings inside the app and tap Restore Purchases — Bricky Pro is a one-time purchase tied to your Apple ID.</p>
-          <h4>Where is my data stored?</h4>
-          <p>On your device. With iCloud Sync enabled, it's in your personal iCloud account, never our servers.</p>
-        </div>
-      </div>
-    </section>
   </main>
 
   <footer>
@@ -219,7 +187,7 @@
       <p style="margin-top:8px;">
         <a href="privacy.html">Privacy Policy</a> ·
         <a href="terms.html">Terms of Use</a> ·
-        <a href="#support">Support</a>
+        <a href="support.html">Support</a>
       </p>
       <p style="margin-top:8px;">© 2026 Bricky</p>
     </div>
@@ -277,39 +245,6 @@
     document.getElementById('mClose').addEventListener('click', () => overlay.classList.remove('open'));
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('open'); });
-
-    // Support form → Bricky recognition proxy (Azure Table-backed support store).
-    const SUPPORT_ENDPOINT = 'https://bricky-recognition.azurewebsites.net/api/submitSupport';
-    const form = document.getElementById('supportForm');
-    const status = document.getElementById('sStatus');
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      const btn = document.getElementById('sSubmit');
-      status.className = 'form-status'; status.textContent = '';
-      const payload = {
-        topic: document.getElementById('sTopic').value,
-        email: document.getElementById('sEmail').value.trim(),
-        message: document.getElementById('sMsg').value.trim(),
-        website: document.getElementById('sHoney').value
-      };
-      btn.disabled = true; btn.textContent = 'Sending…';
-      try {
-        const res = await fetch(SUPPORT_ENDPOINT, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          form.reset();
-          status.className = 'form-status ok'; status.textContent = 'Thanks! Your message was sent.';
-        } else {
-          const b = await res.json().catch(() => ({}));
-          status.className = 'form-status err'; status.textContent = b.error || 'Something went wrong. Please try again.';
-        }
-      } catch {
-        status.className = 'form-status err'; status.textContent = 'Network error. Please try again.';
-      } finally {
-        btn.disabled = false; btn.textContent = 'Send Message';
-      }
-    });
   </script>
 </body>
 </html>
