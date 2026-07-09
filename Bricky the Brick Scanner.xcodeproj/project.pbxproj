@@ -188,6 +188,7 @@
 		88FB7C217814121301D6FB88 /* UserCorrectionReranker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DEC8B9D627AC7883789D989 /* UserCorrectionReranker.swift */; };
 		8984DBB6F040675DE68620FC /* SetIdentificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C30B24A9092BEAD0870E8BC /* SetIdentificationService.swift */; };
 		89F8CE50F2C4AE82EA5FC707 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F5A0FA3E0551C2CF84341D /* Color+Extensions.swift */; };
+		8A7B908D5B09720A660D7AC5 /* MeshVoxelizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFD2690D7AF2F59C7851C5C /* MeshVoxelizerTests.swift */; };
 		8A96F25F619F0F86FDE6E7C2 /* FindPieceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7F6B73A4C1F0326C15CAD4 /* FindPieceView.swift */; };
 		8AD255AF6724C07EBB3CDFCA /* VoxelShapeLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787158B595504389A0E5D9C5 /* VoxelShapeLibraryTests.swift */; };
 		8BE229926F2035045CFF94E6 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 4CC62C94FAEB1575EF99D643 /* manifest.json */; };
@@ -208,6 +209,7 @@
 		92A351CDB3FF9CDD1B6D9127 /* MinifigureScanTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EC01325E356B7DA99DE9FA /* MinifigureScanTuning.swift */; };
 		93B288C0CEFBC7F311AFC32C /* MosaicCaptionGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649D7A797250B2F920128690 /* MosaicCaptionGenerator.swift */; };
 		959A350C6E9F950406784586 /* SetScanHistoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C2BE290028FFAFF49C1DFCE /* SetScanHistoryStoreTests.swift */; };
+		95A5C22940A0F4734456129F /* MeshVoxelizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB804A7B0455310DD1155D5 /* MeshVoxelizer.swift */; };
 		95B0EFA598F937D751738193 /* SprintDFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71ABC00264BEE119191B3AA /* SprintDFeatureTests.swift */; };
 		964F4E7D9758D8DEC7FEFAD4 /* RebrickableSetServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F966F805B4D76DDE180AD6EB /* RebrickableSetServiceTests.swift */; };
 		96900AF879493DFD873B37D9 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3390E508D00CAA57346A79AB /* AnalyticsService.swift */; };
@@ -246,6 +248,7 @@
 		B0A6769DF69696ACE5374B0F /* FindABrickHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2643F3D5FD09C928C4DC109 /* FindABrickHubView.swift */; };
 		B1DCFA35666075C80075B85F /* report-20260531-220749.md in Resources */ = {isa = PBXBuildFile; fileRef = B40822FC6F42827786337135 /* report-20260531-220749.md */; };
 		B1FCEA5126E3CEA7D34D4615 /* SetIdentificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71276A256DD2DB387E2D61AA /* SetIdentificationView.swift */; };
+		B2342696F1AF46369B857E15 /* TripoMeshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 876ADDFBD2FF0523DE542D85 /* TripoMeshService.swift */; };
 		B285874AEBBD6B60D562C1EE /* MeshBoundaryStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DC66A819E7BB6589233FB1 /* MeshBoundaryStrategy.swift */; };
 		B3E8AE3A9647E286C420E40D /* AddCustomFigureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5FBCA96D5048523251CF69 /* AddCustomFigureView.swift */; };
 		B4C89046439354DBD1934C9C /* ScanLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289A94F8D51F6A81BB03795F /* ScanLocationTests.swift */; };
@@ -313,6 +316,7 @@
 		DF2F708294D8909EA0AB06BF /* GeneratedLegoSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E022985F73ABA1CDCABBD96F /* GeneratedLegoSet.swift */; };
 		E0B82ABE3C7A14FA0F45BFEC /* SprintGAppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05A1F9A36506780B0BF760C8 /* SprintGAppStoreTests.swift */; };
 		E0C37997F50BF0AC3D660068 /* LegoPartsCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = 8744F07950DDB3553CBB5E00 /* LegoPartsCatalog.json */; };
+		E0D09D8E03F5AFC3030AC36E /* SetForgeMeshServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CED8765F0179BFF1E9992F /* SetForgeMeshServiceTests.swift */; };
 		E104BAB8FB74108365A8F9F0 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99695881DBDD8B0B9F983E7F /* ThemeManager.swift */; };
 		E283A486E8DE664FCF1A062B /* LDrawTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBB702DF4BD9264251C72D1 /* LDrawTests.swift */; };
 		E2B93D6145637C659A2AE7F3 /* PieceLocationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A52E74B4552366C5A59D95 /* PieceLocationView.swift */; };
@@ -405,6 +409,7 @@
 		19981747B1E80DBD47B8B2D1 /* SetCollectionImageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetCollectionImageTests.swift; sourceTree = "<group>"; };
 		19BC45EB623D000BF579F8D4 /* report-20260427-014005.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-014005.md"; sourceTree = "<group>"; };
 		1B25B8819718427E5CFF4386 /* TorsoVisualSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorsoVisualSignature.swift; sourceTree = "<group>"; };
+		1DFD2690D7AF2F59C7851C5C /* MeshVoxelizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeshVoxelizerTests.swift; sourceTree = "<group>"; };
 		1E440C896D7EDC0AB683ACC5 /* ModelViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelViewerView.swift; sourceTree = "<group>"; };
 		1EA5295D9ADE9E473502C551 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
 		1F11369AC84678F0AEA7A989 /* BrickognizeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrickognizeService.swift; sourceTree = "<group>"; };
@@ -437,6 +442,7 @@
 		2E0AB1AB32AEB6C1000F8A17 /* SetForgeLDRExporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetForgeLDRExporter.swift; sourceTree = "<group>"; };
 		2E22D971F163092F0000B3CD /* ScannerGroundTruthHarnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerGroundTruthHarnessTests.swift; sourceTree = "<group>"; };
 		2E2375924C87F31026F188BC /* LDraw */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LDraw; path = Bricky/Resources/LDraw; sourceTree = SOURCE_ROOT; };
+		2EB804A7B0455310DD1155D5 /* MeshVoxelizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MeshVoxelizer.swift; sourceTree = "<group>"; };
 		30992DFAA1FB342322D68141 /* IdentifiedSet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IdentifiedSet.swift; sourceTree = "<group>"; };
 		31C76038568B87A4FD43A022 /* LocalizedStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStrings.swift; sourceTree = "<group>"; };
 		32DE4A487EB8448E02A6667A /* ScanResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultsView.swift; sourceTree = "<group>"; };
@@ -520,6 +526,7 @@
 		6FD3890394088A8DB19DECD5 /* MinifigureIdentificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureIdentificationServiceTests.swift; sourceTree = "<group>"; };
 		7074CE7C499C81B2C51E926A /* BrickyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		70ADD39D0E814FA533C4AB7D /* BrickLinkColorMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrickLinkColorMap.swift; sourceTree = "<group>"; };
+		70CED8765F0179BFF1E9992F /* SetForgeMeshServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetForgeMeshServiceTests.swift; sourceTree = "<group>"; };
 		70F555662C76D4D1A0E5F7C0 /* ForgeTextViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForgeTextViewModel.swift; sourceTree = "<group>"; };
 		71276A256DD2DB387E2D61AA /* SetIdentificationView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetIdentificationView.swift; sourceTree = "<group>"; };
 		7177CF186AB72E352596CC9A /* ForgeTextViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForgeTextViewModelTests.swift; sourceTree = "<group>"; };
@@ -552,6 +559,7 @@
 		85DE1F0CE3A7A1269F43C915 /* RebrickableSetService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RebrickableSetService.swift; sourceTree = "<group>"; };
 		869D6030E25BF39280135812 /* PileBoundaryLocationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PileBoundaryLocationView.swift; sourceTree = "<group>"; };
 		8744F07950DDB3553CBB5E00 /* LegoPartsCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = LegoPartsCatalog.json; sourceTree = "<group>"; };
+		876ADDFBD2FF0523DE542D85 /* TripoMeshService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TripoMeshService.swift; sourceTree = "<group>"; };
 		877449AA444CB12ACB349003 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		87A368BAC8E98142BF1E181D /* ImageRecognitionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRecognitionTests.swift; sourceTree = "<group>"; };
 		87C5B1E154A868ECF7C9DD28 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -968,6 +976,8 @@
 				B77CD3E9166D732C5B2159F2 /* VoxelShapeLibrary.swift */,
 				F9EA85F59FBC481D4D193BE6 /* PhotoVoxelizer.swift */,
 				F058033EFDCE730B2F1F856D /* SetForgeTextService.swift */,
+				2EB804A7B0455310DD1155D5 /* MeshVoxelizer.swift */,
+				876ADDFBD2FF0523DE542D85 /* TripoMeshService.swift */,
 			);
 			name = SetForge;
 			path = SetForge;
@@ -1116,6 +1126,8 @@
 				7177CF186AB72E352596CC9A /* ForgeTextViewModelTests.swift */,
 				B05AB4297FA78491C6DA1115 /* PhotoVoxelizerTests.swift */,
 				27FA9E7E7EFFC2A639382B35 /* SetForgeTextServiceTests.swift */,
+				1DFD2690D7AF2F59C7851C5C /* MeshVoxelizerTests.swift */,
+				70CED8765F0179BFF1E9992F /* SetForgeMeshServiceTests.swift */,
 			);
 			path = BrickyTests;
 			sourceTree = "<group>";
@@ -1656,6 +1668,8 @@
 				30241C3CFF2865A94C828258 /* ScanToSetView.swift in Sources */,
 				5A11130F495E73997AF7FA2F /* ForgeSizePicker.swift in Sources */,
 				4ED45B714B6C1832F9029597 /* SetForgeTextService.swift in Sources */,
+				95A5C22940A0F4734456129F /* MeshVoxelizer.swift in Sources */,
+				B2342696F1AF46369B857E15 /* TripoMeshService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1729,6 +1743,8 @@
 				4E71C80D987C05B4F588277C /* ForgeTextViewModelTests.swift in Sources */,
 				D6ECC44183A6B2739C6C2DF8 /* PhotoVoxelizerTests.swift in Sources */,
 				109B1DF614CC048250E0238C /* SetForgeTextServiceTests.swift in Sources */,
+				8A7B908D5B09720A660D7AC5 /* MeshVoxelizerTests.swift in Sources */,
+				E0D09D8E03F5AFC3030AC36E /* SetForgeMeshServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -100,6 +100,21 @@ enum AppConfig {
         return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/forgeFromText")
     }
 
+    /// Server proxy endpoint that forges a high-fidelity 3D **mesh** from a text
+    /// description via a hosted vendor (Tripo), returning a model URL the app
+    /// downloads and voxelizes. Premium Set Forge tier; same developer-only,
+    /// key-on-server handling as the other cloud features. When unset/unreachable
+    /// the app falls back to the GPT voxel path, then the on-device library.
+    /// Overridable via `BRICKY_FORGE_MESH_ENDPOINT`.
+    static var forgeMeshFromTextEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_FORGE_MESH_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_FORGE_MESH_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/forgeMeshFromText")
+    }
+
     /// Monthly AI recognition allowance. Cloud AI is developer-only, so this is
     /// just a safety cap on the developer's own Azure GPT-4o spend; it keeps
     /// total spend under the development cost cap while testing. Everyone without

@@ -33,29 +33,27 @@ final class ForgeTextViewModel: ObservableObject {
 
     private let isProProvider: @MainActor () -> Bool
     private let cloudService: SetForgeTextService?
+    private let meshService: SetForgeMeshService?
     private let entitlementProvider: () async -> String?
     private var task: Task<Void, Never>?
 
     init(
         isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro },
         cloudService: SetForgeTextService? = AzureOpenAIForgeTextClient(),
+        meshService: SetForgeMeshService? = AzureTripoMeshClient(),
         entitlementProvider: @escaping () async -> String? = {
             await SubscriptionManager.shared.recognitionEntitlementToken()
         }
     ) {
         self.isProProvider = isProProvider
         self.cloudService = cloudService
+        self.meshService = meshService
         self.entitlementProvider = entitlementProvider
-        if !isProProvider() { selectedSize = .small }
     }
 
     // MARK: - Derived state
 
     var isProUser: Bool { isProProvider() }
-
-    func isSizeUnlocked(_ size: VoxelModel.Size) -> Bool {
-        isProUser || size == .small
-    }
 
     var trimmedDescription: String {
         description.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -63,7 +61,6 @@ final class ForgeTextViewModel: ObservableObject {
 
     var canGenerate: Bool {
         guard trimmedDescription.count >= 2 else { return false }
-        guard isSizeUnlocked(selectedSize) else { return false }
         if case .generating = phase { return false }
         return true
     }
@@ -89,7 +86,7 @@ final class ForgeTextViewModel: ObservableObject {
     // MARK: - Actions
 
     func generate() {
-        guard canGenerate else { return }
+        guard canGenerate, isProUser else { return }
         let subject = trimmedDescription
         let size = selectedSize
         let accent = accentColor
@@ -117,33 +114,53 @@ final class ForgeTextViewModel: ObservableObject {
     }
 
     private func run(subject: String, size: VoxelModel.Size, accent: LegoColor?) async {
-        // 1. Cloud-first: GPT-4o authoring (developer-only). Any failure falls
-        //    back to the on-device library so generation never hard-fails.
+        let token = await entitlementProvider()
+
+        // Cloud tiers (developer-only). Any failure falls through to the next
+        // tier, so generation never hard-fails.
         var cloudModel: VoxelModel?
-        if let service = cloudService, let token = await entitlementProvider() {
+        var label = ""
+
+        // Tier 1 — Tripo HD mesh → voxelize on-device (highest fidelity).
+        if let meshService, let token {
             do {
-                cloudModel = try await service.generateModel(
+                let url = try await meshService.generateMesh(
                     prompt: subject, size: size, entitlementToken: token
                 )
+                cloudModel = try await Task.detached(priority: .userInitiated) {
+                    try MeshVoxelizer.voxelize(assetURL: url, size: size, subject: subject)
+                }.value
+                label = "AI 3D"
             } catch {
-                cloudModel = nil // graceful fallback
+                cloudModel = nil
             }
         }
         if Task.isCancelled { return }
 
-        // 2. Choose the voxel source: cloud model, else the shape library.
+        // Tier 2 — GPT voxel DSL.
+        if cloudModel == nil, let service = cloudService, let token {
+            do {
+                cloudModel = try await service.generateModel(
+                    prompt: subject, size: size, entitlementToken: token
+                )
+                label = "AI-generated"
+            } catch {
+                cloudModel = nil
+            }
+        }
+        if Task.isCancelled { return }
+
+        // Tier 3 — on-device shape library.
         let model: VoxelModel
-        let label: String
         if let cloudModel {
             model = cloudModel
-            label = "AI-generated"
         } else {
             let match = VoxelShapeLibrary.match(for: subject, size: size, accent: accent)
             model = match.model
             label = match.templateName
         }
 
-        // 3. Build the set on-device.
+        // Build the set on-device.
         do {
             let name = subject.isEmpty ? label : subject.capitalizedFirst
             let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {

@@ -167,7 +167,7 @@ struct DescribeSetView: View {
     private var sizeSection: some View {
         ForgeSizePicker(
             selected: $viewModel.selectedSize,
-            isUnlocked: { viewModel.isSizeUnlocked($0) },
+            isUnlocked: { _ in true },
             onLocked: { showPaywall = true }
         )
     }
@@ -226,13 +226,14 @@ struct DescribeSetView: View {
     private var generateButton: some View {
         Button {
             descriptionFocused = false
-            if viewModel.isSizeUnlocked(viewModel.selectedSize) {
+            if viewModel.isProUser {
                 viewModel.generate()
             } else {
                 showPaywall = true
             }
         } label: {
-            Label("Forge My Set", systemImage: "hammer.fill")
+            Label(viewModel.isProUser ? "Forge My Set" : "Forge My Set · Pro",
+                  systemImage: viewModel.isProUser ? "hammer.fill" : "lock.fill")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()

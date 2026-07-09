@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// **Scan to Set** — the visual Set Forge flow. The user picks or takes a photo
 /// of a real-world subject, chooses a size, and Bricky forges a buildable brick
@@ -10,6 +11,7 @@ struct ScanToSetView: View {
 
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var showFileImporter = false
     @State private var showPaywall = false
     @State private var navigateToResult = false
     @State private var loadError: String?
@@ -27,10 +29,11 @@ struct ScanToSetView: View {
                 header
                 imageArea
                 sourceButtons
+                importModelButton
                 nameField
                 ForgeSizePicker(
                     selected: $viewModel.selectedSize,
-                    isUnlocked: { viewModel.isSizeUnlocked($0) },
+                    isUnlocked: { _ in true },
                     onLocked: { showPaywall = true }
                 )
                 generateButton
@@ -60,6 +63,12 @@ struct ScanToSetView: View {
                 showCamera = false
             }
             .ignoresSafeArea()
+        }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: Self.modelContentTypes
+        ) { result in
+            handleImportedModel(result)
         }
         .navigationDestination(isPresented: $navigateToResult) {
             if let result = viewModel.result {
@@ -155,6 +164,55 @@ struct ScanToSetView: View {
         }
     }
 
+    /// Types accepted by the 3D-model importer (Object Capture / hosted-API
+    /// output, or a user's own model).
+    private static var modelContentTypes: [UTType] {
+        var types: [UTType] = [.usdz, .threeDContent]
+        for ext in ["obj", "ply", "stl", "glb", "gltf"] {
+            if let t = UTType(filenameExtension: ext) { types.append(t) }
+        }
+        return types
+    }
+
+    private var importModelButton: some View {
+        Button {
+            if viewModel.isProUser {
+                showFileImporter = true
+            } else {
+                showPaywall = true
+            }
+        } label: {
+            Label("Import a 3D Model (.usdz, .obj…)", systemImage: "cube.transparent")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Turn a 3D model file into a buildable brick set")
+    }
+
+    private func handleImportedModel(_ result: Result<URL, Error>) {
+        loadError = nil
+        switch result {
+        case .success(let url):
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            // Copy into a readable temp location before the security scope ends.
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent(url.lastPathComponent)
+            try? FileManager.default.removeItem(at: temp)
+            do {
+                try FileManager.default.copyItem(at: url, to: temp)
+                viewModel.generateFromMesh(url: temp)
+            } catch {
+                loadError = "That model couldn't be opened. Try a .usdz or .obj file."
+            }
+        case .failure:
+            loadError = "That model couldn't be opened. Try a .usdz or .obj file."
+        }
+    }
+
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Name (optional)")
@@ -172,13 +230,14 @@ struct ScanToSetView: View {
     private var generateButton: some View {
         Button {
             nameFocused = false
-            if viewModel.isSizeUnlocked(viewModel.selectedSize) {
+            if viewModel.isProUser {
                 viewModel.generate()
             } else {
                 showPaywall = true
             }
         } label: {
-            Label("Forge My Set", systemImage: "hammer.fill")
+            Label(viewModel.isProUser ? "Forge My Set" : "Forge My Set · Pro",
+                  systemImage: viewModel.isProUser ? "hammer.fill" : "lock.fill")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()

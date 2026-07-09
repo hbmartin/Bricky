@@ -75,7 +75,8 @@ struct PreScanAnalysisView: View {
                         actionLabel(
                             icon: "cube.transparent",
                             title: "Scan to Set",
-                            subtitle: "Photograph a real object and forge a buildable brick model of it"
+                            subtitle: "Photograph a real object and forge a buildable brick model of it",
+                            proLocked: !subscriptions.isPro
                         )
                     }
                     .accessibilityHint("Creates a new brick set from a photo of a real-world subject")
@@ -86,7 +87,8 @@ struct PreScanAnalysisView: View {
                         actionLabel(
                             icon: "text.bubble",
                             title: "Describe a Set",
-                            subtitle: "Say or type a subject and forge a brand-new brick set"
+                            subtitle: "Say or type a subject and forge a brand-new brick set",
+                            proLocked: !subscriptions.isPro
                         )
                     }
                     .accessibilityHint("Creates a new brick set from a spoken or typed description")
@@ -133,7 +135,7 @@ struct PreScanAnalysisView: View {
     }
 
     /// Shared card-style label for the two entry-point buttons.
-    private func actionLabel(icon: String, title: String, subtitle: String) -> some View {
+    private func actionLabel(icon: String, title: String, subtitle: String, proLocked: Bool = false) -> some View {
         HStack(spacing: 14) {
             ZStack {
                 Circle()
@@ -153,6 +155,14 @@ struct PreScanAnalysisView: View {
                     .multilineTextAlignment(.leading)
             }
             Spacer()
+            if proLocked {
+                Text("PRO")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.legoYellow))
+                    .foregroundStyle(.black)
+            }
             Image(systemName: "chevron.right")
                 .foregroundStyle(.tertiary)
         }

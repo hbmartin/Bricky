@@ -32,20 +32,14 @@ final class ForgeVisionViewModel: ObservableObject {
 
     init(isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro }) {
         self.isProProvider = isProProvider
-        if !isProProvider() { selectedSize = .small }
     }
 
     // MARK: - Derived state
 
     var isProUser: Bool { isProProvider() }
 
-    func isSizeUnlocked(_ size: VoxelModel.Size) -> Bool {
-        isProUser || size == .small
-    }
-
     var canGenerate: Bool {
         guard sourceImage != nil else { return false }
-        guard isSizeUnlocked(selectedSize) else { return false }
         if case .generating = phase { return false }
         return true
     }
@@ -71,7 +65,7 @@ final class ForgeVisionViewModel: ObservableObject {
     // MARK: - Actions
 
     func generate() {
-        guard canGenerate, let image = sourceImage else { return }
+        guard canGenerate, isProUser, let image = sourceImage else { return }
         let size = selectedSize
         let subject = subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -81,6 +75,23 @@ final class ForgeVisionViewModel: ObservableObject {
 
         task = Task { [weak self] in
             await self?.run(image: image, size: size, subject: subject)
+        }
+    }
+
+    /// Generate a set directly from a 3D model file (Object Capture output, a
+    /// hosted image/text-to-3D mesh, or a user's own `.usdz`/`.obj`). Shares the
+    /// same on-device voxel → brick pipeline via `MeshVoxelizer`.
+    func generateFromMesh(url: URL) {
+        guard !isBusy, isProUser else { return }
+        let size = selectedSize
+        let subject = subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        task?.cancel()
+        result = nil
+        phase = .generating(percent: 5)
+
+        task = Task { [weak self] in
+            await self?.runMesh(url: url, size: size, subject: subject)
         }
     }
 
@@ -106,6 +117,32 @@ final class ForgeVisionViewModel: ObservableObject {
                     subject: subject.isEmpty ? "Photo" : subject
                 )
                 let name = subject.isEmpty ? "My Scan" : subject
+                return try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
+                    Task { @MainActor [weak self] in
+                        self?.applyProgress(0.3 + fraction * 0.7) // voxelize is ~first 30%
+                    }
+                }
+            }.value
+
+            if Task.isCancelled { return }
+            result = set
+            phase = .completed
+            GeneratedSetStore.shared.save(set)
+        } catch {
+            if Task.isCancelled { return }
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func runMesh(url: URL, size: VoxelModel.Size, subject: String) async {
+        do {
+            let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
+                let model = try MeshVoxelizer.voxelize(
+                    assetURL: url,
+                    size: size,
+                    subject: subject.isEmpty ? "3D Model" : subject
+                )
+                let name = subject.isEmpty ? "My Model" : subject
                 return try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
                     Task { @MainActor [weak self] in
                         self?.applyProgress(0.3 + fraction * 0.7) // voxelize is ~first 30%

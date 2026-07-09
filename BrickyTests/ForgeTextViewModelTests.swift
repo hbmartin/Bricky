@@ -12,6 +12,13 @@ final class ForgeTextViewModelTests: XCTestCase {
         }
     }
 
+    private struct StubMeshService: SetForgeMeshService {
+        let url: URL
+        func generateMesh(prompt: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL {
+            url
+        }
+    }
+
     private func solidModel(color: LegoColor = .green) -> VoxelModel {
         var voxels: [Voxel] = []
         for x in 0..<3 { for y in 0..<2 { for z in 0..<3 {
@@ -20,9 +27,9 @@ final class ForgeTextViewModelTests: XCTestCase {
         return VoxelModel(width: 3, height: 2, depth: 3, voxels: voxels, source: .text, subject: "Cloud")
     }
 
-    /// Default VM: no cloud service, so it always uses the on-device library.
+    /// Default VM: no cloud services, so it always uses the on-device library.
     private func makeVM(pro: Bool) -> ForgeTextViewModel {
-        ForgeTextViewModel(isProProvider: { pro }, cloudService: nil, entitlementProvider: { nil })
+        ForgeTextViewModel(isProProvider: { pro }, cloudService: nil, meshService: nil, entitlementProvider: { nil })
     }
 
     /// Polls until generation finishes or times out.
@@ -44,17 +51,18 @@ final class ForgeTextViewModelTests: XCTestCase {
         XCTAssertTrue(vm.canGenerate)
     }
 
-    func testFreeUserLockedToSmall() {
-        let vm = makeVM(pro: false)
-        XCTAssertTrue(vm.isSizeUnlocked(.small))
-        XCTAssertFalse(vm.isSizeUnlocked(.medium))
-        XCTAssertFalse(vm.isSizeUnlocked(.large))
+    func testProUserFlag() {
+        XCTAssertTrue(makeVM(pro: true).isProUser)
+        XCTAssertFalse(makeVM(pro: false).isProUser)
     }
 
-    func testProUserUnlocksAllSizes() {
-        let vm = makeVM(pro: true)
-        XCTAssertTrue(vm.isSizeUnlocked(.medium))
-        XCTAssertTrue(vm.isSizeUnlocked(.large))
+    func testNonProCannotGenerate() async {
+        let vm = makeVM(pro: false)
+        vm.description = "a green tree"
+        vm.generate()
+        // Give any (guarded) work a moment; a non-Pro user must not produce a set.
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertNil(vm.result, "Set Forge is a Pro feature; non-Pro must not generate")
     }
 
     func testGenerateProducesResult() async {
@@ -80,6 +88,7 @@ final class ForgeTextViewModelTests: XCTestCase {
         let vm = ForgeTextViewModel(
             isProProvider: { true },
             cloudService: StubForgeService(result: .success(solidModel())),
+            meshService: nil,
             entitlementProvider: { "tok" }
         )
         vm.description = "a detailed monkey"
@@ -94,6 +103,7 @@ final class ForgeTextViewModelTests: XCTestCase {
         let vm = ForgeTextViewModel(
             isProProvider: { true },
             cloudService: StubForgeService(result: .failure(.offline)),
+            meshService: nil,
             entitlementProvider: { "tok" }
         )
         vm.description = "a green tree"
@@ -103,10 +113,28 @@ final class ForgeTextViewModelTests: XCTestCase {
         XCTAssertEqual(vm.matchedTemplateName, "Tree")
     }
 
+    func testMeshTierFallsThroughToVoxelCloud() async {
+        // Mesh service returns a bogus local URL that MeshVoxelizer can't read,
+        // so the cascade must fall through to the GPT voxel tier.
+        let vm = ForgeTextViewModel(
+            isProProvider: { true },
+            cloudService: StubForgeService(result: .success(solidModel())),
+            meshService: StubMeshService(url: URL(fileURLWithPath: "/nonexistent/model.usdz")),
+            entitlementProvider: { "tok" }
+        )
+        vm.description = "a castle"
+        vm.generate()
+        await waitForResult(vm)
+        XCTAssertNotNil(vm.result)
+        XCTAssertEqual(vm.matchedTemplateName, "AI-generated",
+                       "A failed mesh tier should fall through to the voxel cloud tier")
+    }
+
     func testNoEntitlementUsesTemplate() async {
         let vm = ForgeTextViewModel(
             isProProvider: { true },
             cloudService: StubForgeService(result: .success(solidModel())),
+            meshService: nil,
             entitlementProvider: { nil } // no token → skip cloud
         )
         vm.description = "a green tree"

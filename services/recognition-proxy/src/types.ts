@@ -149,3 +149,23 @@ export interface ForgeModelResult {
   remainingQuota: number;
 }
 
+// ---------------------------------------------------------------------------
+// Set Forge — text → 3D mesh via hosted vendor (Tripo). Higher fidelity than
+// the GPT voxel DSL; returns a downloadable model the iOS client voxelizes.
+// ---------------------------------------------------------------------------
+
+export interface ForgeMeshRequest {
+  prompt: string;
+  size: ForgeSize;
+  entitlementToken: string;
+}
+
+export interface ForgeMeshResult {
+  /** Direct URL to the generated 3D model. */
+  modelUrl: string;
+  /** Lowercased file extension, e.g. "glb", "usdz", "fbx". */
+  format: string;
+  remainingQuota: number;
+}
+
+
