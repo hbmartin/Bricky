@@ -76,6 +76,7 @@
 		3E62779CD68BDEED3A0CBC27 /* PieceLocationOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C2C9A6D9C8C6703C7096AA /* PieceLocationOverlayView.swift */; };
 		3E719D264A57125CD105C73F /* SetForgeInstructions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D39CE1D6B24ECE4EBAA0D6B8 /* SetForgeInstructions.swift */; };
 		3EA0F501BF9E15D43896D1D5 /* MinifigureCollectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1715DC8C71B0E0578F5F5AC1 /* MinifigureCollectionStoreTests.swift */; };
+		3EA709707D8AB1582C32233B /* SetForgeSTLExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B45B08ED9D233A51F49022C /* SetForgeSTLExporter.swift */; };
 		3EB018073E64318F06236DFA /* ContinuousScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86A110BD7D384132B08AD87 /* ContinuousScanCoordinator.swift */; };
 		402866F6D34997CF50220FCE /* MinifigureCatalogUserFiguresTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68F10331A7DBE97B6AE405C /* MinifigureCatalogUserFiguresTests.swift */; };
 		40CC2C705DCB440A158D3B72 /* PileGeometryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD03DEB75C5604E3F4CF004 /* PileGeometryService.swift */; };
@@ -104,6 +105,7 @@
 		537D740F2995EBFA57A80FC3 /* MinifigureIdentificationService+VisualRefinement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD668FE067DD8CD15D3BD62 /* MinifigureIdentificationService+VisualRefinement.swift */; };
 		538BB490760F6AFD5CE9762E /* ClipEmbeddingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB981FEF620BC4F5DD53E89 /* ClipEmbeddingServiceTests.swift */; };
 		548E42CFC79DC3AFDC885B20 /* CodableRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90CE2975DE2C38F0D802ED6 /* CodableRoundTripTests.swift */; };
+		558B56D9308CA4D5ADCFE99E /* SetForgeSTLExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA3EA57AEECD5604DA3303C /* SetForgeSTLExporterTests.swift */; };
 		559FC8E1C3F5D3378FED8B19 /* IdentifiedSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30992DFAA1FB342322D68141 /* IdentifiedSet.swift */; };
 		55D4AAAB07FA81B0756CA2AF /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4AFAE0ABD5A7FEBDFE28290 /* UserProfile.swift */; };
 		563AB24DA23AB45196FEC95F /* ClipEmbeddingIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F86F71D64B177214D2DD65E /* ClipEmbeddingIndex.swift */; };
@@ -498,6 +500,7 @@
 		59CD80CA41C028606EA586F3 /* parts.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = parts.json; sourceTree = "<group>"; };
 		5A7773F8351E5A30766DA33B /* report-20260427-005511.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-005511.md"; sourceTree = "<group>"; };
 		5B3AA7EFB4FE00474D2D9FE1 /* MosaicPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicPalette.swift; sourceTree = "<group>"; };
+		5B45B08ED9D233A51F49022C /* SetForgeSTLExporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetForgeSTLExporter.swift; sourceTree = "<group>"; };
 		5BB65282A3741725DD49F2D5 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		5E271909EA72E6BCA74B3A0C /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
 		5E2E1B2B0E9504BA612A7142 /* ForgeSizePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForgeSizePicker.swift; sourceTree = "<group>"; };
@@ -516,6 +519,7 @@
 		686081141A769871976AC3BC /* TipManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipManager.swift; sourceTree = "<group>"; };
 		6969CA77D6D30DCBEE990065 /* HomeDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeDemoView.swift; sourceTree = "<group>"; };
 		6A8BC98F9E123AAC1A2E388F /* DailyChallengeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeService.swift; sourceTree = "<group>"; };
+		6AA3EA57AEECD5604DA3303C /* SetForgeSTLExporterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SetForgeSTLExporterTests.swift; sourceTree = "<group>"; };
 		6AC6B3E9E9AAC132713F85AB /* SprintJCommunityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprintJCommunityTests.swift; sourceTree = "<group>"; };
 		6B11C42C5F3775B0B5AB8D1C /* BrickyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrickyUITests.swift; sourceTree = "<group>"; };
 		6B9A21D7399E1319084D00EE /* ScannerPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerPipelineTests.swift; sourceTree = "<group>"; };
@@ -980,6 +984,7 @@
 				F058033EFDCE730B2F1F856D /* SetForgeTextService.swift */,
 				2EB804A7B0455310DD1155D5 /* MeshVoxelizer.swift */,
 				876ADDFBD2FF0523DE542D85 /* TripoMeshService.swift */,
+				5B45B08ED9D233A51F49022C /* SetForgeSTLExporter.swift */,
 			);
 			name = SetForge;
 			path = SetForge;
@@ -1131,6 +1136,7 @@
 				1DFD2690D7AF2F59C7851C5C /* MeshVoxelizerTests.swift */,
 				70CED8765F0179BFF1E9992F /* SetForgeMeshServiceTests.swift */,
 				170BD992A15C9138EB19F154 /* ForgeVisionViewModelTests.swift */,
+				6AA3EA57AEECD5604DA3303C /* SetForgeSTLExporterTests.swift */,
 			);
 			path = BrickyTests;
 			sourceTree = "<group>";
@@ -1673,6 +1679,7 @@
 				4ED45B714B6C1832F9029597 /* SetForgeTextService.swift in Sources */,
 				95A5C22940A0F4734456129F /* MeshVoxelizer.swift in Sources */,
 				B2342696F1AF46369B857E15 /* TripoMeshService.swift in Sources */,
+				3EA709707D8AB1582C32233B /* SetForgeSTLExporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1749,6 +1756,7 @@
 				8A7B908D5B09720A660D7AC5 /* MeshVoxelizerTests.swift in Sources */,
 				E0D09D8E03F5AFC3030AC36E /* SetForgeMeshServiceTests.swift in Sources */,
 				DB4812F40C45D7C2C5BAAFA3 /* ForgeVisionViewModelTests.swift in Sources */,
+				558B56D9308CA4D5ADCFE99E /* SetForgeSTLExporterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

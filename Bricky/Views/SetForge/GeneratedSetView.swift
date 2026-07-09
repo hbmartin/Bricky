@@ -141,6 +141,16 @@ struct GeneratedSetView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
             }
+
+            Button {
+                exportSTL()
+            } label: {
+                Label("Export for 3D Printing (STL)", systemImage: "cube.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+            }
         }
     }
 
@@ -183,6 +193,18 @@ struct GeneratedSetView: View {
         let url = dir.appendingPathComponent("\(safeName).ldr")
         do {
             try set.ldrText.write(to: url, atomically: true, encoding: .utf8)
+            shareItem = ShareItem(url: url)
+        } catch {
+            // Non-fatal; simply don't present the share sheet.
+        }
+    }
+
+    private func exportSTL() {
+        let dir = FileManager.default.temporaryDirectory
+        let safeName = set.name.replacingOccurrences(of: "/", with: "-")
+        let url = dir.appendingPathComponent("\(safeName).stl")
+        do {
+            try SetForgeSTLExporter.export(set.bricks).write(to: url, options: .atomic)
             shareItem = ShareItem(url: url)
         } catch {
             // Non-fatal; simply don't present the share sheet.
