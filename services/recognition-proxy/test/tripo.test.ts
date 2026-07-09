@@ -1,10 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  createConvertTask,
+  createImageTask,
   createTextTask,
+  forgeMeshFromImage,
   forgeMeshFromText,
   getTask,
+  imageTypeForMime,
   selectModelUrl,
+  uploadImage,
 } from '../src/tripo.js';
 import { ProxyError } from '../src/types.js';
 
@@ -35,6 +40,48 @@ test('createTextTask throws on rejected code', async () => {
   await assert.rejects(() => createTextTask('x', 'small', config, fetchImpl), ProxyError);
 });
 
+test('createConvertTask returns a task id', async () => {
+  const fetchImpl = sequenceFetch([{ json: { code: 0, data: { task_id: 'conv1' } } }]);
+  const id = await createConvertTask('draft1', 'USDZ', config, fetchImpl);
+  assert.equal(id, 'conv1');
+});
+
+test('imageTypeForMime maps MIME to Tripo type', () => {
+  assert.equal(imageTypeForMime('image/png'), 'png');
+  assert.equal(imageTypeForMime('image/webp'), 'webp');
+  assert.equal(imageTypeForMime('image/jpeg'), 'jpeg');
+  assert.equal(imageTypeForMime('anything'), 'jpeg');
+});
+
+test('uploadImage returns an image token', async () => {
+  const fetchImpl = sequenceFetch([{ json: { code: 0, data: { image_token: 'img1' } } }]);
+  const token = await uploadImage(new Uint8Array([1, 2, 3]), 'image/jpeg', config, fetchImpl);
+  assert.equal(token, 'img1');
+});
+
+test('createImageTask returns a task id', async () => {
+  const fetchImpl = sequenceFetch([{ json: { code: 0, data: { task_id: 'draftImg' } } }]);
+  const id = await createImageTask('img1', 'jpeg', 'small', config, fetchImpl);
+  assert.equal(id, 'draftImg');
+});
+
+test('forgeMeshFromImage uploads, drafts, converts, and returns USDZ', async () => {
+  const fetchImpl = sequenceFetch([
+    { json: { code: 0, data: { image_token: 'img1' } } },                            // upload
+    { json: { code: 0, data: { task_id: 'draftImg' } } },                            // create image task
+    { json: { code: 0, data: { status: 'success', output: {} } } },                  // draft done
+    { json: { code: 0, data: { task_id: 'conv1' } } },                               // create convert
+    { json: { code: 0, data: { status: 'success', output: { model: 'https://x/m.usdz' } } } }, // convert done
+  ]);
+  const result = await forgeMeshFromImage('aGVsbG8gd29ybGQ=', 'image/jpeg', 'small', config, {
+    fetchImpl,
+    sleep: async () => {},
+    pollIntervalMs: 0,
+  });
+  assert.equal(result.modelUrl, 'https://x/m.usdz');
+  assert.equal(result.format, 'usdz');
+});
+
 test('getTask parses status + output', async () => {
   const fetchImpl = sequenceFetch([
     { json: { code: 0, data: { status: 'running', progress: 40, output: {} } } },
@@ -60,20 +107,21 @@ test('selectModelUrl returns null when no model', () => {
   assert.equal(selectModelUrl({ rendered_image: 'https://x/y.png' }), null);
 });
 
-test('forgeMeshFromText polls until success and returns model', async () => {
+test('forgeMeshFromText drafts, converts to USDZ, and returns the model', async () => {
   const fetchImpl = sequenceFetch([
-    { json: { code: 0, data: { task_id: 't1' } } },        // create
-    { json: { code: 0, data: { status: 'queued', output: {} } } },
-    { json: { code: 0, data: { status: 'running', progress: 50, output: {} } } },
-    { json: { code: 0, data: { status: 'success', output: { model: 'https://x/m.glb' } } } },
+    { json: { code: 0, data: { task_id: 'draft1' } } },                              // create draft
+    { json: { code: 0, data: { status: 'running', progress: 50, output: {} } } },    // poll draft
+    { json: { code: 0, data: { status: 'success', output: {} } } },                  // draft done
+    { json: { code: 0, data: { task_id: 'conv1' } } },                               // create convert
+    { json: { code: 0, data: { status: 'success', output: { model: 'https://x/m.usdz' } } } }, // convert done
   ]);
   const result = await forgeMeshFromText('a cat', 'small', config, {
     fetchImpl,
     sleep: async () => {},
     pollIntervalMs: 0,
   });
-  assert.equal(result.modelUrl, 'https://x/m.glb');
-  assert.equal(result.format, 'glb');
+  assert.equal(result.modelUrl, 'https://x/m.usdz');
+  assert.equal(result.format, 'usdz');
 });
 
 test('forgeMeshFromText throws on terminal failure', async () => {

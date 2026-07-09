@@ -115,6 +115,20 @@ enum AppConfig {
         return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/forgeMeshFromText")
     }
 
+    /// Server proxy endpoint that forges a high-fidelity 3D **mesh** from a
+    /// photo via the configured hosted vendor, returning a model URL the app
+    /// downloads and voxelizes. Premium Set Forge (Scan to Set) tier; same
+    /// developer-only, key-on-server handling. Overridable via
+    /// `BRICKY_FORGE_MESH_IMAGE_ENDPOINT`.
+    static var forgeMeshFromImageEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_FORGE_MESH_IMAGE_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_FORGE_MESH_IMAGE_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/forgeMeshFromImage")
+    }
+
     /// Monthly AI recognition allowance. Cloud AI is developer-only, so this is
     /// just a safety cap on the developer's own Azure GPT-4o spend; it keeps
     /// total spend under the development cost cap while testing. Everyone without

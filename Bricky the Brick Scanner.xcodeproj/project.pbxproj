@@ -305,6 +305,7 @@
 		D9E9BA4EA38BBCB4CDEE50CF /* grid.json in Resources */ = {isa = PBXBuildFile; fileRef = 73B8019EBC18527D6236FD88 /* grid.json */; };
 		DA5B38B6D328AFBDEAE20697 /* MinifigureConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 223D25FC8EFB4FB6EAF2BFC5 /* MinifigureConfirmationSheet.swift */; };
 		DB22ADDD7FE0D4DC10D737AB /* BrickGeometryGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF55E3F430CE9A1DBD908A1D /* BrickGeometryGenerator.swift */; };
+		DB4812F40C45D7C2C5BAAFA3 /* ForgeVisionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 170BD992A15C9138EB19F154 /* ForgeVisionViewModelTests.swift */; };
 		DBAC33A2FFA87D3C37E2A6AD /* CommunityPost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD6DCED0E9A382C3B24A27F /* CommunityPost.swift */; };
 		DBDDC5CFDE9FB02CDF31F687 /* DailyChallengeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A8BC98F9E123AAC1A2E388F /* DailyChallengeService.swift */; };
 		DC9DE6AA5050C071A445DC36 /* PuzzleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E97D4FC646BBBC60D65238 /* PuzzleView.swift */; };
@@ -403,6 +404,7 @@
 		14B4C65AFC5FAEA0B1A1E88F /* MosaicLDRExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicLDRExporter.swift; sourceTree = "<group>"; };
 		153709824478E08403412691 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
 		16CE0D8C133FE211E6CF4AC8 /* MosaicColorGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MosaicColorGrid.swift; sourceTree = "<group>"; };
+		170BD992A15C9138EB19F154 /* ForgeVisionViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForgeVisionViewModelTests.swift; sourceTree = "<group>"; };
 		1715DC8C71B0E0578F5F5AC1 /* MinifigureCollectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureCollectionStoreTests.swift; sourceTree = "<group>"; };
 		183A4BC94CC9800F3236BFDE /* EnvironmentMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentMonitor.swift; sourceTree = "<group>"; };
 		186F14B76D4796166E069B13 /* ScanSessionAssetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanSessionAssetStore.swift; sourceTree = "<group>"; };
@@ -1128,6 +1130,7 @@
 				27FA9E7E7EFFC2A639382B35 /* SetForgeTextServiceTests.swift */,
 				1DFD2690D7AF2F59C7851C5C /* MeshVoxelizerTests.swift */,
 				70CED8765F0179BFF1E9992F /* SetForgeMeshServiceTests.swift */,
+				170BD992A15C9138EB19F154 /* ForgeVisionViewModelTests.swift */,
 			);
 			path = BrickyTests;
 			sourceTree = "<group>";
@@ -1745,6 +1748,7 @@
 				109B1DF614CC048250E0238C /* SetForgeTextServiceTests.swift in Sources */,
 				8A7B908D5B09720A660D7AC5 /* MeshVoxelizerTests.swift in Sources */,
 				E0D09D8E03F5AFC3030AC36E /* SetForgeMeshServiceTests.swift in Sources */,
+				DB4812F40C45D7C2C5BAAFA3 /* ForgeVisionViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

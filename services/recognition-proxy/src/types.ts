@@ -168,4 +168,12 @@ export interface ForgeMeshResult {
   remainingQuota: number;
 }
 
+export interface ForgeMeshImageRequest {
+  imageBase64: string;
+  /** MIME type of the image, e.g. "image/jpeg". */
+  mime: string;
+  size: ForgeSize;
+  entitlementToken: string;
+}
+
 

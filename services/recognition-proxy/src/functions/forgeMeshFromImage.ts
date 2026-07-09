@@ -11,22 +11,18 @@ import {
   FORGE_SIZES,
   ProxyError,
   type ErrorBody,
-  type ForgeMeshRequest,
+  type ForgeMeshImageRequest,
   type ForgeMeshResult,
   type ForgeSize,
 } from '../types.js';
 
 /**
- * POST /api/forgeMeshFromText
+ * POST /api/forgeMeshFromImage
  *
- * Premium Set Forge tier: entitlement → per-user quota → **global spend guard**
- * → hosted Tripo text→3D. Returns a `ForgeMeshResult` (a model URL the iOS
- * client downloads + voxelizes). Developer-only, exactly like the other cloud
- * features, so per-generation cost stays controlled.
- *
- * The **global spend guard** is a second quota row (`__global_tripo__`) with a
- * hard monthly cap (`TRIPO_MONTHLY_CAP`), so total vendor spend can never run
- * away regardless of how many users/tokens exist.
+ * Image → high-fidelity 3D via the configured mesh provider (Tripo by default).
+ * Same gating as the text path: entitlement → per-user quota → global spend
+ * guard → provider. Returns a `ForgeMeshResult` (a model URL the iOS client
+ * downloads + voxelizes). Provider-agnostic via `MESH_PROVIDER`.
  */
 
 function env(name: string): string | undefined {
@@ -59,7 +55,6 @@ function userQuota(): QuotaStore {
 }
 
 let cachedGlobalGuard: QuotaStore | undefined;
-/** Global monthly hard cap across ALL users — the runaway-spend guard. */
 function globalGuard(): QuotaStore {
   if (!cachedGlobalGuard) {
     cachedGlobalGuard = new TableQuotaStore(
@@ -72,35 +67,32 @@ function globalGuard(): QuotaStore {
 
 const GLOBAL_KEY = '__global_tripo__';
 
-export async function forgeMeshFromText(
+export async function forgeMeshFromImage(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
   try {
-    let body: ForgeMeshRequest;
+    let body: ForgeMeshImageRequest;
     try {
-      body = (await request.json()) as ForgeMeshRequest;
+      body = (await request.json()) as ForgeMeshImageRequest;
     } catch {
       throw new ProxyError(400, 'bad_request', 'Invalid JSON body.');
     }
-    const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
-    if (prompt.length < 2) {
-      throw new ProxyError(400, 'bad_request', 'Missing or too-short prompt.');
+    const imageBase64 = typeof body?.imageBase64 === 'string' ? body.imageBase64 : '';
+    if (imageBase64.length < 32) {
+      throw new ProxyError(400, 'bad_request', 'Missing or invalid image.');
     }
-    if (prompt.length > 300) {
-      throw new ProxyError(400, 'bad_request', 'Prompt is too long.');
-    }
+    const mime = typeof body?.mime === 'string' && body.mime.length > 0 ? body.mime : 'image/jpeg';
     const size: ForgeSize = FORGE_SIZES.includes(body?.size as ForgeSize)
       ? (body.size as ForgeSize)
       : 'medium';
 
-    // Entitlement (developer-only).
     const entitlement = verifyDevBypassToken(body.entitlementToken, env('DEV_BYPASS_TOKEN'));
     if (!entitlement) {
       throw new ProxyError(403, 'not_entitled', 'Cloud model generation is not available.');
     }
 
-    // Global spend guard FIRST (cheap fail-fast before per-user).
+    // Global spend guard first.
     try {
       await globalGuard().consume(GLOBAL_KEY);
     } catch (err) {
@@ -110,12 +102,10 @@ export async function forgeMeshFromText(
       throw err;
     }
 
-    // Per-user monthly quota.
     const { remaining } = await userQuota().consume(entitlement.userKey);
 
-    // Hosted mesh generation via the configured provider (Tripo by default).
     const provider = createMeshProvider(process.env);
-    const result = await provider.forgeFromText(prompt, size);
+    const result = await provider.forgeFromImage(imageBase64, mime, size);
 
     const out: ForgeMeshResult = {
       modelUrl: result.modelUrl,
@@ -125,17 +115,17 @@ export async function forgeMeshFromText(
     return { status: 200, jsonBody: out };
   } catch (err) {
     if (err instanceof ProxyError) {
-      context.warn(`forgeMeshFromText ${err.code}: ${err.message}`);
+      context.warn(`forgeMeshFromImage ${err.code}: ${err.message}`);
       return errorResponse(err);
     }
-    context.error('forgeMeshFromText unexpected error', err);
+    context.error('forgeMeshFromImage unexpected error', err);
     return errorResponse(new ProxyError(502, 'upstream_error', 'Model generation failed.'));
   }
 }
 
-app.http('forgeMeshFromText', {
+app.http('forgeMeshFromImage', {
   methods: ['POST'],
   authLevel: 'anonymous',
-  route: 'forgeMeshFromText',
-  handler: forgeMeshFromText,
+  route: 'forgeMeshFromImage',
+  handler: forgeMeshFromImage,
 });

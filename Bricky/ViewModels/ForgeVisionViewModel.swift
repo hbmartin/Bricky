@@ -28,10 +28,20 @@ final class ForgeVisionViewModel: ObservableObject {
     @Published private(set) var result: GeneratedLegoSet?
 
     private let isProProvider: @MainActor () -> Bool
+    private let meshService: SetForgeMeshService?
+    private let entitlementProvider: () async -> String?
     private var task: Task<Void, Never>?
 
-    init(isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro }) {
+    init(
+        isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro },
+        meshService: SetForgeMeshService? = AzureTripoMeshClient(),
+        entitlementProvider: @escaping () async -> String? = {
+            await SubscriptionManager.shared.recognitionEntitlementToken()
+        }
+    ) {
         self.isProProvider = isProProvider
+        self.meshService = meshService
+        self.entitlementProvider = entitlementProvider
     }
 
     // MARK: - Derived state
@@ -109,17 +119,42 @@ final class ForgeVisionViewModel: ObservableObject {
     }
 
     private func run(image: UIImage, size: VoxelModel.Size, subject: String) async {
+        let token = await entitlementProvider()
+        let name = subject.isEmpty ? "My Scan" : subject
+
+        // Tier 1 — hosted image→3D (developer-only). On any failure, fall back
+        // to the on-device photo relief so generation never hard-fails.
+        var meshModel: VoxelModel?
+        if let meshService, let token, let jpeg = image.jpegData(compressionQuality: 0.85) {
+            do {
+                let url = try await meshService.generateMesh(
+                    imageData: jpeg, mime: "image/jpeg", size: size, entitlementToken: token
+                )
+                meshModel = try await Task.detached(priority: .userInitiated) {
+                    try MeshVoxelizer.voxelize(
+                        assetURL: url, size: size, subject: subject.isEmpty ? "Photo" : subject
+                    )
+                }.value
+            } catch {
+                meshModel = nil
+            }
+        }
+        if Task.isCancelled { return }
+
+        // Tier 2 — on-device photo relief (if the hosted mesh wasn't produced).
         do {
             let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
-                let model = try PhotoVoxelizer.voxelize(
-                    image: image,
-                    size: size,
-                    subject: subject.isEmpty ? "Photo" : subject
-                )
-                let name = subject.isEmpty ? "My Scan" : subject
+                let model: VoxelModel
+                if let meshModel {
+                    model = meshModel
+                } else {
+                    model = try PhotoVoxelizer.voxelize(
+                        image: image, size: size, subject: subject.isEmpty ? "Photo" : subject
+                    )
+                }
                 return try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
                     Task { @MainActor [weak self] in
-                        self?.applyProgress(0.3 + fraction * 0.7) // voxelize is ~first 30%
+                        self?.applyProgress(0.3 + fraction * 0.7)
                     }
                 }
             }.value

@@ -9,9 +9,17 @@ import Foundation
 /// `stl`); anything else throws so the caller can fall back to the GPT voxel
 /// path and then the on-device library. Never fabricates.
 protocol SetForgeMeshService: Sendable {
-    /// Forge and download a 3D model for `prompt`; returns a local file URL.
+    /// Forge and download a 3D model from a text prompt; returns a local file URL.
     func generateMesh(
         prompt: String,
+        size: VoxelModel.Size,
+        entitlementToken: String
+    ) async throws -> URL
+
+    /// Forge and download a 3D model from an image; returns a local file URL.
+    func generateMesh(
+        imageData: Data,
+        mime: String,
         size: VoxelModel.Size,
         entitlementToken: String
     ) async throws -> URL
@@ -47,13 +55,16 @@ struct AzureTripoMeshClient: SetForgeMeshService {
     static let supportedFormats: Set<String> = ["usdz", "usdc", "usd", "obj", "ply", "stl"]
 
     private let endpoint: URL?
+    private let imageEndpoint: URL?
     private let httpClient: RecognitionHTTPClient
 
     init(
         endpoint: URL? = AppConfig.forgeMeshFromTextEndpoint,
+        imageEndpoint: URL? = AppConfig.forgeMeshFromImageEndpoint,
         httpClient: RecognitionHTTPClient = Self.makeDefaultSession()
     ) {
         self.endpoint = endpoint
+        self.imageEndpoint = imageEndpoint
         self.httpClient = httpClient
     }
 
@@ -68,6 +79,13 @@ struct AzureTripoMeshClient: SetForgeMeshService {
 
     private struct RequestBody: Encodable {
         let prompt: String
+        let size: String
+        let entitlementToken: String
+    }
+
+    private struct ImageRequestBody: Encodable {
+        let imageBase64: String
+        let mime: String
         let size: String
         let entitlementToken: String
     }
@@ -96,30 +114,50 @@ struct AzureTripoMeshClient: SetForgeMeshService {
         entitlementToken: String
     ) async throws -> URL {
         guard let endpoint else { throw SetForgeMeshError.notConfigured }
+        let body = RequestBody(prompt: prompt, size: sizeWire(size), entitlementToken: entitlementToken)
+        return try await forge(endpoint: endpoint, body: body)
+    }
 
+    func generateMesh(
+        imageData: Data,
+        mime: String,
+        size: VoxelModel.Size,
+        entitlementToken: String
+    ) async throws -> URL {
+        guard let imageEndpoint else { throw SetForgeMeshError.notConfigured }
+        let body = ImageRequestBody(
+            imageBase64: imageData.base64EncodedString(),
+            mime: mime,
+            size: sizeWire(size),
+            entitlementToken: entitlementToken
+        )
+        return try await forge(endpoint: imageEndpoint, body: body)
+    }
+
+    // MARK: - Shared forge + download
+
+    private func forge<Body: Encodable>(endpoint: URL, body: Body) async throws -> URL {
         // 1. Ask the proxy to forge the model (it polls the vendor server-side).
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            RequestBody(prompt: prompt, size: sizeWire(size), entitlementToken: entitlementToken)
-        )
+        request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await sendMapped(request)
         try Self.checkStatus(response, data: data)
 
-        let body: ResponseBody
+        let decoded: ResponseBody
         do {
-            body = try JSONDecoder().decode(ResponseBody.self, from: data)
+            decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
         } catch {
             throw SetForgeMeshError.decoding
         }
 
-        let format = body.format.lowercased()
+        let format = decoded.format.lowercased()
         guard Self.supportedFormats.contains(format) else {
             throw SetForgeMeshError.unsupportedFormat(format)
         }
-        guard let modelURL = URL(string: body.modelUrl) else {
+        guard let modelURL = URL(string: decoded.modelUrl) else {
             throw SetForgeMeshError.emptyModel
         }
 

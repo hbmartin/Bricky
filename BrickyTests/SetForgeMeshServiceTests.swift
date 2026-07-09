@@ -19,6 +19,7 @@ final class SetForgeMeshServiceTests: XCTestCase {
     private func client(_ responses: [(Data, Int)]) -> AzureTripoMeshClient {
         AzureTripoMeshClient(
             endpoint: URL(string: "https://example.test/api/forgeMeshFromText"),
+            imageEndpoint: URL(string: "https://example.test/api/forgeMeshFromImage"),
             httpClient: QueueHTTPClient(responses)
         )
     }
@@ -28,6 +29,15 @@ final class SetForgeMeshServiceTests: XCTestCase {
         let file = Data("solid usdz bytes".utf8)
         let url = try await client([(meta, 200), (file, 200)])
             .generateMesh(prompt: "a cat", size: .small, entitlementToken: "tok")
+        XCTAssertEqual(url.pathExtension, "usdz")
+        XCTAssertEqual(try Data(contentsOf: url), file)
+    }
+
+    func testDownloadsSupportedModelFromImage() async throws {
+        let meta = Data(#"{"modelUrl":"https://x/model.usdz","format":"usdz"}"#.utf8)
+        let file = Data("solid usdz bytes".utf8)
+        let url = try await client([(meta, 200), (file, 200)])
+            .generateMesh(imageData: Data("jpegbytes".utf8), mime: "image/jpeg", size: .small, entitlementToken: "tok")
         XCTAssertEqual(url.pathExtension, "usdz")
         XCTAssertEqual(try Data(contentsOf: url), file)
     }
@@ -46,7 +56,7 @@ final class SetForgeMeshServiceTests: XCTestCase {
     }
 
     func testNotConfiguredWhenNoEndpoint() async {
-        await assertThrows(AzureTripoMeshClient(endpoint: nil), expected: .notConfigured)
+        await assertThrows(AzureTripoMeshClient(endpoint: nil, imageEndpoint: nil), expected: .notConfigured)
     }
 
     private func assertThrows(
