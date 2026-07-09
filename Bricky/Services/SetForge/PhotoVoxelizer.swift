@@ -68,8 +68,11 @@ enum PhotoVoxelizer {
             throw VoxelizeError.unreadableImage
         }
 
-        // 3. Extrude the silhouette into a flat, ground-supported relief.
-        let thickness = max(2, maxDim / 8)
+        // 3. Extrude the silhouette into a flat, ground-supported relief. Depth
+        //    is kept modest (and independent of resolution) so the higher
+        //    footprint detail survives the engine's brick-budget pass instead of
+        //    being downsampled away.
+        let thickness = 4
         var voxels: [Voxel] = []
         voxels.reserveCapacity(gridW * gridH)
 

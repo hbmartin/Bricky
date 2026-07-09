@@ -61,7 +61,9 @@ struct BrickModelSceneView: UIViewRepresentable {
             node.position = SCNVector3(bx, by, bz)
             container.addChildNode(node)
         }
-        scene.rootNode.addChildNode(container)
+        // Flatten into a single node per material so large models (thousands of
+        // bricks) still render at interactive frame rates.
+        scene.rootNode.addChildNode(container.flattenedClone())
 
         // Frame the model with a camera pulled back proportional to its size.
         let camera = SCNCamera()

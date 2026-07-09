@@ -305,7 +305,7 @@ enum VoxelShapeLibrary {
         let cx = w * 2 / 5, cz = d / 2
         let body = accent ?? .orange
         let bodyRX = Double(w) * 0.35, bodyRZ = Double(d) * 0.4
-        return flatRelief(w: w, d: d, thickness: max(2, scale / 8)) { x, z in
+        return flatRelief(w: w, d: d, thickness: 4) { x, z in
             let dx = Double(x - cx) / bodyRX, dz = Double(z - cz) / bodyRZ
             if dx * dx + dz * dz <= 1.0 {
                 if x == cx + Int(bodyRX) - 1, z == cz - 1 { return .black } // eye
@@ -347,7 +347,7 @@ enum VoxelShapeLibrary {
         let w = max(9, scale), d = max(9, scale)
         let cx = w / 2, cz = d / 2
         let petal = accent ?? .pink
-        return flatRelief(w: w, d: d, thickness: max(2, scale / 8)) { x, z in
+        return flatRelief(w: w, d: d, thickness: 4) { x, z in
             let dx = Double(x - cx), dz = Double(z - cz)
             let r = (dx * dx + dz * dz).squareRoot()
             if r < 1.5 { return .yellow }          // centre
@@ -364,7 +364,7 @@ enum VoxelShapeLibrary {
     ) { scale, accent in
         let w = max(9, scale), d = max(9, scale)
         let color = accent ?? .red
-        return flatRelief(w: w, d: d, thickness: max(2, scale / 6)) { x, z in
+        return flatRelief(w: w, d: d, thickness: 4) { x, z in
             let fx = (Double(x) / Double(w - 1)) * 2.0 - 1.0
             let fz = 1.0 - (Double(z) / Double(d - 1)) * 2.0
             // Implicit heart curve.
@@ -382,7 +382,7 @@ enum VoxelShapeLibrary {
         let color = accent ?? .yellow
         let outer = Double(min(w, d)) / 2.0
         let inner = outer * 0.45
-        return flatRelief(w: w, d: d, thickness: max(2, scale / 6)) { x, z in
+        return flatRelief(w: w, d: d, thickness: 4) { x, z in
             let dx = Double(x) - cx, dz = Double(z) - cz
             let r = (dx * dx + dz * dz).squareRoot()
             var ang = atan2(dz, dx) + .pi / 2

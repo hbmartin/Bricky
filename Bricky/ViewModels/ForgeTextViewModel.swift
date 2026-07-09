@@ -32,10 +32,20 @@ final class ForgeTextViewModel: ObservableObject {
     @Published private(set) var matchedTemplateName: String?
 
     private let isProProvider: @MainActor () -> Bool
+    private let cloudService: SetForgeTextService?
+    private let entitlementProvider: () async -> String?
     private var task: Task<Void, Never>?
 
-    init(isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro }) {
+    init(
+        isProProvider: @escaping @MainActor () -> Bool = { SubscriptionManager.shared.isPro },
+        cloudService: SetForgeTextService? = AzureOpenAIForgeTextClient(),
+        entitlementProvider: @escaping () async -> String? = {
+            await SubscriptionManager.shared.recognitionEntitlementToken()
+        }
+    ) {
         self.isProProvider = isProProvider
+        self.cloudService = cloudService
+        self.entitlementProvider = entitlementProvider
         if !isProProvider() { selectedSize = .small }
     }
 
@@ -107,27 +117,48 @@ final class ForgeTextViewModel: ObservableObject {
     }
 
     private func run(subject: String, size: VoxelModel.Size, accent: LegoColor?) async {
+        // 1. Cloud-first: GPT-4o authoring (developer-only). Any failure falls
+        //    back to the on-device library so generation never hard-fails.
+        var cloudModel: VoxelModel?
+        if let service = cloudService, let token = await entitlementProvider() {
+            do {
+                cloudModel = try await service.generateModel(
+                    prompt: subject, size: size, entitlementToken: token
+                )
+            } catch {
+                cloudModel = nil // graceful fallback
+            }
+        }
+        if Task.isCancelled { return }
+
+        // 2. Choose the voxel source: cloud model, else the shape library.
+        let model: VoxelModel
+        let label: String
+        if let cloudModel {
+            model = cloudModel
+            label = "AI-generated"
+        } else {
+            let match = VoxelShapeLibrary.match(for: subject, size: size, accent: accent)
+            model = match.model
+            label = match.templateName
+        }
+
+        // 3. Build the set on-device.
         do {
-            let generated: (name: String, set: GeneratedLegoSet) = try await Task.detached(priority: .userInitiated) {
-                let match = VoxelShapeLibrary.match(for: subject, size: size, accent: accent)
-                let name = subject.isEmpty ? match.templateName : subject.capitalizedFirst
-                let set = try SetForgeEngine.shared.generate(
-                    from: match.model,
-                    size: size,
-                    name: name
-                ) { fraction in
+            let name = subject.isEmpty ? label : subject.capitalizedFirst
+            let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
+                try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
                     Task { @MainActor [weak self] in
                         self?.applyProgress(fraction)
                     }
                 }
-                return (match.templateName, set)
             }.value
 
             if Task.isCancelled { return }
-            matchedTemplateName = generated.name
-            result = generated.set
+            matchedTemplateName = label
+            result = set
             phase = .completed
-            GeneratedSetStore.shared.save(generated.set)
+            GeneratedSetStore.shared.save(set)
         } catch {
             if Task.isCancelled { return }
             phase = .failed(error.localizedDescription)

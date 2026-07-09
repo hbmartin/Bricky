@@ -85,6 +85,21 @@ enum AppConfig {
         return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/identifySet")
     }
 
+    /// Server proxy endpoint that forges a brick-compatible voxel model from a
+    /// text description via GPT-4o (Set Forge Phase 2). Same proxy deployment and
+    /// key handling as `aiRecognitionEndpoint` — the Azure key is NEVER shipped in
+    /// the app, and cloud model generation is a hidden, developer-only feature
+    /// (unlocked by the in-app override). Overridable via `BRICKY_FORGE_TEXT_ENDPOINT`.
+    /// When unset/unreachable, the app falls back to the on-device shape library.
+    static var forgeFromTextEndpoint: URL? {
+        if let raw = infoPlistString("BRICKY_FORGE_TEXT_ENDPOINT") ??
+            ProcessInfo.processInfo.environment["BRICKY_FORGE_TEXT_ENDPOINT"],
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://\(appName.lowercased())-recognition.azurewebsites.net/api/forgeFromText")
+    }
+
     /// Monthly AI recognition allowance. Cloud AI is developer-only, so this is
     /// just a safety cap on the developer's own Azure GPT-4o spend; it keeps
     /// total spend under the development cost cap while testing. Everyone without

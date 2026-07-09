@@ -34,9 +34,9 @@ struct VoxelModel: Equatable, Codable {
         /// and the photo voxelizer.
         var maxDimension: Int {
             switch self {
-            case .small: return 12
-            case .medium: return 20
-            case .large: return 28
+            case .small: return 20
+            case .medium: return 36
+            case .large: return 56
             }
         }
 
@@ -44,17 +44,17 @@ struct VoxelModel: Equatable, Codable {
         /// would blow past this so part counts stay sane.
         var brickBudget: Int {
             switch self {
-            case .small: return 600
-            case .medium: return 1_800
-            case .large: return 4_500
+            case .small: return 2_000
+            case .medium: return 6_000
+            case .large: return 14_000
             }
         }
 
         var subtitle: String {
             switch self {
-            case .small: return "Quick build · up to ~600 pieces"
-            case .medium: return "Balanced detail · up to ~1,800 pieces"
-            case .large: return "Most detail · up to ~4,500 pieces"
+            case .small: return "Quick build · up to ~2,000 pieces"
+            case .medium: return "Balanced detail · up to ~6,000 pieces"
+            case .large: return "Most detail · up to ~14,000 pieces"
             }
         }
 

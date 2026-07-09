@@ -105,3 +105,47 @@ export class ProxyError extends Error {
     this.name = 'ProxyError';
   }
 }
+
+// ---------------------------------------------------------------------------
+// Set Forge — text → voxel model (Phase 2)
+// ---------------------------------------------------------------------------
+
+export type ForgeSize = 'small' | 'medium' | 'large';
+
+export const FORGE_SIZES: readonly ForgeSize[] = ['small', 'medium', 'large'];
+
+/**
+ * The LEGO colour names the model may use. These MUST match the iOS `LegoColor`
+ * raw values exactly so the client can decode each voxel colour directly.
+ */
+export const FORGE_COLORS: readonly string[] = [
+  'Red', 'Blue', 'Yellow', 'Green', 'Black', 'White', 'Gray', 'Dark Gray',
+  'Orange', 'Brown', 'Tan', 'Dark Blue', 'Dark Green', 'Dark Red', 'Lime',
+  'Purple', 'Pink', 'Light Blue',
+];
+
+export interface ForgeTextRequest {
+  prompt: string;
+  size: ForgeSize;
+  entitlementToken: string;
+}
+
+/** One occupied cell in the generated voxel model. */
+export interface ForgeVoxel {
+  x: number;
+  y: number;
+  z: number;
+  /** A value from `FORGE_COLORS`. */
+  color: string;
+}
+
+/** The expanded voxel model returned to the iOS client. */
+export interface ForgeModelResult {
+  width: number;
+  height: number;
+  depth: number;
+  voxels: ForgeVoxel[];
+  subject: string;
+  remainingQuota: number;
+}
+
