@@ -80,4 +80,47 @@ final class MeshVoxelizerTests: XCTestCase {
         XCTAssertFalse(set.parts.isEmpty)
         XCTAssertFalse(set.steps.isEmpty)
     }
+
+    // MARK: - Texture sampling (base-color texture → voxel colors)
+
+    /// A 2×2 RGBA8 texture: BL=red, BR=green, TL=blue, TR=white (row-major from
+    /// the top-left, matching a CGContext-decoded bitmap).
+    private var swatch: [UInt8] {
+        [
+            0, 0, 255, 255,   255, 255, 255, 255, // top row:    TL blue, TR white
+            255, 0, 0, 255,   0, 255, 0, 255,     // bottom row: BL red,  BR green
+        ]
+    }
+
+    func testTextureSampleFlipsVAndWraps() {
+        // v = 0 is the texture's bottom row (origin bottom-left → V flipped).
+        let bl = TextureSampler.sample(pixels: swatch, width: 2, height: 2, u: 0, v: 0)
+        XCTAssertEqual(bl.x, 1, accuracy: 0.01) // red
+        XCTAssertEqual(bl.y, 0, accuracy: 0.01)
+
+        // v = 1 is the top row.
+        let tl = TextureSampler.sample(pixels: swatch, width: 2, height: 2, u: 0, v: 0.75)
+        XCTAssertEqual(tl.z, 1, accuracy: 0.01) // blue
+        XCTAssertEqual(tl.x, 0, accuracy: 0.01)
+
+        // u ≈ 1, v = 0 → bottom-right green (u = 0.75 lands in the right half;
+        // exactly 1.0 would wrap back to 0).
+        let br = TextureSampler.sample(pixels: swatch, width: 2, height: 2, u: 0.75, v: 0)
+        XCTAssertEqual(br.y, 1, accuracy: 0.01)
+
+        // Out-of-range UVs wrap: u = 2.0 ≡ 0.0.
+        let wrapped = TextureSampler.sample(pixels: swatch, width: 2, height: 2, u: 2.0, v: 0)
+        XCTAssertEqual(wrapped.x, bl.x, accuracy: 0.01)
+        XCTAssertEqual(wrapped.y, bl.y, accuracy: 0.01)
+    }
+
+    func testTextureSampleHandlesNonFiniteAndEmpty() {
+        // Non-finite UVs must not crash.
+        let s = TextureSampler.sample(pixels: swatch, width: 2, height: 2, u: .nan, v: .infinity)
+        XCTAssertTrue(s.x.isFinite && s.y.isFinite && s.z.isFinite)
+
+        // Degenerate texture returns a neutral gray, not a crash.
+        let gray = TextureSampler.sample(pixels: [], width: 0, height: 0, u: 0.5, v: 0.5)
+        XCTAssertEqual(gray.x, 0.6, accuracy: 0.01)
+    }
 }

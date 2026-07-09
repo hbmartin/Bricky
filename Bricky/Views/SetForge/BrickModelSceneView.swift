@@ -10,20 +10,48 @@ struct BrickModelSceneView: UIViewRepresentable {
     /// When > 0, the last `highlightCount` bricks are drawn solid while the
     /// earlier bricks are ghosted, so a build step shows exactly what's new.
     var highlightCount: Int = 0
+    /// Whether the user can orbit/zoom the model. Disable for tiny thumbnails.
+    var interactive: Bool = true
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
         view.scene = Self.buildScene(from: bricks, highlightCount: highlightCount)
-        view.allowsCameraControl = true
+        view.allowsCameraControl = interactive
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling2X
         view.backgroundColor = .clear
         view.defaultCameraController.interactionMode = .orbitTurntable
+        context.coordinator.signature = Self.signature(bricks, highlightCount)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
+        view.allowsCameraControl = interactive
+        // Only rebuild the scene when the model actually changes — otherwise a
+        // routine SwiftUI update would rebuild it and snap the camera back,
+        // making the model feel like it can't be rotated or zoomed.
+        let sig = Self.signature(bricks, highlightCount)
+        guard sig != context.coordinator.signature else { return }
+        context.coordinator.signature = sig
         view.scene = Self.buildScene(from: bricks, highlightCount: highlightCount)
+    }
+
+    /// Retains per-view state across SwiftUI updates so the built scene (and the
+    /// user's camera position) survives re-renders.
+    final class Coordinator {
+        var signature: Int = 0
+    }
+
+    /// A cheap fingerprint of the inputs, so we rebuild only on real changes.
+    private static func signature(_ bricks: [PlacedBrick], _ highlightCount: Int) -> Int {
+        var hasher = Hasher()
+        hasher.combine(bricks.count)
+        hasher.combine(highlightCount)
+        if let f = bricks.first { hasher.combine(f.x); hasher.combine(f.y); hasher.combine(f.z); hasher.combine(f.color) }
+        if let l = bricks.last { hasher.combine(l.x); hasher.combine(l.y); hasher.combine(l.z); hasher.combine(l.color) }
+        return hasher.finalize()
     }
 
     // MARK: - Scene construction

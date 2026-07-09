@@ -67,14 +67,18 @@ struct VideoSweepCaptureView: View {
 
     private var coaching: some View {
         VStack(spacing: 8) {
-            Text(sweep.isSweeping ? "Slowly walk around the subject…" : "Center the subject, then start the sweep")
+            Text(sweep.isSweeping
+                 ? "Slowly walk around the subject — capture every side, then tap Finish."
+                 : "Center the subject, then start the sweep")
                 .font(.headline)
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             if sweep.isSweeping {
-                Text("\(sweep.frameCount) views captured")
+                Text(sweep.canFinish
+                     ? "\(sweep.frameCount) views captured"
+                     : "\(sweep.frameCount) captured — keep going (need \(sweep.minFramesToFinish))")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.85))
             }
         }
         .padding(.horizontal, 24)
@@ -94,10 +98,27 @@ struct VideoSweepCaptureView: View {
                         .stroke(Color.legoBlue, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .frame(width: 96, height: 96)
-                    Text("\(Int(sweep.progress * 100))%")
-                        .font(.headline)
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.title2)
                         .foregroundStyle(.white)
                 }
+
+                Button {
+                    sweep.finishSweep()
+                } label: {
+                    Text(sweep.canFinish ? "Finish Scan" : "Keep Scanning…")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(sweep.canFinish ? Color.legoBlue : Color.gray.opacity(0.6))
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .frame(maxWidth: 360)
+                .disabled(!sweep.canFinish)
+                .accessibilityHint(sweep.canFinish
+                                   ? "Ends the sweep and builds the model"
+                                   : "Capture at least \(sweep.minFramesToFinish) views first")
             } else {
                 Button {
                     sweep.startSweep()

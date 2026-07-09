@@ -47,6 +47,7 @@
 		2032055BD21AC987D2909A61 /* TopographicMeshRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE58999222EBC235DA4758B /* TopographicMeshRenderer.swift */; };
 		20381EEE9DA8BC30F6CE19E3 /* parts.json in Resources */ = {isa = PBXBuildFile; fileRef = 59CD80CA41C028606EA586F3 /* parts.json */; };
 		20479F1257F589D392E10438 /* ImageRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A368BAC8E98142BF1E181D /* ImageRecognitionTests.swift */; };
+		207EBC168504AD0808F05A52 /* Model3DViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51963EC526B281CF781B3D43 /* Model3DViewerView.swift */; };
 		2188657E2B22B0D86B90F6B1 /* ColorCalibrationWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5940F2D1173F092D494003 /* ColorCalibrationWizardView.swift */; };
 		21B2DE9D9C7FCF1E0BB32127 /* MosaicGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 815403900D6C26B4CBBAD13B /* MosaicGeneratorView.swift */; };
 		22184BDF590C6B08A3FBD539 /* SprintJCommunityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC6B3E9E9AAC132713F85AB /* SprintJCommunityTests.swift */; };
@@ -496,6 +497,7 @@
 		4D6CD37B1D3BC2D6BAB6B90D /* CommunityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityViewModel.swift; sourceTree = "<group>"; };
 		4E73A004AC376E75A118FBED /* MinifigureCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinifigureCatalogTests.swift; sourceTree = "<group>"; };
 		4FF3F97DEB042BAD5BFDDD65 /* HelpAndTipsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpAndTipsTests.swift; sourceTree = "<group>"; };
+		51963EC526B281CF781B3D43 /* Model3DViewerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Model3DViewerView.swift; sourceTree = "<group>"; };
 		53D8A2BCF0F0D7BF336ABDB9 /* DescribeSetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DescribeSetView.swift; sourceTree = "<group>"; };
 		544934D070B345F613AE5EBC /* report-20260427-012909.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "report-20260427-012909.md"; sourceTree = "<group>"; };
 		55CB1B06779D65EBCD57B680 /* InventoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryStore.swift; sourceTree = "<group>"; };
@@ -967,6 +969,7 @@
 				DC655F4157EDC857220DA4CF /* VideoSweepCaptureView.swift */,
 				05D83D95D2C078B05E196F69 /* GeneratedSetsGalleryView.swift */,
 				78696F26599EC6F05F0EA262 /* GuidedAngleCaptureView.swift */,
+				51963EC526B281CF781B3D43 /* Model3DViewerView.swift */,
 			);
 			name = SetForge;
 			path = SetForge;
@@ -1699,6 +1702,7 @@
 				3B80044CC909FEC803F0572C /* VideoSweepCaptureView.swift in Sources */,
 				57489AB75D0AA03134FE3493 /* GeneratedSetsGalleryView.swift in Sources */,
 				1545E5D8EE45F7DBD3B78D20 /* GuidedAngleCaptureView.swift in Sources */,
+				207EBC168504AD0808F05A52 /* Model3DViewerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

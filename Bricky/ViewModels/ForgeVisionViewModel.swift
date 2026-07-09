@@ -180,7 +180,7 @@ final class ForgeVisionViewModel: ObservableObject {
             if Task.isCancelled { return }
             result = set
             phase = .completed
-            GeneratedSetStore.shared.save(set, sourceImage: image)
+            GeneratedSetStore.shared.save(set, sourceImages: [image])
         } catch {
             if Task.isCancelled { return }
             phase = .failed(error.localizedDescription)
@@ -258,7 +258,7 @@ final class ForgeVisionViewModel: ObservableObject {
             if Task.isCancelled { return }
             result = set
             phase = .completed
-            GeneratedSetStore.shared.save(set, sourceImage: first)
+            GeneratedSetStore.shared.save(set, sourceImages: Array(images.prefix(4)))
         } catch {
             if Task.isCancelled { return }
             phase = .failed(error.localizedDescription)

@@ -11,11 +11,24 @@ struct GeneratedSetView: View {
     @StateObject private var inventoryStore = InventoryStore.shared
     @State private var shareItem: ShareItem?
     @State private var showInstructions = false
+    @State private var show3DViewer = false
+    @State private var previewImage: PreviewImage?
     @Environment(\.dismiss) private var dismiss
 
     private struct ShareItem: Identifiable {
         let url: URL
         var id: String { url.absoluteString }
+    }
+
+    private struct PreviewImage: Identifiable {
+        let id: Int
+        let image: UIImage
+    }
+
+    /// Every original captured image for this set (1 photo, or the 4 angle
+    /// photos / video-sweep frames used to build the model).
+    private var sourceImages: [UIImage] {
+        GeneratedSetStore.shared.sourceImages(for: set.id)
     }
 
     private var inventoryMatch: Double? {
@@ -28,8 +41,9 @@ struct GeneratedSetView: View {
         ScrollView {
             VStack(spacing: 20) {
                 preview
-                if let source = GeneratedSetStore.shared.sourceImage(for: set.id) {
-                    scannedSource(source)
+                let images = sourceImages
+                if !images.isEmpty {
+                    scannedSource(images)
                 }
                 statsRow
                 if let match = inventoryMatch {
@@ -50,6 +64,12 @@ struct GeneratedSetView: View {
         }
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.url])
+        }
+        .fullScreenCover(isPresented: $show3DViewer) {
+            Model3DViewerView(bricks: set.bricks, title: set.name)
+        }
+        .fullScreenCover(item: $previewImage) { item in
+            ImageViewerView(images: sourceImages, startIndex: item.id)
         }
     }
 
@@ -76,28 +96,65 @@ struct GeneratedSetView: View {
                     .accessibilityLabel("Model quality: \(set.generator.label)")
             }
             .overlay(alignment: .bottomTrailing) {
-                Text("Drag to rotate")
+                Label("Drag to rotate · pinch to zoom", systemImage: "hand.draw")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(6)
                     .background(.thinMaterial, in: Capsule())
                     .padding(8)
             }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    show3DViewer = true
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.caption.weight(.semibold))
+                        .padding(8)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .padding(8)
+                .accessibilityLabel("View model full screen")
+            }
     }
 
-    /// The original photo/scan this set was forged from, shown so the build can
-    /// be compared against the real subject.
-    private func scannedSource(_ image: UIImage) -> some View {
+    /// The original captured image(s) this set was forged from, shown so the
+    /// build can be compared against the real subject. Tap any to view full.
+    private func scannedSource(_ images: [UIImage]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Scanned Subject", systemImage: "camera.fill")
+            Label(images.count > 1 ? "Captured Angles (\(images.count))" : "Scanned Subject",
+                  systemImage: "camera.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 160)
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            if images.count == 1 {
+                Button {
+                    previewImage = PreviewImage(id: 0, image: images[0])
+                } label: {
+                    Image(uiImage: images[0])
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 160)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(images.enumerated()), id: \.offset) { index, image in
+                            Button {
+                                previewImage = PreviewImage(id: index, image: image)
+                            } label: {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 120, height: 120)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

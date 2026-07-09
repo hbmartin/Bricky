@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import ModelIO
 import simd
 
@@ -185,30 +186,45 @@ enum MeshVoxelizer {
     }
 
     /// Extract world-space triangles (with best-available vertex colors) from an
-    /// MDLAsset. Falls back to each submesh's material base colour, then gray.
+    /// MDLAsset. Colors come from the base-color **texture** (sampled per vertex
+    /// via UVs) when present — hosted meshes (Tripo/Object Capture) are almost
+    /// always UV-textured rather than vertex-colored, so without this the whole
+    /// model would voxelize to a flat gray. Falls back to per-vertex colors,
+    /// then the material's flat base color, then gray.
     private static func extractTriangles(from asset: MDLAsset) -> [Triangle] {
         var triangles: [Triangle] = []
         asset.loadTextures()
 
+        // Cache one CPU-samplable bitmap per base-color texture.
+        var samplerCache: [ObjectIdentifier: TextureSampler?] = [:]
+
         for index in 0..<asset.count {
             guard let mesh = asset.object(at: index) as? MDLMesh else { continue }
-            appendTriangles(from: mesh, into: &triangles)
+            appendTriangles(from: mesh, into: &triangles, samplerCache: &samplerCache)
             // Also descend into children (USDZ scene graphs nest meshes).
-            collectChildMeshes(mesh, into: &triangles)
+            collectChildMeshes(mesh, into: &triangles, samplerCache: &samplerCache)
         }
         return triangles
     }
 
-    private static func collectChildMeshes(_ object: MDLObject, into triangles: inout [Triangle]) {
+    private static func collectChildMeshes(
+        _ object: MDLObject,
+        into triangles: inout [Triangle],
+        samplerCache: inout [ObjectIdentifier: TextureSampler?]
+    ) {
         for child in object.children.objects {
             if let mesh = child as? MDLMesh {
-                appendTriangles(from: mesh, into: &triangles)
+                appendTriangles(from: mesh, into: &triangles, samplerCache: &samplerCache)
             }
-            collectChildMeshes(child, into: &triangles)
+            collectChildMeshes(child, into: &triangles, samplerCache: &samplerCache)
         }
     }
 
-    private static func appendTriangles(from mesh: MDLMesh, into triangles: inout [Triangle]) {
+    private static func appendTriangles(
+        from mesh: MDLMesh,
+        into triangles: inout [Triangle],
+        samplerCache: inout [ObjectIdentifier: TextureSampler?]
+    ) {
         guard let positions = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributePosition) else {
             return
         }
@@ -223,16 +239,35 @@ enum MeshVoxelizer {
 
         // Optional per-vertex color.
         let colorData = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributeColor)
-        func color(_ i: Int, fallback: SIMD3<Float>) -> SIMD3<Float> {
-            guard let colorData else { return fallback }
+        func vertexColor(_ i: Int) -> SIMD3<Float>? {
+            guard let colorData else { return nil }
             let ptr = colorData.dataStart.advanced(by: i * colorData.stride)
                 .assumingMemoryBound(to: Float.self)
             return SIMD3<Float>(ptr[0], ptr[1], ptr[2])
         }
 
+        // Optional texture coordinates (for base-color texture sampling).
+        let uvData = mesh.vertexAttributeData(forAttributeNamed: MDLVertexAttributeTextureCoordinate)
+        func uv(_ i: Int) -> SIMD2<Float>? {
+            guard let uvData else { return nil }
+            let ptr = uvData.dataStart.advanced(by: i * uvData.stride)
+                .assumingMemoryBound(to: Float.self)
+            return SIMD2<Float>(ptr[0], ptr[1])
+        }
+
         guard let submeshes = mesh.submeshes as? [MDLSubmesh] else { return }
         for submesh in submeshes {
-            let fallback = baseColor(of: submesh.material) ?? SIMD3<Float>(0.6, 0.6, 0.6)
+            let flatFallback = baseColor(of: submesh.material) ?? SIMD3<Float>(0.6, 0.6, 0.6)
+            let sampler = textureSampler(for: submesh.material, cache: &samplerCache)
+
+            // Per-vertex color: texture sample (UV) → vertex color → flat.
+            func color(_ i: Int) -> SIMD3<Float> {
+                if let sampler, let coord = uv(i) {
+                    return sampler.sample(coord.x, coord.y)
+                }
+                return vertexColor(i) ?? flatFallback
+            }
+
             let indexCount = submesh.indexCount
             guard indexCount >= 3 else { continue }
             let buffer = submesh.indexBuffer.map().bytes
@@ -256,14 +291,30 @@ enum MeshVoxelizer {
                 if a < vertexCount, b < vertexCount, c < vertexCount {
                     triangles.append(Triangle(
                         p0: position(a), p1: position(b), p2: position(c),
-                        c0: color(a, fallback: fallback),
-                        c1: color(b, fallback: fallback),
-                        c2: color(c, fallback: fallback)
+                        c0: color(a), c1: color(b), c2: color(c)
                     ))
                 }
                 i += 3
             }
         }
+    }
+
+    /// Resolve (and cache) a CPU-samplable bitmap for a material's base-color
+    /// texture, if it has one.
+    private static func textureSampler(
+        for material: MDLMaterial?,
+        cache: inout [ObjectIdentifier: TextureSampler?]
+    ) -> TextureSampler? {
+        guard let property = material?.property(with: .baseColor),
+              property.type == .texture,
+              let mdlTexture = property.textureSamplerValue?.texture else {
+            return nil
+        }
+        let key = ObjectIdentifier(mdlTexture)
+        if let cached = cache[key] { return cached }
+        let sampler = TextureSampler(mdlTexture: mdlTexture)
+        cache[key] = sampler
+        return sampler
     }
 
     private static func baseColor(of material: MDLMaterial?) -> SIMD3<Float>? {
@@ -277,5 +328,67 @@ enum MeshVoxelizer {
             return SIMD3<Float>(Float(comps[0]), Float(comps[1]), Float(comps[2]))
         }
         return nil
+    }
+}
+
+/// A CPU-side sampler over a base-color texture, so voxel colors can be read
+/// from the mesh's actual texture (hosted meshes are UV-textured, not
+/// vertex-colored). Decodes the texture once into RGBA8 and samples with UV
+/// wrap + a V-flip (Model I/O / USD textures use a bottom-left origin).
+final class TextureSampler {
+    private let width: Int
+    private let height: Int
+    private let pixels: [UInt8]
+
+    init?(mdlTexture: MDLTexture) {
+        guard let cgImage = mdlTexture.imageFromTexture()?.takeRetainedValue() else { return nil }
+        let w = cgImage.width
+        let h = cgImage.height
+        guard w > 0, h > 0 else { return nil }
+
+        var data = [UInt8](repeating: 0, count: w * h * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        let ok = data.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(
+                data: raw.baseAddress,
+                width: w, height: h,
+                bitsPerComponent: 8, bytesPerRow: w * 4,
+                space: colorSpace, bitmapInfo: bitmapInfo
+            ) else { return false }
+            ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard ok else { return nil }
+
+        self.width = w
+        self.height = h
+        self.pixels = data
+    }
+
+    /// Sample an RGB color (components 0…1) at the given UV, wrapping out-of-range
+    /// coordinates and flipping V to match texture origin conventions.
+    func sample(_ u: Float, _ v: Float) -> SIMD3<Float> {
+        Self.sample(pixels: pixels, width: width, height: height, u: u, v: v)
+    }
+
+    /// Pure UV → RGB sampling (wrap + V-flip + nearest pixel). Split out so the
+    /// index math is unit-testable without a real texture.
+    static func sample(pixels: [UInt8], width: Int, height: Int, u: Float, v: Float) -> SIMD3<Float> {
+        guard width > 0, height > 0, pixels.count >= width * height * 4 else {
+            return SIMD3<Float>(0.6, 0.6, 0.6)
+        }
+        var uu = u - floor(u)              // wrap to [0, 1)
+        var vv = v - floor(v)
+        if !uu.isFinite { uu = 0 }
+        if !vv.isFinite { vv = 0 }
+        let px = min(width - 1, max(0, Int(uu * Float(width))))
+        let py = min(height - 1, max(0, Int((1 - vv) * Float(height))))
+        let idx = (py * width + px) * 4
+        return SIMD3<Float>(
+            Float(pixels[idx]) / 255,
+            Float(pixels[idx + 1]) / 255,
+            Float(pixels[idx + 2]) / 255
+        )
     }
 }

@@ -73,7 +73,7 @@ struct GeneratedSetsGalleryView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            BrickModelSceneView(bricks: set.bricks)
+            BrickModelSceneView(bricks: set.bricks, interactive: false)
                 .frame(width: 52, height: 52)
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 8))

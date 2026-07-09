@@ -30,17 +30,23 @@ final class VideoSweepCapture: NSObject, ObservableObject {
     private let output = AVCaptureVideoDataOutput()
     private let queue = DispatchQueue(label: "\(AppConfig.queuePrefix).setforge.sweep")
     private let ciContext = CIContext(options: nil)
-    private var sweepStart = Date()
     private var lastIngest = Date.distantPast
     private var configured = false
 
-    /// How long the guided sweep lasts.
-    private let sweepDuration: TimeInterval = 6
+    /// A soft target used only to fill the coverage ring — the sweep never ends
+    /// automatically; the user taps Finish when they've captured every side.
+    private let softTargetFrames = 16
+    /// The user can't finish until at least this many views are captured, so a
+    /// scan always has enough angles for a 3D model.
+    let minFramesToFinish = 4
     /// Minimum spacing between kept frames.
     private let captureInterval: TimeInterval = 0.35
 
     /// Nonisolated throttle timestamp for the capture callback.
     private let throttle = OSAllocatedUnfairLock(initialState: Date.distantPast)
+
+    /// Whether enough views have been captured for the user to end the sweep.
+    var canFinish: Bool { frameCount >= minFramesToFinish }
 
     var isAvailable: Bool {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil
@@ -83,7 +89,6 @@ final class VideoSweepCapture: NSObject, ObservableObject {
         progress = 0
         completed = false
         errorMessage = nil
-        sweepStart = Date()
         lastIngest = .distantPast
         throttle.withLock { $0 = .distantPast }
         isSweeping = true
@@ -91,6 +96,13 @@ final class VideoSweepCapture: NSObject, ObservableObject {
 
     func cancelSweep() {
         isSweeping = false
+    }
+
+    /// Ends the sweep at the user's request. No-op until enough views exist.
+    func finishSweep() {
+        guard isSweeping, canFinish else { return }
+        isSweeping = false
+        completed = true
     }
 
     /// The frames chosen to send to the multiview model.
@@ -120,12 +132,9 @@ final class VideoSweepCapture: NSObject, ObservableObject {
         lastIngest = now
         capturedFrames.append(image)
         frameCount = capturedFrames.count
-        let elapsed = now.timeIntervalSince(sweepStart)
-        progress = min(1, elapsed / sweepDuration)
-        if elapsed >= sweepDuration {
-            isSweeping = false
-            completed = true
-        }
+        // The ring reflects coverage toward a soft target but never auto-ends —
+        // the user decides when every side has been captured.
+        progress = min(1, Double(frameCount) / Double(softTargetFrames))
     }
 
     private func makeImage(from sampleBuffer: CMSampleBuffer) -> UIImage? {

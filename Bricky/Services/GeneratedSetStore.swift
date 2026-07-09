@@ -25,18 +25,20 @@ final class GeneratedSetStore: ObservableObject {
         load()
     }
 
-    /// Save a new set (most-recent first). Deduplicates by id. When a
-    /// `sourceImage` is provided (photo/scan flows) it is stored alongside the
-    /// set so history shows what was scanned next to what was built.
-    func save(_ set: GeneratedLegoSet, sourceImage: UIImage? = nil) {
+    /// Save a new set (most-recent first). Deduplicates by id. When
+    /// `sourceImages` are provided (photo/scan flows) they are stored alongside
+    /// the set — a single photo, the four angle photos, or the four video-sweep
+    /// frames actually used for the 3D model — so history shows exactly what was
+    /// captured next to what was built.
+    func save(_ set: GeneratedLegoSet, sourceImages: [UIImage] = []) {
         sets.removeAll { $0.id == set.id }
         sets.insert(set, at: 0)
-        if let sourceImage {
-            writeSourceImage(sourceImage, for: set.id)
+        if !sourceImages.isEmpty {
+            writeSourceImages(sourceImages, for: set.id)
         }
         if sets.count > maxStored {
             let dropped = sets.suffix(from: maxStored)
-            for old in dropped { removeSourceImage(for: old.id) }
+            for old in dropped { removeSourceImages(for: old.id) }
             sets = Array(sets.prefix(maxStored))
         }
         persist()
@@ -44,13 +46,13 @@ final class GeneratedSetStore: ObservableObject {
 
     func delete(_ set: GeneratedLegoSet) {
         sets.removeAll { $0.id == set.id }
-        removeSourceImage(for: set.id)
+        removeSourceImages(for: set.id)
         persist()
     }
 
     func delete(at offsets: IndexSet) {
         for index in offsets where sets.indices.contains(index) {
-            removeSourceImage(for: sets[index].id)
+            removeSourceImages(for: sets[index].id)
         }
         sets.remove(atOffsets: offsets)
         persist()
@@ -60,24 +62,45 @@ final class GeneratedSetStore: ObservableObject {
         sets.contains { $0.id == id }
     }
 
-    /// The original scanned/photographed image for a set, if one was saved.
+    /// The first original captured image for a set, if any (thumbnail use).
     func sourceImage(for id: UUID) -> UIImage? {
-        UIImage(contentsOfFile: imageURL(for: id).path)
+        sourceImages(for: id).first
+    }
+
+    /// All original captured images for a set (1 photo, or the 4 angle photos /
+    /// video-sweep frames used to build the 3D model), in capture order.
+    func sourceImages(for id: UUID) -> [UIImage] {
+        var images: [UIImage] = []
+        var index = 0
+        while let image = UIImage(contentsOfFile: imageURL(for: id, index: index).path) {
+            images.append(image)
+            index += 1
+            if index > maxSourceImages { break }
+        }
+        return images
     }
 
     // MARK: - Source images
 
-    private func imageURL(for id: UUID) -> URL {
-        imagesDir.appendingPathComponent("\(id.uuidString).jpg")
+    private let maxSourceImages = 4
+
+    private func imageURL(for id: UUID, index: Int) -> URL {
+        imagesDir.appendingPathComponent("\(id.uuidString)-\(index).jpg")
     }
 
-    private func writeSourceImage(_ image: UIImage, for id: UUID) {
-        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
-        try? data.write(to: imageURL(for: id), options: .atomic)
+    private func writeSourceImages(_ images: [UIImage], for id: UUID) {
+        // Clear any previous frames first so a re-save can't leave stale ones.
+        removeSourceImages(for: id)
+        for (index, image) in images.prefix(maxSourceImages).enumerated() {
+            guard let data = image.jpegData(compressionQuality: 0.8) else { continue }
+            try? data.write(to: imageURL(for: id, index: index), options: .atomic)
+        }
     }
 
-    private func removeSourceImage(for id: UUID) {
-        try? FileManager.default.removeItem(at: imageURL(for: id))
+    private func removeSourceImages(for id: UUID) {
+        for index in 0...maxSourceImages {
+            try? FileManager.default.removeItem(at: imageURL(for: id, index: index))
+        }
     }
 
     // MARK: - Persistence

@@ -80,22 +80,44 @@ final class SetForgePolishTests: XCTestCase {
         let set = try SetForgeEngine.shared.generate(from: solidBlock(), size: .small, name: "Block")
         let image = solidColorImage(.red)
 
-        store.save(set, sourceImage: image)
+        store.save(set, sourceImages: [image])
 
         XCTAssertTrue(store.contains(set.id))
         XCTAssertNotNil(store.sourceImage(for: set.id), "Source image should be retrievable")
     }
 
+    func testStorePersistsAllCapturedAngles() throws {
+        let store = GeneratedSetStore(filename: "test_generated_sets_\(UUID().uuidString).json")
+        let set = try SetForgeEngine.shared.generate(from: solidBlock(), size: .small, name: "Block")
+        let angles = [solidColorImage(.red), solidColorImage(.green),
+                      solidColorImage(.blue), solidColorImage(.yellow)]
+
+        store.save(set, sourceImages: angles)
+
+        XCTAssertEqual(store.sourceImages(for: set.id).count, 4,
+                       "All four captured frames are retrievable")
+    }
+
+    func testStoreCapsSourceImagesAtFour() throws {
+        let store = GeneratedSetStore(filename: "test_generated_sets_\(UUID().uuidString).json")
+        let set = try SetForgeEngine.shared.generate(from: solidBlock(), size: .small, name: "Block")
+        let many = (0..<8).map { _ in solidColorImage(.gray) }
+
+        store.save(set, sourceImages: many)
+
+        XCTAssertEqual(store.sourceImages(for: set.id).count, 4, "Never stores more than 4 frames")
+    }
+
     func testStoreDeleteRemovesSourceImage() throws {
         let store = GeneratedSetStore(filename: "test_generated_sets_\(UUID().uuidString).json")
         let set = try SetForgeEngine.shared.generate(from: solidBlock(), size: .small, name: "Block")
-        store.save(set, sourceImage: solidColorImage(.green))
-        XCTAssertNotNil(store.sourceImage(for: set.id))
+        store.save(set, sourceImages: [solidColorImage(.green), solidColorImage(.blue)])
+        XCTAssertEqual(store.sourceImages(for: set.id).count, 2)
 
         store.delete(set)
 
         XCTAssertFalse(store.contains(set.id))
-        XCTAssertNil(store.sourceImage(for: set.id), "Deleting a set removes its source image")
+        XCTAssertTrue(store.sourceImages(for: set.id).isEmpty, "Deleting a set removes all source images")
     }
 
     func testStoreSaveWithoutImageHasNoSource() throws {
@@ -103,6 +125,7 @@ final class SetForgePolishTests: XCTestCase {
         let set = try SetForgeEngine.shared.generate(from: solidBlock(), size: .small, name: "Block")
         store.save(set)
         XCTAssertNil(store.sourceImage(for: set.id))
+        XCTAssertTrue(store.sourceImages(for: set.id).isEmpty)
     }
 
     // MARK: - Video sweep downselect
