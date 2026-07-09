@@ -28,6 +28,9 @@ struct GeneratedSetView: View {
         ScrollView {
             VStack(spacing: 20) {
                 preview
+                if let source = GeneratedSetStore.shared.sourceImage(for: set.id) {
+                    scannedSource(source)
+                }
                 statsRow
                 if let match = inventoryMatch {
                     inventoryChip(match)
@@ -63,6 +66,15 @@ struct GeneratedSetView: View {
                 )
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(alignment: .topLeading) {
+                Label(set.generator.label, systemImage: set.generator.systemImage)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.thinMaterial, in: Capsule())
+                    .padding(8)
+                    .accessibilityLabel("Model quality: \(set.generator.label)")
+            }
             .overlay(alignment: .bottomTrailing) {
                 Text("Drag to rotate")
                     .font(.caption2)
@@ -71,6 +83,23 @@ struct GeneratedSetView: View {
                     .background(.thinMaterial, in: Capsule())
                     .padding(8)
             }
+    }
+
+    /// The original photo/scan this set was forged from, shown so the build can
+    /// be compared against the real subject.
+    private func scannedSource(_ image: UIImage) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Scanned Subject", systemImage: "camera.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(height: 160)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Stats
@@ -212,19 +241,56 @@ struct GeneratedSetView: View {
     }
 }
 
-/// Simple step-by-step instructions list for a generated set.
+/// Step-by-step instructions for a generated set. Each step shows a real 3D
+/// render of the model built up to that point, with the bricks added in this
+/// step highlighted (earlier bricks ghosted) — like a printed LEGO manual.
 private struct InstructionStepsView: View {
     let set: GeneratedLegoSet
     @Environment(\.dismiss) private var dismiss
 
+    /// Bricks introduced at each step, index-aligned with `set.steps`.
+    private var stepGroups: [[PlacedBrick]] { SetForgeInstructions.stepGroups(for: set.bricks) }
+
+    /// Cumulative bricks through step `index` (all earlier groups + this one),
+    /// ordered so the last `stepGroups[index].count` are the new bricks.
+    private func cumulativeBricks(through index: Int) -> [PlacedBrick] {
+        guard index < stepGroups.count else { return set.bricks }
+        return stepGroups[0...index].flatMap { $0 }
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(set.steps) { step in
-                    VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(set.steps.enumerated()), id: \.element.id) { index, step in
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Step \(step.stepNumber)")
                             .font(.headline)
                             .foregroundStyle(Color.legoBlue)
+
+                        if index < stepGroups.count {
+                            BrickModelSceneView(
+                                bricks: cumulativeBricks(through: index),
+                                highlightCount: stepGroups[index].count
+                            )
+                            .frame(height: 220)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(.secondarySystemGroupedBackground), Color(.tertiarySystemGroupedBackground)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(alignment: .bottomTrailing) {
+                                Text("Drag to rotate")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(6)
+                                    .background(.thinMaterial, in: Capsule())
+                                    .padding(8)
+                            }
+                        }
+
                         Text(step.instruction)
                             .font(.subheadline)
                         if !step.piecesUsed.isEmpty {

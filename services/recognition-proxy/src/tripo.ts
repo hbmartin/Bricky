@@ -185,6 +185,34 @@ export async function createImageTask(
   );
 }
 
+/**
+ * Create a multiview→model draft task. `tokens` maps to the fixed order
+ * [front, left, back, right]; `null` entries are omitted (front is required).
+ */
+export async function createMultiviewTask(
+  tokens: Array<string | null>,
+  imageType: string,
+  size: ForgeSize,
+  config: TripoConfig,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const files = [0, 1, 2, 3].map((i) => {
+    const token = tokens[i];
+    return token ? { type: imageType, file_token: token } : {};
+  });
+  return postTask(
+    {
+      type: 'multiview_to_model',
+      files,
+      texture: true,
+      pbr: true,
+      face_limit: faceLimit(size),
+    },
+    config,
+    fetchImpl,
+  );
+}
+
 /** Fetch a task's current status + output. */
 export async function getTask(
   taskId: string,
@@ -314,6 +342,48 @@ export async function forgeMeshFromImage(
 
   // 2. Draft model from the image.
   const draftId = await createImageTask(token, imageTypeForMime(mime), size, config, fetchImpl);
+  await pollUntilComplete(draftId, config, options);
+
+  // 3. Convert to USDZ.
+  const convertId = await createConvertTask(draftId, format, config, fetchImpl);
+  const output = await pollUntilComplete(convertId, config, options);
+
+  const result = selectModelUrl(output);
+  if (!result) {
+    throw new ProxyError(502, 'upstream_error', 'Model finished without a downloadable file.');
+  }
+  return result;
+}
+
+/**
+ * End-to-end multiview→3D: upload up to 4 images (front/left/back/right), create
+ * a multiview→model draft, wait, convert to USDZ, and return the model URL.
+ * Multiple angles yield a genuinely 3D model (not a single-view guess).
+ */
+export async function forgeMeshFromMultiview(
+  imagesBase64: string[],
+  mime: string,
+  size: ForgeSize,
+  config: TripoConfig,
+  options: PollOptions = {},
+): Promise<TripoResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const format = options.format ?? 'USDZ';
+
+  const provided = imagesBase64.slice(0, 4);
+  if (provided.length === 0) {
+    throw new ProxyError(400, 'bad_request', 'At least one image is required.');
+  }
+
+  // 1. Upload each provided view → tokens (front/left/back/right order).
+  const tokens: Array<string | null> = [null, null, null, null];
+  for (let i = 0; i < provided.length; i++) {
+    const bytes = Uint8Array.from(Buffer.from(provided[i], 'base64'));
+    tokens[i] = await uploadImage(bytes, mime, config, fetchImpl);
+  }
+
+  // 2. Multiview draft.
+  const draftId = await createMultiviewTask(tokens, imageTypeForMime(mime), size, config, fetchImpl);
   await pollUntilComplete(draftId, config, options);
 
   // 3. Convert to USDZ.

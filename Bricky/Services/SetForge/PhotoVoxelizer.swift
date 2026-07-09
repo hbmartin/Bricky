@@ -68,26 +68,46 @@ enum PhotoVoxelizer {
             throw VoxelizeError.unreadableImage
         }
 
-        // 3. Extrude the silhouette into a flat, ground-supported relief. Depth
-        //    is kept modest (and independent of resolution) so the higher
-        //    footprint detail survives the engine's brick-budget pass instead of
-        //    being downsampled away.
-        let thickness = 4
-        var voxels: [Voxel] = []
-        voxels.reserveCapacity(gridW * gridH)
-
+        // 3. Occupancy + colour grid from the masked pixels.
+        var occupied = [Bool](repeating: false, count: gridW * gridH)
+        var cellColors = [LegoColor](repeating: .gray, count: gridW * gridH)
         for row in 0..<gridH {
             for col in 0..<gridW {
                 let offset = (row * gridW + col) * 4
-                let a = pixels[offset + 3]
-                guard a >= 40 else { continue } // background
-                let r = pixels[offset], g = pixels[offset + 1], b = pixels[offset + 2]
-                guard let match = LegoColor.closest(r: r, g: g, b: b, excludeTransparent: true) else { continue }
-                // Image top → back of the model; lay flat with thickness along Y.
+                guard pixels[offset + 3] >= 40 else { continue } // background
+                guard let match = LegoColor.closest(
+                    r: pixels[offset], g: pixels[offset + 1], b: pixels[offset + 2],
+                    excludeTransparent: true
+                ) else { continue }
+                let idx = row * gridW + col
+                occupied[idx] = true
+                cellColors[idx] = match.color
+            }
+        }
+
+        // 4. Distance transform → a rounded bas-relief height map, so the subject
+        //    bulges up from the table into a genuine 3D form (not a flat slab).
+        //    Gravity-safe: each column is filled from y = 0, so nothing floats.
+        let dist = distanceTransform(occupied, width: gridW, height: gridH)
+        let maxDist = Float(dist.max() ?? 0)
+        let maxRelief = max(3, maxDim / 3)
+
+        var voxels: [Voxel] = []
+        voxels.reserveCapacity(gridW * gridH * 2)
+        var maxHeight = 1
+        for row in 0..<gridH {
+            for col in 0..<gridW {
+                let idx = row * gridW + col
+                guard occupied[idx] else { continue }
+                let h = maxDist > 0
+                    ? 1 + Int((Float(dist[idx]) / maxDist) * Float(maxRelief))
+                    : 1
                 let z = gridH - 1 - row
-                for y in 0..<thickness {
-                    voxels.append(Voxel(x: col, y: y, z: z, color: match.color))
+                let color = cellColors[idx]
+                for y in 0..<max(1, h) {
+                    voxels.append(Voxel(x: col, y: y, z: z, color: color))
                 }
+                maxHeight = max(maxHeight, h)
             }
         }
 
@@ -95,12 +115,37 @@ enum PhotoVoxelizer {
 
         return VoxelModel(
             width: gridW,
-            height: thickness,
+            height: maxHeight,
             depth: gridH,
             voxels: voxels,
             source: .photo,
             subject: subject
         )
+    }
+
+    /// Two-pass chamfer distance transform: distance from each occupied cell to
+    /// the nearest background cell. Higher in the interior → taller relief.
+    private static func distanceTransform(_ occ: [Bool], width: Int, height: Int) -> [Int] {
+        let inf = width + height
+        var d = [Int](repeating: 0, count: width * height)
+        for i in 0..<occ.count { d[i] = occ[i] ? inf : 0 }
+        for y in 0..<height {
+            for x in 0..<width {
+                let i = y * width + x
+                guard occ[i] else { continue }
+                if x > 0 { d[i] = min(d[i], d[i - 1] + 1) }
+                if y > 0 { d[i] = min(d[i], d[i - width] + 1) }
+            }
+        }
+        for y in stride(from: height - 1, through: 0, by: -1) {
+            for x in stride(from: width - 1, through: 0, by: -1) {
+                let i = y * width + x
+                guard occ[i] else { continue }
+                if x < width - 1 { d[i] = min(d[i], d[i + 1] + 1) }
+                if y < height - 1 { d[i] = min(d[i], d[i + width] + 1) }
+            }
+        }
+        return d
     }
 
     // MARK: - Vision segmentation

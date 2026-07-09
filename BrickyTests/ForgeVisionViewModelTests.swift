@@ -9,6 +9,7 @@ final class ForgeVisionViewModelTests: XCTestCase {
         let url: URL
         func generateMesh(prompt: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL { url }
         func generateMesh(imageData: Data, mime: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL { url }
+        func generateMesh(images: [Data], mime: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL { url }
     }
 
     private func solidImage(_ color: UIColor = .systemRed, size: CGSize = CGSize(width: 120, height: 120)) -> UIImage {
@@ -68,5 +69,23 @@ final class ForgeVisionViewModelTests: XCTestCase {
         vm.generate()
         await waitForResult(vm)
         XCTAssertNotNil(vm.result, "A failed mesh tier should fall back to the photo relief")
+    }
+
+    func testMultiviewFallsThroughToPhotoRelief() async {
+        let vm = ForgeVisionViewModel(
+            isProProvider: { true },
+            meshService: StubMeshService(url: URL(fileURLWithPath: "/nonexistent/model.usdz")),
+            entitlementProvider: { "tok" }
+        )
+        vm.generateFromImages([solidImage(.systemGreen), solidImage(.systemRed)])
+        await waitForResult(vm)
+        XCTAssertNotNil(vm.result, "Multiview failure should fall back to a single-photo relief")
+    }
+
+    func testMultiviewBlockedForNonPro() async {
+        let vm = makeVM(pro: false)
+        vm.generateFromImages([solidImage()])
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertNil(vm.result, "Multiview 3D scan is Pro-gated")
     }
 }

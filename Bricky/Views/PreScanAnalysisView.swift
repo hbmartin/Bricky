@@ -16,6 +16,7 @@ struct PreScanAnalysisView: View {
     @State private var showSetIdentification = false
     @State private var showDescribeSet = false
     @State private var showScanToSet = false
+    @State private var showForgedSets = false
     @ObservedObject private var subscriptions = SubscriptionManager.shared
 
     /// Caps form-control width so buttons never stretch edge-to-edge on iPad.
@@ -93,6 +94,16 @@ struct PreScanAnalysisView: View {
                     }
                     .accessibilityHint("Creates a new brick set from a spoken or typed description")
 
+                    Button {
+                        showForgedSets = true
+                    } label: {
+                        actionLabel(
+                            icon: "square.stack.3d.up",
+                            title: "My Forged Sets",
+                            subtitle: "Revisit, rebuild, and share the sets you've forged"
+                        )
+                    }
+                    .accessibilityHint("Opens your saved Set Forge creations")
                     // LEGO set identification is a hidden, developer-only cloud
                     // feature (GPT-4o vision). It only appears as a scanner
                     // option when the in-app developer Pro override is enabled.
@@ -126,11 +137,14 @@ struct PreScanAnalysisView: View {
         .navigationDestination(isPresented: $showScanToSet) {
             ScanToSetView()
         }
-        .navigationDestination(isPresented: $showDescribeSet) {
-            DescribeSetView()
+        .navigationDestination(isPresented: $showForgedSets) {
+            GeneratedSetsGalleryView()
         }
         .fullScreenCover(isPresented: $showPhotoScan) {
             PhotoScanView()
+        }
+        .navigationDestination(isPresented: $showDescribeSet) {
+            DescribeSetView()
         }
     }
 

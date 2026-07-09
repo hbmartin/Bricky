@@ -163,8 +163,10 @@ final class ForgeTextViewModel: ObservableObject {
         // Build the set on-device.
         do {
             let name = subject.isEmpty ? label : subject.capitalizedFirst
+            let generator: GeneratedLegoSet.Generator =
+                label == "AI 3D" ? .hd : (label == "AI-generated" ? .ai : .onDevice)
             let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
-                try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
+                try SetForgeEngine.shared.generate(from: model, size: size, name: name, generator: generator) { fraction in
                     Task { @MainActor [weak self] in
                         self?.applyProgress(fraction)
                     }

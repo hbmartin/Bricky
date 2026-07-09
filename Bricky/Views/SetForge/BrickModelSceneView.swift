@@ -7,10 +7,13 @@ import UIKit
 /// spacing (20 LDU) with brick height (24 LDU). Offline; no assets required.
 struct BrickModelSceneView: UIViewRepresentable {
     let bricks: [PlacedBrick]
+    /// When > 0, the last `highlightCount` bricks are drawn solid while the
+    /// earlier bricks are ghosted, so a build step shows exactly what's new.
+    var highlightCount: Int = 0
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
-        view.scene = Self.buildScene(from: bricks)
+        view.scene = Self.buildScene(from: bricks, highlightCount: highlightCount)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.antialiasingMode = .multisampling2X
@@ -20,16 +23,17 @@ struct BrickModelSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        view.scene = Self.buildScene(from: bricks)
+        view.scene = Self.buildScene(from: bricks, highlightCount: highlightCount)
     }
 
     // MARK: - Scene construction
 
-    private static func buildScene(from bricks: [PlacedBrick]) -> SCNScene {
+    private static func buildScene(from bricks: [PlacedBrick], highlightCount: Int = 0) -> SCNScene {
         let scene = SCNScene()
 
         let stud: CGFloat = 20
         let layer: CGFloat = 24
+        let firstNew = highlightCount > 0 ? bricks.count - highlightCount : bricks.count
 
         // Compute bounds to centre the model at the origin.
         let maxX = bricks.map { $0.x + $0.length }.max() ?? 1
@@ -42,16 +46,27 @@ struct BrickModelSceneView: UIViewRepresentable {
         // One node per unique colour, merged as a parent for lighter scenes on
         // large models; individual boxes keep it simple and correct.
         let container = SCNNode()
-        for brick in bricks {
+        for (index, brick) in bricks.enumerated() {
             let box = SCNBox(
                 width: CGFloat(brick.length) * stud,
                 height: layer,
                 length: stud,
                 chamferRadius: 1.5
             )
+            let isNew = index >= firstNew
             let material = SCNMaterial()
             material.diffuse.contents = uiColor(for: brick.color)
             material.roughness.contents = 0.55
+            if highlightCount > 0 {
+                if isNew {
+                    // New bricks pop with a subtle glow.
+                    material.emission.contents = uiColor(for: brick.color)
+                    material.emission.intensity = 0.35
+                } else {
+                    // Already-built bricks are ghosted so the new work stands out.
+                    material.transparency = 0.28
+                }
+            }
             box.materials = [material]
 
             let node = SCNNode(geometry: box)

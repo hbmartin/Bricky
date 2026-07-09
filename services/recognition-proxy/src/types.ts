@@ -176,4 +176,12 @@ export interface ForgeMeshImageRequest {
   entitlementToken: string;
 }
 
+export interface ForgeMeshMultiviewRequest {
+  /** Up to 4 base64 images in [front, left, back, right] order. */
+  imagesBase64: string[];
+  mime: string;
+  size: ForgeSize;
+  entitlementToken: string;
+}
+
 

@@ -4,6 +4,33 @@ import Foundation
 /// network URLs. Carries everything the result UI, the 3D preview, the parts
 /// list, the instructions, and export/share need.
 struct GeneratedLegoSet: Identifiable, Codable, Equatable {
+    /// How the model geometry was produced (drives an honest quality badge).
+    enum Generator: String, Codable {
+        /// True 3D from a hosted mesh model (photo/multiview/text → mesh) or an
+        /// imported 3D model.
+        case hd
+        /// AI voxel authoring (GPT text → voxel DSL).
+        case ai
+        /// On-device procedural template or photo relief.
+        case onDevice
+
+        var label: String {
+            switch self {
+            case .hd: return "HD 3D"
+            case .ai: return "AI"
+            case .onDevice: return "On-Device"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .hd: return "cube.transparent.fill"
+            case .ai: return "sparkles"
+            case .onDevice: return "iphone"
+            }
+        }
+    }
+
     let id: UUID
     /// User-facing name (derived from the subject).
     var name: String
@@ -11,6 +38,8 @@ struct GeneratedLegoSet: Identifiable, Codable, Equatable {
     var subject: String
     var source: VoxelModel.Source
     var sizeLabel: String
+    /// Which pipeline produced the geometry.
+    var generator: Generator
 
     /// Placed bricks for the 3D preview and counts.
     var bricks: [PlacedBrick]
@@ -31,6 +60,7 @@ struct GeneratedLegoSet: Identifiable, Codable, Equatable {
         subject: String,
         source: VoxelModel.Source,
         sizeLabel: String,
+        generator: Generator = .onDevice,
         bricks: [PlacedBrick],
         parts: [SetForgePartsAggregator.Part],
         steps: [BuildStep],
@@ -42,6 +72,7 @@ struct GeneratedLegoSet: Identifiable, Codable, Equatable {
         self.subject = subject
         self.source = source
         self.sizeLabel = sizeLabel
+        self.generator = generator
         self.bricks = bricks
         self.parts = parts
         self.steps = steps

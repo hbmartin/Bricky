@@ -1,6 +1,7 @@
 import { ProxyError, type ForgeSize } from './types.js';
 import {
   forgeMeshFromImage as forgeTripoMeshFromImage,
+  forgeMeshFromMultiview as forgeTripoMeshFromMultiview,
   forgeMeshFromText as forgeTripoMesh,
   type PollOptions,
   type TripoConfig,
@@ -38,6 +39,15 @@ export interface MeshProvider {
     size: ForgeSize,
     options?: PollOptions,
   ): Promise<MeshResult>;
+  /**
+   * Forge a genuinely 3D model from up to 4 base64 views (front/left/back/right).
+   */
+  forgeFromMultiview(
+    imagesBase64: string[],
+    mime: string,
+    size: ForgeSize,
+    options?: PollOptions,
+  ): Promise<MeshResult>;
 }
 
 /** Tripo implementation (thin wrapper over the Tripo client). */
@@ -56,6 +66,15 @@ export class TripoProvider implements MeshProvider {
     options?: PollOptions,
   ): Promise<TripoResult> {
     return forgeTripoMeshFromImage(imageBase64, mime, size, this.config, options ?? {});
+  }
+
+  forgeFromMultiview(
+    imagesBase64: string[],
+    mime: string,
+    size: ForgeSize,
+    options?: PollOptions,
+  ): Promise<TripoResult> {
+    return forgeTripoMeshFromMultiview(imagesBase64, mime, size, this.config, options ?? {});
   }
 }
 

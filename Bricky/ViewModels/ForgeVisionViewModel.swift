@@ -105,6 +105,23 @@ final class ForgeVisionViewModel: ObservableObject {
         }
     }
 
+    /// Generate a **genuinely 3D** set from multiple angle photos
+    /// (front/left/back/right) via the hosted multiview model, falling back to a
+    /// single-photo relief if the cloud path isn't available.
+    func generateFromImages(_ images: [UIImage]) {
+        guard !isBusy, isProUser, !images.isEmpty else { return }
+        let size = selectedSize
+        let subject = subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        task?.cancel()
+        result = nil
+        phase = .generating(percent: 5)
+
+        task = Task { [weak self] in
+            await self?.runMultiview(images: images, size: size, subject: subject)
+        }
+    }
+
     func cancel() {
         task?.cancel()
         task = nil
@@ -143,6 +160,7 @@ final class ForgeVisionViewModel: ObservableObject {
 
         // Tier 2 — on-device photo relief (if the hosted mesh wasn't produced).
         do {
+            let generator: GeneratedLegoSet.Generator = meshModel != nil ? .hd : .onDevice
             let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
                 let model: VoxelModel
                 if let meshModel {
@@ -152,7 +170,7 @@ final class ForgeVisionViewModel: ObservableObject {
                         image: image, size: size, subject: subject.isEmpty ? "Photo" : subject
                     )
                 }
-                return try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
+                return try SetForgeEngine.shared.generate(from: model, size: size, name: name, generator: generator) { fraction in
                     Task { @MainActor [weak self] in
                         self?.applyProgress(0.3 + fraction * 0.7)
                     }
@@ -162,7 +180,7 @@ final class ForgeVisionViewModel: ObservableObject {
             if Task.isCancelled { return }
             result = set
             phase = .completed
-            GeneratedSetStore.shared.save(set)
+            GeneratedSetStore.shared.save(set, sourceImage: image)
         } catch {
             if Task.isCancelled { return }
             phase = .failed(error.localizedDescription)
@@ -173,14 +191,66 @@ final class ForgeVisionViewModel: ObservableObject {
         do {
             let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
                 let model = try MeshVoxelizer.voxelize(
-                    assetURL: url,
-                    size: size,
-                    subject: subject.isEmpty ? "3D Model" : subject
+                    assetURL: url, size: size, subject: subject.isEmpty ? "3D Model" : subject
                 )
                 let name = subject.isEmpty ? "My Model" : subject
-                return try SetForgeEngine.shared.generate(from: model, size: size, name: name) { fraction in
+                return try SetForgeEngine.shared.generate(from: model, size: size, name: name, generator: .hd) { fraction in
                     Task { @MainActor [weak self] in
-                        self?.applyProgress(0.3 + fraction * 0.7) // voxelize is ~first 30%
+                        self?.applyProgress(0.3 + fraction * 0.7)
+                    }
+                }
+            }.value
+            if Task.isCancelled { return }
+            result = set
+            phase = .completed
+            GeneratedSetStore.shared.save(set)
+        } catch {
+            if Task.isCancelled { return }
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func runMultiview(images: [UIImage], size: VoxelModel.Size, subject: String) async {
+        let token = await entitlementProvider()
+        let name = subject.isEmpty ? "My 3D Scan" : subject
+
+        // Tier 1 — hosted multiview → genuine 3D model.
+        var meshModel: VoxelModel?
+        if let meshService, let token {
+            let jpegs = images.prefix(4).compactMap { $0.jpegData(compressionQuality: 0.85) }
+            if !jpegs.isEmpty {
+                do {
+                    let url = try await meshService.generateMesh(
+                        images: jpegs, mime: "image/jpeg", size: size, entitlementToken: token
+                    )
+                    meshModel = try await Task.detached(priority: .userInitiated) {
+                        try MeshVoxelizer.voxelize(
+                            assetURL: url, size: size, subject: subject.isEmpty ? "Scan" : subject
+                        )
+                    }.value
+                } catch {
+                    meshModel = nil
+                }
+            }
+        }
+        if Task.isCancelled { return }
+
+        // Tier 2 — fall back to a single-photo relief of the first angle.
+        let first = images[0]
+        do {
+            let generator: GeneratedLegoSet.Generator = meshModel != nil ? .hd : .onDevice
+            let set: GeneratedLegoSet = try await Task.detached(priority: .userInitiated) {
+                let model: VoxelModel
+                if let meshModel {
+                    model = meshModel
+                } else {
+                    model = try PhotoVoxelizer.voxelize(
+                        image: first, size: size, subject: subject.isEmpty ? "Scan" : subject
+                    )
+                }
+                return try SetForgeEngine.shared.generate(from: model, size: size, name: name, generator: generator) { fraction in
+                    Task { @MainActor [weak self] in
+                        self?.applyProgress(0.3 + fraction * 0.7)
                     }
                 }
             }.value
@@ -188,7 +258,7 @@ final class ForgeVisionViewModel: ObservableObject {
             if Task.isCancelled { return }
             result = set
             phase = .completed
-            GeneratedSetStore.shared.save(set)
+            GeneratedSetStore.shared.save(set, sourceImage: first)
         } catch {
             if Task.isCancelled { return }
             phase = .failed(error.localizedDescription)

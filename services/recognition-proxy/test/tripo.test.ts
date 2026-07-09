@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   createConvertTask,
   createImageTask,
+  createMultiviewTask,
   createTextTask,
   forgeMeshFromImage,
+  forgeMeshFromMultiview,
   forgeMeshFromText,
   getTask,
   imageTypeForMime,
@@ -63,6 +65,29 @@ test('createImageTask returns a task id', async () => {
   const fetchImpl = sequenceFetch([{ json: { code: 0, data: { task_id: 'draftImg' } } }]);
   const id = await createImageTask('img1', 'jpeg', 'small', config, fetchImpl);
   assert.equal(id, 'draftImg');
+});
+
+test('createMultiviewTask returns a task id', async () => {
+  const fetchImpl = sequenceFetch([{ json: { code: 0, data: { task_id: 'draftMV' } } }]);
+  const id = await createMultiviewTask(['a', null, 'c', null], 'jpeg', 'small', config, fetchImpl);
+  assert.equal(id, 'draftMV');
+});
+
+test('forgeMeshFromMultiview uploads views, drafts, converts to USDZ', async () => {
+  const fetchImpl = sequenceFetch([
+    { json: { code: 0, data: { image_token: 'front' } } },   // upload front
+    { json: { code: 0, data: { image_token: 'right' } } },   // upload right
+    { json: { code: 0, data: { task_id: 'draftMV' } } },     // multiview task
+    { json: { code: 0, data: { status: 'success', output: {} } } },
+    { json: { code: 0, data: { task_id: 'conv1' } } },
+    { json: { code: 0, data: { status: 'success', output: { model: 'https://x/m.usdz' } } } },
+  ]);
+  const result = await forgeMeshFromMultiview(['aGVsbG8=', 'd29ybGQ='], 'image/jpeg', 'small', config, {
+    fetchImpl,
+    sleep: async () => {},
+    pollIntervalMs: 0,
+  });
+  assert.equal(result.format, 'usdz');
 });
 
 test('forgeMeshFromImage uploads, drafts, converts, and returns USDZ', async () => {

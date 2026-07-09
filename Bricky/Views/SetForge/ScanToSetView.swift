@@ -10,7 +10,11 @@ struct ScanToSetView: View {
     @ObservedObject private var subscription = SubscriptionManager.shared
 
     @State private var pickerItem: PhotosPickerItem?
+    @State private var multiPickerItems: [PhotosPickerItem] = []
+    @State private var multiImages: [UIImage] = []
     @State private var showCamera = false
+    @State private var showSweep = false
+    @State private var showGuidedAngles = false
     @State private var showFileImporter = false
     @State private var showPaywall = false
     @State private var navigateToResult = false
@@ -27,8 +31,8 @@ struct ScanToSetView: View {
         ScrollView {
             VStack(spacing: 22) {
                 header
-                imageArea
-                sourceButtons
+                multiAngleSection
+                singlePhotoSection
                 importModelButton
                 nameField
                 ForgeSizePicker(
@@ -64,6 +68,16 @@ struct ScanToSetView: View {
             }
             .ignoresSafeArea()
         }
+        .fullScreenCover(isPresented: $showSweep) {
+            VideoSweepCaptureView { images in
+                if !images.isEmpty { viewModel.generateFromImages(images) }
+            }
+        }
+        .fullScreenCover(isPresented: $showGuidedAngles) {
+            GuidedAngleCaptureView { images in
+                if !images.isEmpty { viewModel.generateFromImages(images) }
+            }
+        }
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: Self.modelContentTypes
@@ -87,6 +101,19 @@ struct ScanToSetView: View {
                 }
             }
         }
+        .onChange(of: multiPickerItems) { _, items in
+            loadError = nil
+            Task {
+                var loaded: [UIImage] = []
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        loaded.append(image)
+                    }
+                }
+                multiImages = loaded
+            }
+        }
         .onChange(of: viewModel.phase) { _, phase in
             if phase == .completed {
                 nameFocused = false
@@ -106,7 +133,7 @@ struct ScanToSetView: View {
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Color.legoBlue)
             }
-            Text("Take or pick a photo of a real object and Bricky forges a brick model of it — with a parts list and instructions. Works best with a single subject on a plain background.")
+            Text("Scan a real object from every side and Bricky forges a buildable brick model of it — with a parts list and instructions. Works best with a single subject on a plain background.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -190,6 +217,148 @@ struct ScanToSetView: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Turn a 3D model file into a buildable brick set")
+    }
+
+    // MARK: - 3D multi-angle capture
+
+    private var multiAngleSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "cube.transparent.fill")
+                    .foregroundStyle(Color.legoBlue)
+                Text("Scan in 3D")
+                    .font(.headline)
+                Text("Recommended")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(Color.legoBlue.opacity(0.15)))
+                    .foregroundStyle(Color.legoBlue)
+            }
+            Text("Capture the subject from every side for a genuinely 3D model — photograph four angles, walk around it on video, or pick photos you already have.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if cameraAvailable {
+                capture3DButton(
+                    title: "Photograph 4 Angles",
+                    subtitle: "Front, left, back, right — guided",
+                    icon: "camera.on.rectangle.fill"
+                ) {
+                    if viewModel.isProUser { showGuidedAngles = true } else { showPaywall = true }
+                }
+
+                capture3DButton(
+                    title: "Record a Walk-Around",
+                    subtitle: "Slowly orbit the subject on video",
+                    icon: "arrow.triangle.2.circlepath.camera.fill"
+                ) {
+                    if viewModel.isProUser { showSweep = true } else { showPaywall = true }
+                }
+            }
+
+            PhotosPicker(
+                selection: $multiPickerItems,
+                maxSelectionCount: 4,
+                matching: .images
+            ) {
+                capture3DLabel(
+                    title: multiImages.isEmpty ? "Pick 4 Photos from Library" : "\(multiImages.count) photo\(multiImages.count == 1 ? "" : "s") selected",
+                    subtitle: "Use angle photos you've already taken",
+                    icon: "square.stack.3d.up"
+                )
+            }
+
+            if !multiImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(multiImages.enumerated()), id: \.offset) { _, img in
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }
+
+                Button {
+                    if viewModel.isProUser {
+                        nameFocused = false
+                        viewModel.generateFromImages(multiImages)
+                    } else {
+                        showPaywall = true
+                    }
+                } label: {
+                    Label(viewModel.isProUser ? "Forge 3D Set from \(multiImages.count) Angles" : "Forge 3D Set · Pro",
+                          systemImage: viewModel.isProUser ? "cube.fill" : "lock.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.legoBlue))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemGroupedBackground)))
+    }
+
+    /// A prominent full-width card button for a 3D capture mode.
+    private func capture3DButton(
+        title: String, subtitle: String, icon: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            capture3DLabel(title: title, subtitle: subtitle, icon: icon)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(subtitle)
+    }
+
+    private func capture3DLabel(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(Color.legoBlue.opacity(0.15)).frame(width: 40, height: 40)
+                Image(systemName: icon)
+                    .font(.headline)
+                    .foregroundStyle(Color.legoBlue)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.tertiarySystemGroupedBackground)))
+    }
+
+    // MARK: - Single photo
+
+    private var singlePhotoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+                Text("Or use a single photo")
+                    .font(.subheadline.weight(.semibold))
+            }
+            Text("Quicker, but produces a flatter relief than a full 3D scan.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            imageArea
+            sourceButtons
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemGroupedBackground)))
     }
 
     private func handleImportedModel(_ result: Result<URL, Error>) {

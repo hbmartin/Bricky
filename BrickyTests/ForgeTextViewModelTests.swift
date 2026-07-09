@@ -20,6 +20,9 @@ final class ForgeTextViewModelTests: XCTestCase {
         func generateMesh(imageData: Data, mime: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL {
             url
         }
+        func generateMesh(images: [Data], mime: String, size: VoxelModel.Size, entitlementToken: String) async throws -> URL {
+            url
+        }
     }
 
     private func solidModel(color: LegoColor = .green) -> VoxelModel {

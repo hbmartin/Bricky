@@ -20,6 +20,7 @@ final class SetForgeMeshServiceTests: XCTestCase {
         AzureTripoMeshClient(
             endpoint: URL(string: "https://example.test/api/forgeMeshFromText"),
             imageEndpoint: URL(string: "https://example.test/api/forgeMeshFromImage"),
+            multiviewEndpoint: URL(string: "https://example.test/api/forgeMeshFromMultiview"),
             httpClient: QueueHTTPClient(responses)
         )
     }
@@ -42,6 +43,15 @@ final class SetForgeMeshServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), file)
     }
 
+    func testDownloadsSupportedModelFromMultiview() async throws {
+        let meta = Data(#"{"modelUrl":"https://x/model.usdz","format":"usdz"}"#.utf8)
+        let file = Data("solid usdz bytes".utf8)
+        let url = try await client([(meta, 200), (file, 200)])
+            .generateMesh(images: [Data("a".utf8), Data("b".utf8)], mime: "image/jpeg", size: .small, entitlementToken: "tok")
+        XCTAssertEqual(url.pathExtension, "usdz")
+        XCTAssertEqual(try Data(contentsOf: url), file)
+    }
+
     func testUnsupportedFormatThrows() async {
         let meta = Data(#"{"modelUrl":"https://x/model.glb","format":"glb"}"#.utf8)
         await assertThrows(client([(meta, 200)]), expected: .unsupportedFormat("glb"))
@@ -56,7 +66,7 @@ final class SetForgeMeshServiceTests: XCTestCase {
     }
 
     func testNotConfiguredWhenNoEndpoint() async {
-        await assertThrows(AzureTripoMeshClient(endpoint: nil, imageEndpoint: nil), expected: .notConfigured)
+        await assertThrows(AzureTripoMeshClient(endpoint: nil, imageEndpoint: nil, multiviewEndpoint: nil), expected: .notConfigured)
     }
 
     private func assertThrows(

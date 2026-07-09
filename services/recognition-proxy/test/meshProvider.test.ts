@@ -66,3 +66,20 @@ test('TripoProvider.forgeFromImage delegates and returns a model', async () => {
   });
   assert.equal(result.format, 'usdz');
 });
+
+test('TripoProvider.forgeFromMultiview delegates and returns a model', async () => {
+  const provider = new TripoProvider({ apiKey: 'tsk_x' });
+  const fetchImpl = sequenceFetch([
+    { json: { code: 0, data: { image_token: 'front' } } },
+    { json: { code: 0, data: { task_id: 'draftMV' } } },
+    { json: { code: 0, data: { status: 'success', output: {} } } },
+    { json: { code: 0, data: { task_id: 'conv1' } } },
+    { json: { code: 0, data: { status: 'success', output: { model: 'https://x/m.usdz' } } } },
+  ]);
+  const result = await provider.forgeFromMultiview(['aGVsbG8='], 'image/jpeg', 'small', {
+    fetchImpl,
+    sleep: async () => {},
+    pollIntervalMs: 0,
+  });
+  assert.equal(result.format, 'usdz');
+});

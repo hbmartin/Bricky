@@ -23,6 +23,15 @@ protocol SetForgeMeshService: Sendable {
         size: VoxelModel.Size,
         entitlementToken: String
     ) async throws -> URL
+
+    /// Forge and download a genuinely 3D model from up to 4 angle images
+    /// (front/left/back/right); returns a local file URL.
+    func generateMesh(
+        images: [Data],
+        mime: String,
+        size: VoxelModel.Size,
+        entitlementToken: String
+    ) async throws -> URL
 }
 
 enum SetForgeMeshError: LocalizedError, Equatable {
@@ -56,15 +65,18 @@ struct AzureTripoMeshClient: SetForgeMeshService {
 
     private let endpoint: URL?
     private let imageEndpoint: URL?
+    private let multiviewEndpoint: URL?
     private let httpClient: RecognitionHTTPClient
 
     init(
         endpoint: URL? = AppConfig.forgeMeshFromTextEndpoint,
         imageEndpoint: URL? = AppConfig.forgeMeshFromImageEndpoint,
+        multiviewEndpoint: URL? = AppConfig.forgeMeshFromMultiviewEndpoint,
         httpClient: RecognitionHTTPClient = Self.makeDefaultSession()
     ) {
         self.endpoint = endpoint
         self.imageEndpoint = imageEndpoint
+        self.multiviewEndpoint = multiviewEndpoint
         self.httpClient = httpClient
     }
 
@@ -85,6 +97,13 @@ struct AzureTripoMeshClient: SetForgeMeshService {
 
     private struct ImageRequestBody: Encodable {
         let imageBase64: String
+        let mime: String
+        let size: String
+        let entitlementToken: String
+    }
+
+    private struct MultiviewRequestBody: Encodable {
+        let imagesBase64: [String]
         let mime: String
         let size: String
         let entitlementToken: String
@@ -132,6 +151,23 @@ struct AzureTripoMeshClient: SetForgeMeshService {
             entitlementToken: entitlementToken
         )
         return try await forge(endpoint: imageEndpoint, body: body)
+    }
+
+    func generateMesh(
+        images: [Data],
+        mime: String,
+        size: VoxelModel.Size,
+        entitlementToken: String
+    ) async throws -> URL {
+        guard let multiviewEndpoint else { throw SetForgeMeshError.notConfigured }
+        guard !images.isEmpty else { throw SetForgeMeshError.emptyModel }
+        let body = MultiviewRequestBody(
+            imagesBase64: images.prefix(4).map { $0.base64EncodedString() },
+            mime: mime,
+            size: sizeWire(size),
+            entitlementToken: entitlementToken
+        )
+        return try await forge(endpoint: multiviewEndpoint, body: body)
     }
 
     // MARK: - Shared forge + download

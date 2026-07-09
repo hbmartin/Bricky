@@ -33,6 +33,7 @@ struct SetForgeEngine {
         from model: VoxelModel,
         size: VoxelModel.Size,
         name: String,
+        generator: GeneratedLegoSet.Generator = .onDevice,
         progress: @Sendable (Double) -> Void = { _ in }
     ) throws -> GeneratedLegoSet {
         guard !model.isEmpty else { throw EngineError.emptyModel }
@@ -74,6 +75,7 @@ struct SetForgeEngine {
             subject: model.subject,
             source: model.source,
             sizeLabel: size.rawValue,
+            generator: generator,
             bricks: bricks,
             parts: parts,
             steps: steps,

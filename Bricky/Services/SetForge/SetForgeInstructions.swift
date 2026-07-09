@@ -12,6 +12,28 @@ enum SetForgeInstructions {
 
     static let maxBricksPerStep = 40
 
+    /// The bricks placed in each step, in the same order as `steps(for:)`.
+    /// Element `i` holds exactly the bricks introduced by `steps(for:)[i]`, so
+    /// the two arrays are index-aligned for the per-step 3D preview.
+    static func stepGroups(for bricks: [PlacedBrick]) -> [[PlacedBrick]] {
+        guard !bricks.isEmpty else { return [] }
+
+        let ordered = SetForgeLDRExporter.sorted(bricks)
+        var byLayer: [Int: [PlacedBrick]] = [:]
+        for b in ordered { byLayer[b.y, default: []].append(b) }
+        let layers = byLayer.keys.sorted()
+
+        var groups: [[PlacedBrick]] = []
+        for y in layers {
+            let layerBricks = byLayer[y] ?? []
+            let chunks = stride(from: 0, to: layerBricks.count, by: maxBricksPerStep).map {
+                Array(layerBricks[$0..<min($0 + maxBricksPerStep, layerBricks.count)])
+            }
+            groups.append(contentsOf: chunks)
+        }
+        return groups
+    }
+
     static func steps(for bricks: [PlacedBrick]) -> [BuildStep] {
         guard !bricks.isEmpty else { return [] }
 
