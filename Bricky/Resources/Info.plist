@@ -31,6 +31,10 @@
 	<string>1</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to scan and identify your LEGO pieces.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app uses the microphone so you can describe a set out loud when forging a new brick model.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app transcribes your spoken description on-device to forge a new brick set from it.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app tags your scans with where you found pieces so you can find them later — like 'at my friend's house.' Coordinates are stored only on your device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

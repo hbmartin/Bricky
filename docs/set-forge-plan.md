@@ -518,4 +518,5 @@ designer-quality sets. Manage expectations to protect trust (consistent with our
 
 ## Changelog
 
+2026-07-08 · main · Implemented the M1 shared core + M2/M3 offline vertical slice on-device (Swift, no backend): `VoxelModel`/`GeneratedLegoSet` models; `SetForgeEngine` (VoxelPacker seam-stagger + gravity-settle "no floating bricks" invariant, LDraw 3D export, parts BOM, layer-by-layer instructions); `VoxelShapeLibrary` (18 procedural describe→voxel templates + fallback); `PhotoVoxelizer` (Vision foreground-segmentation photo→voxel relief); `SpeechDictationService` (on-device voice input); `ForgeText`/`ForgeVision` view models; Describe/ScanToSet/GeneratedSet SwiftUI screens with SceneKit 3D preview; two new "Scan to Set" + "Describe a Set" entry points on the Scanner screen. 30 tests pass; app builds clean.
 2026-07-08 · main · Created combined Set Forge design + feasibility doc, merging the internal architecture plan with the external feasibility/LOE assessment (prior art, legolization research refs, LPub3D/LDraw ecosystem, brick-compatible branding + output-quality caveats, effort estimates). Supersedes `set-forge-generative-sets.md`.

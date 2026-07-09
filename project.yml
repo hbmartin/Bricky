@@ -67,6 +67,8 @@ targets:
       path: Bricky/Resources/Info.plist
       properties:
         NSCameraUsageDescription: "This app needs camera access to scan and identify your LEGO pieces."
+        NSMicrophoneUsageDescription: "This app uses the microphone so you can describe a set out loud when forging a new brick model."
+        NSSpeechRecognitionUsageDescription: "This app transcribes your spoken description on-device to forge a new brick set from it."
         NSPhotoLibraryUsageDescription: "This app needs photo library access to import images of your LEGO pieces."
         NSLocationWhenInUseUsageDescription: "This app tags your scans with where you found pieces so you can find them later — like 'at my friend's house.' Coordinates are stored only on your device."
         UISupportedInterfaceOrientations:

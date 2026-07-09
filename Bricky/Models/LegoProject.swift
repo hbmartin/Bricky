@@ -115,7 +115,7 @@ struct RequiredPiece: Codable, Identifiable {
     }
 }
 
-struct BuildStep: Identifiable, Codable {
+struct BuildStep: Identifiable, Codable, Equatable {
     let id: UUID
     let stepNumber: Int
     let instruction: String

@@ -14,6 +14,8 @@ struct PreScanAnalysisView: View {
     @State private var showPhotoScan = false
     @State private var startPreScan = false
     @State private var showSetIdentification = false
+    @State private var showDescribeSet = false
+    @State private var showScanToSet = false
     @ObservedObject private var subscriptions = SubscriptionManager.shared
 
     /// Caps form-control width so buttons never stretch edge-to-edge on iPad.
@@ -37,7 +39,7 @@ struct PreScanAnalysisView: View {
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
 
-                    Text("Point your camera at a LEGO minifigure or a pile of bricks. Bricky automatically detects what it's looking at and identifies the pieces — or pick an existing photo to scan instead.")
+                    Text("Point your camera at a LEGO minifigure or a pile of bricks and Bricky identifies the pieces — or forge a brand-new brick set from a photo of any object or a spoken description.")
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -66,6 +68,28 @@ struct PreScanAnalysisView: View {
                         )
                     }
                     .accessibilityHint("Opens the photo picker so you can scan an existing image")
+
+                    Button {
+                        showScanToSet = true
+                    } label: {
+                        actionLabel(
+                            icon: "cube.transparent",
+                            title: "Scan to Set",
+                            subtitle: "Photograph a real object and forge a buildable brick model of it"
+                        )
+                    }
+                    .accessibilityHint("Creates a new brick set from a photo of a real-world subject")
+
+                    Button {
+                        showDescribeSet = true
+                    } label: {
+                        actionLabel(
+                            icon: "text.bubble",
+                            title: "Describe a Set",
+                            subtitle: "Say or type a subject and forge a brand-new brick set"
+                        )
+                    }
+                    .accessibilityHint("Creates a new brick set from a spoken or typed description")
 
                     // LEGO set identification is a hidden, developer-only cloud
                     // feature (GPT-4o vision). It only appears as a scanner
@@ -96,6 +120,12 @@ struct PreScanAnalysisView: View {
         }
         .navigationDestination(isPresented: $showSetIdentification) {
             SetIdentificationView()
+        }
+        .navigationDestination(isPresented: $showScanToSet) {
+            ScanToSetView()
+        }
+        .navigationDestination(isPresented: $showDescribeSet) {
+            DescribeSetView()
         }
         .fullScreenCover(isPresented: $showPhotoScan) {
             PhotoScanView()
