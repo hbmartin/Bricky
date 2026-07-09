@@ -10,6 +10,7 @@ struct DescribeSetView: View {
 
     @State private var showPaywall = false
     @State private var navigateToResult = false
+    @FocusState private var descriptionFocused: Bool
 
     private let contentMaxWidth: CGFloat = 480
 
@@ -36,9 +37,16 @@ struct DescribeSetView: View {
             .frame(maxWidth: .infinity)
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Describe a Set")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { descriptionFocused = false }
+            }
+        }
         .overlay { if viewModel.isBusy { progressOverlay } }
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .navigationDestination(isPresented: $navigateToResult) {
@@ -50,9 +58,15 @@ struct DescribeSetView: View {
             if !newValue.isEmpty { viewModel.description = newValue }
         }
         .onChange(of: viewModel.phase) { _, phase in
-            if phase == .completed { navigateToResult = true }
+            if phase == .completed {
+                descriptionFocused = false
+                navigateToResult = true
+            }
         }
-        .onDisappear { dictation.stop() }
+        .onDisappear {
+            descriptionFocused = false
+            dictation.stop()
+        }
     }
 
     // MARK: - Header
@@ -88,6 +102,7 @@ struct DescribeSetView: View {
                     .frame(minHeight: 90)
                     .padding(6)
                     .scrollContentBackground(.hidden)
+                    .focused($descriptionFocused)
             }
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(.black.opacity(0.08)))
@@ -132,6 +147,7 @@ struct DescribeSetView: View {
                 ForEach(examples, id: \.self) { example in
                     Button {
                         viewModel.description = example
+                        descriptionFocused = false
                     } label: {
                         Text(example)
                             .font(.caption.weight(.medium))
@@ -209,6 +225,7 @@ struct DescribeSetView: View {
 
     private var generateButton: some View {
         Button {
+            descriptionFocused = false
             if viewModel.isSizeUnlocked(viewModel.selectedSize) {
                 viewModel.generate()
             } else {
@@ -257,6 +274,7 @@ struct DescribeSetView: View {
         if dictation.isRecording {
             dictation.stop()
         } else {
+            descriptionFocused = false
             dictation.reset()
             dictation.start()
         }

@@ -83,7 +83,7 @@ convert-face-encoder-coreml.py   # PyTorch → CoreML for on-device inference
 
 Face artifacts land in `Bricky/Resources/FaceEmbeddings/`.
 
-After running either pipeline, regenerate the Xcode project (`xcodegen
-generate`) and rebuild — the runtime paths in
+After running either pipeline, rebuild the app — the runtime paths in
 `TorsoEmbeddingIndex.swift` and `FaceEmbeddingIndex.swift` will pick
-up the new artifacts automatically.
+up the new artifacts automatically. New bundled resource files must be
+registered in `Bricky the Brick Scanner.xcodeproj`.

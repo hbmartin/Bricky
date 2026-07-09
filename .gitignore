@@ -1,6 +1,11 @@
 # Xcode
 build/
 DerivedData/
+
+# Retired XcodeGen-generated project — the canonical project is
+# "Bricky the Brick Scanner.xcodeproj". Never commit a regenerated one.
+Bricky.xcodeproj/
+
 *.pbxuser
 !default.pbxuser
 *.mode1v3

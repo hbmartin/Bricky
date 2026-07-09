@@ -7,7 +7,7 @@ codebase consistent. For the bigger picture, read
 ## Getting started
 
 1. Clone the repository.
-2. Open `Bricky.xcodeproj` in Xcode 16+.
+2. Open `Bricky the Brick Scanner.xcodeproj` in Xcode 16+.
 3. Select a simulator or device and build/run (⌘R).
 
 > AR and LiDAR features require a physical device. Camera scanning requires a
@@ -81,17 +81,19 @@ Tests ship with every feature and bug fix — this is non-negotiable.
 Run a focused suite from the command line:
 
 ```bash
-xcodebuild test -project Bricky.xcodeproj -scheme Bricky \
+xcodebuild test -project "Bricky the Brick Scanner.xcodeproj" -scheme Bricky \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -only-testing:BrickyTests/<YourTestSuite>
 ```
 
 ## Adding files to the Xcode project
 
-`Bricky.xcodeproj/project.pbxproj` is a classic (non-synchronized) project. Each new
-`.swift` file must be registered in four places: `PBXBuildFile`, `PBXFileReference`,
-its `PBXGroup` child list, and the appropriate `PBXSourcesBuildPhase`. Use a unique
-24-character uppercase hex identifier for each new entry.
+`Bricky the Brick Scanner.xcodeproj/project.pbxproj` is a classic (non-synchronized)
+project. Each new `.swift` file must be registered in four places: `PBXBuildFile`,
+`PBXFileReference`, its `PBXGroup` child list, and the appropriate
+`PBXSourcesBuildPhase`. Use a unique 24-character uppercase hex identifier for each
+new entry. The `xcodeproj` Ruby gem automates this reliably — prefer it over
+hand-editing the `pbxproj`.
 
 ## Before you open a PR
 

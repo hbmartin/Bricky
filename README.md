@@ -37,7 +37,7 @@ An iOS app that uses AR, computer vision, and AI to scan and identify LEGO piece
 ## Building
 
 1. Clone the repository
-2. Open `Bricky.xcodeproj` in Xcode
+2. Open `Bricky the Brick Scanner.xcodeproj` in Xcode
 3. Select your target device or simulator
 4. Build and run (⌘R)
 

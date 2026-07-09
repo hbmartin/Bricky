@@ -27,10 +27,9 @@ LDraw/
     48/         ← high-resolution primitives
 ```
 
-After running the script, regenerate the Xcode project and rebuild:
+After running the script, rebuild:
 
 ```sh
-xcodegen generate
 xcodebuild build -project "Bricky the Brick Scanner.xcodeproj" -scheme Bricky \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```

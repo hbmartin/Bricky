@@ -13,6 +13,7 @@ struct ScanToSetView: View {
     @State private var showPaywall = false
     @State private var navigateToResult = false
     @State private var loadError: String?
+    @FocusState private var nameFocused: Bool
 
     private let contentMaxWidth: CGFloat = 480
 
@@ -41,9 +42,16 @@ struct ScanToSetView: View {
             .frame(maxWidth: .infinity)
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Scan to Set")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { nameFocused = false }
+            }
+        }
         .overlay { if viewModel.isBusy { progressOverlay } }
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .fullScreenCover(isPresented: $showCamera) {
@@ -71,8 +79,12 @@ struct ScanToSetView: View {
             }
         }
         .onChange(of: viewModel.phase) { _, phase in
-            if phase == .completed { navigateToResult = true }
+            if phase == .completed {
+                nameFocused = false
+                navigateToResult = true
+            }
         }
+        .onDisappear { nameFocused = false }
     }
 
     // MARK: - Header
@@ -149,6 +161,9 @@ struct ScanToSetView: View {
                 .font(.subheadline.weight(.medium))
             TextField("e.g. My Toy Car", text: $viewModel.subjectName)
                 .textFieldStyle(.roundedBorder)
+                .focused($nameFocused)
+                .submitLabel(.done)
+                .onSubmit { nameFocused = false }
         }
     }
 
@@ -156,6 +171,7 @@ struct ScanToSetView: View {
 
     private var generateButton: some View {
         Button {
+            nameFocused = false
             if viewModel.isSizeUnlocked(viewModel.selectedSize) {
                 viewModel.generate()
             } else {
