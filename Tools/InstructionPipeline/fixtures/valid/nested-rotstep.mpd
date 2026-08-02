@@ -1,0 +1,16 @@
+0 FILE main.ldr
+0 Main model
+1 4 0 0 0 1 0 0 0 1 0 0 0 1 module.ldr
+0 STEP
+1 1 40 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+0 ROTSTEP 0 90 0 ADD
+0 FILE module.ldr
+0 Buildable repeated module
+1 14 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat
+0 STEP
+1 16 0 -24 0 1 0 0 0 1 0 0 0 1 custom.dat
+0 STEP
+0 FILE custom.dat
+0 Atomic custom geometry
+3 16 -10 0 -10 10 0 -10 0 -24 10
+0 NOFILE

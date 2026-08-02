@@ -28,7 +28,14 @@ Pods/
 # Swift Package Manager
 .build/
 .swiftpm/
+.venv/
+__pycache__/
+*.py[cod]
 Package.resolved
+
+# Reproducible development-tool scratch output
+.generated-golden/
+device-results.ndjson
 
 # Carthage
 Carthage/Build/

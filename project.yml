@@ -1,0 +1,92 @@
+name: Bricky the Brick Scanner
+options:
+  bundleIdPrefix: com.bricky
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "27.0"
+  groupSortPosition: top
+packages:
+  RecoveryMLX:
+    path: Packages/RecoveryMLX
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    exactVersion: 0.9.20
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6UN3X7Q6SP
+    SWIFT_VERSION: 5.9
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    MARKETING_VERSION: 2.0.0
+    CURRENT_PROJECT_VERSION: 6
+targets:
+  Bricky:
+    type: application
+    platform: iOS
+    sources:
+      - Bricky/App
+      - Bricky/Domain
+      - Bricky/Camera/ARCameraManager.swift
+      - Bricky/Camera/ARCameraPreview.swift
+      - Bricky/Extensions/UIImage+Orientation.swift
+      - Bricky/Services/Instructions
+      - Bricky/Services/Recovery
+      - Bricky/Views/LibraryView.swift
+      - Bricky/Views/StorageAndAttributionView.swift
+      - Bricky/Views/GuideView.swift
+      - Bricky/Views/ARGuideView.swift
+      - Bricky/Views/Recovery
+      - path: Bricky/Resources/Assets.xcassets
+        buildPhase: resources
+      - path: Bricky/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Bricky/Resources/LDRAW_ATTRIBUTION.txt
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bricky.app
+        PRODUCT_NAME: Bricky
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: NO
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Bricky/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Bricky/Resources/App.entitlements
+    dependencies:
+      - package: RecoveryMLX
+      - package: ZIPFoundation
+  BrickyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - BrickyTests/InstructionParserTests.swift
+      - BrickyTests/InstructionPlanTests.swift
+      - BrickyTests/InstructionImporterTests.swift
+      - BrickyTests/LDrawGeometryEngineTests.swift
+      - BrickyTests/SwiftParityTests.swift
+    dependencies:
+      - target: Bricky
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bricky.tests
+  BrickyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - BrickyUITests/BrickyUITests.swift
+    dependencies:
+      - target: Bricky
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bricky.uitests
+schemes:
+  Bricky:
+    build:
+      targets:
+        Bricky: all
+        BrickyTests: [test]
+        BrickyUITests: [test]
+    test:
+      targets:
+        - BrickyTests
+        - BrickyUITests

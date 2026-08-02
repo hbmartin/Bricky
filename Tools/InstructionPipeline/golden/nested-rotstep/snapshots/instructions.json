@@ -1,0 +1,744 @@
+{
+  "generated_files": [
+    "001-main/step-0001.mpd",
+    "001-main/step-0001.ldr",
+    "001-main/custom.dat",
+    "001-main/step-0002.mpd",
+    "001-main/step-0002.ldr",
+    "002-module/step-0001.mpd",
+    "002-module/step-0001.ldr",
+    "002-module/step-0002.mpd",
+    "002-module/step-0002.ldr",
+    "002-module/custom.dat",
+    "instructions.json"
+  ],
+  "generator": {
+    "name": "pyldraw3",
+    "version": "1.5.0"
+  },
+  "orphan_sections": [],
+  "root_section": "main.ldr",
+  "schema_version": 1,
+  "sections": [
+    {
+      "is_root": true,
+      "name": "main.ldr",
+      "references": [
+        "module.ldr"
+      ],
+      "steps": [
+        {
+          "added_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": null,
+              "part": "custom",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 14,
+                "name": "Yellow",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 9,
+              "source_section": "module.ldr"
+            },
+            {
+              "colour": {
+                "code": 4,
+                "name": "Red",
+                "rgb": null
+              },
+              "description": null,
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "custom",
+              "position": [
+                0.0,
+                -24.0,
+                0.0
+              ],
+              "reference": "custom.dat",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "artifacts": {
+            "ldr": "001-main/step-0001.ldr",
+            "mpd": "001-main/step-0001.mpd"
+          },
+          "bounds": {
+            "max": [
+              10.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": null,
+            "distance": null,
+            "fov": null,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": null,
+              "part": "custom",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 2,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 4,
+                "name": "Red",
+                "rgb": null
+              },
+              "description": null,
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "module",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "module.ldr",
+              "source_line": 3,
+              "source_section": "main.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {},
+              "kind": "step",
+              "raw": "0 STEP",
+              "source_line": 4
+            }
+          ],
+          "geometry_warnings": [
+            {
+              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "part": "custom",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "multi_step_group": null,
+          "number": 1,
+          "page_break_before": false,
+          "rotation": null,
+          "source_lines": [
+            2,
+            4
+          ],
+          "suppressed": false
+        },
+        {
+          "added_bom": [
+            {
+              "colour_code": 1,
+              "colour_name": "Blue",
+              "description": "Brick  2 x  4",
+              "part": "3001",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 1,
+                "name": "Blue",
+                "rgb": null
+              },
+              "description": "Brick  2 x  4",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3001",
+              "position": [
+                40.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3001.dat",
+              "source_line": 5,
+              "source_section": "main.ldr"
+            }
+          ],
+          "artifacts": {
+            "ldr": "001-main/step-0002.ldr",
+            "mpd": "001-main/step-0002.mpd"
+          },
+          "bounds": {
+            "max": [
+              80.0,
+              24.0,
+              20.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -20.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": null,
+            "distance": null,
+            "fov": null,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 1,
+              "colour_name": "Blue",
+              "description": "Brick  2 x  4",
+              "part": "3001",
+              "quantity": 1
+            },
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": null,
+              "part": "custom",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 3,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 1,
+                "name": "Blue",
+                "rgb": null
+              },
+              "description": "Brick  2 x  4",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3001",
+              "position": [
+                40.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3001.dat",
+              "source_line": 5,
+              "source_section": "main.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {
+                "angles": [
+                  0.0,
+                  90.0,
+                  0.0
+                ],
+                "mode": "ADD"
+              },
+              "kind": "rotation_step",
+              "raw": "0 ROTSTEP 0 90 0 ADD",
+              "source_line": 6
+            }
+          ],
+          "geometry_warnings": [
+            {
+              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "part": "custom",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "multi_step_group": null,
+          "number": 2,
+          "page_break_before": false,
+          "rotation": {
+            "angles": [
+              0.0,
+              90.0,
+              0.0
+            ],
+            "command_matrix": [
+              [
+                6.123233995736766e-17,
+                -0.0,
+                1.0
+              ],
+              [
+                0.0,
+                1.0,
+                -0.0
+              ],
+              [
+                -1.0,
+                0.0,
+                6.123233995736766e-17
+              ]
+            ],
+            "effective_matrix": [
+              [
+                6.123233995736766e-17,
+                0.0,
+                1.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                -1.0,
+                0.0,
+                6.123233995736766e-17
+              ]
+            ],
+            "mode": "ADD",
+            "source_line": 6
+          },
+          "source_lines": [
+            5,
+            6
+          ],
+          "suppressed": false
+        }
+      ]
+    },
+    {
+      "is_root": false,
+      "name": "module.ldr",
+      "references": [],
+      "steps": [
+        {
+          "added_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 14,
+                "name": "Yellow",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 9,
+              "source_section": "module.ldr"
+            }
+          ],
+          "artifacts": {
+            "ldr": "002-module/step-0001.ldr",
+            "mpd": "002-module/step-0001.mpd"
+          },
+          "bounds": {
+            "max": [
+              10.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": null,
+            "distance": null,
+            "fov": null,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 1,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 14,
+                "name": "Yellow",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 9,
+              "source_section": "module.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {},
+              "kind": "step",
+              "raw": "0 STEP",
+              "source_line": 10
+            }
+          ],
+          "geometry_warnings": [],
+          "multi_step_group": null,
+          "number": 1,
+          "page_break_before": false,
+          "rotation": null,
+          "source_lines": [
+            8,
+            10
+          ],
+          "suppressed": false
+        },
+        {
+          "added_bom": [
+            {
+              "colour_code": 16,
+              "colour_name": "Main_Colour",
+              "description": null,
+              "part": "custom",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 16,
+                "name": "Main_Colour",
+                "rgb": null
+              },
+              "description": null,
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "custom",
+              "position": [
+                0.0,
+                -24.0,
+                0.0
+              ],
+              "reference": "custom.dat",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "artifacts": {
+            "ldr": "002-module/step-0002.ldr",
+            "mpd": "002-module/step-0002.mpd"
+          },
+          "bounds": {
+            "max": [
+              10.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": null,
+            "distance": null,
+            "fov": null,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 16,
+              "colour_name": "Main_Colour",
+              "description": null,
+              "part": "custom",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 2,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 16,
+                "name": "Main_Colour",
+                "rgb": null
+              },
+              "description": null,
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "custom",
+              "position": [
+                0.0,
+                -24.0,
+                0.0
+              ],
+              "reference": "custom.dat",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {},
+              "kind": "step",
+              "raw": "0 STEP",
+              "source_line": 12
+            }
+          ],
+          "geometry_warnings": [
+            {
+              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "part": "custom",
+              "source_line": 11,
+              "source_section": "module.ldr"
+            }
+          ],
+          "multi_step_group": null,
+          "number": 2,
+          "page_break_before": false,
+          "rotation": null,
+          "source_lines": [
+            11,
+            12
+          ],
+          "suppressed": false
+        }
+      ]
+    }
+  ],
+  "source": "<InstructionPipeline>/fixtures/valid/nested-rotstep.mpd"
+}

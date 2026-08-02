@@ -1,0 +1,443 @@
+{
+  "generated_files": [],
+  "generator": {
+    "name": "pyldraw3",
+    "version": "1.5.0"
+  },
+  "orphan_sections": [],
+  "root_section": "lpub-camera.ldr",
+  "schema_version": 1,
+  "sections": [
+    {
+      "is_root": true,
+      "name": "lpub-camera.ldr",
+      "references": [],
+      "steps": [
+        {
+          "added_bom": [
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 4,
+                "name": "Red",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 5,
+              "source_section": "lpub-camera.ldr"
+            }
+          ],
+          "artifacts": {},
+          "bounds": {
+            "max": [
+              10.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": [
+              20.0,
+              30.0
+            ],
+            "distance": null,
+            "fov": null,
+            "name": null,
+            "orthographic": null,
+            "position": [
+              100.0,
+              80.0,
+              120.0
+            ],
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 1,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 4,
+                "name": "Red",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 5,
+              "source_section": "lpub-camera.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {},
+              "kind": "unsupported_lpub",
+              "raw": "0 LPub camera and structural state",
+              "source_line": 1
+            },
+            {
+              "data": {
+                "context": "ASSEM",
+                "field": "angles",
+                "scope": "GLOBAL",
+                "value": [
+                  20.0,
+                  30.0
+                ]
+              },
+              "kind": "camera",
+              "raw": "0 LPUB ASSEM CAMERA_ANGLES GLOBAL 20 30",
+              "source_line": 2
+            },
+            {
+              "data": {
+                "context": "ASSEM",
+                "field": "position",
+                "scope": "LOCAL",
+                "value": [
+                  100.0,
+                  80.0,
+                  120.0
+                ]
+              },
+              "kind": "camera",
+              "raw": "0 LPUB ASSEM CAMERA_POSITION LOCAL 100 80 120",
+              "source_line": 3
+            },
+            {
+              "data": {},
+              "kind": "multi_step_begin",
+              "raw": "0 LPUB MULTI_STEP BEGIN",
+              "source_line": 4
+            },
+            {
+              "data": {},
+              "kind": "step",
+              "raw": "0 STEP",
+              "source_line": 6
+            }
+          ],
+          "geometry_warnings": [],
+          "multi_step_group": 1,
+          "number": 1,
+          "page_break_before": false,
+          "rotation": null,
+          "source_lines": [
+            1,
+            6
+          ],
+          "suppressed": false
+        },
+        {
+          "added_bom": [
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "added_occurrences": [
+            {
+              "colour": {
+                "code": 14,
+                "name": "Yellow",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                20.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 9,
+              "source_section": "lpub-camera.ldr"
+            }
+          ],
+          "artifacts": {},
+          "bounds": {
+            "max": [
+              30.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": [
+              20.0,
+              30.0
+            ],
+            "distance": null,
+            "fov": 45.0,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 2,
+          "direct_placements": [
+            {
+              "colour": {
+                "code": 14,
+                "name": "Yellow",
+                "rgb": null
+              },
+              "description": "Brick  1 x  1",
+              "matrix": [
+                [
+                  1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              ],
+              "part": "3005",
+              "position": [
+                20.0,
+                0.0,
+                0.0
+              ],
+              "reference": "3005.dat",
+              "source_line": 9,
+              "source_section": "lpub-camera.ldr"
+            }
+          ],
+          "directives": [
+            {
+              "data": {
+                "offset": null
+              },
+              "kind": "page_break",
+              "raw": "0 LPUB INSERT PAGE",
+              "source_line": 7
+            },
+            {
+              "data": {
+                "context": "ASSEM",
+                "field": "fov",
+                "scope": "GLOBAL",
+                "value": 45.0
+              },
+              "kind": "camera",
+              "raw": "0 LPUB ASSEM CAMERA_FOV GLOBAL 45",
+              "source_line": 8
+            },
+            {
+              "data": {},
+              "kind": "step",
+              "raw": "0 STEP",
+              "source_line": 10
+            }
+          ],
+          "geometry_warnings": [],
+          "multi_step_group": 1,
+          "number": 2,
+          "page_break_before": true,
+          "rotation": null,
+          "source_lines": [
+            7,
+            10
+          ],
+          "suppressed": false
+        },
+        {
+          "added_bom": [],
+          "added_occurrences": [],
+          "artifacts": {},
+          "bounds": {
+            "max": [
+              30.0,
+              24.0,
+              10.0
+            ],
+            "min": [
+              -10.0,
+              -4.0,
+              -10.0
+            ]
+          },
+          "callouts": [],
+          "camera": {
+            "angle_preset": null,
+            "angles": [
+              20.0,
+              30.0
+            ],
+            "distance": null,
+            "fov": 45.0,
+            "name": null,
+            "orthographic": null,
+            "position": null,
+            "target": null,
+            "up_vector": null,
+            "z_far": null,
+            "z_near": null
+          },
+          "cumulative_bom": [
+            {
+              "colour_code": 4,
+              "colour_name": "Red",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            },
+            {
+              "colour_code": 14,
+              "colour_name": "Yellow",
+              "description": "Brick  1 x  1",
+              "part": "3005",
+              "quantity": 1
+            }
+          ],
+          "cumulative_occurrence_count": 2,
+          "direct_placements": [],
+          "directives": [
+            {
+              "data": {},
+              "kind": "multi_step_end",
+              "raw": "0 LPUB MULTI_STEP END",
+              "source_line": 11
+            }
+          ],
+          "geometry_warnings": [],
+          "multi_step_group": null,
+          "number": 3,
+          "page_break_before": false,
+          "rotation": null,
+          "source_lines": [
+            11,
+            11
+          ],
+          "suppressed": false
+        }
+      ]
+    }
+  ],
+  "source": "<InstructionPipeline>/fixtures/valid/lpub-camera.ldr"
+}

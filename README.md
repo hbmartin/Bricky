@@ -1,69 +1,53 @@
 # Bricky
 
-An iOS app that uses AR, computer vision, and AI to scan and identify LEGO pieces in real-time, manage personal brick inventories, suggest builds based on available pieces, and share creations with a community of LEGO builders.
+Bricky is an iOS 17 instruction guide and AR recovery helper for authored LDraw
+models. Import an MPD or stepped LDR, align its 3D ghost with a physical build,
+capture three guided views to recover the last completed step, then continue
+through deterministic 3D and AR instructions.
 
-## Features
+## Product boundaries
 
-- **AR Brick Scanning** — Point your camera at LEGO pieces and identify them in real-time using Vision framework detection with confidence scoring and spatial tracking
-- **Inventory Management** — Organize scanned pieces by color, category, and dimensions; group pieces into storage bins with physical locations
-- **Build Suggestions** — AI-powered engine that recommends buildable projects based on your available inventory with match percentage calculations
-- **Mosaic Studio** *(Bricky Pro)* — Turn any photo into a buildable single-layer LEGO mosaic; the backend returns an LDraw model, step-by-step instructions PDF, and a complete parts list you can share
-- **Minifigure Detection** — Identify and catalog LEGO minifigures by anatomical parts (head, torso, arms, legs, accessories) using Azure AI and CoreML
-- **Piece & Set Catalog** — Browse the LEGO piece catalog with set information; track owned sets and completion status
-- **Community Sharing** — Post builds with photos, captions, and difficulty ratings; like and comment on others' creations
-- **Daily Challenges** — Daily build challenges with completion tracking and timing
-- **LiDAR Topographic Rendering** — 3D mesh visualization and pile geometry analysis on compatible devices
-- **Photo Scanning** — Scan static images as an alternative to live camera for inventory imports
-- **Scan History** — Geo-tagged scan sessions with reverse geocoding
-- **Color Calibration** — Camera color calibration wizard for more accurate piece identification
+- MPD and stepped LDR are the only instruction formats. PDF is never accepted.
+- `STEP` / `ROTSTEP` authorship is authoritative; Bricky never synthesizes an
+  assembly order.
+- Recovery and step checking run privately on-device with a pinned MLX VLM.
+- AR registration is manual and transient: place, translate, and yaw the ghost.
+- Catalog, inventory, community, games, Mosaic, SetForge, subscriptions, and
+  cloud inference are not part of this product.
 
-## Tech Stack
+## Architecture
 
-| Category | Technologies |
-|---|---|
-| UI | SwiftUI, NavigationStack |
-| AR & Vision | ARKit, Vision, AVFoundation |
-| AI & ML | Azure AI Services, CoreML |
-| Cloud & Sync | CloudKit, iCloud |
-| Sensors | LiDAR, CoreLocation, Camera |
-| Subscriptions | StoreKit |
+- Native Swift parser/planner with MPD sections, submodel instantiation,
+  transforms, BFC rendering, LPub camera state, provenance, and validation.
+- RealityKit geometry buffers shared by guide previews, recovery boards, and AR.
+- SwiftData metadata and model/image files in the new
+  `BrickyInstructionsV1` Application Support namespace.
+- Development-only [pyldraw3](https://github.com/hbmartin/pyldraw3) 1.5.0
+  golden manifests and snapshots under `Tools/InstructionPipeline`.
+- A narrow local `Packages/RecoveryMLX` package for the pinned VLM and guided
+  output grammars; `MLXFoundationModels` is excluded.
 
-## Requirements
+See [CONTEXT.md](CONTEXT.md) and [the ADRs](docs/adr) for contracts, evidence,
+release gates, and intentional exclusions.
 
-- iOS 17.0+
-- Xcode 16+
-- Swift 6
+## Build and test
 
-## Building
+Requirements: Xcode 16.4+ (Xcode 27 beta is also exercised), XcodeGen, iOS 17+,
+and Python 3.12+ with `uv` for development parity.
 
-1. Clone the repository
-2. Open `Bricky the Brick Scanner.xcodeproj` in Xcode
-3. Select your target device or simulator
-4. Build and run (⌘R)
-
-> **Note:** AR and LiDAR features require a physical device. Camera scanning requires a device with a camera.
-
-## Project Structure
-
-```
-Bricky/
-├── App/            # App entry point, config, root views
-├── Camera/         # AR and standard camera managers
-├── Extensions/     # Swift extensions and utilities
-├── Models/         # Data models (pieces, sets, projects, etc.)
-├── Resources/      # Assets, LDraw part library, localization
-├── Services/       # Business logic, persistence, API clients
-├── ViewModels/     # View models
-└── Views/          # SwiftUI views organized by feature
+```sh
+xcodegen generate
+xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation test
 ```
 
-## Documentation
+AR recovery, the production VLM warm-up, memory admission, and performance gates
+must be validated on physical iPhone/iPad hardware. The deterministic guide can
+be developed in the simulator.
 
-- [Architecture](docs/architecture.md) — App architecture and design patterns
-- [Features](docs/features.md) — Detailed feature descriptions and status
-- [Changelog](CHANGELOG.md) — Release history
-- [Contributing](CONTRIBUTING.md) — Development conventions and workflow
+## Licenses
 
-## License
-
-All rights reserved.
+Bricky is all rights reserved. pyldraw3 is a GPL-3.0-or-later development-only
+dependency and is not included in the app. The downloaded LDraw Parts Library
+is attributed under CC BY 2.0/4.0 in `Bricky/Resources/LDRAW_ATTRIBUTION.txt`.

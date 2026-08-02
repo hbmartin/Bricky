@@ -1,0 +1,9 @@
+0 FILE module.ldr
+0 Buildable repeated module
+1 14 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat
+1 16 0 -24 0 1 0 0 0 1 0 0 0 1 custom.dat
+0 NOFILE
+0 FILE custom.dat
+0 Atomic custom geometry
+3 16 -10 0 -10 10 0 -10 0 -24 10
+0 NOFILE

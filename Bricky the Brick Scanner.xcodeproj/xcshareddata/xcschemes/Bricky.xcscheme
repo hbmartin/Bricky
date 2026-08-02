@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1620"
-   version = "1.3">
+   LastUpgradeVersion = "2700"
+   version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -14,9 +15,37 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
+               BlueprintIdentifier = "14AD4874F285C4AF1408B5B2"
                BuildableName = "Bricky.app"
                BlueprintName = "Bricky"
+               ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D8AEB97C2A0D54D018047AD4"
+               BuildableName = "BrickyTests.xctest"
+               BlueprintName = "BrickyTests"
+               ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "44CC9FC7E6F9DB98F7110689"
+               BuildableName = "BrickyUITests.xctest"
+               BlueprintName = "BrickyUITests"
                ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -26,11 +55,12 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
+            BlueprintIdentifier = "14AD4874F285C4AF1408B5B2"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
             ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
@@ -42,23 +72,26 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A3F947E9F37A2CA3F47C23C7"
+               BlueprintIdentifier = "D8AEB97C2A0D54D018047AD4"
                BuildableName = "BrickyTests.xctest"
                BlueprintName = "BrickyTests"
                ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
-            skipped = "NO">
+            skipped = "NO"
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7181CD0E37D1DDC8F71737B2"
+               BlueprintIdentifier = "44CC9FC7E6F9DB98F7110689"
                BuildableName = "BrickyUITests.xctest"
                BlueprintName = "BrickyUITests"
                ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -74,15 +107,12 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
+            BlueprintIdentifier = "14AD4874F285C4AF1408B5B2"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
             ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <StoreKitConfigurationFileReference
-         identifier = "../../Bricky.storekit">
-      </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -94,7 +124,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FAA26B62F3E06E9AB9AB6710"
+            BlueprintIdentifier = "14AD4874F285C4AF1408B5B2"
             BuildableName = "Bricky.app"
             BlueprintName = "Bricky"
             ReferencedContainer = "container:Bricky the Brick Scanner.xcodeproj">

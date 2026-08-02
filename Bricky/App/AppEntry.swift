@@ -1,44 +1,42 @@
+import SwiftData
 import SwiftUI
 
 @main
 struct AppEntry: App {
-    @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var subscriptionManager = SubscriptionManager.shared
-    @StateObject private var analyticsService = AnalyticsService.shared
-    @StateObject private var authService = AuthenticationService.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var library = InstructionLibraryController()
+    @StateObject private var partPack = LDrawPartPackManager()
+    @StateObject private var recoveryModel = RecoveryModelManager()
+    private let modelContainer: ModelContainer
 
     init() {
-        // UI Testing support: skip onboarding if launch argument is set
-        if CommandLine.arguments.contains("--skip-onboarding") {
-            UserDefaults.standard.set(true, forKey: UserDefaultsKey.hasCompletedOnboarding)
+        do {
+            modelContainer = try InstructionPersistence.container()
+        } catch {
+            fatalError("Bricky could not open its new instruction library: \(error.localizedDescription)")
         }
-        if CommandLine.arguments.contains("--reset-onboarding") {
-            UserDefaults.standard.set(false, forKey: UserDefaultsKey.hasCompletedOnboarding)
-        }
-
-        // Boost URLCache so minifig thumbnails (and other CDN images) survive
-        // scroll recycling instead of re-fetching from the network each time.
-        let cache = URLCache(
-            memoryCapacity: 64 * 1024 * 1024,
-            diskCapacity: 512 * 1024 * 1024,
-            diskPath: AppConfig.urlCachePath
-        )
-        URLCache.shared = cache
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(themeManager.colorTheme.primary)
-                .preferredColorScheme(themeManager.appearanceMode.colorScheme)
-                .environmentObject(themeManager)
+                .environmentObject(library)
+                .environmentObject(partPack)
+                .environmentObject(recoveryModel)
                 .task {
-                    AnalyticsService.shared.track(.appLaunched)
-                    Task.detached(priority: .utility) {
-                        _ = LDrawLibrary.shared.isAvailable
+                    await partPack.checkInstalled()
+                    await recoveryModel.check()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase != .active {
+                        Task {
+                            // ✅ VERIFIED: cancel and await MLX generation before
+                            // suspension; outstanding Metal callbacks can abort.
+                            await recoveryModel.cancelAndAwait()
+                        }
                     }
-                    Task { await MinifigureCatalog.shared.load() }
                 }
         }
+        .modelContainer(modelContainer)
     }
 }

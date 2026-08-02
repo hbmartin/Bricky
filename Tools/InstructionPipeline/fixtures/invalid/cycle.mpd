@@ -1,0 +1,6 @@
+0 FILE main.ldr
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 child.ldr
+0 STEP
+0 FILE child.ldr
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 main.ldr
+0 STEP
