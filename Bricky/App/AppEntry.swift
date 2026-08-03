@@ -26,9 +26,14 @@ struct AppEntry: App {
                 .environmentObject(partPack)
                 .environmentObject(recoveryModel)
                 .task {
-                    await sweepOrphanedRecoveryWorkFiles()
+                    // The sweep only touches capture/board folders, which are
+                    // written strictly after model admission, so it can run
+                    // concurrently without delaying the part-pack and model
+                    // checks behind the milestone fetch.
+                    async let sweep: Void = sweepOrphanedRecoveryWorkFiles()
                     await partPack.checkInstalled()
                     await recoveryModel.check()
+                    await sweep
                 }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
@@ -62,7 +67,9 @@ struct AppEntry: App {
         guard let root = try? InstructionModelImporter.applicationSupportRoot() else { return }
         let referenced: Set<String>?
         do {
-            let records = try modelContainer.mainContext.fetch(FetchDescriptor<StepMilestoneRecord>())
+            var descriptor = FetchDescriptor<StepMilestoneRecord>()
+            descriptor.propertiesToFetch = [\.imageRelativePath]
+            let records = try modelContainer.mainContext.fetch(descriptor)
             referenced = Set(records.map(\.imageRelativePath))
         } catch {
             // A failed metadata fetch must never be interpreted as "nothing is

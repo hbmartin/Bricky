@@ -86,12 +86,7 @@ def step_index(step_id: object) -> int | None:
 
 
 def validate_release_corpus(rows: list[dict[str, object]]) -> None:
-    if len(rows) < MINIMUM_CORPUS_ROWS:
-        raise SystemExit(
-            f"corpus has {len(rows)} rows but release gates require at least "
-            f"{MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for schema/scorer "
-            "smoke data, never for release-gate metrics"
-        )
+    fixtures: set[str] = set()
     models: set[str] = set()
     variation: dict[str, set[str]] = {
         "lighting_condition": set(),
@@ -102,6 +97,10 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
         missing = sorted(RELEASE_FIELDS - row.keys())
         if missing:
             raise SystemExit(f"release row {index} missing fields: {', '.join(missing)}")
+        fixture_id = row.get("fixture_id")
+        if not isinstance(fixture_id, str) or not fixture_id.strip():
+            raise SystemExit(f"release row {index} fixture_id must be a non-empty string")
+        fixtures.add(fixture_id.strip())
         if row["physical_case"] is not True:
             raise SystemExit(f"release row {index} is not explicitly marked as a physical case")
         if row["legal_use_confirmed"] is not True:
@@ -122,6 +121,14 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             for step_id in slots.values()
         ):
             raise SystemExit(f"release row {index} has no explicitly represented adjacent-step candidate")
+    # Distinct fixtures, not raw rows: duplicated captures must not pad the
+    # corpus past the release gate.
+    if len(fixtures) < MINIMUM_CORPUS_ROWS:
+        raise SystemExit(
+            f"corpus has {len(fixtures)} distinct fixture IDs but release gates require "
+            f"at least {MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for "
+            "schema/scorer smoke data, never for release-gate metrics"
+        )
     if len(models) < MINIMUM_AUTHORED_MODELS:
         raise SystemExit(
             f"release corpus has {len(models)} authored models but requires at least "

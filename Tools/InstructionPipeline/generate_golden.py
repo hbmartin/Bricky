@@ -126,6 +126,9 @@ def has_explicit_step(fixture: Path) -> bool:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
         text = data.decode("iso-8859-1")
+    # Normalize CRLF and legacy CR-only line endings so the MULTILINE ^/$
+    # anchors see every line boundary.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     return bool(BOUNDARY_DIRECTIVE.search(text))
 
 

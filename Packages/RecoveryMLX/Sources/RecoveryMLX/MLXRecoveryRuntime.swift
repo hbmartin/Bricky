@@ -24,7 +24,7 @@ public enum MLXRecoveryError: LocalizedError {
 
 /// One serial, stateless inference lane backed by one ModelContainer.
 public actor MLXRecoveryRuntime {
-    private static let rankSchema = #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":["A","B","C","D","E","F","G","H"]},"maxItems":8,"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
+    private static let rankSchema = #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":["A","B","C","D","E","F","G","H"]},"minItems":1,"maxItems":8,"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
     private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
 
     /// Bounded Metal buffer cache for iOS. MLX otherwise defaults the cache

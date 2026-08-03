@@ -35,3 +35,13 @@ xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
 MLX or AR changes also require physical-device benchmark rows. Do not lower an
 admission threshold or add a custom Metal/TensorOps kernel without an Instruments
 trace, representative benchmark, numerical tolerance, and end-to-end gain.
+
+## Agent skills
+
+Installed skill copies (`.claude/skills/`, `.agents/skills/`) are not
+committed; `skills-lock.json` is the source of truth. The lock records no
+commit or tag, so on a clean install `computedHash` is the content lock:
+after reinstalling with the Skills CLI, verify each installed skill hashes
+to its `computedHash` entry and treat any mismatch as a failed install —
+re-vendor the skill deliberately instead of trusting whatever the source
+branch currently serves.

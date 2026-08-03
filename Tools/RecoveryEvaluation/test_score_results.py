@@ -45,11 +45,13 @@ class RowValidationTests(unittest.TestCase):
 
 
 class ReleaseCorpusValidationTests(unittest.TestCase):
-    def test_complete_physical_corpus_passes_preflight(self) -> None:
-        rows = []
+    @staticmethod
+    def release_rows(fixture_id: str | None = None) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
         for index in range(150):
             row = benchmark_row()
             row.update(
+                fixture_id=fixture_id or f"fixture-{index}",
                 physical_case=True,
                 authored_model_id=f"model-{index % 10}",
                 legal_use_confirmed=True,
@@ -58,8 +60,16 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
                 occlusion_condition="none" if index % 2 else "partial",
             )
             rows.append(row)
+        return rows
+
+    def test_complete_physical_corpus_passes_preflight(self) -> None:
+        rows = self.release_rows()
         validate_rows(rows)
         validate_release_corpus(rows)
+
+    def test_duplicated_fixture_ids_fail_preflight(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "distinct fixture IDs"):
+            validate_release_corpus(self.release_rows(fixture_id="fixture-repeated"))
 
     def test_release_row_requires_explicit_provenance(self) -> None:
         rows = [benchmark_row() for _ in range(150)]
