@@ -12,6 +12,7 @@
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
 		24FC629139DC3A7503590BED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846C324539715D80A41F6F3 /* ContentView.swift */; };
+		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
 		37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */; };
@@ -77,6 +78,7 @@
 		53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawPartPackManager.swift; sourceTree = "<group>"; };
 		55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionLibraryController.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
+		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
 		5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanBuilder.swift; sourceTree = "<group>"; };
 		61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealityKitInstructionAdapter.swift; sourceTree = "<group>"; };
 		6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawInstructionParser.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 				E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */,
 				D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */,
 				3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */,
+				5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */,
 				05743035E70D88A405DCEE91 /* SwiftParityTests.swift */,
 			);
 			path = BrickyTests;
@@ -413,6 +416,7 @@
 				7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */,
 				87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */,
 				37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */,
+				271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */,
 				9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

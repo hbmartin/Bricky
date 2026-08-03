@@ -64,25 +64,30 @@ final class SwiftParityTests: XCTestCase {
         }
 
         // Bill-of-materials parity: the oracle's final cumulative BOM on the
-        // root section covers the fully expanded model, so per-instance
-        // submodel multiplicities must match the native document BOM. The
-        // oracle resolves inherited colour 16 per expanded instance while the
-        // native BOM keys the authored colour code, so quantities are
-        // compared per part, summed across colours.
+        // root section covers the fully expanded model, including inherited
+        // colours resolved independently for each submodel instance.
         let oracleRoot = try XCTUnwrap(
             oracle.sections.first(where: \.isRoot),
             "Golden manifest for ‘\(fixture)’ has no root section",
             file: file,
             line: line
         )
+        let oracleFinalStep = try XCTUnwrap(
+            oracleRoot.steps.last,
+            "Golden root section for ‘\(fixture)’ has no authored steps",
+            file: file,
+            line: line
+        )
         var oracleQuantities: [String: Int] = [:]
-        for entry in oracleRoot.steps.last?.cumulativeBOM ?? [] {
-            oracleQuantities[entry.part.lowercased(), default: 0] += entry.quantity
+        for entry in oracleFinalStep.cumulativeBOM {
+            let key = "\(entry.part.lowercased())|\(entry.colourCode)"
+            oracleQuantities[key, default: 0] += entry.quantity
         }
         var nativeQuantities: [String: Int] = [:]
         for entry in document.billOfMaterials {
             let stem = (entry.partReference as NSString).deletingPathExtension.lowercased()
-            nativeQuantities[stem, default: 0] += entry.quantity
+            let key = "\(stem)|\(entry.colorCode)"
+            nativeQuantities[key, default: 0] += entry.quantity
         }
         XCTAssertEqual(nativeQuantities, oracleQuantities, file: file, line: line)
 

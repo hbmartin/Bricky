@@ -64,3 +64,11 @@ BrickyTests/GroundTruth/reports/*.md
 
 # Agent Dashboard temp images
 .agent-dashboard/
+
+# Claude Code machine-local settings
+.claude/settings.local.json
+
+# Installed agent-skill copies — skills-lock.json is the source of truth;
+# reinstall from the lock instead of committing the materialized files.
+.claude/skills/
+.agents/skills/

@@ -141,37 +141,51 @@ struct LDrawInstructionParser {
             return lhsRank == rhsRank ? $0.normalizedName < $1.normalizedName : lhsRank < rhsRank
         }
 
-        // The bill of materials counts every expanded instance: a stepped
-        // submodel placed N times contributes N copies of its parts. Instance
-        // counts are a DP over the (cycle-checked) reachable section DAG.
+        // The bill of materials counts every expanded instance and resolves
+        // inherited colour 16 through each parent placement. Instance counts
+        // are a DP over the (cycle-checked) reachable section DAG, keyed by the
+        // colour inherited by that particular section instance.
         let sectionsByName = Dictionary(uniqueKeysWithValues: sections.map { ($0.normalizedName, $0) })
-        var instanceCounts: [String: Int] = [rootName: 1]
+        var instanceCounts: [String: [Int: Int]] = [rootName: [16: 1]]
+        var totalInstanceCounts: [String: Int] = [rootName: 1]
         for name in topologicalOrder(from: rootName, sectionsByName: sectionsByName, buildableNames: buildableNames) {
-            let count = instanceCounts[name, default: 0]
-            guard count > 0, let section = sectionsByName[name] else { continue }
-            for placement in section.steps.flatMap(\.directPlacements) {
-                let child = Self.normalizedName(placement.partReference)
-                guard buildableNames.contains(child) else { continue }
-                let (updated, overflow) = instanceCounts[child, default: 0].addingReportingOverflow(count)
-                guard !overflow, updated <= InstructionLimits.maximumPlacements else {
-                    throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+            guard let inheritedCounts = instanceCounts[name],
+                  let section = sectionsByName[name] else { continue }
+            for (inheritedColor, count) in inheritedCounts where count > 0 {
+                for placement in section.steps.flatMap(\.directPlacements) {
+                    let child = Self.normalizedName(placement.partReference)
+                    guard buildableNames.contains(child) else { continue }
+                    let childColor = placement.colorCode == 16 ? inheritedColor : placement.colorCode
+                    let currentColorCount = instanceCounts[child, default: [:]][childColor, default: 0]
+                    let (updatedColorCount, colorOverflow) = currentColorCount.addingReportingOverflow(count)
+                    let (updatedTotal, totalOverflow) = totalInstanceCounts[child, default: 0].addingReportingOverflow(count)
+                    guard !colorOverflow, !totalOverflow,
+                          updatedTotal <= InstructionLimits.maximumPlacements else {
+                        throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+                    }
+                    instanceCounts[child, default: [:]][childColor] = updatedColorCount
+                    totalInstanceCounts[child] = updatedTotal
                 }
-                instanceCounts[child] = updated
             }
         }
 
         var quantities: [BOMKey: Int] = [:]
         for section in sections where reachable.contains(section.normalizedName) {
-            let multiplier = instanceCounts[section.normalizedName, default: 0]
-            guard multiplier > 0 else { continue }
-            for placement in section.steps.flatMap(\.directPlacements)
-            where !buildableNames.contains(Self.normalizedName(placement.partReference)) {
-                let key = BOMKey(reference: Self.normalizedName(placement.partReference), colorCode: placement.colorCode)
-                let (updated, overflow) = quantities[key, default: 0].addingReportingOverflow(multiplier)
-                guard !overflow, updated <= InstructionLimits.maximumPlacements else {
-                    throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+            for (inheritedColor, multiplier) in instanceCounts[section.normalizedName, default: [:]]
+            where multiplier > 0 {
+                for placement in section.steps.flatMap(\.directPlacements)
+                where !buildableNames.contains(Self.normalizedName(placement.partReference)) {
+                    let resolvedColor = placement.colorCode == 16 ? inheritedColor : placement.colorCode
+                    let key = BOMKey(
+                        reference: Self.normalizedName(placement.partReference),
+                        colorCode: resolvedColor
+                    )
+                    let (updated, overflow) = quantities[key, default: 0].addingReportingOverflow(multiplier)
+                    guard !overflow, updated <= InstructionLimits.maximumPlacements else {
+                        throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+                    }
+                    quantities[key] = updated
                 }
-                quantities[key] = updated
             }
         }
         let bom = quantities
@@ -503,18 +517,37 @@ struct LDrawInstructionParser {
     /// (`\r`) line endings normalized first, so `\r\n` counts as one line and
     /// reported line numbers match the authored file.
     static func splitLines(_ text: String) -> [String] {
-        text.replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
+        var lines: [String] = []
+        var lineStart = text.startIndex
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            // Swift treats CRLF as one extended grapheme cluster, so match it
+            // explicitly alongside lone CR and LF characters.
+            guard character == "\r" || character == "\n" || character == "\r\n" else {
+                index = text.index(after: index)
+                continue
+            }
+            lines.append(String(text[lineStart..<index]))
+            let next = text.index(after: index)
+            lineStart = next
+            index = next
+        }
+        lines.append(String(text[lineStart...]))
+        return lines
     }
 
     /// Parses an LDraw colour token: a decimal palette code, or a direct
     /// colour such as `0x2RRGGBB` whose value is the literal hex integer.
     static func colorCode(_ token: String) -> Int? {
-        if let decimal = Int(token) { return decimal }
+        if let decimal = Int(token) {
+            return (0...0x4FF_FFFF).contains(decimal) ? decimal : nil
+        }
         let lowered = token.lowercased()
-        guard lowered.hasPrefix("0x") else { return nil }
-        return Int(lowered.dropFirst(2), radix: 16)
+        guard lowered.hasPrefix("0x"),
+              let direct = Int(lowered.dropFirst(2), radix: 16),
+              (0...0x4FF_FFFF).contains(direct) else { return nil }
+        return direct
     }
 
     static func normalizeReference(_ reference: String) throws -> String {

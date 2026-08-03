@@ -179,7 +179,7 @@ private struct GuidePreviewView: View {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
             let engine = LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPackRoot)
-            let completed = Array(plan.placementTimeline[..<step.addedPlacementRange.lowerBound])
+            let completed = Array(plan.completedPlacements(before: step))
             let additions = Array(plan.addedPlacements(for: step))
             let completedSnapshot = try await engine.snapshot(placements: completed)
             let additionSnapshot = try await engine.snapshot(placements: additions)

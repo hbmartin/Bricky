@@ -67,6 +67,10 @@ struct RecoveryCaptureService {
             imageRelativePath: "RecoveryCaptures/\(filename)",
             cameraTransform: Self.flatten(frame.camera.transform),
             cameraIntrinsics: Self.flatten(frame.camera.intrinsics),
+            cameraImageResolution: [
+                Float(frame.camera.imageResolution.width),
+                Float(frame.camera.imageResolution.height)
+            ],
             alignmentID: alignmentID,
             angle: angle,
             capturedAt: .now
@@ -79,5 +83,18 @@ struct RecoveryCaptureService {
 
     private static func flatten(_ matrix: simd_float3x3) -> [Float] {
         (0..<3).flatMap { column in (0..<3).map { row in matrix[column][row] } }
+    }
+}
+
+enum RecoveryWorkFileCleanup {
+    static func remove(relativePaths: [String]) {
+        guard let root = try? InstructionModelImporter.applicationSupportRoot() else { return }
+        remove(urls: relativePaths.map { root.appendingPathComponent($0) })
+    }
+
+    static func remove(urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }

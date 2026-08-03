@@ -131,7 +131,10 @@ final class InstructionParserTests: XCTestCase {
             rootRelativePath: "repeated.mpd"
         )
 
-        XCTAssertEqual(document.billOfMaterials, [BOMEntry(partReference: "3005.dat", colorCode: 16, quantity: 2)])
+        XCTAssertEqual(document.billOfMaterials, [
+            BOMEntry(partReference: "3005.dat", colorCode: 1, quantity: 1),
+            BOMEntry(partReference: "3005.dat", colorCode: 4, quantity: 1)
+        ])
     }
 
     func testDirectColourPlacementImportsWithoutDiagnostics() throws {
@@ -153,6 +156,18 @@ final class InstructionParserTests: XCTestCase {
         XCTAssertEqual(green, CGFloat(0x88) / 255, accuracy: 0.001)
         XCTAssertEqual(blue, 0, accuracy: 0.001)
         XCTAssertEqual(alpha, 1)
+    }
+
+    func testRejectsNegativeOversizedAndMalformedColourTokens() throws {
+        for token in ["-1", "9999999999", "0x5000000", "0xFFFFFFFF"] {
+            let source = "1 \(token) 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat\n0 STEP\n"
+            let document = try LDrawInstructionParser().parse(
+                files: [.init(relativePath: "invalid-color.ldr", data: Data(source.utf8))],
+                rootRelativePath: "invalid-color.ldr"
+            )
+            XCTAssertEqual(document.diagnostics.first?.code, "invalid-type-1", "Token should fail: \(token)")
+            XCTAssertTrue(document.billOfMaterials.isEmpty)
+        }
     }
 
     func testCRLFSourceReportsSameLineNumbersAsLF() throws {

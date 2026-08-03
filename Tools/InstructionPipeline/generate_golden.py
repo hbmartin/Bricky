@@ -115,11 +115,18 @@ def normalized(value: object, roots: list[Path]) -> object:
     return value
 
 
-STEP_DIRECTIVE = re.compile(r"^\s*0\s+STEP\s*$", re.IGNORECASE | re.MULTILINE)
+BOUNDARY_DIRECTIVE = re.compile(
+    r"^\s*0\s+(?:STEP\s*|ROTSTEP(?:\s+.*)?)$", re.IGNORECASE | re.MULTILINE
+)
 
 
 def has_explicit_step(fixture: Path) -> bool:
-    return bool(STEP_DIRECTIVE.search(fixture.read_text()))
+    data = fixture.read_bytes()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("iso-8859-1")
+    return bool(BOUNDARY_DIRECTIVE.search(text))
 
 
 def reject_invalid_fixtures(environment: dict[str, str]) -> None:
@@ -176,7 +183,7 @@ def generate(arguments: argparse.Namespace, ldraw_root: Path, environment: dict[
             continue
         if not has_explicit_step(fixture):
             raise SystemExit(
-                f"valid fixture {fixture.name} has no explicit '0 STEP'; "
+                f"valid fixture {fixture.name} has no explicit '0 STEP' or '0 ROTSTEP'; "
                 "unstepped models are not instructions"
             )
         output = generated / fixture.stem

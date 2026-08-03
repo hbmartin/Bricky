@@ -23,6 +23,7 @@ struct RecoveryFlowView: View {
     @State private var selectedCompletedCount = 0
     @State private var errorMessage: String?
     @State private var analysisTask: Task<Void, Never>?
+    @State private var analysisGeneration = UUID()
     @State private var warmUpAttempt = 0
 
     enum Phase { case alignment, capture, analyzing, result }
@@ -56,9 +57,7 @@ struct RecoveryFlowView: View {
         .task { await load() }
         .onDisappear {
             camera.stopSession()
-            analysisTask?.cancel()
-            analysisTask = nil
-            removeUnretainedCaptures()
+            cancelAnalysisAndDiscardCaptures()
             estimate = nil
             // Re-entry re-runs the session with reset options, which starts a
             // new world frame; a surviving alignment would be a stale ghost
@@ -70,7 +69,8 @@ struct RecoveryFlowView: View {
         .onChange(of: camera.trackingState) { _, state in
             if case .notAvailable = state, alignment.alignment != nil {
                 alignment.trackingLost()
-                removeUnretainedCaptures()
+                cancelAnalysisAndDiscardCaptures()
+                estimate = nil
                 phase = .alignment
             }
         }
@@ -139,7 +139,7 @@ struct RecoveryFlowView: View {
                         .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
                     Spacer()
                     if alignment.alignment == nil {
-                        Button("Place Ghost Here") { placeGhost(proxy: proxy) }
+                        Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
                     } else {
                         VStack {
@@ -180,7 +180,7 @@ struct RecoveryFlowView: View {
                     // retained; offer an explicit retry instead of a fourth
                     // capture that could never trigger analysis.
                     HStack {
-                        Button("Retake Views", systemImage: "arrow.counterclockwise") { removeUnretainedCaptures() }
+                        Button("Retake Views", systemImage: "arrow.counterclockwise") { cancelAnalysisAndDiscardCaptures() }
                             .buttonStyle(.bordered)
                         Button("Retry Analysis", systemImage: "sparkle.magnifyingglass") { analyze() }
                             .buttonStyle(.borderedProminent)
@@ -249,23 +249,6 @@ struct RecoveryFlowView: View {
         return try await LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPack).snapshot(placements: plan.placementTimeline)
     }
 
-    private func placeGhost(proxy: GeometryProxy) {
-        // The AR preview ignores the safe area, so it spans the full window
-        // while the GeometryReader (and the centered reticle) only cover the
-        // safe area. Express the reticle's position and the viewport in the
-        // AR view's window-sized coordinate space.
-        let frame = proxy.frame(in: .global)
-        let viewport = CGSize(
-            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
-            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
-        )
-        alignment.placeGhost(
-            manager: camera,
-            viewport: viewport,
-            screenPoint: CGPoint(x: frame.midX, y: frame.midY)
-        )
-    }
-
     private func capture(angle: CaptureAngle) {
         guard let alignmentID = alignment.alignment?.id else { phase = .alignment; return }
         guard captures.count < 3 else { return }
@@ -280,16 +263,22 @@ struct RecoveryFlowView: View {
               let modelDirectory = recoveryModel.modelDirectory,
               let partPackRoot = partPack.libraryURL else { return }
         phase = .analyzing
-        analysisTask?.cancel()
+        let previous = analysisTask
+        previous?.cancel()
+        let generation = UUID()
+        analysisGeneration = generation
         let capturedViews = captures
         let task = Task {
+            await previous?.value
             do {
+                try Task.checkCancellation()
                 let estimator = HierarchicalRecoveryEstimator(
                     runtime: recoveryModel.runtime,
                     modelDirectory: modelDirectory,
                     partPackRoot: partPackRoot
                 )
                 let value = try await estimator.estimate(captures: capturedViews, model: plan, alignment: currentAlignment)
+                guard generation == analysisGeneration, !Task.isCancelled else { return }
                 estimate = value
                 if let best = value.rankedStepIDs.first {
                     if best == plan.stepZeroID { selectedCompletedCount = 0 }
@@ -297,9 +286,9 @@ struct RecoveryFlowView: View {
                 }
                 phase = .result
             } catch is CancellationError {
-                // Cancelled by navigation or suspension; onDisappear resets
-                // the transient flow state.
+                if generation == analysisGeneration { phase = .capture }
             } catch {
+                guard generation == analysisGeneration else { return }
                 errorMessage = error.localizedDescription
                 phase = .capture
             }
@@ -320,7 +309,8 @@ struct RecoveryFlowView: View {
             phase = .alignment
             return
         }
-        let completedStep = selectedCompletedCount == 0 ? nil : plan.steps[selectedCompletedCount - 1]
+        let completedCount = min(max(0, selectedCompletedCount), plan.steps.count)
+        let completedStep = completedCount == 0 ? nil : plan.steps[completedCount - 1]
         let modelID = model.id
         let descriptor = FetchDescriptor<StepMilestoneRecord>(predicate: #Predicate {
             $0.modelID == modelID && $0.isInitialRecoveryView
@@ -357,11 +347,11 @@ struct RecoveryFlowView: View {
         }
 
         model.confirmedLastCompletedStepID = completedStep?.id
-        model.currentStepIndex = min(selectedCompletedCount, plan.steps.count)
+        model.currentStepIndex = completedCount
         model.lastOpenedAt = .now
         let session = RecoverySessionRecord(modelID: model.id)
         session.confirmedLastCompletedStepID = completedStep?.id
-        session.nextTargetStepID = selectedCompletedCount < plan.steps.count ? plan.steps[selectedCompletedCount].id : nil
+        session.nextTargetStepID = completedCount < plan.steps.count ? plan.steps[completedCount].id : nil
         session.modelRevision = estimate?.modelRevision
         session.certaintyRawValue = estimate?.certainty.rawValue
         context.insert(session)
@@ -372,13 +362,19 @@ struct RecoveryFlowView: View {
         onFinished?()
     }
 
-    private func removeUnretainedCaptures() {
-        if let root = try? InstructionModelImporter.applicationSupportRoot() {
-            for capture in captures {
-                try? FileManager.default.removeItem(at: root.appendingPathComponent(capture.imageRelativePath))
-            }
-        }
+    /// Invalidates stale UI updates immediately, then waits for all capture
+    /// readers to stop before deleting their backing files.
+    private func cancelAnalysisAndDiscardCaptures() {
+        analysisGeneration = UUID()
+        let task = analysisTask
+        analysisTask = nil
+        task?.cancel()
+        let paths = captures.map(\.imageRelativePath)
         captures.removeAll()
+        Task.detached(priority: .utility) {
+            await task?.value
+            RecoveryWorkFileCleanup.remove(relativePaths: paths)
+        }
     }
 
     private func captureInstruction(_ angle: CaptureAngle) -> String {

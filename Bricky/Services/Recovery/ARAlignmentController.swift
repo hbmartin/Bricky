@@ -22,6 +22,21 @@ final class ARAlignmentController: ObservableObject {
         guidance = "Drag the controls until the ghost matches the physical build."
     }
 
+    /// Converts a safe-area-sized GeometryReader into the full-window
+    /// coordinate space used by the AR overlay and its centered reticle.
+    func placeGhost(manager: ARCameraManager, proxy: GeometryProxy) {
+        let frame = proxy.frame(in: .global)
+        let viewport = CGSize(
+            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
+            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+        )
+        placeGhost(
+            manager: manager,
+            viewport: viewport,
+            screenPoint: CGPoint(x: frame.midX, y: frame.midY)
+        )
+    }
+
     func nudge(x: Float = 0, z: Float = 0, yawDegrees: Float = 0) {
         guard var alignment else { return }
         var translation = matrix_identity_float4x4

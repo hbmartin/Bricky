@@ -39,3 +39,11 @@ The release corpus must contain at least 150 physical cases from at least 10
 legally usable authored models, with adjacent steps, varied lighting, angles,
 and occlusion represented explicitly. Release-gate runs must never use
 `--allow-small-corpus`.
+
+Every release row therefore also includes `physical_case: true`, a stable
+`authored_model_id`, `legal_use_confirmed: true`, and non-empty
+`lighting_condition`, `capture_angle`, and `occlusion_condition` labels. Each
+row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
+the scorer requires at least two distinct labels for each variation dimension
+and at least 10 distinct authored model IDs. `top_step_index` may be omitted or
+null only when `certainty` is `insufficient`.

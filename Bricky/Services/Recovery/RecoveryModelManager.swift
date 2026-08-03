@@ -41,7 +41,9 @@ final class RecoveryModelManager: ObservableObject {
 
     let runtime = MLXRecoveryRuntime()
     private let downloader = VerifiedAssetDownloader()
+    private enum WorkKind { case download, warmUp }
     private var workTask: Task<Void, Never>?
+    private var workKind: WorkKind?
     private var trackedInference: [UUID: Task<Void, Never>] = [:]
 
     var modelDirectory: URL? {
@@ -78,17 +80,13 @@ final class RecoveryModelManager: ObservableObject {
                     // Completed assets are published only after verification;
                     // a now-invalid destination is corrupt and not resumable.
                     try? FileManager.default.removeItem(at: url)
-                    let partial = url.appendingPathExtension("partial")
-                    let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-                    missingBytes += max(0, asset.bytes - partialBytes)
+                    missingBytes += Self.creditedMissingBytes(expectedBytes: asset.bytes, destination: url)
                 }
             } catch {
                 // Align with the !isValid branch: the destination is gone,
                 // but a resumable .partial still credits its bytes.
                 try? FileManager.default.removeItem(at: url)
-                let partial = url.appendingPathExtension("partial")
-                let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-                missingBytes += max(0, asset.bytes - partialBytes)
+                missingBytes += Self.creditedMissingBytes(expectedBytes: asset.bytes, destination: url)
             }
         }
         if missingBytes == 0 {
@@ -106,12 +104,14 @@ final class RecoveryModelManager: ObservableObject {
 
     func download() {
         workTask?.cancel()
+        workKind = .download
         workTask = Task { [weak self] in await self?.performDownload() }
     }
 
     func warmUpWhileARIsActive() {
         guard case .warming = state else { return }
         workTask?.cancel()
+        workKind = .warmUp
         workTask = Task { [weak self] in await self?.performWarmUp() }
     }
 
@@ -129,14 +129,24 @@ final class RecoveryModelManager: ObservableObject {
 
     func cancelAndAwait() async {
         workTask?.cancel()
-        let inference = trackedInference
-        for task in inference.values { task.cancel() }
         await workTask?.value
-        for (id, task) in inference {
-            await task.value
-            trackedInference[id] = nil
-        }
         workTask = nil
+        workKind = nil
+        await drainTrackedInference()
+        await runtime.unload()
+        if case .admitted = state { state = .warming }
+    }
+
+    /// Drains only model work during `.inactive`; an in-progress multi-GB
+    /// download remains resumable unless the scene actually backgrounds.
+    func suspendInferenceAndAwait() async {
+        if workKind == .warmUp {
+            workTask?.cancel()
+            await workTask?.value
+            workTask = nil
+            workKind = nil
+        }
+        await drainTrackedInference()
         await runtime.unload()
         if case .admitted = state { state = .warming }
     }
@@ -225,11 +235,24 @@ final class RecoveryModelManager: ObservableObject {
                size == asset.bytes {
                 continue
             }
-            let partial = destination.appendingPathExtension("partial")
-            let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-            missing += max(0, asset.bytes - partialBytes)
+            missing += Self.creditedMissingBytes(expectedBytes: asset.bytes, destination: destination)
         }
         return missing
+    }
+
+    private func drainTrackedInference() async {
+        let inference = trackedInference
+        for task in inference.values { task.cancel() }
+        for (id, task) in inference {
+            await task.value
+            trackedInference[id] = nil
+        }
+    }
+
+    private static func creditedMissingBytes(expectedBytes: Int64, destination: URL) -> Int64 {
+        let partial = destination.appendingPathExtension("partial")
+        let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        return max(0, expectedBytes - partialBytes)
     }
 
     private func updateDownloadProgress(

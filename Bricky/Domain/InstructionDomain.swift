@@ -238,6 +238,11 @@ struct InstructionPlan: Identifiable, Codable, Hashable, Sendable {
     func cumulativePlacements(through step: AuthoredStep) -> ArraySlice<PartPlacement> {
         placementTimeline[0..<min(max(0, step.cumulativePlacementCount), placementTimeline.count)]
     }
+
+    func completedPlacements(before step: AuthoredStep) -> ArraySlice<PartPlacement> {
+        let upper = min(max(0, step.addedPlacementRange.lowerBound), placementTimeline.count)
+        return placementTimeline[0..<upper]
+    }
 }
 
 enum RecoveryCertainty: String, Codable, Sendable {
@@ -252,6 +257,8 @@ struct RecoveryCapture: Identifiable, Codable, Hashable, Sendable {
     let imageRelativePath: String
     let cameraTransform: [Float]
     let cameraIntrinsics: [Float]
+    /// Native landscape-sensor pixel dimensions corresponding to intrinsics.
+    let cameraImageResolution: [Float]
     let alignmentID: UUID
     let angle: CaptureAngle
     let capturedAt: Date
@@ -332,6 +339,12 @@ struct RecoveryBenchmarkV1: Codable, Sendable {
     let latencyMilliseconds: Int
     let memoryPeakBytes: Int64
     let topStepIndex: Int?
+    let physicalCase: Bool?
+    let authoredModelID: String?
+    let legalUseConfirmed: Bool?
+    let lightingCondition: String?
+    let captureAngle: String?
+    let occlusionCondition: String?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -351,5 +364,11 @@ struct RecoveryBenchmarkV1: Codable, Sendable {
         case latencyMilliseconds = "latency_ms"
         case memoryPeakBytes = "memory_peak_bytes"
         case topStepIndex = "top_step_index"
+        case physicalCase = "physical_case"
+        case authoredModelID = "authored_model_id"
+        case legalUseConfirmed = "legal_use_confirmed"
+        case lightingCondition = "lighting_condition"
+        case captureAngle = "capture_angle"
+        case occlusionCondition = "occlusion_condition"
     }
 }
