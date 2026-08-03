@@ -1,0 +1,10 @@
+[project]
+name = "bricky-instruction-pipeline"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+  "pyldraw3 @ git+https://github.com/hbmartin/pyldraw3.git@61ebb868f3899eb052522576b73677111828e828",
+]
+
+[tool.uv]
+package = false

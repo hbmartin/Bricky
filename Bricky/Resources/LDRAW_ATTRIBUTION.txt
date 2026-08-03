@@ -1,0 +1,10 @@
+Bricky uses the LDraw Parts Library 2026-07.
+
+LDraw.org parts are redistributed under the Creative Commons Attribution 2.0
+and Creative Commons Attribution 4.0 licenses according to the library's
+official licensing statement. LDraw is a trademark of the LDraw.org Standards
+Committee. Bricky is not sponsored, endorsed, or authorized by the LEGO Group.
+
+Library release and notices: https://library.ldraw.org/updates
+CC BY 2.0: https://creativecommons.org/licenses/by/2.0/
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/

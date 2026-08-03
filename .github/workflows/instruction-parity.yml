@@ -1,0 +1,45 @@
+name: Instruction parity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pyldraw-golden:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Fetch pinned LDraw release asset
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/complete.zip" \
+            https://github.com/hbmartin/Bricky/releases/download/ldraw-2026-07/complete.zip
+          test "$(wc -c < "$RUNNER_TEMP/complete.zip" | tr -d ' ')" = 144722356
+          test "$(shasum -a 256 "$RUNNER_TEMP/complete.zip" | awk '{print $1}')" = 6009f2e94204c4d3a63a4c812010b5c90bad8c5acb19b882c859fdac63734eae
+          ditto -x -k "$RUNNER_TEMP/complete.zip" "$RUNNER_TEMP/part-pack"
+      - name: Regenerate normalized schema-v1 corpus
+        working-directory: Tools/InstructionPipeline
+        run: |
+          uv sync --frozen
+          uv run python generate_golden.py --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" --check
+
+  swift-parity:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build and run native parity tests
+        run: |
+          xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
+            -parallel-testing-enabled NO test -only-testing:BrickyTests

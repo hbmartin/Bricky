@@ -1,64 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.bricky.auth</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>bricky</string>
-			</array>
-		</dict>
-	</array>
-	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan and identify your LEGO pieces.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app uses the microphone so you can describe a set out loud when forging a new brick model.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>This app transcribes your spoken description on-device to forge a new brick set from it.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app tags your scans with where you found pieces so you can find them later — like 'at my friend's house.' Coordinates are stored only on your device.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to import images of your LEGO pieces.</string>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>AccentColor</string>
-		<key>UIImageName</key>
-		<string>AppIcon</string>
-	</dict>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-</dict>
-</plist>
+<plist version="1.0"><dict>
+<key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+<key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>LDraw Instruction Model</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Owner</string><key>LSItemContentTypes</key><array><string>org.ldraw.mpd</string><string>org.ldraw.ldr</string></array></dict></array>
+<key>UTImportedTypeDeclarations</key><array>
+<dict><key>UTTypeConformsTo</key><array><string>public.plain-text</string></array><key>UTTypeDescription</key><string>LDraw Multi-Part Document</string><key>UTTypeIdentifier</key><string>org.ldraw.mpd</string><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>mpd</string></array></dict></dict>
+<dict><key>UTTypeConformsTo</key><array><string>public.plain-text</string></array><key>UTTypeDescription</key><string>LDraw Model</string><key>UTTypeIdentifier</key><string>org.ldraw.ldr</string><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>ldr</string></array></dict></dict>
+</array>
+<key>LSSupportsOpeningDocumentsInPlace</key><true/>
+<key>NSCameraUsageDescription</key><string>Bricky uses the camera to align authored 3D instructions and privately compare your physical build with its steps.</string>
+<key>UILaunchScreen</key><dict><key>UIColorName</key><string>AccentColor</string><key>UIImageName</key><string>AppIcon</string></dict>
+<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+</dict></plist>
