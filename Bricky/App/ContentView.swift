@@ -20,7 +20,7 @@ struct ContentView: View {
 
             NavigationStack {
                 if let model = models.first {
-                    RecoveryFlowView(model: model)
+                    RecoveryFlowView(model: model, onFinished: { selection = .guide })
                 } else {
                     EmptyLibraryView(action: { selection = .library })
                 }

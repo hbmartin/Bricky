@@ -25,8 +25,14 @@ enum RealityKitInstructionAdapter {
 }
 
 enum LDrawPalette {
+    /// Direct colours (`0x2RRGGBB`) carry their RGB value in the low 24 bits;
+    /// codes at or above this threshold bypass the palette lookup.
+    private static let directColorThreshold = 0x2000000
+
     static func color(_ code: Int) -> UIColor {
-        let rgb: UInt32 = colors[code] ?? 0x8E8E93
+        let rgb: UInt32 = code >= directColorThreshold
+            ? UInt32(code & 0xFFFFFF)
+            : colors[code] ?? 0x8E8E93
         return UIColor(
             red: CGFloat((rgb >> 16) & 0xff) / 255,
             green: CGFloat((rgb >> 8) & 0xff) / 255,

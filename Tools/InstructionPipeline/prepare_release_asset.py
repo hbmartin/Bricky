@@ -52,6 +52,7 @@ def main() -> None:
         check=True,
         text=True,
         capture_output=True,
+        cwd=Path(__file__).resolve().parent,
     ).stdout.strip()
     arguments.out_dir.mkdir(parents=True, exist_ok=True)
     output = arguments.out_dir / "complete.zip"

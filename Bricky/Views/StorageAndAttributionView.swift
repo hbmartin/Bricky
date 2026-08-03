@@ -22,6 +22,9 @@ struct StorageAndAttributionView: View {
                 if case .needsDownload = recoveryModel.state {
                     Button("Download On-Device Model") { recoveryModel.download() }
                 }
+                if case .rejected = recoveryModel.state, recoveryModel.rejectionIsRetryable {
+                    Button("Retry Recovery Check") { Task { await recoveryModel.check() } }
+                }
                 Text("Qwen2.5-VL-3B-Instruct 4-bit · pinned revision \(RecoveryModelManager.revision.prefix(12))…")
                     .font(.caption).foregroundStyle(.secondary)
             }

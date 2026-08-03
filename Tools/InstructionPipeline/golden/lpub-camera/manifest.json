@@ -439,5 +439,5 @@
       ]
     }
   ],
-  "source": "<InstructionPipeline>/fixtures/valid/lpub-camera.ldr"
+  "source": "<valid>/lpub-camera.ldr"
 }

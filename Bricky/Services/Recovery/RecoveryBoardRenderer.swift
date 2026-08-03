@@ -1,3 +1,4 @@
+import ImageIO
 import RealityKit
 import UIKit
 
@@ -30,11 +31,7 @@ final class InstructionSnapshotRenderer {
         camera.look(at: .zero, from: SIMD3(distance, distance * 0.72, distance), relativeTo: nil)
         anchor.addChild(camera)
         view.scene.addAnchor(anchor)
-        let image = await withCheckedContinuation { continuation in
-            view.snapshot(saveToHDR: false) { image in
-                continuation.resume(returning: image ?? UIImage())
-            }
-        }
+        let image = try await Self.snapshot(of: view)
         cache[key] = image
         return image
     }
@@ -42,16 +39,35 @@ final class InstructionSnapshotRenderer {
     /// Render in the same physical coordinate frame as the guided AR capture.
     /// The model-to-world transform is the user's transient alignment and the
     /// camera-to-world transform is recorded with that capture.
+    ///
+    /// Frame convention: `capture.cameraTransform` and `capture.cameraIntrinsics`
+    /// are expressed in ARKit's landscape sensor frame. The virtual camera
+    /// reproduces that landscape framing at the sensor's aspect ratio with the
+    /// vertical FOV computed from the NATIVE sensor intrinsics (never from the
+    /// downscaled stored image), and the snapshot is then rotated by the same
+    /// gravity-derived rotation the physical capture applied, so candidate
+    /// tiles and the stored photo share one upright orientation.
     func image(forStepIndex index: Int, capture: RecoveryCapture, alignment: ARAlignment) async throws -> UIImage {
         let key = "capture:\(capture.id.uuidString):\(index)"
         if let cached = cache[key] { return cached }
-        guard capture.cameraTransform.count == 16 else {
-            throw InstructionImportError.invalidDocument("A recovery capture has invalid camera pose metadata.")
+        guard capture.cameraTransform.count == 16, capture.cameraIntrinsics.count == 9 else {
+            throw RecoveryError.invalidCaptureMetadata
+        }
+        // Column-major intrinsics: [fx 0 0 | 0 fy 0 | cx cy 1]. The principal
+        // point sits at the native image center, so it doubles as the native
+        // sensor half-size even though RecoveryCapture stores no dimensions.
+        let fy = capture.cameraIntrinsics[4]
+        let cx = CGFloat(capture.cameraIntrinsics[6])
+        let cy = CGFloat(capture.cameraIntrinsics[7])
+        guard fy > 0, cx > 0, cy > 0 else {
+            throw RecoveryError.invalidCaptureMetadata
         }
         let placements = index < 0 ? [] : Array(plan.cumulativePlacements(through: plan.steps[index]))
         let snapshot = try await engine.snapshot(placements: placements)
         let model = try RealityKitInstructionAdapter.makeEntity(from: snapshot)
-        let view = ARView(frame: CGRect(x: 0, y: 0, width: 420, height: 420), cameraMode: .nonAR, automaticallyConfigureSession: false)
+        let renderWidth: CGFloat = 512
+        let renderHeight = max(64, (renderWidth * cy / cx).rounded())
+        let view = ARView(frame: CGRect(x: 0, y: 0, width: renderWidth, height: renderHeight), cameraMode: .nonAR, automaticallyConfigureSession: false)
         view.environment.background = .color(.systemBackground)
 
         let modelAnchor = AnchorEntity(world: .zero)
@@ -61,21 +77,53 @@ final class InstructionSnapshotRenderer {
 
         let cameraAnchor = AnchorEntity(world: .zero)
         let camera = PerspectiveCamera()
-        camera.transform.matrix = Self.matrix(capture.cameraTransform)
-        camera.camera.fieldOfViewInDegrees = Self.fieldOfView(capture: capture)
+        let cameraMatrix = Self.matrix(capture.cameraTransform)
+        camera.transform.matrix = cameraMatrix
+        // Vertical FOV in the landscape sensor frame from native intrinsics:
+        // fovY = 2 * atan((nativeHeight / 2) / fy), with nativeHeight / 2 = cy.
+        let fovRadians = 2 * atan(Float(cy) / fy)
+        camera.camera.fieldOfViewInDegrees = min(100, max(20, fovRadians * 180 / .pi))
         let light = DirectionalLight()
         light.light.intensity = 2_500
         camera.addChild(light)
         cameraAnchor.addChild(camera)
         view.scene.addAnchor(cameraAnchor)
 
-        let image = await withCheckedContinuation { continuation in
-            view.snapshot(saveToHDR: false) { image in
-                continuation.resume(returning: image ?? UIImage())
-            }
-        }
+        let landscapeImage = try await Self.snapshot(of: view)
+        let image = Self.rotate(landscapeImage, to: RecoveryFrameConvention.uprightRotation(cameraTransform: cameraMatrix))
         cache[key] = image
         return image
+    }
+
+    /// Snapshots the view, treating nil or zero-sized results as errors so a
+    /// blank image is never cached or fed to the model.
+    private static func snapshot(of view: ARView) async throws -> UIImage {
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            view.snapshot(saveToHDR: false) { continuation.resume(returning: $0) }
+        }
+        guard let image, image.size.width > 0, image.size.height > 0 else {
+            throw RecoveryError.candidateRenderFailed
+        }
+        return image
+    }
+
+    /// Rotates a landscape-sensor-frame render by the same rotation the
+    /// physical capture applied, baking the result to `.up` orientation.
+    private static func rotate(_ image: UIImage, to orientation: CGImagePropertyOrientation) -> UIImage {
+        guard orientation != .up, let cgImage = image.cgImage else { return image }
+        let mapped: UIImage.Orientation
+        switch orientation {
+        case .up: mapped = .up
+        case .down: mapped = .down
+        case .left: mapped = .left
+        case .right: mapped = .right
+        case .upMirrored: mapped = .upMirrored
+        case .downMirrored: mapped = .downMirrored
+        case .leftMirrored: mapped = .leftMirrored
+        case .rightMirrored: mapped = .rightMirrored
+        @unknown default: mapped = .up
+        }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: mapped).normalizedOrientation()
     }
 
     private static func cameraDistance(bounds: LDrawBounds?) -> Float {
@@ -93,16 +141,6 @@ final class InstructionSnapshotRenderer {
         ))
     }
 
-    private static func fieldOfView(capture: RecoveryCapture) -> Float {
-        guard capture.cameraIntrinsics.count == 9,
-              capture.cameraIntrinsics[4] > 0,
-              let root = try? InstructionModelImporter.applicationSupportRoot(),
-              let image = UIImage(contentsOfFile: root.appendingPathComponent(capture.imageRelativePath).path) else {
-            return 48
-        }
-        let radians = 2 * atan(Float(image.size.height) / (2 * capture.cameraIntrinsics[4]))
-        return min(100, max(20, radians * 180 / .pi))
-    }
 }
 
 @MainActor
@@ -112,7 +150,7 @@ enum RecoveryBoardComposer {
         candidates: [(slot: String, image: UIImage, stepNumber: Int)]
     ) throws -> URL {
         guard let physical = UIImage(contentsOfFile: physicalViewURL.path) else {
-            throw InstructionImportError.invalidDocument("A guided recovery capture is missing.")
+            throw RecoveryError.captureImageMissing
         }
         let size = CGSize(width: 1024, height: 1024)
         let renderer = UIGraphicsImageRenderer(size: size)

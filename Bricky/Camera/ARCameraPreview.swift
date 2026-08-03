@@ -9,6 +9,9 @@ struct ARCameraPreview: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
+        // The session is owned by ARCameraManager; RealityKit must not run
+        // its own configuration over the manager's plane-detection config.
+        arView.automaticallyConfigureSession = false
         arView.session = session
         arView.renderOptions = [.disablePersonOcclusion, .disableMotionBlur, .disableDepthOfField]
         // We only need the camera feed — no virtual content rendering

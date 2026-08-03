@@ -35,6 +35,51 @@ final class InstructionPlanTests: XCTestCase {
         XCTAssertEqual(transform.translationInMeters.z, -0.004, accuracy: 0.000_001)
     }
 
+    func testTamperedPlacementRangesAreClampedInsteadOfTrapping() throws {
+        let source = """
+        1 4 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat
+        0 STEP
+        """
+        let document = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "clamp.ldr", data: Data(source.utf8))],
+            rootRelativePath: "clamp.ldr"
+        )
+        let plan = try InstructionPlanBuilder().build(
+            document: document,
+            title: "Clamp",
+            sourceFilename: "clamp.ldr",
+            sourceSHA256: String(repeating: "2", count: 64)
+        )
+        let authored = plan.steps[0]
+
+        func tampered(range: PlacementRange, cumulative: Int) -> AuthoredStep {
+            AuthoredStep(
+                id: authored.id,
+                index: authored.index,
+                sectionName: authored.sectionName,
+                instancePath: authored.instancePath,
+                sectionStepNumber: authored.sectionStepNumber,
+                sourceStartLine: authored.sourceStartLine,
+                sourceEndLine: authored.sourceEndLine,
+                directPlacements: authored.directPlacements,
+                addedPlacementRange: range,
+                cumulativePlacementCount: cumulative,
+                rotationCue: authored.rotationCue,
+                cameraCue: authored.cameraCue,
+                directives: authored.directives
+            )
+        }
+
+        // A tampered plan.json must clamp, never trap on slicing.
+        let outOfRange = tampered(range: PlacementRange(lowerBound: -3, upperBound: 99), cumulative: -7)
+        XCTAssertEqual(Array(plan.addedPlacements(for: outOfRange)), plan.placementTimeline)
+        XCTAssertTrue(plan.cumulativePlacements(through: outOfRange).isEmpty)
+
+        let inverted = tampered(range: PlacementRange(lowerBound: 42, upperBound: 7), cumulative: 99)
+        XCTAssertTrue(plan.addedPlacements(for: inverted).isEmpty)
+        XCTAssertEqual(Array(plan.cumulativePlacements(through: inverted)), plan.placementTimeline)
+    }
+
     func testRepeatedSubmodelInstancesHaveDistinctPathsAndInheritedColor() throws {
         let source = """
         0 FILE main.ldr

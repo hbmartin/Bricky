@@ -3,6 +3,7 @@ import SwiftUI
 
 struct StepCheckView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
     let model: StoredInstructionModel
@@ -15,6 +16,7 @@ struct StepCheckView: View {
     @State private var capturedImage: UIImage?
     @State private var capturedURL: URL?
     @State private var error: String?
+    @State private var checkTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -37,6 +39,8 @@ struct StepCheckView: View {
                 }
                 .task { camera.checkPermissions() }
                 .onDisappear {
+                    checkTask?.cancel()
+                    checkTask = nil
                     camera.stopSession()
                     discardRawCapture()
                 }
@@ -77,9 +81,13 @@ struct StepCheckView: View {
     }
 
     private func check() {
-        guard let pack = partPack.libraryURL, let modelDirectory = recoveryModel.modelDirectory else { return }
+        guard let pack = partPack.libraryURL, let modelDirectory = recoveryModel.modelDirectory else {
+            error = "Step checks need the verified LDraw part pack and the on-device recovery model. Install both in Storage."
+            return
+        }
         isChecking = true
-        Task {
+        checkTask?.cancel()
+        let task = Task {
             defer { isChecking = false }
             do {
                 let capture = try RecoveryCaptureService().capture(from: camera, angle: .center, alignmentID: UUID())
@@ -100,8 +108,14 @@ struct StepCheckView: View {
                     modelDirectory: modelDirectory
                 )
                 result = StepCheckResult(rawValue: output.result) ?? .uncertain
+            } catch is CancellationError {
+                // Navigation or suspension cancelled the check.
             } catch { self.error = error.localizedDescription }
         }
+        checkTask = task
+        // Registered so the app can cancel AND await in-flight MLX inference
+        // before unloading the runtime on suspension.
+        recoveryModel.trackInference(task)
     }
 
     private func advance() {
@@ -118,9 +132,16 @@ struct StepCheckView: View {
                     context: context
                 )
                 discardRawCapture()
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                // Keep the view up so the alert is visible; the step advance
+                // itself is still persisted below.
+                self.error = error.localizedDescription
+                try? context.save()
+                return
+            }
         }
         try? context.save()
+        dismiss()
     }
 
     private func discardRawCapture() {

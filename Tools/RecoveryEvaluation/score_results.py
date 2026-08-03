@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import statistics
-import sys
 from pathlib import Path
+
+MINIMUM_CORPUS_ROWS = 150
 
 REQUIRED_FIELDS = {
     "schema_version",
@@ -19,6 +21,7 @@ REQUIRED_FIELDS = {
     "board_relative_paths",
     "camera_metadata",
     "expected_step_index",
+    "top_step_index",
     "ranked_step_ids",
     "certainty",
     "device_model",
@@ -39,10 +42,16 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
-def main(path: str) -> None:
-    rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+def main(path: Path, allow_small_corpus: bool = False) -> None:
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     if not rows:
         raise SystemExit("no benchmark rows")
+    if len(rows) < MINIMUM_CORPUS_ROWS and not allow_small_corpus:
+        raise SystemExit(
+            f"corpus has {len(rows)} rows but release gates require at least "
+            f"{MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for schema/scorer "
+            "smoke data, never for release-gate metrics"
+        )
     for index, row in enumerate(rows, start=1):
         if row.get("schema_version") != 1:
             raise SystemExit(f"unsupported benchmark schema: {row.get('schema_version')}")
@@ -79,6 +88,12 @@ def main(path: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: score_results.py DEVICE_RESULTS.ndjson")
-    main(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("results", type=Path, metavar="DEVICE_RESULTS.ndjson")
+    parser.add_argument(
+        "--allow-small-corpus",
+        action="store_true",
+        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} rows (smoke fixtures only)",
+    )
+    arguments = parser.parse_args()
+    main(arguments.results, allow_small_corpus=arguments.allow_small_corpus)

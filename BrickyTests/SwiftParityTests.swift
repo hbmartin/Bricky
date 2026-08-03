@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import Bricky
 
@@ -11,9 +12,17 @@ final class SwiftParityTests: XCTestCase {
     private func assertParity(_ fixture: String, file: StaticString = #filePath, line: UInt = #line) throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let fixtures = root.appendingPathComponent("Tools/InstructionPipeline/fixtures/valid")
-        let sourceURL = ["ldr", "mpd"].map { fixtures.appendingPathComponent("\(fixture).\($0)") }
-            .first { FileManager.default.fileExists(atPath: $0.path) }!
+        let sourceURL = try XCTUnwrap(
+            ["ldr", "mpd"].map { fixtures.appendingPathComponent("\(fixture).\($0)") }
+                .first { FileManager.default.fileExists(atPath: $0.path) },
+            "Missing valid fixture ‘\(fixture)’ under \(fixtures.path)",
+            file: file,
+            line: line
+        )
         let oracleURL = root.appendingPathComponent("Tools/InstructionPipeline/golden/\(fixture)/manifest.json")
+        guard FileManager.default.fileExists(atPath: oracleURL.path) else {
+            return XCTFail("Missing golden manifest at \(oracleURL.path)", file: file, line: line)
+        }
         let oracle = try JSONDecoder().decode(OracleManifest.self, from: Data(contentsOf: oracleURL))
         XCTAssertEqual(oracle.schemaVersion, 1, file: file, line: line)
         let document = try LDrawInstructionParser().parse(
@@ -53,6 +62,38 @@ final class SwiftParityTests: XCTestCase {
                 assertCamera(nativeStep.cameraCue, oracleStep.camera, file: file, line: line)
             }
         }
+
+        // Bill-of-materials parity: the oracle's final cumulative BOM on the
+        // root section covers the fully expanded model, so per-instance
+        // submodel multiplicities must match the native document BOM. The
+        // oracle resolves inherited colour 16 per expanded instance while the
+        // native BOM keys the authored colour code, so quantities are
+        // compared per part, summed across colours.
+        let oracleRoot = try XCTUnwrap(
+            oracle.sections.first(where: \.isRoot),
+            "Golden manifest for ‘\(fixture)’ has no root section",
+            file: file,
+            line: line
+        )
+        var oracleQuantities: [String: Int] = [:]
+        for entry in oracleRoot.steps.last?.cumulativeBOM ?? [] {
+            oracleQuantities[entry.part.lowercased(), default: 0] += entry.quantity
+        }
+        var nativeQuantities: [String: Int] = [:]
+        for entry in document.billOfMaterials {
+            let stem = (entry.partReference as NSString).deletingPathExtension.lowercased()
+            nativeQuantities[stem, default: 0] += entry.quantity
+        }
+        XCTAssertEqual(nativeQuantities, oracleQuantities, file: file, line: line)
+
+        // Per-step added BOM totals must account for every expanded instance.
+        var oracleAddedTotal = 0
+        for section in oracle.sections where section.isRoot {
+            for step in section.steps {
+                oracleAddedTotal += step.addedBOM.reduce(0) { $0 + $1.quantity }
+            }
+        }
+        XCTAssertEqual(nativeQuantities.values.reduce(0, +), oracleAddedTotal, file: file, line: line)
     }
 
     private func assertRotation(
@@ -127,6 +168,8 @@ private struct OracleStep: Decodable {
     let number: Int
     let sourceLines: [Int]
     let directPlacements: [OraclePlacement]
+    let addedBOM: [OracleBOMEntry]
+    let cumulativeBOM: [OracleBOMEntry]
     let rotation: OracleRotation?
     let camera: OracleCamera
 
@@ -134,7 +177,20 @@ private struct OracleStep: Decodable {
         case number
         case sourceLines = "source_lines"
         case directPlacements = "direct_placements"
+        case addedBOM = "added_bom"
+        case cumulativeBOM = "cumulative_bom"
         case rotation, camera
+    }
+}
+
+private struct OracleBOMEntry: Decodable {
+    let part: String
+    let colourCode: Int
+    let quantity: Int
+
+    enum CodingKeys: String, CodingKey {
+        case part, quantity
+        case colourCode = "colour_code"
     }
 }
 
