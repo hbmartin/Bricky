@@ -7,8 +7,11 @@ final class ARAlignmentController: ObservableObject {
     @Published private(set) var alignment: ARAlignment?
     @Published var guidance = "Move your device until a horizontal surface appears."
 
-    func placeGhost(manager: ARCameraManager, viewport: CGSize) {
-        let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+    /// Places the ghost at the raycast hit under `screenPoint`, expressed in
+    /// the AR view's coordinate space of size `viewport`. Defaults to the
+    /// viewport center when no explicit point is given.
+    func placeGhost(manager: ARCameraManager, viewport: CGSize, screenPoint: CGPoint? = nil) {
+        let center = screenPoint ?? CGPoint(x: viewport.width / 2, y: viewport.height / 2)
         guard let point = manager.unprojectToPlane(screenPoint: center, viewportSize: viewport) else {
             guidance = "Aim the center reticle at the build surface."
             return
@@ -49,6 +52,9 @@ struct ARInstructionOverlay: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero)
+        // The session is owned by ARCameraManager; RealityKit must not run
+        // its own configuration over the manager's plane-detection config.
+        view.automaticallyConfigureSession = false
         view.session = session
         view.environment.background = .cameraFeed()
         view.renderOptions = [.disableMotionBlur, .disableDepthOfField]

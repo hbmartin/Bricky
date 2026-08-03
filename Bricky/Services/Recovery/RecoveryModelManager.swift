@@ -33,11 +33,16 @@ final class RecoveryModelManager: ObservableObject {
     ]
 
     @Published private(set) var state: ModelAdmissionState = .checking
+    /// Whether the current `.rejected` state is a transient failure that a
+    /// re-run of `check()` can recover from (dropped connection, cellular
+    /// refusal, warm-up hiccup) as opposed to unsupported hardware.
+    @Published private(set) var rejectionIsRetryable = false
     @Published var allowsCellularDownloads = false
 
     let runtime = MLXRecoveryRuntime()
     private let downloader = VerifiedAssetDownloader()
     private var workTask: Task<Void, Never>?
+    private var trackedInference: [UUID: Task<Void, Never>] = [:]
 
     var modelDirectory: URL? {
         try? InstructionModelImporter.applicationSupportRoot()
@@ -47,16 +52,16 @@ final class RecoveryModelManager: ObservableObject {
     func check() async {
         state = .checking
         guard ARWorldTrackingConfiguration.isSupported else {
-            state = .rejected(reason: "Recovery needs ARKit world tracking. Guides remain available.")
+            reject(reason: "Recovery needs ARKit world tracking. Guides remain available.", retryable: false)
             return
         }
         let memory = os_proc_available_memory()
         guard memory >= Self.minimumAvailableMemory else {
-            state = .rejected(reason: "This device does not have enough live memory for private on-device recovery. Guides remain available.")
+            reject(reason: "This device does not have enough live memory for private on-device recovery right now. Close other apps and retry, or continue with guides.", retryable: true)
             return
         }
         guard let directory = modelDirectory else {
-            state = .rejected(reason: "Application Support is unavailable.")
+            reject(reason: "Application Support is unavailable.", retryable: true)
             return
         }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -78,8 +83,12 @@ final class RecoveryModelManager: ObservableObject {
                     missingBytes += max(0, asset.bytes - partialBytes)
                 }
             } catch {
+                // Align with the !isValid branch: the destination is gone,
+                // but a resumable .partial still credits its bytes.
                 try? FileManager.default.removeItem(at: url)
-                missingBytes += asset.bytes
+                let partial = url.appendingPathExtension("partial")
+                let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                missingBytes += max(0, asset.bytes - partialBytes)
             }
         }
         if missingBytes == 0 {
@@ -88,7 +97,7 @@ final class RecoveryModelManager: ObservableObject {
             let available = (try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
                 .volumeAvailableCapacityForImportantUsage ?? 0
             guard available >= missingBytes else {
-                state = .rejected(reason: VerifiedAssetError.insufficientStorage(required: missingBytes, available: available).localizedDescription)
+                reject(reason: VerifiedAssetError.insufficientStorage(required: missingBytes, available: available).localizedDescription, retryable: true)
                 return
             }
             state = .needsDownload(bytes: missingBytes)
@@ -106,9 +115,27 @@ final class RecoveryModelManager: ObservableObject {
         workTask = Task { [weak self] in await self?.performWarmUp() }
     }
 
+    /// Registers an inference task started outside the manager (recovery
+    /// analysis, step checks) so `cancelAndAwait()` can cancel AND drain it
+    /// before the runtime unloads. The entry removes itself on completion.
+    func trackInference(_ task: Task<Void, Never>) {
+        let id = UUID()
+        trackedInference[id] = task
+        Task { [weak self] in
+            await task.value
+            self?.trackedInference[id] = nil
+        }
+    }
+
     func cancelAndAwait() async {
         workTask?.cancel()
+        let inference = trackedInference
+        for task in inference.values { task.cancel() }
         await workTask?.value
+        for (id, task) in inference {
+            await task.value
+            trackedInference[id] = nil
+        }
         workTask = nil
         await runtime.unload()
         if case .admitted = state { state = .warming }
@@ -118,7 +145,7 @@ final class RecoveryModelManager: ObservableObject {
         do {
             let path = await NetworkPathProbe.current()
             if path.usesInterfaceType(.cellular), !allowsCellularDownloads {
-                state = .rejected(reason: "The recovery model is about 3.09 GB. Connect to Wi‑Fi or allow cellular download.")
+                reject(reason: "The recovery model is about 3.09 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
                 return
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
@@ -147,16 +174,21 @@ final class RecoveryModelManager: ObservableObject {
             }
             state = .warming
         } catch is CancellationError {
-            state = .needsDownload(bytes: Self.assets.reduce(Int64(0)) { $0 + $1.bytes })
+            // Credit already-verified assets and resumable partials so the
+            // surfaced remainder reflects what the resumed download needs.
+            state = .needsDownload(bytes: remainingDownloadBytes())
         } catch {
-            state = .rejected(reason: error.localizedDescription)
+            reject(reason: error.localizedDescription, retryable: true)
         }
     }
 
     private func performWarmUp() async {
         do {
             guard os_proc_available_memory() >= Self.minimumAvailableMemory else {
-                throw VerifiedAssetError.insufficientStorage(required: Int64(Self.minimumAvailableMemory), available: Int64(os_proc_available_memory()))
+                throw RecoveryError.insufficientMemory(
+                    requiredBytes: Int64(Self.minimumAvailableMemory),
+                    availableBytes: Int64(os_proc_available_memory())
+                )
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
             let board = try Self.makeWarmUpBoard(in: directory)
@@ -168,8 +200,36 @@ final class RecoveryModelManager: ObservableObject {
             state = .warming
         } catch {
             await runtime.unload()
-            state = .rejected(reason: "Recovery warm-up failed: \(error.localizedDescription)")
+            reject(reason: "Recovery warm-up failed: \(error.localizedDescription)", retryable: true)
         }
+    }
+
+    private func reject(reason: String, retryable: Bool) {
+        rejectionIsRetryable = retryable
+        state = .rejected(reason: reason)
+    }
+
+    /// Total bytes still needed across all assets, crediting fully published
+    /// destinations and resumable `.partial` files (statted directly; the
+    /// downloader is not involved).
+    private func remainingDownloadBytes() -> Int64 {
+        guard let directory = modelDirectory else {
+            return Self.assets.reduce(Int64(0)) { $0 + $1.bytes }
+        }
+        var missing: Int64 = 0
+        for asset in Self.assets {
+            let destination = directory.appendingPathComponent(asset.path)
+            // Destinations are published only after hash verification, so a
+            // full-size destination counts as complete.
+            if let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init),
+               size == asset.bytes {
+                continue
+            }
+            let partial = destination.appendingPathExtension("partial")
+            let partialBytes = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            missing += max(0, asset.bytes - partialBytes)
+        }
+        return missing
     }
 
     private func updateDownloadProgress(
@@ -207,7 +267,15 @@ private final class NetworkPathProbe: @unchecked Sendable {
         await withCheckedContinuation { continuation in
             let monitor = NWPathMonitor()
             let queue = DispatchQueue(label: "com.bricky.recovery.network-probe")
+            // `monitor.cancel()` is asynchronous, so the handler can fire
+            // again before cancellation lands. The handler always runs on the
+            // serial monitor queue, so this flag is race-free there; clear the
+            // handler before resuming so the continuation resumes exactly once.
+            var resumed = false
             monitor.pathUpdateHandler = { path in
+                guard !resumed else { return }
+                resumed = true
+                monitor.pathUpdateHandler = nil
                 monitor.cancel()
                 continuation.resume(returning: path)
             }

@@ -192,7 +192,7 @@
           ],
           "geometry_warnings": [
             {
-              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "message": "Part custom not found in <ldraw>/parts.lst",
               "part": "custom",
               "source_line": 11,
               "source_section": "module.ldr"
@@ -358,7 +358,7 @@
           ],
           "geometry_warnings": [
             {
-              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "message": "Part custom not found in <ldraw>/parts.lst",
               "part": "custom",
               "source_line": 11,
               "source_section": "module.ldr"
@@ -697,7 +697,7 @@
           ],
           "geometry_warnings": [
             {
-              "message": "Part custom not found in /Users/haroldmartin/Library/Caches/pyldraw3/complete/ldraw/parts.lst",
+              "message": "Part custom not found in <ldraw>/parts.lst",
               "part": "custom",
               "source_line": 11,
               "source_section": "module.ldr"
@@ -716,5 +716,5 @@
       ]
     }
   ],
-  "source": "<InstructionPipeline>/fixtures/valid/nested-rotstep.mpd"
+  "source": "<valid>/nested-rotstep.mpd"
 }

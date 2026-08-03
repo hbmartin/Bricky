@@ -360,5 +360,5 @@
       ]
     }
   ],
-  "source": "<InstructionPipeline>/fixtures/valid/simple.ldr"
+  "source": "<valid>/simple.ldr"
 }

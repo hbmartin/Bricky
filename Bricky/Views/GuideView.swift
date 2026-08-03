@@ -9,7 +9,8 @@ struct GuideView: View {
     let model: StoredInstructionModel
     @State private var plan: InstructionPlan?
     @State private var stepIndex = 0
-    @State private var errorMessage: String?
+    @State private var loadError: String?
+    @State private var loadedKey: GuideLoadKey?
 
     var body: some View {
         Group {
@@ -58,22 +59,47 @@ struct GuideView: View {
                     }
                     .padding()
                 }
+            } else if let loadError {
+                ContentUnavailableView {
+                    Label("Guide Unavailable", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(loadError)
+                } actions: {
+                    Button("Retry") { load() }.buttonStyle(.borderedProminent)
+                }
+            } else if plan != nil {
+                ContentUnavailableView("No Authored Steps", systemImage: "square.stack.3d.up.slash", description: Text("This model contains no authored steps to guide."))
             } else {
                 ProgressView("Loading authored guide…")
             }
         }
         .navigationTitle(model.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            do {
-                let loaded = try library.loadPlan(for: model)
-                plan = loaded
-                stepIndex = min(max(0, model.currentStepIndex), max(0, loaded.steps.count - 1))
-            } catch { errorMessage = error.localizedDescription }
+        .task { loadIfNeeded() }
+    }
+
+    /// Loads once per (model, confirmed step) pair. Plain reappearance (for
+    /// example popping back from AR overlay or step check) keeps the user's
+    /// browsing position; a recovery confirmation or checked advance changes
+    /// `currentStepIndex` and re-lands the guide on the recovered step.
+    private func loadIfNeeded() {
+        let key = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
+        guard key != loadedKey else { return }
+        load()
+    }
+
+    private func load() {
+        do {
+            let loaded = try library.loadPlan(for: model)
+            plan = loaded
+            stepIndex = min(max(0, model.currentStepIndex), max(0, loaded.steps.count - 1))
+            loadError = nil
+            loadedKey = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
+        } catch {
+            plan = nil
+            loadError = error.localizedDescription
+            loadedKey = nil
         }
-        .alert("Guide Unavailable", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: { Text(errorMessage ?? "") }
     }
 
     private func confirmAndAdvance(step: AuthoredStep, plan: InstructionPlan) {
@@ -82,7 +108,15 @@ struct GuideView: View {
         model.lastOpenedAt = .now
         try? context.save()
         if stepIndex < plan.steps.count - 1 { stepIndex += 1 }
+        // In-view advances already reflect the new position; keep the loaded
+        // key in sync so the next appearance does not reset browsing.
+        loadedKey = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
     }
+}
+
+private struct GuideLoadKey: Equatable {
+    let modelID: PersistentIdentifier
+    let currentStep: Int
 }
 
 private struct NewPartsCard: View {

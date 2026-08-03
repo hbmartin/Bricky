@@ -7,6 +7,12 @@ enum InstructionLimits {
     static let maximumSteps = 10_000
     static let maximumPlacements = 50_000
     static let maximumRecursionDepth = 64
+    /// Total subfile expansions allowed while flattening one geometry snapshot.
+    /// A depth guard alone cannot stop exponential DAG blow-up (a file that
+    /// references each child twice per level yields ~2^depth expansions).
+    static let maximumGeometryOperations = 250_000
+    /// Total triangles allowed in one flattened geometry snapshot.
+    static let maximumGeometryTriangles = 2_000_000
 }
 
 enum InstructionDiagnosticSeverity: String, Codable, Sendable {
@@ -223,11 +229,14 @@ struct InstructionPlan: Identifiable, Codable, Hashable, Sendable {
     var stepZeroID: String { "\(document.rootSectionName)#0" }
 
     func addedPlacements(for step: AuthoredStep) -> ArraySlice<PartPlacement> {
-        placementTimeline[step.addedPlacementRange.lowerBound..<step.addedPlacementRange.upperBound]
+        // Ranges come from persisted plan.json; clamp so tampered bounds trap nothing.
+        let lower = min(max(0, step.addedPlacementRange.lowerBound), placementTimeline.count)
+        let upper = min(max(lower, step.addedPlacementRange.upperBound), placementTimeline.count)
+        return placementTimeline[lower..<upper]
     }
 
     func cumulativePlacements(through step: AuthoredStep) -> ArraySlice<PartPlacement> {
-        placementTimeline[0..<min(step.cumulativePlacementCount, placementTimeline.count)]
+        placementTimeline[0..<min(max(0, step.cumulativePlacementCount), placementTimeline.count)]
     }
 }
 

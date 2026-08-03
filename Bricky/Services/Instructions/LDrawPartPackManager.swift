@@ -20,6 +20,7 @@ final class LDrawPartPackManager: ObservableObject {
 
     @Published private(set) var state: State = .checking
     private let downloader = VerifiedAssetDownloader()
+    private var isInstalling = false
 
     var libraryURL: URL? {
         guard let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
@@ -38,6 +39,11 @@ final class LDrawPartPackManager: ObservableObject {
     }
 
     func install() async {
+        // A second install while one runs would race the same partial and
+        // extraction paths; the main actor serializes this flag across awaits.
+        guard !isInstalling else { return }
+        isInstalling = true
+        defer { isInstalling = false }
         do {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let packRoot = root.appendingPathComponent("PartPacks/\(Self.version)", isDirectory: true)
@@ -57,17 +63,10 @@ final class LDrawPartPackManager: ObservableObject {
             let staging = packRoot.appendingPathComponent("extract-staging-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
             do {
-                let archive = try Archive(url: archiveURL, accessMode: .read)
-                for entry in archive {
-                    try Task.checkCancellation()
-                    guard entry.type != .symlink else {
-                        throw InstructionImportError.unsafePath(entry.path)
-                    }
-                    let normalized = try LDrawInstructionParser.normalizeReference(entry.path)
-                    let output = staging.appendingPathComponent(normalized)
-                    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    _ = try archive.extract(entry, to: output)
-                }
+                // Extracting ~20k entries is far too slow for the main thread;
+                // the nonisolated helper runs on the concurrent executor while
+                // state stays on the main actor.
+                try await Self.extractArchive(at: archiveURL, into: staging)
                 let extractedLibrary = staging.appendingPathComponent("ldraw", isDirectory: true)
                 guard FileManager.default.fileExists(atPath: extractedLibrary.appendingPathComponent("parts").path) else {
                     throw InstructionImportError.invalidDocument("The verified archive does not contain a complete LDraw library.")
@@ -104,5 +103,22 @@ final class LDrawPartPackManager: ObservableObject {
 
     private func updateDownloadProgress(_ value: Double) {
         state = .downloading(value)
+    }
+
+    /// Extracts the verified archive into the staging directory off the main
+    /// actor. Every entry keeps the same safety gates: symlinks are rejected
+    /// and paths must survive `normalizeReference` (no traversal, no absolutes).
+    private nonisolated static func extractArchive(at archiveURL: URL, into staging: URL) async throws {
+        let archive = try Archive(url: archiveURL, accessMode: .read)
+        for entry in archive {
+            try Task.checkCancellation()
+            guard entry.type != .symlink else {
+                throw InstructionImportError.unsafePath(entry.path)
+            }
+            let normalized = try LDrawInstructionParser.normalizeReference(entry.path)
+            let output = staging.appendingPathComponent(normalized)
+            try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+            _ = try archive.extract(entry, to: output)
+        }
     }
 }

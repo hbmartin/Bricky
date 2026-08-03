@@ -2,6 +2,7 @@ import ARKit
 import AVFoundation
 import Combine
 import Foundation
+import UIKit
 import os
 
 /// The intentionally small AR session boundary shared by alignment, guided
@@ -44,7 +45,15 @@ final class ARCameraManager: NSObject, ObservableObject {
         session.delegateQueue = delegateQueue
     }
 
-    deinit { session.pause() }
+    deinit {
+        // deinit is nonisolated and may run off the main thread while the
+        // session is otherwise MainActor-managed, so hop instead of pausing
+        // inline. The task captures only the session (never self), so it
+        // cannot create a retain cycle; views also pause via stopSession()
+        // in onDisappear, making this a safety net for the last release.
+        let session = session
+        Task { @MainActor in session.pause() }
+    }
 
     func checkPermissions() {
         guard Self.isSupported else {
@@ -75,6 +84,11 @@ final class ARCameraManager: NSObject, ObservableObject {
     }
 
     /// Raycasts a point expressed in the presenting AR view's coordinates.
+    ///
+    /// `ARFrame.raycastQuery(from:allowing:alignment:)` takes NORMALIZED
+    /// image-space coordinates in the captured image's landscape frame, so
+    /// the view point is first normalized against the viewport and then
+    /// mapped through the inverse of the frame's display transform.
     func unprojectToPlane(screenPoint: CGPoint, viewportSize: CGSize) -> SIMD3<Float>? {
         guard viewportSize.width > 0, viewportSize.height > 0,
               let frame = session.currentFrame,
@@ -82,8 +96,23 @@ final class ARCameraManager: NSObject, ObservableObject {
               screenPoint.y >= 0, screenPoint.y <= viewportSize.height else {
             return nil
         }
+        let normalizedViewPoint = CGPoint(
+            x: screenPoint.x / viewportSize.width,
+            y: screenPoint.y / viewportSize.height
+        )
+        // displayTransform maps normalized image coordinates to normalized
+        // view coordinates; invert it to go the other way.
+        let displayTransform = frame.displayTransform(
+            for: Self.currentInterfaceOrientation(),
+            viewportSize: viewportSize
+        )
+        let imagePoint = normalizedViewPoint.applying(displayTransform.inverted())
+        guard imagePoint.x >= 0, imagePoint.x <= 1,
+              imagePoint.y >= 0, imagePoint.y <= 1 else {
+            return nil
+        }
         let query = frame.raycastQuery(
-            from: screenPoint,
+            from: imagePoint,
             allowing: .existingPlaneGeometry,
             alignment: .horizontal
         )
@@ -95,7 +124,18 @@ final class ARCameraManager: NSObject, ObservableObject {
         )
     }
 
+    private static func currentInterfaceOrientation() -> UIInterfaceOrientation {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return scene?.interfaceOrientation ?? .portrait
+    }
+
     private func configureSession() {
+        // Re-running a live session with reset options would discard the
+        // current world frame (and invalidate any placed alignment) mid-flow;
+        // callers re-check permissions on every appearance, so keep this
+        // idempotent while the session is running.
+        guard !isSessionRunning else { return }
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal]
         configuration.isAutoFocusEnabled = true
@@ -108,12 +148,20 @@ final class ARCameraManager: NSObject, ObservableObject {
 extension ARCameraManager: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let tracking = frame.camera.trackingState
-        Task { @MainActor [weak self] in self?.trackingState = tracking }
+        // This fires at ~60 fps; skip the @Published write when nothing
+        // changed so observing SwiftUI views are not invalidated per frame.
+        Task { @MainActor [weak self] in
+            guard let self, self.trackingState != tracking else { return }
+            self.trackingState = tracking
+        }
     }
 
     nonisolated func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
         let tracking = camera.trackingState
-        Task { @MainActor [weak self] in self?.trackingState = tracking }
+        Task { @MainActor [weak self] in
+            guard let self, self.trackingState != tracking else { return }
+            self.trackingState = tracking
+        }
     }
 
     nonisolated func sessionWasInterrupted(_ session: ARSession) {

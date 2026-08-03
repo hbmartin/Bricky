@@ -1,3 +1,5 @@
+import Foundation
+import UIKit
 import XCTest
 @testable import Bricky
 
@@ -26,19 +28,19 @@ final class InstructionParserTests: XCTestCase {
         XCTAssertEqual(document.orphanSectionNames, ["orphan.ldr"])
     }
 
-    func testRejectsUnsteppedRoot() {
-        let source = "1 4 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat\n"
+    func testRejectsUnsteppedRoot() throws {
+        let data = try invalidFixture(named: "unstepped.ldr")
         XCTAssertThrowsError(try LDrawInstructionParser().parse(
-            files: [.init(relativePath: "model.ldr", data: Data(source.utf8))],
-            rootRelativePath: "model.ldr"
+            files: [.init(relativePath: "unstepped.ldr", data: data)],
+            rootRelativePath: "unstepped.ldr"
         )) { XCTAssertEqual($0 as? InstructionImportError, .noAuthoredSteps) }
     }
 
-    func testRejectsTraversal() {
-        let source = "1 4 0 0 0 1 0 0 0 1 0 0 0 1 ../child.ldr\n0 STEP\n"
+    func testRejectsTraversal() throws {
+        let data = try invalidFixture(named: "path-traversal.ldr")
         XCTAssertThrowsError(try LDrawInstructionParser().parse(
-            files: [.init(relativePath: "model.ldr", data: Data(source.utf8))],
-            rootRelativePath: "model.ldr"
+            files: [.init(relativePath: "path-traversal.ldr", data: data)],
+            rootRelativePath: "path-traversal.ldr"
         ))
     }
 
@@ -52,17 +54,10 @@ final class InstructionParserTests: XCTestCase {
         }
     }
 
-    func testRejectsCycle() {
-        let source = """
-        0 FILE main.ldr
-        1 16 0 0 0 1 0 0 0 1 0 0 0 1 child.ldr
-        0 STEP
-        0 FILE child.ldr
-        1 16 0 0 0 1 0 0 0 1 0 0 0 1 main.ldr
-        0 STEP
-        """
+    func testRejectsCycle() throws {
+        let data = try invalidFixture(named: "cycle.mpd")
         XCTAssertThrowsError(try LDrawInstructionParser().parse(
-            files: [.init(relativePath: "cycle.mpd", data: Data(source.utf8))],
+            files: [.init(relativePath: "cycle.mpd", data: data)],
             rootRelativePath: "cycle.mpd"
         ))
     }
@@ -118,5 +113,100 @@ final class InstructionParserTests: XCTestCase {
         )) { error in
             XCTAssertEqual(error as? InstructionImportError, .lineTooLong(file: "oversized.ldr", line: 1))
         }
+    }
+
+    func testBOMCountsEachInstanceOfARepeatedSteppedSubmodel() throws {
+        let source = """
+        0 FILE main.ldr
+        1 4 0 0 0 1 0 0 0 1 0 0 0 1 module.ldr
+        0 STEP
+        1 1 100 0 0 1 0 0 0 1 0 0 0 1 module.ldr
+        0 STEP
+        0 FILE module.ldr
+        1 16 10 0 0 1 0 0 0 1 0 0 0 1 3005.dat
+        0 STEP
+        """
+        let document = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "repeated.mpd", data: Data(source.utf8))],
+            rootRelativePath: "repeated.mpd"
+        )
+
+        XCTAssertEqual(document.billOfMaterials, [BOMEntry(partReference: "3005.dat", colorCode: 16, quantity: 2)])
+    }
+
+    func testDirectColourPlacementImportsWithoutDiagnostics() throws {
+        let source = "1 0x2FF0000 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat\n0 STEP\n"
+        let document = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "direct.ldr", data: Data(source.utf8))],
+            rootRelativePath: "direct.ldr"
+        )
+
+        XCTAssertEqual(document.diagnostics, [])
+        XCTAssertEqual(document.rootSection?.steps.first?.directPlacements.first?.colorCode, 0x2FF0000)
+        XCTAssertEqual(document.billOfMaterials, [BOMEntry(partReference: "3005.dat", colorCode: 0x2FF0000, quantity: 1)])
+    }
+
+    func testDirectColourBypassesPaletteAndUsesLow24Bits() {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        XCTAssertTrue(LDrawPalette.color(0x2FF8800).getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+        XCTAssertEqual(red, 1, accuracy: 0.001)
+        XCTAssertEqual(green, CGFloat(0x88) / 255, accuracy: 0.001)
+        XCTAssertEqual(blue, 0, accuracy: 0.001)
+        XCTAssertEqual(alpha, 1)
+    }
+
+    func testCRLFSourceReportsSameLineNumbersAsLF() throws {
+        let lines = [
+            "0 FILE main.ldr",
+            "1 4 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat",
+            "1 4 invalid placement",
+            "0 STEP"
+        ]
+        let unixDocument = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "model.mpd", data: Data(lines.joined(separator: "\n").utf8))],
+            rootRelativePath: "model.mpd"
+        )
+        let windowsDocument = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "model.mpd", data: Data(lines.joined(separator: "\r\n").utf8))],
+            rootRelativePath: "model.mpd"
+        )
+
+        XCTAssertEqual(windowsDocument.diagnostics.map(\.lineNumber), unixDocument.diagnostics.map(\.lineNumber))
+        XCTAssertEqual(windowsDocument.diagnostics.first?.lineNumber, 3)
+        XCTAssertEqual(
+            windowsDocument.rootSection?.steps.map { [$0.sourceStartLine, $0.sourceEndLine] },
+            unixDocument.rootSection?.steps.map { [$0.sourceStartLine, $0.sourceEndLine] }
+        )
+        XCTAssertEqual(windowsDocument.rootSection?.steps.first?.directPlacements.first?.sourceLine, 2)
+    }
+
+    func testCommentOnlyPreambleAboveFirstFileDirectiveDoesNotBecomeRoot() throws {
+        let source = """
+        0 Licensed under CC BY 4.0
+
+        0 FILE main.ldr
+        1 4 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat
+        0 STEP
+        """
+        let document = try LDrawInstructionParser().parse(
+            files: [.init(relativePath: "licensed.mpd", data: Data(source.utf8))],
+            rootRelativePath: "licensed.mpd"
+        )
+
+        XCTAssertEqual(document.rootSectionName, "main.ldr")
+        XCTAssertEqual(document.rootSection?.steps.count, 1)
+    }
+
+    private func invalidFixture(named name: String, file: StaticString = #filePath, line: UInt = #line) throws -> Data {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Tools/InstructionPipeline/fixtures/invalid/\(name)")
+        return try XCTUnwrap(
+            FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil,
+            "Missing invalid fixture at \(url.path)",
+            file: file,
+            line: line
+        )
     }
 }

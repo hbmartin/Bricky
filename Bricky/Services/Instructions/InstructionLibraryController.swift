@@ -16,6 +16,9 @@ final class InstructionLibraryController: ObservableObject {
     }
 
     func importSource(_ source: InstructionImportSource, into context: ModelContext) async -> StoredInstructionModel? {
+        // A double-tap must not race two staged imports; the main actor
+        // serializes this flag across the await below.
+        guard !isImporting else { return nil }
         isImporting = true
         importError = nil
         defer { isImporting = false }

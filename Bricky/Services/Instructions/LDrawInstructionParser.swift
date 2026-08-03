@@ -57,6 +57,11 @@ struct LDrawInstructionParser {
         let lines: [(number: Int, text: String)]
     }
 
+    private struct BOMKey: Hashable {
+        let reference: String
+        let colorCode: Int
+    }
+
     private struct ParsedSection {
         let section: InstructionSection
         let diagnostics: [InstructionDiagnostic]
@@ -136,19 +141,42 @@ struct LDrawInstructionParser {
             return lhsRank == rhsRank ? $0.normalizedName < $1.normalizedName : lhsRank < rhsRank
         }
 
-        let directParts = sections
-            .filter { reachable.contains($0.normalizedName) }
-            .flatMap(\.steps)
-            .flatMap(\.directPlacements)
-            .filter { !buildableNames.contains(Self.normalizedName($0.partReference)) }
-        let bom = Dictionary(grouping: directParts, by: { "\(Self.normalizedName($0.partReference))|\($0.colorCode)" })
-            .values
-            .map { group in
-                BOMEntry(
-                    partReference: Self.normalizedName(group[0].partReference),
-                    colorCode: group[0].colorCode,
-                    quantity: group.count
-                )
+        // The bill of materials counts every expanded instance: a stepped
+        // submodel placed N times contributes N copies of its parts. Instance
+        // counts are a DP over the (cycle-checked) reachable section DAG.
+        let sectionsByName = Dictionary(uniqueKeysWithValues: sections.map { ($0.normalizedName, $0) })
+        var instanceCounts: [String: Int] = [rootName: 1]
+        for name in topologicalOrder(from: rootName, sectionsByName: sectionsByName, buildableNames: buildableNames) {
+            let count = instanceCounts[name, default: 0]
+            guard count > 0, let section = sectionsByName[name] else { continue }
+            for placement in section.steps.flatMap(\.directPlacements) {
+                let child = Self.normalizedName(placement.partReference)
+                guard buildableNames.contains(child) else { continue }
+                let (updated, overflow) = instanceCounts[child, default: 0].addingReportingOverflow(count)
+                guard !overflow, updated <= InstructionLimits.maximumPlacements else {
+                    throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+                }
+                instanceCounts[child] = updated
+            }
+        }
+
+        var quantities: [BOMKey: Int] = [:]
+        for section in sections where reachable.contains(section.normalizedName) {
+            let multiplier = instanceCounts[section.normalizedName, default: 0]
+            guard multiplier > 0 else { continue }
+            for placement in section.steps.flatMap(\.directPlacements)
+            where !buildableNames.contains(Self.normalizedName(placement.partReference)) {
+                let key = BOMKey(reference: Self.normalizedName(placement.partReference), colorCode: placement.colorCode)
+                let (updated, overflow) = quantities[key, default: 0].addingReportingOverflow(multiplier)
+                guard !overflow, updated <= InstructionLimits.maximumPlacements else {
+                    throw InstructionImportError.limitExceeded("The expanded guide exceeds 50,000 placements.")
+                }
+                quantities[key] = updated
+            }
+        }
+        let bom = quantities
+            .map { key, quantity in
+                BOMEntry(partReference: key.reference, colorCode: key.colorCode, quantity: quantity)
             }
             .sorted { ($0.partReference, $0.colorCode) < ($1.partReference, $1.colorCode) }
 
@@ -171,7 +199,7 @@ struct LDrawInstructionParser {
         guard let text = String(data: file.data, encoding: .utf8) ?? String(data: file.data, encoding: .isoLatin1) else {
             throw InstructionImportError.invalidDocument("\(file.relativePath) is not UTF-8 or ISO Latin-1 text.")
         }
-        var sourceLines = text.components(separatedBy: .newlines)
+        var sourceLines = Self.splitLines(text)
         while sourceLines.last?.isEmpty == true { sourceLines.removeLast() }
         for (offset, line) in sourceLines.enumerated() where line.lengthOfBytes(using: .utf8) > InstructionLimits.maximumLineBytes {
             throw InstructionImportError.lineTooLong(file: file.relativePath, line: offset + 1)
@@ -181,6 +209,7 @@ struct LDrawInstructionParser {
         var currentName: String?
         var currentLines: [(Int, String)] = []
         var sawFileDirective = false
+        var createdImplicitSection = false
 
         func publish() {
             guard let name = currentName else { return }
@@ -207,13 +236,30 @@ struct LDrawInstructionParser {
             }
             if currentName == nil, !sawFileDirective {
                 currentName = normalizedPath
+                createdImplicitSection = true
             }
             if currentName != nil {
                 currentLines.append((lineNumber, rawLine))
             }
         }
         publish()
+        // A comment-only preamble above the first `0 FILE` (a license header,
+        // for example) must not become a phantom root candidate.
+        if createdImplicitSection, sawFileDirective,
+           let first = result.first,
+           first.normalizedName == Self.normalizedName(normalizedPath),
+           first.lines.allSatisfy({ Self.isCommentOrBlank($0.text) }) {
+            result.removeFirst()
+        }
         return result
+    }
+
+    private static func isCommentOrBlank(_ line: String) -> Bool {
+        let tokens = line.split(whereSeparator: \.isWhitespace)
+        guard let first = tokens.first else { return true }
+        guard first == "0" else { return false }
+        guard tokens.count >= 2 else { return true }
+        return !["STEP", "ROTSTEP", "LPUB", "!LPUB"].contains(tokens[1].uppercased())
     }
 
     private func parse(section raw: RawSection, isRoot: Bool, embeddedNames: Set<String>) throws -> ParsedSection {
@@ -251,7 +297,7 @@ struct LDrawInstructionParser {
 
             if type == "1" {
                 guard tokens.count >= 15,
-                      let color = Int(tokens[1]),
+                      let color = Self.colorCode(tokens[1]),
                       let x = Double(tokens[2]), let y = Double(tokens[3]), let z = Double(tokens[4]),
                       let a = Double(tokens[5]), let b = Double(tokens[6]), let c = Double(tokens[7]),
                       let d = Double(tokens[8]), let e = Double(tokens[9]), let f = Double(tokens[10]),
@@ -406,6 +452,29 @@ struct LDrawInstructionParser {
         return (isGlobal, cue)
     }
 
+    /// Parents-before-children order over the buildable section DAG. Cycles
+    /// among reachable sections were already rejected by `reachableSections`.
+    private func topologicalOrder(
+        from root: String,
+        sectionsByName: [String: InstructionSection],
+        buildableNames: Set<String>
+    ) -> [String] {
+        var visited = Set<String>()
+        var postorder: [String] = []
+
+        func visit(_ node: String) {
+            guard visited.insert(node).inserted, let section = sectionsByName[node] else { return }
+            for placement in section.steps.flatMap(\.directPlacements) {
+                let child = Self.normalizedName(placement.partReference)
+                if buildableNames.contains(child) { visit(child) }
+            }
+            postorder.append(node)
+        }
+
+        visit(root)
+        return postorder.reversed()
+    }
+
     private func reachableSections(from root: String, graph: [String: [String]]) throws -> Set<String> {
         var reachable = Set<String>()
         var active: [String] = []
@@ -428,6 +497,24 @@ struct LDrawInstructionParser {
 
         try visit(root, depth: 0)
         return reachable
+    }
+
+    /// Splits source text into lines with Windows (`\r\n`) and classic Mac
+    /// (`\r`) line endings normalized first, so `\r\n` counts as one line and
+    /// reported line numbers match the authored file.
+    static func splitLines(_ text: String) -> [String] {
+        text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+    }
+
+    /// Parses an LDraw colour token: a decimal palette code, or a direct
+    /// colour such as `0x2RRGGBB` whose value is the literal hex integer.
+    static func colorCode(_ token: String) -> Int? {
+        if let decimal = Int(token) { return decimal }
+        let lowered = token.lowercased()
+        guard lowered.hasPrefix("0x") else { return nil }
+        return Int(lowered.dropFirst(2), radix: 16)
     }
 
     static func normalizeReference(_ reference: String) throws -> String {

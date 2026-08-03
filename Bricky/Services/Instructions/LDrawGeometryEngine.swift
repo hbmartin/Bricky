@@ -25,15 +25,26 @@ actor LDrawGeometryEngine {
 
     private let sourceRoot: URL
     private let partPackRoot: URL
+    private let maximumOperations: Int
+    private let maximumTriangles: Int
     private var textCache: [String: String] = [:]
+    private var flattenOperations = 0
 
-    init(sourceRoot: URL, partPackRoot: URL) {
+    init(
+        sourceRoot: URL,
+        partPackRoot: URL,
+        maximumOperations: Int = InstructionLimits.maximumGeometryOperations,
+        maximumTriangles: Int = InstructionLimits.maximumGeometryTriangles
+    ) {
         self.sourceRoot = sourceRoot
         self.partPackRoot = partPackRoot
+        self.maximumOperations = maximumOperations
+        self.maximumTriangles = maximumTriangles
     }
 
     func snapshot(placements: some Collection<PartPlacement>) throws -> InstructionGeometrySnapshot {
         var triangles: [Triangle] = []
+        flattenOperations = 0
         for placement in placements {
             try flatten(
                 reference: placement.partReference,
@@ -93,13 +104,19 @@ actor LDrawGeometryEngine {
         guard depth <= InstructionLimits.maximumRecursionDepth else {
             throw InstructionImportError.limitExceeded("Part geometry recursion exceeds 64 levels.")
         }
+        // A depth guard alone cannot stop exponential blow-up: a small DAG that
+        // references each child twice per level performs ~2^depth expansions.
+        flattenOperations += 1
+        guard flattenOperations <= maximumOperations else {
+            throw InstructionImportError.limitExceeded("Part geometry expansion exceeds \(maximumOperations) subfile operations.")
+        }
         let normalized = try LDrawInstructionParser.normalizeReference(reference)
         let text = try loadText(reference: normalized)
         var pendingInvert = false
         var counterClockwise = true
         let mirrored = determinant(transform) < 0
 
-        for line in text.components(separatedBy: .newlines) {
+        for line in LDrawInstructionParser.splitLines(text) {
             let tokens = line.split(whereSeparator: \.isWhitespace).map(String.init)
             guard let type = tokens.first else { continue }
             if type == "0", tokens.count >= 3, tokens[1].uppercased() == "BFC" {
@@ -110,7 +127,7 @@ actor LDrawGeometryEngine {
                 continue
             }
             if type == "1", tokens.count >= 15,
-               let color = Int(tokens[1]),
+               let color = LDrawInstructionParser.colorCode(tokens[1]),
                let child = Self.transform(tokens: tokens) {
                 let childReference = tokens.dropFirst(14).joined(separator: " ")
                 let childColor = color == 16 ? inheritedColor : color
@@ -126,18 +143,18 @@ actor LDrawGeometryEngine {
                 continue
             }
             if type == "3", tokens.count >= 11,
-               let color = Int(tokens[1]),
+               let color = LDrawInstructionParser.colorCode(tokens[1]),
                let a = Self.point(tokens, 2), let b = Self.point(tokens, 5), let c = Self.point(tokens, 8) {
                 let flipped = (invertWinding != mirrored) != (!counterClockwise)
-                appendTriangle(a, b, c, color: color == 16 ? inheritedColor : color, transform: transform, flipped: flipped, to: &triangles)
+                try appendTriangle(a, b, c, color: color == 16 ? inheritedColor : color, transform: transform, flipped: flipped, to: &triangles)
             } else if type == "4", tokens.count >= 14,
-                      let color = Int(tokens[1]),
+                      let color = LDrawInstructionParser.colorCode(tokens[1]),
                       let a = Self.point(tokens, 2), let b = Self.point(tokens, 5),
                       let c = Self.point(tokens, 8), let d = Self.point(tokens, 11) {
                 let resolved = color == 16 ? inheritedColor : color
                 let flipped = (invertWinding != mirrored) != (!counterClockwise)
-                appendTriangle(a, b, c, color: resolved, transform: transform, flipped: flipped, to: &triangles)
-                appendTriangle(a, c, d, color: resolved, transform: transform, flipped: flipped, to: &triangles)
+                try appendTriangle(a, b, c, color: resolved, transform: transform, flipped: flipped, to: &triangles)
+                try appendTriangle(a, c, d, color: resolved, transform: transform, flipped: flipped, to: &triangles)
             }
         }
     }
@@ -145,11 +162,19 @@ actor LDrawGeometryEngine {
     private func appendTriangle(
         _ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>,
         color: Int, transform: LDrawTransform, flipped: Bool, to triangles: inout [Triangle]
-    ) {
+    ) throws {
+        guard triangles.count < maximumTriangles else {
+            throw InstructionImportError.limitExceeded("Part geometry exceeds \(maximumTriangles) triangles.")
+        }
         let pa = worldPoint(a, transform: transform)
         let pb = worldPoint(b, transform: transform)
         let pc = worldPoint(c, transform: transform)
-        triangles.append(flipped ? Triangle(a: pa, b: pc, c: pb, color: color) : Triangle(a: pa, b: pb, c: pc, color: color))
+        // `worldPoint` folds in a constant Y flip — a reflection (determinant
+        // −1) that inverts handedness on top of the placement-matrix winding
+        // decision. Emit the reversed vertex order in the nominal case so a
+        // BFC-CCW source triangle stays counter-clockwise seen from outside
+        // in world space, keeping single-sided materials front-facing.
+        triangles.append(flipped ? Triangle(a: pa, b: pb, c: pc, color: color) : Triangle(a: pa, b: pc, c: pb, color: color))
     }
 
     private func loadText(reference: String) throws -> String {

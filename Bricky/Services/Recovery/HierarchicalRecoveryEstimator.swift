@@ -19,11 +19,14 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
 
     func estimate(captures: [RecoveryCapture], model: InstructionPlan, alignment: ARAlignment) async throws -> RecoveryEstimate {
         guard captures.count == 3 else {
-            throw InstructionImportError.invalidDocument("Recovery requires exactly three guided views.")
+            throw RecoveryError.invalidCaptureSet(reason: "Recovery requires exactly three guided views.")
         }
-        guard alignment.isTracking,
-              captures.allSatisfy({ $0.alignmentID == alignment.id }) else {
-            throw InstructionImportError.invalidDocument("The recovery views no longer share a valid alignment. Re-align and capture them again.")
+        // `alignment.isTracking` is set once at placement and never updated,
+        // so it carries no live signal; the real invariant is that the
+        // controller nils the alignment on tracking loss and all captures
+        // must share the surviving alignment's identity.
+        guard captures.allSatisfy({ $0.alignmentID == alignment.id }) else {
+            throw RecoveryError.invalidCaptureSet(reason: "The recovery views no longer share a valid alignment. Re-align and capture them again.")
         }
         let started = ContinuousClock.now
         let renderer = try await InstructionSnapshotRenderer(plan: model, partPackRoot: partPackRoot)
@@ -34,7 +37,26 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             return insufficient(captures: captures, started: started)
         }
 
-        let interval = Self.neighborInterval(around: broadLeader, samples: broad, lowerBound: -1, upperBound: model.steps.count)
+        // Iteratively narrow the leader's neighbor interval until candidate
+        // spacing reaches 1, so the true step cannot be structurally excluded
+        // from the finalists. Each pass shrinks the interval geometrically;
+        // the pass count is log-bounded for safety.
+        var interval = Self.neighborInterval(around: broadLeader, samples: broad, lowerBound: -1, upperBound: model.steps.count)
+        var passes = 0
+        let maxPasses = max(1, Int(log2(Double(model.steps.count + 2)).rounded(.up)))
+        while interval.count > 8, passes < maxPasses {
+            try Task.checkCancellation()
+            let sampled = Self.evenlySampledIndices(count: 8, range: interval)
+            let passRank = try await rank(capture: centerCapture, indices: sampled, plan: model, alignment: alignment, renderer: renderer)
+            guard passRank.status == "matched", let passLeader = Self.index(for: passRank.ranking.first, candidates: sampled) else {
+                return insufficient(captures: captures, started: started)
+            }
+            let next = Self.neighborInterval(around: passLeader, samples: sampled, lowerBound: -1, upperBound: model.steps.count)
+            guard next.count < interval.count else { break }
+            interval = next
+            passes += 1
+        }
+        // Once interval.count <= 8, this samples every index (spacing == 1).
         let narrowed = Self.evenlySampledIndices(count: min(8, interval.count), range: interval)
         let narrowRank = try await rank(capture: centerCapture, indices: narrowed, plan: model, alignment: alignment, renderer: renderer)
         guard narrowRank.status == "matched", let narrowLeader = Self.index(for: narrowRank.ranking.first, candidates: narrowed) else {
@@ -44,29 +66,36 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         let finalists = Array(Set([narrowLeader - 1, narrowLeader, narrowLeader + 1]))
             .filter { $0 >= -1 && $0 < model.steps.count }
             .sorted()
-        var rankings: [[Int]] = []
-        var insufficientViews = 0
+        var rankings: [[(position: Int, step: Int)]] = []
         for capture in captures.sorted(by: { $0.angle.rawValue < $1.angle.rawValue }) {
             try Task.checkCancellation()
             let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer)
-            if result.status == "insufficient" { insufficientViews += 1 }
-            rankings.append(result.ranking.compactMap { Self.index(for: $0, candidates: finalists) })
+            // Views the model marked insufficient must not vote in scoring
+            // or certainty.
+            guard result.status != "insufficient" else { continue }
+            // Enumerate before dropping out-of-range slots so later
+            // candidates keep their true rank positions.
+            let mapped = result.ranking.enumerated().compactMap { position, slot -> (position: Int, step: Int)? in
+                guard let step = Self.index(for: slot, candidates: finalists) else { return nil }
+                return (position, step)
+            }
+            rankings.append(mapped)
         }
-        if insufficientViews >= 2 { return insufficient(captures: captures, started: started) }
+        guard rankings.count >= 2 else { return insufficient(captures: captures, started: started) }
 
         var scores: [Int: Int] = [:]
         for ranking in rankings {
-            for (position, index) in ranking.enumerated() {
-                scores[index, default: 0] += max(0, finalists.count - position)
+            for entry in ranking {
+                scores[entry.step, default: 0] += max(0, finalists.count - entry.position)
             }
         }
         let ordered = finalists.sorted {
             let lhs = scores[$0, default: 0], rhs = scores[$1, default: 0]
             return lhs == rhs ? $0 < $1 : lhs > rhs
         }
-        let viewLeaders = rankings.compactMap(\.first)
+        let viewLeaders = rankings.compactMap { $0.first?.step }
         let agreement = Dictionary(grouping: viewLeaders, by: { $0 }).values.map(\.count).max() ?? 0
-        let certainty: RecoveryCertainty = agreement == 3 ? .high : (agreement == 2 ? .medium : .low)
+        let certainty: RecoveryCertainty = agreement >= 3 ? .high : (agreement == 2 ? .medium : .low)
         let duration = started.duration(to: .now)
         return RecoveryEstimate(
             rankedStepIDs: ordered.prefix(3).map { $0 == -1 ? model.stepZeroID : model.steps[$0].id },

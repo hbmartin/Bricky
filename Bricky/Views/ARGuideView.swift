@@ -26,7 +26,7 @@ struct ARGuideView: View {
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
                     Spacer()
                     if alignment.alignment == nil {
-                        Button("Place Ghost Here") { alignment.placeGhost(manager: camera, viewport: proxy.size) }
+                        Button("Place Ghost Here") { placeGhost(proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
                     } else {
                         AlignmentNudgePad(alignment: alignment)
@@ -37,7 +37,12 @@ struct ARGuideView: View {
                 camera.checkPermissions()
                 await loadEntity()
             }
-            .onDisappear { camera.stopSession() }
+            .onDisappear {
+                camera.stopSession()
+                // Re-entry re-runs the session with reset options, which
+                // starts a new world frame; drop the stale ghost pose.
+                alignment.reset()
+            }
             .onChange(of: camera.trackingState) { _, state in
                 if case .notAvailable = state, alignment.alignment != nil { alignment.trackingLost() }
             }
@@ -47,6 +52,23 @@ struct ARGuideView: View {
         .alert("AR Unavailable", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
+    }
+
+    private func placeGhost(proxy: GeometryProxy) {
+        // The AR overlay ignores the safe area, so it spans the full window
+        // while the GeometryReader (and the centered reticle) only cover the
+        // safe area. Express the reticle's position and the viewport in the
+        // AR view's window-sized coordinate space.
+        let frame = proxy.frame(in: .global)
+        let viewport = CGSize(
+            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
+            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+        )
+        alignment.placeGhost(
+            manager: camera,
+            viewport: viewport,
+            screenPoint: CGPoint(x: frame.midX, y: frame.midY)
+        )
     }
 
     @MainActor
@@ -69,13 +91,19 @@ private struct AlignmentNudgePad: View {
     var body: some View {
         VStack(spacing: 8) {
             Button { alignment.nudge(z: -nudge) } label: { Image(systemName: "arrow.up") }
+                .accessibilityLabel("Move ghost forward")
             HStack(spacing: 12) {
                 Button { alignment.nudge(x: -nudge) } label: { Image(systemName: "arrow.left") }
+                    .accessibilityLabel("Move ghost left")
                 Button { alignment.nudge(yawDegrees: -1) } label: { Image(systemName: "rotate.left") }
+                    .accessibilityLabel("Rotate ghost left")
                 Button { alignment.nudge(yawDegrees: 1) } label: { Image(systemName: "rotate.right") }
+                    .accessibilityLabel("Rotate ghost right")
                 Button { alignment.nudge(x: nudge) } label: { Image(systemName: "arrow.right") }
+                    .accessibilityLabel("Move ghost right")
             }
             Button { alignment.nudge(z: nudge) } label: { Image(systemName: "arrow.down") }
+                .accessibilityLabel("Move ghost backward")
         }
         .buttonStyle(.borderedProminent)
         .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(.bottom)

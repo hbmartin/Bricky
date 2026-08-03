@@ -1,4 +1,5 @@
 import Foundation
+import MLX
 import MLXGuidedGeneration
 import MLXLMCommon
 import MLXVLM
@@ -26,9 +27,17 @@ public actor MLXRecoveryRuntime {
     private static let rankSchema = #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":["A","B","C","D","E","F","G","H"]},"maxItems":8,"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
     private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
 
+    /// Bounded Metal buffer cache for iOS. MLX otherwise defaults the cache
+    /// limit to the memory limit, which is far too large next to 3 GB of
+    /// weights on an iPhone.
+    private static let gpuCacheLimitBytes = 20 * 1024 * 1024
+
     private var container: ModelContainer?
     private var loadTask: Task<ModelContainer, Error>?
     private var grammarCache: GrammarCache?
+    /// Incremented by `unload()`. A load that finishes after an interleaved
+    /// unload must not resurrect the container.
+    private var loadGeneration = 0
 
     public init() {}
 
@@ -73,11 +82,21 @@ public actor MLXRecoveryRuntime {
         )
     }
 
-    public func unload() {
-        loadTask?.cancel()
+    public func unload() async {
+        loadGeneration += 1
+        let inFlight = loadTask
+        // Clear state before suspending so reentrant callers observe the
+        // unloaded runtime immediately.
         loadTask = nil
         grammarCache = nil
         container = nil
+        if let inFlight {
+            inFlight.cancel()
+            // Drain the in-flight load so callers can rely on the weights
+            // being released (or the load abandoned) when this returns.
+            _ = try? await inFlight.value
+        }
+        MLX.Memory.clearCache()
     }
 
     fileprivate enum GrammarKind: Sendable { case rank, check }
@@ -127,6 +146,9 @@ public actor MLXRecoveryRuntime {
     private func modelContainer(modelDirectory: URL) async throws -> ModelContainer {
         if let container { return container }
         if let loadTask { return try await loadTask.value }
+        // Bound the Metal buffer cache before any weights load.
+        MLX.Memory.cacheLimit = Self.gpuCacheLimitBytes
+        let generation = loadGeneration
         let task = Task<ModelContainer, Error> {
             try await VLMModelFactory.shared.loadContainer(
                 from: modelDirectory,
@@ -136,11 +158,17 @@ public actor MLXRecoveryRuntime {
         loadTask = task
         do {
             let loaded = try await task.value
+            guard generation == loadGeneration else {
+                // unload() ran while the weights were loading; do not
+                // resurrect a multi-gigabyte container.
+                MLX.Memory.clearCache()
+                throw CancellationError()
+            }
             container = loaded
             loadTask = nil
             return loaded
         } catch {
-            loadTask = nil
+            if loadTask == task { loadTask = nil }
             throw error
         }
     }

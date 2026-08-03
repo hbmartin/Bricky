@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 @testable import Bricky
@@ -58,6 +59,40 @@ final class InstructionImporterTests: XCTestCase {
 
         let after = Set((try? FileManager.default.contentsOfDirectory(atPath: models.path)) ?? [])
         XCTAssertEqual(after, before)
+    }
+
+    func testVerifyWritesSidecarMarkerAndSkipsRehashUntilForced() async throws {
+        let folder = try makeTemporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let asset = folder.appendingPathComponent("asset.bin")
+        let original = Data("bricky-asset-payload".utf8)
+        try original.write(to: asset)
+        let digest = SHA256.hash(data: original).map { String(format: "%02x", $0) }.joined()
+        let downloader = VerifiedAssetDownloader()
+        let expectedBytes = Int64(original.count)
+
+        let initialResult = try await downloader.verify(asset, expectedBytes: expectedBytes, expectedSHA256: digest)
+        XCTAssertTrue(initialResult)
+        let marker = folder.appendingPathComponent("asset.bin.verified")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path))
+
+        // Same size and restored modification time, different bytes: the quick
+        // path trusts the marker by design, and `force` re-hashes.
+        let attributes = try FileManager.default.attributesOfItem(atPath: asset.path)
+        let modified = try XCTUnwrap(attributes[.modificationDate] as? Date)
+        var tampered = original
+        tampered[0] = tampered[0] &+ 1
+        try tampered.write(to: asset)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: asset.path)
+
+        let quickResult = try await downloader.verify(asset, expectedBytes: expectedBytes, expectedSHA256: digest)
+        XCTAssertTrue(quickResult)
+        let forcedResult = try await downloader.verify(asset, expectedBytes: expectedBytes, expectedSHA256: digest, force: true)
+        XCTAssertFalse(forcedResult)
+        // The failed forced hash removed the marker, so the quick path is gone.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+        let recheckedResult = try await downloader.verify(asset, expectedBytes: expectedBytes, expectedSHA256: digest)
+        XCTAssertFalse(recheckedResult)
     }
 
     private func makeTemporaryFolder() throws -> URL {
