@@ -72,13 +72,14 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer)
             // Views the model marked insufficient must not vote in scoring
             // or certainty.
-            guard result.status != "insufficient" else { continue }
+            guard result.status == "matched" else { continue }
             // Enumerate before dropping out-of-range slots so later
             // candidates keep their true rank positions.
             let mapped = result.ranking.enumerated().compactMap { position, slot -> (position: Int, step: Int)? in
                 guard let step = Self.index(for: slot, candidates: finalists) else { return nil }
                 return (position, step)
             }
+            guard !mapped.isEmpty else { continue }
             rankings.append(mapped)
         }
         guard rankings.count >= 2 else { return insufficient(captures: captures, started: started) }

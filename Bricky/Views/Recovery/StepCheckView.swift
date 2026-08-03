@@ -17,6 +17,7 @@ struct StepCheckView: View {
     @State private var capturedURL: URL?
     @State private var error: String?
     @State private var checkTask: Task<Void, Never>?
+    @State private var checkGeneration = UUID()
 
     var body: some View {
         Group {
@@ -39,10 +40,8 @@ struct StepCheckView: View {
                 }
                 .task { camera.checkPermissions() }
                 .onDisappear {
-                    checkTask?.cancel()
-                    checkTask = nil
                     camera.stopSession()
-                    discardRawCapture()
+                    cancelCheckAndDiscardCapture()
                 }
             } else {
                 ContentUnavailableView("Check Step Unavailable", systemImage: "lock.shield", description: Text("Step checks require an admitted on-device recovery model. You can always advance the guide without a check."))
@@ -86,10 +85,24 @@ struct StepCheckView: View {
             return
         }
         isChecking = true
-        checkTask?.cancel()
+        let previous = checkTask
+        previous?.cancel()
+        // Claim the superseded check's raw capture now and delete it once its
+        // reader task finishes; otherwise the file would linger on disk until
+        // the next-launch orphan sweep. The stale image stays visible until
+        // this check replaces it.
+        let previousCaptureURL = capturedURL
+        capturedURL = nil
+        let generation = UUID()
+        checkGeneration = generation
         let task = Task {
-            defer { isChecking = false }
+            await previous?.value
+            RecoveryWorkFileCleanup.remove(urls: [previousCaptureURL].compactMap { $0 })
+            defer {
+                if generation == checkGeneration { isChecking = false }
+            }
             do {
+                try Task.checkCancellation()
                 let capture = try RecoveryCaptureService().capture(from: camera, angle: .center, alignmentID: UUID())
                 let root = try InstructionModelImporter.applicationSupportRoot()
                 let physical = root.appendingPathComponent(capture.imageRelativePath)
@@ -107,10 +120,14 @@ struct StepCheckView: View {
                     prompt: "The top image is the physical build. Candidate A is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts.",
                     modelDirectory: modelDirectory
                 )
+                guard generation == checkGeneration, !Task.isCancelled else { return }
                 result = StepCheckResult(rawValue: output.result) ?? .uncertain
             } catch is CancellationError {
                 // Navigation or suspension cancelled the check.
-            } catch { self.error = error.localizedDescription }
+            } catch {
+                guard generation == checkGeneration else { return }
+                self.error = error.localizedDescription
+            }
         }
         checkTask = task
         // Registered so the app can cancel AND await in-flight MLX inference
@@ -148,5 +165,19 @@ struct StepCheckView: View {
         if let capturedURL { try? FileManager.default.removeItem(at: capturedURL) }
         capturedURL = nil
         capturedImage = nil
+    }
+
+    private func cancelCheckAndDiscardCapture() {
+        checkGeneration = UUID()
+        let task = checkTask
+        checkTask = nil
+        task?.cancel()
+        let url = capturedURL
+        capturedURL = nil
+        capturedImage = nil
+        Task.detached(priority: .utility) {
+            await task?.value
+            RecoveryWorkFileCleanup.remove(urls: [url].compactMap { $0 })
+        }
     }
 }

@@ -63,6 +63,7 @@ targets:
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift
+      - BrickyTests/RecoveryCaptureTests.swift
       - BrickyTests/SwiftParityTests.swift
     dependencies:
       - target: Bricky

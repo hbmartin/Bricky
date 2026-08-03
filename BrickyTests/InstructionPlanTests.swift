@@ -74,10 +74,12 @@ final class InstructionPlanTests: XCTestCase {
         let outOfRange = tampered(range: PlacementRange(lowerBound: -3, upperBound: 99), cumulative: -7)
         XCTAssertEqual(Array(plan.addedPlacements(for: outOfRange)), plan.placementTimeline)
         XCTAssertTrue(plan.cumulativePlacements(through: outOfRange).isEmpty)
+        XCTAssertTrue(plan.completedPlacements(before: outOfRange).isEmpty)
 
         let inverted = tampered(range: PlacementRange(lowerBound: 42, upperBound: 7), cumulative: 99)
         XCTAssertTrue(plan.addedPlacements(for: inverted).isEmpty)
         XCTAssertEqual(Array(plan.cumulativePlacements(through: inverted)), plan.placementTimeline)
+        XCTAssertEqual(Array(plan.completedPlacements(before: inverted)), plan.placementTimeline)
     }
 
     func testRepeatedSubmodelInstancesHaveDistinctPathsAndInheritedColor() throws {

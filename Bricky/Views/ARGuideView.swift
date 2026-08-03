@@ -26,7 +26,7 @@ struct ARGuideView: View {
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
                     Spacer()
                     if alignment.alignment == nil {
-                        Button("Place Ghost Here") { placeGhost(proxy: proxy) }
+                        Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
                     } else {
                         AlignmentNudgePad(alignment: alignment)
@@ -52,23 +52,6 @@ struct ARGuideView: View {
         .alert("AR Unavailable", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
-    }
-
-    private func placeGhost(proxy: GeometryProxy) {
-        // The AR overlay ignores the safe area, so it spans the full window
-        // while the GeometryReader (and the centered reticle) only cover the
-        // safe area. Express the reticle's position and the viewport in the
-        // AR view's window-sized coordinate space.
-        let frame = proxy.frame(in: .global)
-        let viewport = CGSize(
-            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
-            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
-        )
-        alignment.placeGhost(
-            manager: camera,
-            viewport: viewport,
-            screenPoint: CGPoint(x: frame.midX, y: frame.midY)
-        )
     }
 
     @MainActor

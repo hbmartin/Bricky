@@ -38,6 +38,12 @@ public actor MLXRecoveryRuntime {
     /// Incremented by `unload()`. A load that finishes after an interleaved
     /// unload must not resurrect the container.
     private var loadGeneration = 0
+    private var activeLoadWaiters = 0
+    private var isUnloading = false
+    /// Concurrent `unload()` callers parked until the primary unload finishes.
+    private var unloadWaiters: [CheckedContinuation<Void, Never>] = []
+    /// The primary unload parked until every load waiter drops its result.
+    private var loadDrainWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init() {}
 
@@ -53,7 +59,8 @@ public actor MLXRecoveryRuntime {
             modelDirectory: modelDirectory,
             maxTokens: 96
         )
-        guard let value = try? JSONDecoder().decode(MLXRankOutput.self, from: Data(output.utf8)) else {
+        guard let value = try? JSONDecoder().decode(MLXRankOutput.self, from: Data(output.utf8)),
+              value.status != "matched" || !value.ranking.isEmpty else {
             throw MLXRecoveryError.invalidStructuredOutput
         }
         return value
@@ -83,10 +90,15 @@ public actor MLXRecoveryRuntime {
     }
 
     public func unload() async {
+        if isUnloading {
+            await withCheckedContinuation { unloadWaiters.append($0) }
+            return
+        }
+        isUnloading = true
         loadGeneration += 1
-        let inFlight = loadTask
+        var inFlight = loadTask
         // Clear state before suspending so reentrant callers observe the
-        // unloaded runtime immediately.
+        // unloading barrier immediately and cannot start replacement loads.
         loadTask = nil
         grammarCache = nil
         container = nil
@@ -96,7 +108,19 @@ public actor MLXRecoveryRuntime {
             // being released (or the load abandoned) when this returns.
             _ = try? await inFlight.value
         }
+        // Completed Task values retain their result. Drop the last local task
+        // handle, then let every modelContainer waiter release its own local
+        // result before clearing MLX's cache. New waiters cannot appear here:
+        // `modelContainer` rejects callers while `isUnloading` is set.
+        inFlight = nil
+        while activeLoadWaiters > 0 {
+            await withCheckedContinuation { loadDrainWaiters.append($0) }
+        }
         MLX.Memory.clearCache()
+        isUnloading = false
+        let parked = unloadWaiters
+        unloadWaiters = []
+        for waiter in parked { waiter.resume() }
     }
 
     fileprivate enum GrammarKind: Sendable { case rank, check }
@@ -144,8 +168,11 @@ public actor MLXRecoveryRuntime {
     }
 
     private func modelContainer(modelDirectory: URL) async throws -> ModelContainer {
+        guard !isUnloading else { throw CancellationError() }
         if let container { return container }
-        if let loadTask { return try await loadTask.value }
+        if let loadTask {
+            return try await finishLoading(loadTask, generation: loadGeneration)
+        }
         // Bound the Metal buffer cache before any weights load.
         MLX.Memory.cacheLimit = Self.gpuCacheLimitBytes
         let generation = loadGeneration
@@ -156,17 +183,36 @@ public actor MLXRecoveryRuntime {
             )
         }
         loadTask = task
+        return try await finishLoading(task, generation: generation)
+    }
+
+    private func finishLoading(
+        _ task: Task<ModelContainer, Error>,
+        generation: Int
+    ) async throws -> ModelContainer {
+        activeLoadWaiters += 1
+        defer {
+            // By the time this runs, the waiter's local `loaded` reference is
+            // gone (nilled on the unload path, or ownership passed to
+            // `container`), so the last waiter out can release the unload.
+            activeLoadWaiters -= 1
+            if activeLoadWaiters == 0 {
+                let parked = loadDrainWaiters
+                loadDrainWaiters = []
+                for waiter in parked { waiter.resume() }
+            }
+        }
         do {
-            let loaded = try await task.value
-            guard generation == loadGeneration else {
+            var loaded: ModelContainer? = try await task.value
+            guard generation == loadGeneration, !isUnloading else {
                 // unload() ran while the weights were loading; do not
                 // resurrect a multi-gigabyte container.
-                MLX.Memory.clearCache()
+                loaded = nil
                 throw CancellationError()
             }
             container = loaded
-            loadTask = nil
-            return loaded
+            if loadTask == task { loadTask = nil }
+            return loaded!
         } catch {
             if loadTask == task { loadTask = nil }
             throw error

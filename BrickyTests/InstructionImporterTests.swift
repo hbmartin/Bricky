@@ -84,6 +84,14 @@ final class InstructionImporterTests: XCTestCase {
         tampered[0] = tampered[0] &+ 1
         try tampered.write(to: asset)
         try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: asset.path)
+        let restoredAttributes = try FileManager.default.attributesOfItem(atPath: asset.path)
+        let restoredModified = try XCTUnwrap(restoredAttributes[.modificationDate] as? Date)
+        XCTAssertEqual(
+            restoredModified.timeIntervalSince1970,
+            modified.timeIntervalSince1970,
+            accuracy: 0.000_5,
+            "The filesystem did not preserve the timestamp precision required by the marker fast path"
+        )
 
         let quickResult = try await downloader.verify(asset, expectedBytes: expectedBytes, expectedSHA256: digest)
         XCTAssertTrue(quickResult)

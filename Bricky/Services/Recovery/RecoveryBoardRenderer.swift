@@ -50,23 +50,25 @@ final class InstructionSnapshotRenderer {
     func image(forStepIndex index: Int, capture: RecoveryCapture, alignment: ARAlignment) async throws -> UIImage {
         let key = "capture:\(capture.id.uuidString):\(index)"
         if let cached = cache[key] { return cached }
-        guard capture.cameraTransform.count == 16, capture.cameraIntrinsics.count == 9 else {
+        guard capture.cameraTransform.count == 16,
+              capture.cameraIntrinsics.count == 9,
+              capture.cameraImageResolution.count == 2 else {
             throw RecoveryError.invalidCaptureMetadata
         }
-        // Column-major intrinsics: [fx 0 0 | 0 fy 0 | cx cy 1]. The principal
-        // point sits at the native image center, so it doubles as the native
-        // sensor half-size even though RecoveryCapture stores no dimensions.
+        // Column-major intrinsics: [fx 0 0 | 0 fy 0 | cx cy 1]. Framing uses
+        // the captured sensor dimensions directly; the principal point is not
+        // assumed to be the exact image center.
         let fy = capture.cameraIntrinsics[4]
-        let cx = CGFloat(capture.cameraIntrinsics[6])
-        let cy = CGFloat(capture.cameraIntrinsics[7])
-        guard fy > 0, cx > 0, cy > 0 else {
+        let nativeWidth = CGFloat(capture.cameraImageResolution[0])
+        let nativeHeight = CGFloat(capture.cameraImageResolution[1])
+        guard fy > 0, nativeWidth > 0, nativeHeight > 0 else {
             throw RecoveryError.invalidCaptureMetadata
         }
         let placements = index < 0 ? [] : Array(plan.cumulativePlacements(through: plan.steps[index]))
         let snapshot = try await engine.snapshot(placements: placements)
         let model = try RealityKitInstructionAdapter.makeEntity(from: snapshot)
         let renderWidth: CGFloat = 512
-        let renderHeight = max(64, (renderWidth * cy / cx).rounded())
+        let renderHeight = max(64, (renderWidth * nativeHeight / nativeWidth).rounded())
         let view = ARView(frame: CGRect(x: 0, y: 0, width: renderWidth, height: renderHeight), cameraMode: .nonAR, automaticallyConfigureSession: false)
         view.environment.background = .color(.systemBackground)
 
@@ -80,8 +82,8 @@ final class InstructionSnapshotRenderer {
         let cameraMatrix = Self.matrix(capture.cameraTransform)
         camera.transform.matrix = cameraMatrix
         // Vertical FOV in the landscape sensor frame from native intrinsics:
-        // fovY = 2 * atan((nativeHeight / 2) / fy), with nativeHeight / 2 = cy.
-        let fovRadians = 2 * atan(Float(cy) / fy)
+        // fovY = 2 * atan((nativeHeight / 2) / fy).
+        let fovRadians = 2 * atan(Float(nativeHeight / 2) / fy)
         camera.camera.fieldOfViewInDegrees = min(100, max(20, fovRadians * 180 / .pi))
         let light = DirectionalLight()
         light.light.intensity = 2_500
