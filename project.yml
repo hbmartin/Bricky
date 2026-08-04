@@ -55,6 +55,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Bricky/Resources/App.entitlements
     dependencies:
       - package: RecoveryMLX
+        product: RecoveryMLX
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
       - package: ZIPFoundation
   BrickyTests:
     type: bundle.unit-test
@@ -72,6 +75,9 @@ targets:
     dependencies:
       - target: Bricky
       - package: RecoveryMLX
+        product: RecoveryMLX
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.tests

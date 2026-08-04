@@ -19,6 +19,62 @@ uv run python make_board.py physical.jpg step-0.png step-8.png step-16.png \
   --step-labels 0 8 16 --out boards/case-001.jpg
 ```
 
+> **Deprecated as layout authority.** The board geometry now has a single
+> authoritative implementation shared by the app and the Mac harness:
+> `RecoveryBoardLayoutV1` in `Packages/RecoveryMLX/Sources/RecoveryEvidenceKit`.
+> Use `bricky-harness recompose` to rebuild boards from evidence bundles;
+> `make_board.py` remains only for synthetic fixtures and is not kept in
+> lockstep with the app.
+
+## Producing rows: the evidence workflow (ADR 0007)
+
+Benchmark rows come from evidence bundles recorded on device and replayed on
+a Mac — the app and the CLI share the same `MLXRecoveryRuntime`, grammar
+constraints, and board layout.
+
+1. On device: Storage ▸ Developer ▸ enable **Record recovery evidence** (and
+   **Corpus collection mode** for release-corpus rows — declare the true step
+   and conditions before capturing).
+2. Run recoveries, Confirm, then Storage ▸ Developer ▸ Evidence Sessions ▸
+   select ▸ Export, and AirDrop the zip to your Mac.
+3. On the Mac:
+
+```sh
+unzip bricky-evidence-*.zip -d bundle
+hf download mlx-community/Qwen2.5-VL-3B-Instruct-4bit \
+  --revision 46d4cf06a06ffc1a766c214174f9cbed2f45bcab --local-dir model
+
+swift run --package-path Packages/RecoveryMLX bricky-harness \
+  replay --bundle bundle --model-dir model --out results.ndjson
+uv run python score_results.py results.ndjson --allow-small-corpus
+```
+
+Device-recorded `benchmark.ndjson` rows inside the bundle are the *device*
+numbers; `bricky-harness replay` rows carry `device_model: "replay:<mac>"` so
+they can never masquerade as device rows in a release corpus.
+
+### A/B experiments
+
+Replay is a Mac-vs-Mac instrument (greedy guided decoding is deterministic per
+platform, but iOS↔macOS Metal kernels can flip near-tie argmax). Compare a
+baseline replay against a variant replay of the same bundle:
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness \
+  replay --bundle bundle --model-dir model --out baseline.ndjson
+swift run --package-path Packages/RecoveryMLX bricky-harness \
+  replay --bundle bundle --model-dir model --prompt-file variant-prompt.txt \
+  --out variant.ndjson
+uv run python score_results.py baseline.ndjson --allow-small-corpus
+uv run python score_results.py variant.ndjson --allow-small-corpus
+```
+
+`--recompose` rebuilds boards from raw captures + tiles through the shared
+layout (for layout experiments), `--max-tokens` overrides the rank budget, and
+`--all-passes` replays every hierarchical pass instead of only the finalists.
+Per-call results (including `matches_device`) land beside the output as
+`<out>.traces.ndjson`. `--dry-run` validates a bundle without loading weights.
+
 Device runs append one JSON object per line to an NDJSON file. Then run:
 
 ```sh

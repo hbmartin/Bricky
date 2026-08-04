@@ -145,70 +145,36 @@ final class InstructionSnapshotRenderer {
 
 }
 
+/// Thin wrapper over the shared layout in RecoveryEvidenceKit — one
+/// implementation for the app and the Mac harness, pinned to exactly
+/// 1024×1024 px (the previous UIKit renderer drew at screen scale, so disk
+/// boards were 2–3× larger than documented; the model input was unaffected
+/// because the runtime resizes to 1024 anyway).
 @MainActor
 enum RecoveryBoardComposer {
     static func compose(
         physicalViewURL: URL,
         candidates: [(slot: String, image: UIImage, stepNumber: Int)]
     ) throws -> URL {
-        guard let physical = UIImage(contentsOfFile: physicalViewURL.path) else {
+        guard let physical = try? RecoveryBoardLayoutV1.loadImage(at: physicalViewURL) else {
             throw RecoveryError.captureImageMissing
         }
-        let size = CGSize(width: 1024, height: 1024)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let board = renderer.image { context in
-            UIColor(white: 0.06, alpha: 1).setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-            drawAspectFill(physical, in: CGRect(x: 16, y: 16, width: 992, height: 420))
-            let columns = 4
-            let gap: CGFloat = 12
-            let tileWidth = (992 - gap * 3) / 4
-            let tileHeight: CGFloat = 266
-            for (offset, candidate) in candidates.enumerated() {
-                let row = offset / columns
-                let column = offset % columns
-                let frame = CGRect(
-                    x: 16 + CGFloat(column) * (tileWidth + gap),
-                    y: 452 + CGFloat(row) * (tileHeight + gap),
-                    width: tileWidth,
-                    height: tileHeight
-                )
-                UIColor(white: 0.14, alpha: 1).setFill()
-                UIBezierPath(roundedRect: frame, cornerRadius: 14).fill()
-                drawAspectFit(candidate.image, in: frame.insetBy(dx: 8, dy: 30))
-                let label = "\(candidate.slot) · Step \(candidate.stepNumber)"
-                label.draw(
-                    at: CGPoint(x: frame.minX + 10, y: frame.minY + 7),
-                    withAttributes: [
-                        .font: UIFont.monospacedSystemFont(ofSize: 19, weight: .bold),
-                        .foregroundColor: UIColor.white
-                    ]
-                )
+        let kitCandidates = try candidates.map { candidate in
+            guard let cgImage = candidate.image.cgImage else {
+                throw RecoveryError.captureImageMissing
             }
+            return RecoveryBoardLayoutV1.Candidate(
+                slot: candidate.slot,
+                image: cgImage,
+                stepNumber: candidate.stepNumber
+            )
         }
+        let board = try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: kitCandidates)
         let root = try InstructionModelImporter.applicationSupportRoot()
         let boards = root.appendingPathComponent("InferenceBoards", isDirectory: true)
         try FileManager.default.createDirectory(at: boards, withIntermediateDirectories: true)
         let output = boards.appendingPathComponent("\(UUID().uuidString).jpg")
-        guard let data = board.jpegData(compressionQuality: 0.9) else { throw CocoaError(.fileWriteUnknown) }
-        try data.write(to: output, options: .atomic)
+        try RecoveryBoardLayoutV1.writeJPEG(board, to: output)
         return output
-    }
-
-    private static func drawAspectFill(_ image: UIImage, in rect: CGRect) {
-        let scale = max(rect.width / image.size.width, rect.height / image.size.height)
-        let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let drawRect = CGRect(x: rect.midX - target.width / 2, y: rect.midY - target.height / 2, width: target.width, height: target.height)
-        let context = UIGraphicsGetCurrentContext()
-        context?.saveGState()
-        UIBezierPath(roundedRect: rect, cornerRadius: 14).addClip()
-        image.draw(in: drawRect)
-        context?.restoreGState()
-    }
-
-    private static func drawAspectFit(_ image: UIImage, in rect: CGRect) {
-        let scale = min(rect.width / max(1, image.size.width), rect.height / max(1, image.size.height))
-        let target = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        image.draw(in: CGRect(x: rect.midX - target.width / 2, y: rect.midY - target.height / 2, width: target.width, height: target.height))
     }
 }

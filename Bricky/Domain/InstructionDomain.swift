@@ -245,12 +245,6 @@ struct InstructionPlan: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-enum RecoveryCertainty: String, Codable, Sendable {
-    case high
-    case medium
-    case low
-    case insufficient
-}
 
 struct RecoveryCapture: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
@@ -330,56 +324,6 @@ enum ModelAdmissionState: Equatable, Sendable {
     case rejected(reason: String)
 }
 
-struct RecoveryBenchmarkV1: Codable, Sendable {
-    static let schemaVersion = 1
-
-    let schemaVersion: Int
-    let fixtureID: String
-    let instructionSHA256: String
-    let pyldraw3Version: String
-    let partPackVersion: String
-    let expectedStepID: String
-    let candidateSlots: [String: String]
-    let boardRelativePaths: [String]
-    let cameraMetadata: [[String: Float]]
-    let expectedStepIndex: Int
-    let rankedStepIDs: [String]
-    let certainty: RecoveryCertainty
-    let deviceModel: String
-    let operatingSystem: String
-    let latencyMilliseconds: Int
-    let memoryPeakBytes: Int64
-    let topStepIndex: Int?
-    let physicalCase: Bool?
-    let authoredModelID: String?
-    let legalUseConfirmed: Bool?
-    let lightingCondition: String?
-    let captureAngle: String?
-    let occlusionCondition: String?
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case fixtureID = "fixture_id"
-        case instructionSHA256 = "instruction_sha256"
-        case pyldraw3Version = "pyldraw3_version"
-        case partPackVersion = "part_pack_version"
-        case expectedStepID = "expected_step_id"
-        case candidateSlots = "candidate_slots"
-        case boardRelativePaths = "board_relative_paths"
-        case cameraMetadata = "camera_metadata"
-        case expectedStepIndex = "expected_step_index"
-        case rankedStepIDs = "ranked_step_ids"
-        case certainty
-        case deviceModel = "device_model"
-        case operatingSystem = "operating_system"
-        case latencyMilliseconds = "latency_ms"
-        case memoryPeakBytes = "memory_peak_bytes"
-        case topStepIndex = "top_step_index"
-        case physicalCase = "physical_case"
-        case authoredModelID = "authored_model_id"
-        case legalUseConfirmed = "legal_use_confirmed"
-        case lightingCondition = "lighting_condition"
-        case captureAngle = "capture_angle"
-        case occlusionCondition = "occlusion_condition"
-    }
-}
+// RecoveryBenchmarkV1 and RecoveryCertainty live in RecoveryEvidenceKit
+// (re-exported by RecoveryEvidence.swift) so the app, the bricky-harness CLI,
+// and the Python scorer share one contract.

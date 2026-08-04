@@ -80,13 +80,15 @@ public actor MLXRecoveryRuntime {
         return output
     }
 
-    public func rankWithTrace(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL) async throws -> MLXRankResponse {
+    /// `maxTokens` overrides the default rank budget — an A/B knob for the
+    /// Mac harness; the app always passes nil.
+    public func rankWithTrace(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL, maxTokens: Int? = nil) async throws -> MLXRankResponse {
         let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
-            maxTokens: Self.rankMaxTokens
+            maxTokens: maxTokens ?? Self.rankMaxTokens
         )
         var output: MLXRankOutput?
         var decodeError: String?

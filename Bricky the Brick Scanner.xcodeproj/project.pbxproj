@@ -10,6 +10,7 @@
 		00F1D1DAB5C9DCB015D9449A /* VerifiedAssetDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */; };
 		053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
+		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
 		1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */; };
@@ -17,6 +18,7 @@
 		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
 		2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */; };
+		2C805B31F620F8B53C9A693D /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
 		37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */; };
 		3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */; };
@@ -33,7 +35,6 @@
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
 		77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
-		7D14165F932B5A8D78F7264A /* ProcessFootprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */; };
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
 		87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */; };
@@ -55,7 +56,7 @@
 		D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2748072D5C42BC9CAF299882 /* StepCheckView.swift */; };
 		D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */; };
 		DD8A9E5B37A82D9FB35356EA /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
-		E0FB47420C749683B165C2AD /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
+		E0FB47420C749683B165C2AD /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */; };
 		E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
 		FE3498AC20FF256FDE6C7B02 /* ARCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */; };
@@ -102,7 +103,6 @@
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
-		8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFootprint.swift; sourceTree = "<group>"; };
 		8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
 		9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
@@ -140,6 +140,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */,
+				2C805B31F620F8B53C9A693D /* RecoveryEvidenceKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,7 +149,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */,
-				E0FB47420C749683B165C2AD /* ZIPFoundation in Frameworks */,
+				E0FB47420C749683B165C2AD /* RecoveryEvidenceKit in Frameworks */,
+				124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,7 +297,6 @@
 				E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */,
 				62E1EF565595993B80170831 /* EvidenceExporter.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
-				8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */,
 				FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */,
 				F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */,
 				F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */,
@@ -345,6 +346,7 @@
 			name = Bricky;
 			packageProductDependencies = (
 				9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */,
+				97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */,
 				E78ECCD396A43FB4FD11323B /* ZIPFoundation */,
 			);
 			productName = Bricky;
@@ -384,6 +386,7 @@
 			name = BrickyTests;
 			packageProductDependencies = (
 				131FA9216C20002D90F8F63D /* RecoveryMLX */,
+				46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */,
 			);
 			productName = BrickyTests;
 			productReference = B9875749055872E5C5260701 /* BrickyTests.xctest */;
@@ -489,7 +492,6 @@
 				C9ED90E2B917AB752C9A6CB5 /* LDrawInstructionParser.swift in Sources */,
 				144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */,
 				928AE5089033880C101A5680 /* LibraryView.swift in Sources */,
-				7D14165F932B5A8D78F7264A /* ProcessFootprint.swift in Sources */,
 				8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */,
 				609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */,
 				8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */,
@@ -828,6 +830,14 @@
 		131FA9216C20002D90F8F63D /* RecoveryMLX */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RecoveryMLX;
+		};
+		46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RecoveryEvidenceKit;
+		};
+		97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RecoveryEvidenceKit;
 		};
 		9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */ = {
 			isa = XCSwiftPackageProductDependency;
