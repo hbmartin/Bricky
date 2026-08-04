@@ -16,10 +16,19 @@ import simd
 /// Calibration status: the bundled synthetic-tower smoke fixture is
 /// deliberately hard (self-similar studless-scale cubes at LiDAR resolution)
 /// and currently fails the registration gates while passing verification
-/// with zero false-completes. Gate-green runs require realistic fixtures
-/// built from the real parts library (available in CI via the pinned pack)
-/// and calibrated sensor constants; BRICKY_SYNTH_DEBUG=1 prints per-frame
-/// solve quality for that work.
+/// with zero false-completes. The real-tower fixture (real parts, pinned
+/// pack required) established two findings on the RECONSTRUCTED sensor
+/// model: uniformly tiled brick layers alias along the stud lattice (the
+/// solve walks ~one pitch per frame at margin ≈ 1.0 — release-corpus
+/// models need tall multi-brick massing, which stops the walk), and the
+/// remaining blocker is a per-view systematic bias of ~15 mm from the
+/// reconstructed edge dilation/dropout that alternating-view blending
+/// cannot cancel. That bias must be calibrated against real device
+/// captures before the gates can go green — tuning solver constants to a
+/// possibly-fictional edge model would be fitting noise. False-complete
+/// stays 0.0 on every fixture; under-confidence (uncertain-on-correct)
+/// is the failure direction, which is the safe side of ADR 0008.
+/// BRICKY_SYNTH_DEBUG=1 prints per-frame solve quality for this work.
 @main
 struct SyntheticRGBDMain {
     static func main() async {
