@@ -147,6 +147,13 @@ final class ARCameraManager: NSObject, ObservableObject {
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal]
         configuration.isAutoFocusEnabled = true
+        // The LiDAR floor (ADR 0012) guarantees mesh reconstruction; the mesh
+        // occludes virtual bricks behind the physical build, and person
+        // segmentation keeps hands in front of the ghost while placing parts.
+        configuration.sceneReconstruction = .mesh
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
+            configuration.frameSemantics.insert(.personSegmentationWithDepth)
+        }
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         error = nil
         isSessionRunning = true

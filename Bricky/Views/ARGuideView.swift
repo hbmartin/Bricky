@@ -61,8 +61,20 @@ struct ARGuideView: View {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
             let engine = LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPackRoot)
-            let snapshot = try await engine.snapshot(placements: Array(plan.cumulativePlacements(through: step)))
-            entity = try RealityKitInstructionAdapter.makeEntity(from: snapshot)
+            // Same completed/new treatment as the on-screen guide: dimmed
+            // prior work under a full-opacity ghost of this step's additions.
+            // Both stay solid translucent renders — never wireframe — per the
+            // ADR 0008 design-around.
+            let completed = Array(plan.completedPlacements(before: step))
+            let additions = Array(plan.addedPlacements(for: step))
+            let container = Entity()
+            if !completed.isEmpty {
+                let completedSnapshot = try await engine.snapshot(placements: completed)
+                container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
+            }
+            let additionSnapshot = try await engine.snapshot(placements: additions)
+            container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
+            entity = container
         } catch { self.error = error.localizedDescription }
     }
 }

@@ -73,6 +73,11 @@ struct ARInstructionOverlay: UIViewRepresentable {
         view.session = session
         view.environment.background = .cameraFeed()
         view.renderOptions = [.disableMotionBlur, .disableDepthOfField]
+        // Scene-mesh occlusion: already-built bricks and the tabletop hide
+        // the parts of the ghost that sit behind them. The ghost itself
+        // remains a solid translucent render (ADR 0008 design-around: no
+        // wireframe ghost, no wireframe-to-phantom switch on completion).
+        view.environment.sceneUnderstanding.options.insert(.occlusion)
         return view
     }
 

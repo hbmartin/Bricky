@@ -28,7 +28,7 @@ uv run python generate_golden.py --ldraw-root /path/to/ldraw --check
 cd ../..
 xcodegen generate
 xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation test
 ```
 
@@ -39,6 +39,13 @@ the `RecoveryBenchmarkV1` format; prompt or board-layout changes additionally
 require a baseline-vs-variant A/B replay of the same bundle. Do not lower an
 admission threshold or add a custom Metal/TensorOps kernel without an Instruments
 trace, representative benchmark, numerical tolerance, and end-to-end gain.
+
+AR ghost rendering carries a deliberate design-around of US11393153B2
+(ADR 0008): the next-step ghost is always a solid translucent render occluded
+by the standard ARKit scene mesh. Do not introduce a wireframe-only ghost
+style, a depth-only "phantom" occluder proxy of the built model, or a
+rendering-mode switch triggered by step-completion detection — reviewers
+should reject any of the three on sight.
 
 ## Agent skills
 
