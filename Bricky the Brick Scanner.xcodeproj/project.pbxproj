@@ -9,34 +9,51 @@
 /* Begin PBXBuildFile section */
 		00F1D1DAB5C9DCB015D9449A /* VerifiedAssetDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */; };
 		053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
+		05A6361B5E4D445697B297C6 /* ModelSurfaceSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */; };
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
+		17E3DDB0BBCFAE800CD543D2 /* sbrick.dat in Resources */ = {isa = PBXBuildFile; fileRef = 3D8146F2B1DBAD6FE05F82DB /* sbrick.dat */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
 		1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */; };
+		1DA8516D92390E39A14AB874 /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		24FC629139DC3A7503590BED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846C324539715D80A41F6F3 /* ContentView.swift */; };
 		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
+		282152871AC60FF55AE2D6FD /* tower.ldr in Resources */ = {isa = PBXBuildFile; fileRef = 2A8762E600A9D585F98B2B9E /* tower.ldr */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
 		2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */; };
 		2C805B31F620F8B53C9A693D /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */; };
+		308A21E669DBA3515C7AEFCA /* LDConfigPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
 		37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */; };
+		37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */; };
 		3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */; };
 		40CA5ECF1AB42C5A98E282CC /* RecoveryError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A963BA826F108C2D675FAF21 /* RecoveryError.swift */; };
+		4306F6AD9E09726F6969B388 /* RegistrationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9891FC28298A60A802423EF9 /* RegistrationController.swift */; };
+		436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */; };
+		47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */; };
 		493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */; };
 		4C6F6F15D3E55156CF376E62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */; };
 		5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */; };
 		5107765EB76F417AE2907EC5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */; };
+		52BBC71CC64A5DEE569D5D40 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
+		59629DFFFF88DD94CF89739F /* StepVerificationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1982584DC887B6D9531AD75A /* StepVerificationController.swift */; };
+		596E5F7E6AE9925BC8BDC8B5 /* RegistrationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */; };
+		59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */; };
 		5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
+		61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
 		644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
 		77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */; };
+		7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
+		84F184173E6E02B3A9F5A693 /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */; };
+		860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
 		87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */; };
 		887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 567FB773888A2246FBF55A98 /* EvidenceSessionsView.swift */; };
 		8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */; };
@@ -46,20 +63,41 @@
 		9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */; };
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
 		930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7255416EAA67E75793A6A9 /* AppConfig.swift */; };
+		985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		9B3A04E983C16A3C6C1BB06C /* InstructionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */; };
 		9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 131FA9216C20002D90F8F63D /* RecoveryMLX */; };
+		9CEDE71693F4003CA5856302 /* GeometricStepVerifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */; };
 		9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05743035E70D88A405DCEE91 /* SwiftParityTests.swift */; };
+		A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */; };
+		A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */; };
+		A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
 		A4EBB827338FCD646B4D3D78 /* ARCameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */; };
+		B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
+		B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
+		B7B0DE172227251CC45DAE90 /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
+		BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */; };
 		BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */; };
+		C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */; };
+		C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
 		C9ED90E2B917AB752C9A6CB5 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
+		CD2A2B2EA9C3F3476947C77E /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
 		CD49D3725C0BF1E2B0080A84 /* InstructionLibraryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */; };
 		D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2748072D5C42BC9CAF299882 /* StepCheckView.swift */; };
+		D6DBB32B222C8A07BA765476 /* ModelSurfaceSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */; };
 		D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */; };
+		DB38ECB9C7360E5DF5DC30DF /* ModelSurfaceSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */; };
+		DB4BC1602860E165B1DD47F6 /* RegistrationFrameRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD7F68A23234CCB66B31C40 /* RegistrationFrameRelay.swift */; };
 		DD8A9E5B37A82D9FB35356EA /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		E0FB47420C749683B165C2AD /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */; };
 		E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */; };
+		E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54A9BE39C13EBC727ADF2B5 /* CloudAssistKeyStore.swift */; };
+		EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
+		F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
+		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
+		F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
 		FE3498AC20FF256FDE6C7B02 /* ARCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */; };
+		FFF449912475E9322656DDB1 /* GeometricRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,17 +120,30 @@
 /* Begin PBXFileReference section */
 		012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceSweepTests.swift; sourceTree = "<group>"; };
 		05743035E70D88A405DCEE91 /* SwiftParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftParityTests.swift; sourceTree = "<group>"; };
+		0A0119F360F3125105431438 /* VerificationDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationDomain.swift; sourceTree = "<group>"; };
 		0A7255416EAA67E75793A6A9 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSampler.swift; sourceTree = "<group>"; };
+		1982584DC887B6D9531AD75A /* StepVerificationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepVerificationController.swift; sourceTree = "<group>"; };
+		1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpectedDepthRenderer.swift; sourceTree = "<group>"; };
+		221350A237B70B0CD3A866D0 /* CloudAssist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssist.swift; sourceTree = "<group>"; };
 		2748072D5C42BC9CAF299882 /* StepCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepCheckView.swift; sourceTree = "<group>"; };
+		2A8762E600A9D585F98B2B9E /* tower.ldr */ = {isa = PBXFileReference; path = tower.ldr; sourceTree = "<group>"; };
 		31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryImageNormalization.swift; sourceTree = "<group>"; };
 		3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngineTests.swift; sourceTree = "<group>"; };
+		3D8146F2B1DBAD6FE05F82DB /* sbrick.dat */ = {isa = PBXFileReference; path = sbrick.dat; sourceTree = "<group>"; };
+		3DD7F68A23234CCB66B31C40 /* RegistrationFrameRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationFrameRelay.swift; sourceTree = "<group>"; };
+		42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSamplerTests.swift; sourceTree = "<group>"; };
 		42FF9EE0A3BFBCADA241890F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorder.swift; sourceTree = "<group>"; };
+		4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticScene.swift; sourceTree = "<group>"; };
 		4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAndAttributionView.swift; sourceTree = "<group>"; };
 		4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidence.swift; sourceTree = "<group>"; };
 		53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawPartPackManager.swift; sourceTree = "<group>"; };
+		5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeVisionProviderTests.swift; sourceTree = "<group>"; };
 		55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionLibraryController.swift; sourceTree = "<group>"; };
 		567FB773888A2246FBF55A98 /* EvidenceSessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceSessionsView.swift; sourceTree = "<group>"; };
+		571268454507EF3A2A480B47 /* LDConfigPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDConfigPalette.swift; sourceTree = "<group>"; };
+		57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticRGBDMain.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
 		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
 		5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanBuilder.swift; sourceTree = "<group>"; };
@@ -101,18 +152,28 @@
 		6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawInstructionParser.swift; sourceTree = "<group>"; };
 		6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryModelManager.swift; sourceTree = "<group>"; };
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthICPTrackerTests.swift; sourceTree = "<group>"; };
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
 		8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
+		91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimatorTests.swift; sourceTree = "<group>"; };
+		9891FC28298A60A802423EF9 /* RegistrationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationController.swift; sourceTree = "<group>"; };
+		9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeRecoveryEstimator.swift; sourceTree = "<group>"; };
 		9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
 		A377413BF2084446EFA7A660 /* InstructionDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionDomain.swift; sourceTree = "<group>"; };
+		A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpectedDepthRendererTests.swift; sourceTree = "<group>"; };
 		A963BA826F108C2D675FAF21 /* RecoveryError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryError.swift; sourceTree = "<group>"; };
+		B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifier.swift; sourceTree = "<group>"; };
 		B846C324539715D80A41F6F3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9875749055872E5C5260701 /* BrickyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudVisionProvider.swift; sourceTree = "<group>"; };
+		C54A9BE39C13EBC727ADF2B5 /* CloudAssistKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssistKeyStore.swift; sourceTree = "<group>"; };
 		C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionImporterTests.swift; sourceTree = "<group>"; };
 		CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPersistence.swift; sourceTree = "<group>"; };
+		CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifierTests.swift; sourceTree = "<group>"; };
 		D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngine.swift; sourceTree = "<group>"; };
+		D274255AB95722CBD03B8747 /* DepthICPTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthICPTracker.swift; sourceTree = "<group>"; };
 		D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedFixtureSetupView.swift; sourceTree = "<group>"; };
 		D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanTests.swift; sourceTree = "<group>"; };
 		D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryFlowView.swift; sourceTree = "<group>"; };
@@ -122,13 +183,17 @@
 		E1E96BA397E53122AA8009B9 /* BrickyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraManager.swift; sourceTree = "<group>"; };
 		E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARAlignmentController.swift; sourceTree = "<group>"; };
+		E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationDomain.swift; sourceTree = "<group>"; };
 		E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionParserTests.swift; sourceTree = "<group>"; };
 		E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionModelImporter.swift; sourceTree = "<group>"; };
+		EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDConfigPaletteTests.swift; sourceTree = "<group>"; };
 		F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureService.swift; sourceTree = "<group>"; };
 		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F55F8DA3400964CC35D8EB2A /* SyntheticRGBD */ = {isa = PBXFileReference; includeInIndex = 0; path = SyntheticRGBD; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriterTests.swift; sourceTree = "<group>"; };
 		F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBoardRenderer.swift; sourceTree = "<group>"; };
+		F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimator.swift; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
 		FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideView.swift; sourceTree = "<group>"; };
 		FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriter.swift; sourceTree = "<group>"; };
@@ -154,16 +219,40 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EF6B30E01662546FCD2F733F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				84F184173E6E02B3A9F5A693 /* RecoveryEvidenceKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0BF18925390A1350EE204A35 /* synthetic-tower */ = {
+			isa = PBXGroup;
+			children = (
+				3D8146F2B1DBAD6FE05F82DB /* sbrick.dat */,
+				2A8762E600A9D585F98B2B9E /* tower.ldr */,
+			);
+			path = "synthetic-tower";
+			sourceTree = "<group>";
+		};
 		1BCEC204D6F44D36BDEED6C8 /* BrickyTests */ = {
 			isa = PBXGroup;
 			children = (
+				5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */,
+				78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */,
+				A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */,
+				91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */,
+				CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */,
 				C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */,
 				E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */,
 				D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */,
+				EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */,
 				3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */,
+				42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */,
 				F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */,
 				5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */,
 				F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */,
@@ -179,6 +268,7 @@
 				6D8D0B94EF81C7E575CE7801 /* Bricky.app */,
 				B9875749055872E5C5260701 /* BrickyTests.xctest */,
 				E1E96BA397E53122AA8009B9 /* BrickyUITests.xctest */,
+				F55F8DA3400964CC35D8EB2A /* SyntheticRGBD */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -192,6 +282,35 @@
 			);
 			name = Resources;
 			path = Bricky/Resources;
+			sourceTree = "<group>";
+		};
+		32EB8296A47FB1E59C377A60 /* fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				0BF18925390A1350EE204A35 /* synthetic-tower */,
+			);
+			path = fixtures;
+			sourceTree = "<group>";
+		};
+		33AC7A23F6AE57327503A64F /* SyntheticScenes */ = {
+			isa = PBXGroup;
+			children = (
+				32EB8296A47FB1E59C377A60 /* fixtures */,
+				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
+				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
+			);
+			name = SyntheticScenes;
+			path = Tools/SyntheticScenes;
+			sourceTree = "<group>";
+		};
+		40DBE0A4D719F739D424DC15 /* Verification */ = {
+			isa = PBXGroup;
+			children = (
+				B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */,
+				1982584DC887B6D9531AD75A /* StepVerificationController.swift */,
+			);
+			name = Verification;
+			path = Bricky/Services/Verification;
 			sourceTree = "<group>";
 		};
 		45AEEEFC948EA5814BC88CC1 /* App */ = {
@@ -229,9 +348,12 @@
 		56381D632582826E6AC6AF92 /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				221350A237B70B0CD3A866D0 /* CloudAssist.swift */,
 				A377413BF2084446EFA7A660 /* InstructionDomain.swift */,
 				CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */,
 				4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */,
+				E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */,
+				0A0119F360F3125105431438 /* VerificationDomain.swift */,
 			);
 			name = Domain;
 			path = Bricky/Domain;
@@ -243,6 +365,7 @@
 				55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */,
 				E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */,
 				5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */,
+				571268454507EF3A2A480B47 /* LDConfigPalette.swift */,
 				D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */,
 				6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */,
 				53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */,
@@ -264,6 +387,16 @@
 			path = Bricky/Views/Recovery;
 			sourceTree = "<group>";
 		};
+		75ED16310BC1C8E0F6EF4266 /* Cloud */ = {
+			isa = PBXGroup;
+			children = (
+				C54A9BE39C13EBC727ADF2B5 /* CloudAssistKeyStore.swift */,
+				BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */,
+			);
+			name = Cloud;
+			path = Bricky/Services/Cloud;
+			sourceTree = "<group>";
+		};
 		86EDC8D1E0C4950411D3C9B4 = {
 			isa = PBXGroup;
 			children = (
@@ -271,13 +404,17 @@
 				1BCEC204D6F44D36BDEED6C8 /* BrickyTests */,
 				55075B7773B97D88A16CED4E /* BrickyUITests */,
 				F2919F9CDE047E56E634BF23 /* Camera */,
+				75ED16310BC1C8E0F6EF4266 /* Cloud */,
 				56381D632582826E6AC6AF92 /* Domain */,
 				FFF44E7C5A03F3F0F10BE4FE /* Extensions */,
 				6A9D6A161EDC5A8F0676293F /* Instructions */,
 				A77F8AC2716BBD642EAE86BF /* Packages */,
 				D05A08833F588BE4C04EDA26 /* Recovery */,
 				6CD926353DB9E5DCEB2EFFAD /* Recovery */,
+				C7CAB5BF237424B3A36BA439 /* Registration */,
 				26787D44DD3F39F7B58C162B /* Resources */,
+				33AC7A23F6AE57327503A64F /* SyntheticScenes */,
+				40DBE0A4D719F739D424DC15 /* Verification */,
 				52D0B5D52863858618E569B7 /* Views */,
 				1EC5D168CA443C9EA9370841 /* Products */,
 			);
@@ -291,11 +428,25 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
+		C7CAB5BF237424B3A36BA439 /* Registration */ = {
+			isa = PBXGroup;
+			children = (
+				D274255AB95722CBD03B8747 /* DepthICPTracker.swift */,
+				1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */,
+				18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */,
+				9891FC28298A60A802423EF9 /* RegistrationController.swift */,
+			);
+			name = Registration;
+			path = Bricky/Services/Registration;
+			sourceTree = "<group>";
+		};
 		D05A08833F588BE4C04EDA26 /* Recovery */ = {
 			isa = PBXGroup;
 			children = (
 				E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */,
+				9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */,
 				62E1EF565595993B80170831 /* EvidenceExporter.swift */,
+				F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
 				FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */,
 				F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */,
@@ -314,6 +465,7 @@
 			children = (
 				E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */,
 				8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */,
+				3DD7F68A23234CCB66B31C40 /* RegistrationFrameRelay.swift */,
 			);
 			name = Camera;
 			path = Bricky/Camera;
@@ -371,6 +523,26 @@
 			productReference = E1E96BA397E53122AA8009B9 /* BrickyUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		B9DCE8FCAAF5AC6D5826CDBC /* SyntheticRGBD */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 29BD454741E4B60A410F7B72 /* Build configuration list for PBXNativeTarget "SyntheticRGBD" */;
+			buildPhases = (
+				1B88D495B184F69A52A9917B /* Sources */,
+				81109D63EC9AD836DC110C26 /* Resources */,
+				EF6B30E01662546FCD2F733F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SyntheticRGBD;
+			packageProductDependencies = (
+				4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */,
+			);
+			productName = SyntheticRGBD;
+			productReference = F55F8DA3400964CC35D8EB2A /* SyntheticRGBD */;
+			productType = "com.apple.product-type.tool";
+		};
 		D8AEB97C2A0D54D018047AD4 /* BrickyTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A6BCF650DEF5DB67553368AF /* Build configuration list for PBXNativeTarget "BrickyTests" */;
@@ -408,6 +580,9 @@
 						DevelopmentTeam = 6UN3X7Q6SP;
 						TestTargetID = 14AD4874F285C4AF1408B5B2;
 					};
+					B9DCE8FCAAF5AC6D5826CDBC = {
+						DevelopmentTeam = 6UN3X7Q6SP;
+					};
 					D8AEB97C2A0D54D018047AD4 = {
 						DevelopmentTeam = 6UN3X7Q6SP;
 					};
@@ -432,6 +607,7 @@
 			projectRoot = "";
 			targets = (
 				14AD4874F285C4AF1408B5B2 /* Bricky */,
+				B9DCE8FCAAF5AC6D5826CDBC /* SyntheticRGBD */,
 				D8AEB97C2A0D54D018047AD4 /* BrickyTests */,
 				44CC9FC7E6F9DB98F7110689 /* BrickyUITests */,
 			);
@@ -449,17 +625,53 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		81109D63EC9AD836DC110C26 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17E3DDB0BBCFAE800CD543D2 /* sbrick.dat in Resources */,
+				282152871AC60FF55AE2D6FD /* tower.ldr in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1B88D495B184F69A52A9917B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */,
+				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
+				F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */,
+				CD2A2B2EA9C3F3476947C77E /* InstructionDomain.swift in Sources */,
+				1DA8516D92390E39A14AB874 /* InstructionPlanBuilder.swift in Sources */,
+				985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */,
+				61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */,
+				D6DBB32B222C8A07BA765476 /* ModelSurfaceSampler.swift in Sources */,
+				B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */,
+				A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */,
+				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
+				7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */,
+				A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A6240D05D4C3539A4F9E7062 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */,
+				436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */,
+				BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */,
+				47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */,
+				9CEDE71693F4003CA5856302 /* GeometricStepVerifierTests.swift in Sources */,
 				66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */,
 				7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */,
 				87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */,
+				308A21E669DBA3515C7AEFCA /* LDConfigPaletteTests.swift in Sources */,
 				37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */,
+				05A6361B5E4D445697B297C6 /* ModelSurfaceSamplerTests.swift in Sources */,
 				2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */,
 				271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */,
 				3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */,
@@ -478,9 +690,17 @@
 				06020041E977D2A826879C9B /* ARGuideView.swift in Sources */,
 				930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */,
 				5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */,
+				F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */,
+				E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */,
+				59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */,
+				A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */,
 				24FC629139DC3A7503590BED /* ContentView.swift in Sources */,
+				F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */,
 				8A88BBC7A5943699EAB11DD7 /* EvidenceExporter.swift in Sources */,
 				887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */,
+				B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */,
+				FFF449912475E9322656DDB1 /* GeometricRecoveryEstimator.swift in Sources */,
+				EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */,
 				493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */,
 				D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */,
 				644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */,
@@ -488,10 +708,12 @@
 				BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */,
 				9B3A04E983C16A3C6C1BB06C /* InstructionPersistence.swift in Sources */,
 				5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */,
+				52BBC71CC64A5DEE569D5D40 /* LDConfigPalette.swift in Sources */,
 				DD8A9E5B37A82D9FB35356EA /* LDrawGeometryEngine.swift in Sources */,
 				C9ED90E2B917AB752C9A6CB5 /* LDrawInstructionParser.swift in Sources */,
 				144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */,
 				928AE5089033880C101A5680 /* LibraryView.swift in Sources */,
+				DB38ECB9C7360E5DF5DC30DF /* ModelSurfaceSampler.swift in Sources */,
 				8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */,
 				609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */,
 				8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */,
@@ -502,10 +724,15 @@
 				9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */,
 				E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */,
 				F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */,
+				4306F6AD9E09726F6969B388 /* RegistrationController.swift in Sources */,
+				596E5F7E6AE9925BC8BDC8B5 /* RegistrationDomain.swift in Sources */,
+				DB4BC1602860E165B1DD47F6 /* RegistrationFrameRelay.swift in Sources */,
 				69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */,
 				D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */,
+				59629DFFFF88DD94CF89739F /* StepVerificationController.swift in Sources */,
 				746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */,
 				8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */,
+				B7B0DE172227251CC45DAE90 /* VerificationDomain.swift in Sources */,
 				00F1D1DAB5C9DCB015D9449A /* VerifiedAssetDownloader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -639,12 +866,11 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 2.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
@@ -737,17 +963,46 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				MARKETING_VERSION = 2.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9D85488EA1CC7CA85384CC11 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bricky.synthetic-rgbd";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		DC3C297F3D495CCC6310DDBD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bricky.synthetic-rgbd";
+				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
@@ -775,6 +1030,15 @@
 			buildConfigurations = (
 				7D15E96F9382FBE6ECFAE4E8 /* Debug */,
 				480C818E16CF5D72A1F5DE15 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		29BD454741E4B60A410F7B72 /* Build configuration list for PBXNativeTarget "SyntheticRGBD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DC3C297F3D495CCC6310DDBD /* Debug */,
+				9D85488EA1CC7CA85384CC11 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -832,6 +1096,10 @@
 			productName = RecoveryMLX;
 		};
 		46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RecoveryEvidenceKit;
+		};
+		4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RecoveryEvidenceKit;
 		};

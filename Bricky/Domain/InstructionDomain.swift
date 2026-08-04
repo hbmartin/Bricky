@@ -293,7 +293,7 @@ enum RecoveryMethod: String, Codable, Hashable, Sendable {
     case vlm
 }
 
-enum StepCheckResult: String, Codable, Sendable {
+enum StepCheckResult: String, Codable, Sendable, CaseIterable {
     case complete
     case incomplete
     case uncertain
