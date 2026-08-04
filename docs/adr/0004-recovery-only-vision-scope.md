@@ -1,6 +1,6 @@
 # ADR 0004: Vision is recovery-only and advisory
 
-- Status: Accepted
+- Status: Superseded by ADR 0008 (2026-08-03)
 - Date: 2026-08-02
 
 ## Context
