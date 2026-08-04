@@ -62,6 +62,21 @@ struct ARInstructionOverlay: UIViewRepresentable {
     let session: ARSession
     let entity: Entity?
     let alignment: ARAlignment?
+    /// When the depth-ICP tracker holds a usable pose it supersedes the
+    /// manual alignment transform (ADR 0009).
+    var trackedTransform: simd_float4x4?
+
+    init(
+        session: ARSession,
+        entity: Entity?,
+        alignment: ARAlignment?,
+        trackedTransform: simd_float4x4? = nil
+    ) {
+        self.session = session
+        self.entity = entity
+        self.alignment = alignment
+        self.trackedTransform = trackedTransform
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -93,7 +108,7 @@ struct ARInstructionOverlay: UIViewRepresentable {
                 context.coordinator.anchor = anchor
             }
         }
-        if let transform = alignment?.transform {
+        if let transform = trackedTransform ?? alignment?.transform {
             context.coordinator.anchor?.transform.matrix = transform
             context.coordinator.anchor?.isEnabled = true
         } else {

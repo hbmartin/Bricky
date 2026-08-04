@@ -1,0 +1,93 @@
+import Foundation
+import simd
+import SwiftUI
+
+/// MainActor bridge between the manual alignment flow, the depth-ICP tracker,
+/// and SwiftUI. Manual ghost placement provides the coarse pose; the tracker
+/// refines and holds it; nudges re-seed it (ADR 0009). The controller owns
+/// the consuming task so views just observe `registration`.
+@MainActor
+final class RegistrationController: ObservableObject {
+    @Published private(set) var registration: ModelRegistration?
+
+    private let tracker = DepthICPTracker()
+    private var consumeTask: Task<Void, Never>?
+    private var sample: ModelSurfaceSample?
+    private var activeAlignmentID: UUID?
+
+    /// The pose the AR overlay should render at, when the tracker has a
+    /// usable estimate; nil means fall back to the manual alignment.
+    var trackedTransform: simd_float4x4? {
+        guard let registration else { return nil }
+        switch registration.state {
+        case .refining, .locked, .ambiguous:
+            return registration.worldFromModel
+        case .unplaced, .coarse, .lost:
+            return nil
+        }
+    }
+
+    var statusLabel: String? {
+        guard let registration else { return nil }
+        switch registration.state {
+        case .unplaced: return nil
+        case .coarse: return "Aligning…"
+        case .refining: return "Refining…"
+        case .locked: return "Locked"
+        case .ambiguous: return "Ambiguous — nudge or move around"
+        case .lost: return "Tracking lost"
+        }
+    }
+
+    /// Installs the fit target for the physical build (the cumulative
+    /// geometry before the current step). Empty samples keep the tracker
+    /// off — nothing physical exists yet to register against.
+    func setFitSample(_ sample: ModelSurfaceSample?) {
+        self.sample = sample
+    }
+
+    /// Reconciles tracking with the manual alignment: placement starts the
+    /// tracker, a nudge re-seeds the coarse pose, removal stops tracking.
+    func alignmentChanged(_ alignment: ARAlignment?, relay: RegistrationFrameRelay) {
+        guard let alignment else {
+            stop()
+            return
+        }
+        guard let sample, !sample.points.isEmpty else { return }
+        if alignment.id == activeAlignmentID {
+            let tracker = tracker
+            Task {
+                await tracker.setTarget(
+                    sample,
+                    coarseWorldFromModel: alignment.transform,
+                    alignmentID: alignment.id
+                )
+            }
+            return
+        }
+        activeAlignmentID = alignment.id
+        consumeTask?.cancel()
+        let tracker = tracker
+        consumeTask = Task { [weak self] in
+            await tracker.setTarget(
+                sample,
+                coarseWorldFromModel: alignment.transform,
+                alignmentID: alignment.id
+            )
+            let updates = await tracker.track(frames: relay.frames())
+            for await update in updates {
+                if Task.isCancelled { break }
+                self?.registration = update
+            }
+        }
+    }
+
+    func stop() {
+        consumeTask?.cancel()
+        consumeTask = nil
+        activeAlignmentID = nil
+        registration = nil
+        let tracker = tracker
+        Task { await tracker.stop() }
+    }
+}

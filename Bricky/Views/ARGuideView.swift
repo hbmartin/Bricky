@@ -8,19 +8,36 @@ struct ARGuideView: View {
     let step: AuthoredStep
     @StateObject private var camera = ARCameraManager()
     @StateObject private var alignment = ARAlignmentController()
+    @StateObject private var registration = RegistrationController()
     @State private var entity: Entity?
     @State private var error: String?
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                ARInstructionOverlay(session: camera.session, entity: entity, alignment: alignment.alignment)
-                    .ignoresSafeArea()
+                ARInstructionOverlay(
+                    session: camera.session,
+                    entity: entity,
+                    alignment: alignment.alignment,
+                    trackedTransform: registration.trackedTransform
+                )
+                .ignoresSafeArea()
                 Image(systemName: "plus").font(.title).foregroundStyle(.white).shadow(radius: 3)
                 VStack {
                     HStack {
                         Text(alignment.guidance).font(.callout.weight(.semibold))
                         Spacer()
+                        if let status = registration.statusLabel {
+                            Text(status)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(
+                                    registration.registration?.state == .locked
+                                        ? Color.green.opacity(0.25)
+                                        : Color.orange.opacity(0.25),
+                                    in: Capsule()
+                                )
+                        }
                         Button("Reset") { alignment.reset() }
                     }
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
@@ -38,6 +55,7 @@ struct ARGuideView: View {
                 await loadEntity()
             }
             .onDisappear {
+                registration.stop()
                 camera.stopSession()
                 // Re-entry re-runs the session with reset options, which
                 // starts a new world frame; drop the stale ghost pose.
@@ -45,6 +63,9 @@ struct ARGuideView: View {
             }
             .onChange(of: camera.trackingState) { _, state in
                 if case .notAvailable = state, alignment.alignment != nil { alignment.trackingLost() }
+            }
+            .onChange(of: alignment.alignment) { _, newValue in
+                registration.alignmentChanged(newValue, relay: camera.registrationRelay)
             }
         }
         .navigationTitle("AR Step \(step.index)")
@@ -71,6 +92,13 @@ struct ARGuideView: View {
             if !completed.isEmpty {
                 let completedSnapshot = try await engine.snapshot(placements: completed)
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
+                // The physical build at this point is the completed geometry;
+                // that is what the depth tracker registers against.
+                registration.setFitSample(
+                    ModelSurfaceSampler.sample(completedSnapshot, stepIndex: step.index)
+                )
+            } else {
+                registration.setFitSample(nil)
             }
             let additionSnapshot = try await engine.snapshot(placements: additions)
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
