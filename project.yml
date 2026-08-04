@@ -28,6 +28,7 @@ targets:
       - Bricky/Domain
       - Bricky/Camera/ARCameraManager.swift
       - Bricky/Camera/ARCameraPreview.swift
+      - Bricky/Camera/RegistrationFrameRelay.swift
       - Bricky/Extensions/UIImage+Orientation.swift
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery

@@ -35,6 +35,9 @@ final class ARCameraManager: NSObject, ObservableObject {
     @Published private(set) var trackingState: ARCamera.TrackingState = .notAvailable
 
     let session = ARSession()
+    /// Fan-out of copied LiDAR depth frames for the registration tracker;
+    /// fed from the delegate queue, so it lives outside actor isolation.
+    nonisolated let registrationRelay = RegistrationFrameRelay()
     private let delegateQueue = DispatchQueue(label: AppConfig.queuePrefix + ".ar.delegate")
 
     /// The whole app requires LiDAR-class AR: scene-mesh reconstruction for
@@ -87,6 +90,7 @@ final class ARCameraManager: NSObject, ObservableObject {
 
     func stopSession() {
         session.pause()
+        registrationRelay.stop()
         isSessionRunning = false
         trackingState = .notAvailable
     }
@@ -151,6 +155,10 @@ final class ARCameraManager: NSObject, ObservableObject {
         // occludes virtual bricks behind the physical build, and person
         // segmentation keeps hands in front of the ghost while placing parts.
         configuration.sceneReconstruction = .mesh
+        // Scene depth feeds registration and verification (ADR 0009); the
+        // smoothed variant is the ICP tracking input, the raw variant is the
+        // verifier's per-frame evidence.
+        configuration.frameSemantics.insert([.sceneDepth, .smoothedSceneDepth])
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
             configuration.frameSemantics.insert(.personSegmentationWithDepth)
         }
@@ -162,6 +170,7 @@ final class ARCameraManager: NSObject, ObservableObject {
 
 extension ARCameraManager: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        registrationRelay.ingest(frame)
         let tracking = frame.camera.trackingState
         // This fires at ~60 fps; skip the @Published write when nothing
         // changed so observing SwiftUI views are not invalidated per frame.
