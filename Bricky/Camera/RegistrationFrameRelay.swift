@@ -65,6 +65,13 @@ final class RegistrationFrameRelay: @unchecked Sendable {
         current?.yield(input)
     }
 
+    /// Copies scene depth out of an arbitrary frame — used by the recovery
+    /// flow to attach a depth observation to the center capture for the
+    /// geometric estimator (ADR 0010).
+    static func input(from frame: ARFrame) -> RegistrationFrameInput? {
+        extract(frame)
+    }
+
     /// Copies scene depth out of the frame: the smoothed variant is the ICP
     /// tracking input (ADR 0009), the raw variant is the verifier's per-frame
     /// evidence because smoothing lags freshly placed bricks.

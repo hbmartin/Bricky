@@ -18,6 +18,7 @@ struct RecoveryFlowView: View {
     @State private var plan: InstructionPlan?
     @State private var ghost: Entity?
     @State private var captures: [RecoveryCapture] = []
+    @State private var centerDepthFrame: RegistrationFrameInput?
     @State private var phase: Phase = .alignment
     @State private var estimate: RecoveryEstimate?
     @State private var selectedCompletedCount = 0
@@ -279,6 +280,11 @@ struct RecoveryFlowView: View {
         guard captures.count < 3 else { return }
         do {
             captures.append(try RecoveryCaptureService().capture(from: camera, angle: angle, alignmentID: alignmentID))
+            // The center view also contributes the depth observation the
+            // geometric estimator fits against (ADR 0010).
+            if angle == .center, let frame = camera.session.currentFrame {
+                centerDepthFrame = RegistrationFrameRelay.input(from: frame)
+            }
             if captures.count >= 3 { analyze() }
         } catch { errorMessage = error.localizedDescription }
     }
@@ -314,12 +320,25 @@ struct RecoveryFlowView: View {
             do {
                 try Task.checkCancellation()
                 await sessionRecorder?.recordCaptures(capturedViews)
-                let estimator = HierarchicalRecoveryEstimator(
+                let vlmEstimator = HierarchicalRecoveryEstimator(
                     runtime: recoveryModel.runtime,
                     modelDirectory: modelDirectory,
                     partPackRoot: partPackRoot,
                     recorder: sessionRecorder
                 )
+                // Geometric-first (ADR 0010): a conclusive depth fit avoids
+                // loading the VLM at all; anything else falls through to the
+                // unchanged hierarchical estimator.
+                var geometric: GeometricRecoveryEstimator?
+                if let depthFrame = centerDepthFrame,
+                   let root = try? InstructionModelImporter.applicationSupportRoot() {
+                    geometric = try? GeometricRecoveryEstimator(
+                        frame: depthFrame,
+                        sourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
+                        partPackRoot: partPackRoot
+                    )
+                }
+                let estimator = CompositeRecoveryEstimator(geometric: geometric, fallback: vlmEstimator)
                 let value = try await estimator.estimate(captures: capturedViews, model: plan, alignment: currentAlignment)
                 guard generation == analysisGeneration, !Task.isCancelled else { return }
                 estimate = value
@@ -408,6 +427,7 @@ struct RecoveryFlowView: View {
         try? context.save()
         finalizeEvidence(plan: plan, confirmedCount: completedCount)
         captures.removeAll()
+        centerDepthFrame = nil
         estimate = nil
         phase = .alignment
         onFinished?()
@@ -445,6 +465,7 @@ struct RecoveryFlowView: View {
         task?.cancel()
         let paths = captures.map(\.imageRelativePath)
         captures.removeAll()
+        centerDepthFrame = nil
         // Abandoned sessions stay as unlabeled evidence; finalize is
         // idempotent, so an error-path finalize that already ran wins.
         let sessionRecorder = recorder

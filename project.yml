@@ -72,6 +72,7 @@ targets:
       - BrickyTests/ExpectedDepthRendererTests.swift
       - BrickyTests/DepthICPTrackerTests.swift
       - BrickyTests/GeometricStepVerifierTests.swift
+      - BrickyTests/GeometricRecoveryEstimatorTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift

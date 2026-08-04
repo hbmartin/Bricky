@@ -110,7 +110,8 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             modelRevision: RecoveryModelManager.revision,
             latencyMilliseconds: Self.milliseconds(duration),
             captureIDs: captures.map(\.id),
-            insufficiencyCause: nil
+            insufficiencyCause: nil,
+            method: .vlm
         )
     }
 
@@ -174,11 +175,12 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             modelRevision: RecoveryModelManager.revision,
             latencyMilliseconds: Self.milliseconds(started.duration(to: .now)),
             captureIDs: captures.map(\.id),
-            insufficiencyCause: cause
+            insufficiencyCause: cause,
+            method: .vlm
         )
     }
 
-    private static func evenlySampledIndices(count: Int, range: Range<Int>) -> [Int] {
+    static func evenlySampledIndices(count: Int, range: Range<Int>) -> [Int] {
         guard count > 0, !range.isEmpty else { return [] }
         if count == 1 { return [range.lowerBound] }
         return (0..<count).map { offset in
