@@ -24,7 +24,17 @@ public enum MLXRecoveryError: LocalizedError {
 
 /// One serial, stateless inference lane backed by one ModelContainer.
 public actor MLXRecoveryRuntime {
-    private static let rankSchema = #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":["A","B","C","D","E","F","G","H"]},"minItems":1,"maxItems":8,"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
+    static let rankSlotLetters = ["A", "B", "C", "D", "E", "F", "G", "H"]
+
+    /// The rank grammar is generated per candidate count so the model can
+    /// never emit a slot letter that has no tile on the board. A fixed A–H
+    /// enum lets a 3-tile board legally answer "H", which the estimator then
+    /// drops without a trace.
+    static func rankSchema(slotCount: Int) -> String {
+        let count = min(max(slotCount, 1), rankSlotLetters.count)
+        let letters = rankSlotLetters.prefix(count).map { "\"\($0)\"" }.joined(separator: ",")
+        return #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":[\#(letters)]},"minItems":1,"maxItems":\#(count),"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
+    }
     private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
 
     /// Bounded Metal buffer cache for iOS. MLX otherwise defaults the cache
@@ -51,13 +61,18 @@ public actor MLXRecoveryRuntime {
         _ = try await modelContainer(modelDirectory: modelDirectory)
     }
 
-    public func rank(imageURL: URL, prompt: String, modelDirectory: URL) async throws -> MLXRankOutput {
+    public func rank(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL) async throws -> MLXRankOutput {
         let output = try await generate(
             imageURL: imageURL,
             prompt: prompt,
-            kind: .rank,
+            kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
-            maxTokens: 96
+            // GuidedGenerationLoop reserves 64 tokens for its closing bias.
+            // The worst-case 8-slot ranking JSON is ~64 tokens under grammar
+            // masking, so 96 put the bias mid-array; 192 keeps the whole
+            // object out of the soft zone. Generation still halts at grammar
+            // acceptance, so the common case pays nothing.
+            maxTokens: 192
         )
         guard let value = try? JSONDecoder().decode(MLXRankOutput.self, from: Data(output.utf8)),
               value.status != "matched" || !value.ranking.isEmpty else {
@@ -123,7 +138,10 @@ public actor MLXRecoveryRuntime {
         for waiter in parked { waiter.resume() }
     }
 
-    fileprivate enum GrammarKind: Sendable { case rank, check }
+    fileprivate enum GrammarKind: Sendable {
+        case rank(slotCount: Int)
+        case check
+    }
 
     private func generate(
         imageURL: URL,
@@ -145,10 +163,7 @@ public actor MLXRecoveryRuntime {
             var userInput = UserInput(prompt: values.prompt, images: [.url(values.imageURL)])
             userInput.processing = .init(resize: CGSize(width: 1024, height: 1024))
             let input = try await context.processor.prepare(input: userInput)
-            let root = switch values.kind {
-            case .rank: values.cache.rankConstraint
-            case .check: values.cache.checkConstraint
-            }
+            let root = values.cache.rootConstraint(for: values.kind)
             // A matcher is stateful. Clone the compiled root for every stateless call.
             let constraint = try root.clone()
             var output = ""
@@ -228,15 +243,21 @@ public actor MLXRecoveryRuntime {
                 vocabType: vocab.vocabType,
                 eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0)
             )
-            return try GrammarCache(
-                tokenizer: tokenizer,
-                rankConstraint: GrammarConstraint(
+            // Compile every slot-count variant up front. The cost lands in the
+            // admission warm-up, and the immutable array keeps the cache free
+            // of locking under @unchecked Sendable.
+            let rankConstraints = try (1...Self.rankSlotLetters.count).map { count in
+                try GrammarConstraint(
                     tokenizer: tokenizer,
-                    jsonSchema: Self.rankSchema,
+                    jsonSchema: Self.rankSchema(slotCount: count),
                     fastForward: true,
                     hostTokenizer: context.tokenizer
-                ),
-                checkConstraint: GrammarConstraint(
+                )
+            }
+            return GrammarCache(
+                tokenizer: tokenizer,
+                rankConstraints: rankConstraints,
+                checkConstraint: try GrammarConstraint(
                     tokenizer: tokenizer,
                     jsonSchema: Self.checkSchema,
                     fastForward: true,
@@ -259,13 +280,23 @@ private struct GenerationValues: @unchecked Sendable {
 
 private final class GrammarCache: @unchecked Sendable {
     let tokenizer: GrammarTokenizer
-    let rankConstraint: GrammarConstraint
-    let checkConstraint: GrammarConstraint
+    /// Index N-1 holds the constraint permitting slots A through the Nth letter.
+    private let rankConstraints: [GrammarConstraint]
+    private let checkConstraint: GrammarConstraint
 
-    init(tokenizer: GrammarTokenizer, rankConstraint: GrammarConstraint, checkConstraint: GrammarConstraint) {
+    init(tokenizer: GrammarTokenizer, rankConstraints: [GrammarConstraint], checkConstraint: GrammarConstraint) {
         self.tokenizer = tokenizer
-        self.rankConstraint = rankConstraint
+        self.rankConstraints = rankConstraints
         self.checkConstraint = checkConstraint
+    }
+
+    func rootConstraint(for kind: MLXRecoveryRuntime.GrammarKind) -> GrammarConstraint {
+        switch kind {
+        case .check:
+            checkConstraint
+        case .rank(let slotCount):
+            rankConstraints[min(max(slotCount, 1), rankConstraints.count) - 1]
+        }
     }
 }
 

@@ -20,10 +20,12 @@ app backgrounds, and provide no cloud inference fallback.
 
 The plan requested `mlx-swift-lm` 3.31.4 together with
 `MLXGuidedGeneration`. ✅ VERIFIED from the upstream package manifests: that tag
-does not export that product. Bricky therefore pins immutable commit
-`cd1ab3dd98ceb02d095490aa25e61298ea3e2f5b`, the compatible upstream revision
-used by this implementation, and excludes `MLXFoundationModels` from its target
-graph.
+does not export that product. Bricky therefore pins an immutable upstream
+commit and excludes `MLXFoundationModels` from its target graph. The pin
+originally recorded here (`cd1ab3dd98ceb02d095490aa25e61298ea3e2f5b`) was
+superseded during review; `Packages/RecoveryMLX/Package.swift` pins
+`d2424294a6c3bbd0de37a0761d80efc05e6813dd` and is the source of truth for the
+exact revision.
 
 ## Consequences
 

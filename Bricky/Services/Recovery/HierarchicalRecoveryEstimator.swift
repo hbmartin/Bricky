@@ -128,7 +128,7 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         let board = try await RecoveryBoardComposer.compose(physicalViewURL: captureURL, candidates: candidates)
         defer { try? FileManager.default.removeItem(at: board) }
         let prompt = "The large top image is a physical brick build. The labeled renders A–H are cumulative authored instruction steps in one fixed model frame. Rank the closest labels from best to worst. Return insufficient when angle, occlusion, or evidence cannot support a comparison."
-        return try await runtime.rank(imageURL: board, prompt: prompt, modelDirectory: modelDirectory)
+        return try await runtime.rank(imageURL: board, prompt: prompt, candidateCount: candidates.count, modelDirectory: modelDirectory)
     }
 
     private func insufficient(captures: [RecoveryCapture], started: ContinuousClock.Instant) -> RecoveryEstimate {

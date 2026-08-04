@@ -38,6 +38,10 @@ let package = Package(
                 .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
                 .product(name: "Tokenizers", package: "swift-transformers")
             ]
+        ),
+        .testTarget(
+            name: "RecoveryMLXTests",
+            dependencies: ["RecoveryMLX"]
         )
     ]
 )
