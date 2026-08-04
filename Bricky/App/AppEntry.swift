@@ -78,18 +78,7 @@ struct AppEntry: App {
             referenced = nil
         }
         await Task.detached(priority: .utility) {
-            let fileManager = FileManager.default
-            for folder in ["RecoveryCaptures", "InferenceBoards"] {
-                if folder == "RecoveryCaptures", referenced == nil { continue }
-                let directory = root.appendingPathComponent(folder, isDirectory: true)
-                guard let files = try? fileManager.contentsOfDirectory(
-                    at: directory,
-                    includingPropertiesForKeys: nil
-                ) else { continue }
-                for file in files where referenced?.contains("\(folder)/\(file.lastPathComponent)") != true {
-                    try? fileManager.removeItem(at: file)
-                }
-            }
+            RecoveryWorkFileCleanup.sweepOrphanedWorkFiles(root: root, referencedCapturePaths: referenced)
         }.value
     }
 

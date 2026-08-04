@@ -61,38 +61,71 @@ public actor MLXRecoveryRuntime {
         _ = try await modelContainer(modelDirectory: modelDirectory)
     }
 
+    /// GuidedGenerationLoop reserves 64 tokens for its closing bias. The
+    /// worst-case 8-slot ranking JSON is ~64 tokens under grammar masking, so
+    /// the previous 96 put the bias mid-array; 192 keeps the whole object out
+    /// of the soft zone. Generation still halts at grammar acceptance, so the
+    /// common case pays nothing.
+    static let rankMaxTokens = 192
+    static let checkMaxTokens = 48
+
     public func rank(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL) async throws -> MLXRankOutput {
-        let output = try await generate(
+        let response = try await rankWithTrace(
+            imageURL: imageURL,
+            prompt: prompt,
+            candidateCount: candidateCount,
+            modelDirectory: modelDirectory
+        )
+        guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
+        return output
+    }
+
+    public func rankWithTrace(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL) async throws -> MLXRankResponse {
+        let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
-            // GuidedGenerationLoop reserves 64 tokens for its closing bias.
-            // The worst-case 8-slot ranking JSON is ~64 tokens under grammar
-            // masking, so 96 put the bias mid-array; 192 keeps the whole
-            // object out of the soft zone. Generation still halts at grammar
-            // acceptance, so the common case pays nothing.
-            maxTokens: 192
+            maxTokens: Self.rankMaxTokens
         )
-        guard let value = try? JSONDecoder().decode(MLXRankOutput.self, from: Data(output.utf8)),
-              value.status != "matched" || !value.ranking.isEmpty else {
-            throw MLXRecoveryError.invalidStructuredOutput
+        var output: MLXRankOutput?
+        var decodeError: String?
+        do {
+            output = try JSONDecoder().decode(MLXRankOutput.self, from: Data(generated.text.utf8))
+        } catch {
+            decodeError = String(describing: error)
         }
-        return value
+        return MLXRankResponse(
+            output: output,
+            trace: generated.trace(decodeError: decodeError, schemaJSON: Self.rankSchema(slotCount: candidateCount))
+        )
     }
 
     public func checkStep(imageURL: URL, prompt: String, modelDirectory: URL) async throws -> MLXStepCheckOutput {
-        let output = try await generate(
+        let response = try await checkStepWithTrace(imageURL: imageURL, prompt: prompt, modelDirectory: modelDirectory)
+        guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
+        return output
+    }
+
+    public func checkStepWithTrace(imageURL: URL, prompt: String, modelDirectory: URL) async throws -> MLXCheckResponse {
+        let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .check,
             modelDirectory: modelDirectory,
-            maxTokens: 48
+            maxTokens: Self.checkMaxTokens
         )
-        guard let value = try? JSONDecoder().decode(MLXStepCheckOutput.self, from: Data(output.utf8)) else {
-            throw MLXRecoveryError.invalidStructuredOutput
+        var output: MLXStepCheckOutput?
+        var decodeError: String?
+        do {
+            output = try JSONDecoder().decode(MLXStepCheckOutput.self, from: Data(generated.text.utf8))
+        } catch {
+            decodeError = String(describing: error)
         }
-        return value
+        return MLXCheckResponse(
+            output: output,
+            trace: generated.trace(decodeError: decodeError, schemaJSON: Self.checkSchema)
+        )
     }
 
     /// Production-sized fit test. Loading weights alone is not admission.
@@ -143,16 +176,37 @@ public actor MLXRecoveryRuntime {
         case check
     }
 
+    fileprivate struct GeneratedText: Sendable {
+        let text: String
+        let generatedTokens: Int?
+        let termination: MLXGenerationTrace.Termination
+        let latencyMilliseconds: Int
+        let maxTokens: Int
+
+        func trace(decodeError: String?, schemaJSON: String) -> MLXGenerationTrace {
+            MLXGenerationTrace(
+                rawOutput: text,
+                decodeErrorDescription: decodeError,
+                generatedTokens: generatedTokens,
+                termination: termination,
+                latencyMilliseconds: latencyMilliseconds,
+                maxTokens: maxTokens,
+                schemaJSON: schemaJSON
+            )
+        }
+    }
+
     private func generate(
         imageURL: URL,
         prompt: String,
         kind: GrammarKind,
         modelDirectory: URL,
         maxTokens: Int
-    ) async throws -> String {
+    ) async throws -> GeneratedText {
         try Task.checkCancellation()
         let container = try await modelContainer(modelDirectory: modelDirectory)
         let cache = try await grammarResources(container: container)
+        let started = ContinuousClock.now
         return try await container.perform(values: GenerationValues(
             imageURL: imageURL,
             prompt: prompt,
@@ -167,18 +221,35 @@ public actor MLXRecoveryRuntime {
             // A matcher is stateful. Clone the compiled root for every stateless call.
             let constraint = try root.clone()
             var output = ""
-            try GuidedGenerationLoop.run(
-                input: input,
-                context: context,
-                constraint: constraint,
-                maxTokens: values.maxTokens,
-                vocabSize: values.cache.tokenizer.vocabSize
-            ) { delta in
-                output += delta
-                return !Task.isCancelled
+            var generatedTokens: Int?
+            var termination = MLXGenerationTrace.Termination.accepted
+            do {
+                generatedTokens = try GuidedGenerationLoop.run(
+                    input: input,
+                    context: context,
+                    constraint: constraint,
+                    maxTokens: values.maxTokens,
+                    vocabSize: values.cache.tokenizer.vocabSize
+                ) { delta in
+                    output += delta
+                    return !Task.isCancelled
+                }
+            } catch GuidedGenerationError.incompleteOutput {
+                // The partial text is evidence; before this catch it was
+                // destroyed and truncation was unobservable.
+                termination = .maxTokensExhausted
+            } catch GuidedGenerationError.prematureEOS {
+                termination = .prematureEOS
             }
             try Task.checkCancellation()
-            return output
+            let elapsed = started.duration(to: .now).components
+            return GeneratedText(
+                text: output,
+                generatedTokens: generatedTokens,
+                termination: termination,
+                latencyMilliseconds: Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000),
+                maxTokens: values.maxTokens
+            )
         }
     }
 

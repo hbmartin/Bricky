@@ -64,9 +64,12 @@ targets:
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift
       - BrickyTests/RecoveryCaptureTests.swift
+      - BrickyTests/RecoveryEvidenceRecorderTests.swift
+      - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift
     dependencies:
       - target: Bricky
+      - package: RecoveryMLX
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.tests

@@ -272,12 +272,23 @@ enum CaptureAngle: String, CaseIterable, Codable, Sendable {
     var title: String { rawValue.capitalized }
 }
 
+/// Which structural exit produced an insufficient estimate. Before this
+/// existed, four different failures collapsed into a reason-less
+/// `certainty == .insufficient`.
+enum RecoveryInsufficiencyCause: String, Codable, Sendable {
+    case broadPassUnmatched = "broad_pass_unmatched"
+    case narrowingPassUnmatched = "narrowing_pass_unmatched"
+    case finalPassUnmatched = "final_pass_unmatched"
+    case finalistQuorumNotReached = "finalist_quorum_not_reached"
+}
+
 struct RecoveryEstimate: Codable, Hashable, Sendable {
     let rankedStepIDs: [String]
     let certainty: RecoveryCertainty
     let modelRevision: String
     let latencyMilliseconds: Int
     let captureIDs: [UUID]
+    let insufficiencyCause: RecoveryInsufficiencyCause?
 }
 
 enum StepCheckResult: String, Codable, Sendable {

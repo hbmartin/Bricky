@@ -8,14 +8,17 @@
 
 /* Begin PBXBuildFile section */
 		00F1D1DAB5C9DCB015D9449A /* VerifiedAssetDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */; };
+		053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
+		1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */; };
 		24FC629139DC3A7503590BED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846C324539715D80A41F6F3 /* ContentView.swift */; };
 		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
 		37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */; };
+		3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */; };
 		40CA5ECF1AB42C5A98E282CC /* RecoveryError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A963BA826F108C2D675FAF21 /* RecoveryError.swift */; };
 		493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */; };
 		4C6F6F15D3E55156CF376E62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */; };
@@ -25,7 +28,9 @@
 		644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
+		77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
+		7D14165F932B5A8D78F7264A /* ProcessFootprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */; };
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
 		87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */; };
@@ -36,6 +41,7 @@
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
 		930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7255416EAA67E75793A6A9 /* AppConfig.swift */; };
 		9B3A04E983C16A3C6C1BB06C /* InstructionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */; };
+		9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 131FA9216C20002D90F8F63D /* RecoveryMLX */; };
 		9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05743035E70D88A405DCEE91 /* SwiftParityTests.swift */; };
 		A4EBB827338FCD646B4D3D78 /* ARCameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */; };
 		BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */; };
@@ -68,13 +74,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceSweepTests.swift; sourceTree = "<group>"; };
 		05743035E70D88A405DCEE91 /* SwiftParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftParityTests.swift; sourceTree = "<group>"; };
 		0A7255416EAA67E75793A6A9 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		2748072D5C42BC9CAF299882 /* StepCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepCheckView.swift; sourceTree = "<group>"; };
 		31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryImageNormalization.swift; sourceTree = "<group>"; };
 		3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngineTests.swift; sourceTree = "<group>"; };
 		42FF9EE0A3BFBCADA241890F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorder.swift; sourceTree = "<group>"; };
 		4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAndAttributionView.swift; sourceTree = "<group>"; };
+		4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidence.swift; sourceTree = "<group>"; };
 		53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawPartPackManager.swift; sourceTree = "<group>"; };
 		55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionLibraryController.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
@@ -86,6 +95,7 @@
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
+		8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFootprint.swift; sourceTree = "<group>"; };
 		8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
 		9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
@@ -107,6 +117,7 @@
 		E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionParserTests.swift; sourceTree = "<group>"; };
 		E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionModelImporter.swift; sourceTree = "<group>"; };
 		F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureService.swift; sourceTree = "<group>"; };
+		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBoardRenderer.swift; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
@@ -114,6 +125,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0C9D6799018B8C660EE9707C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5A8D72082641AC09891C4951 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -134,6 +153,8 @@
 				D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */,
 				3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */,
 				5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */,
+				F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */,
+				012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */,
 				05743035E70D88A405DCEE91 /* SwiftParityTests.swift */,
 			);
 			path = BrickyTests;
@@ -196,6 +217,7 @@
 			children = (
 				A377413BF2084446EFA7A660 /* InstructionDomain.swift */,
 				CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */,
+				4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */,
 			);
 			name = Domain;
 			path = Bricky/Domain;
@@ -259,9 +281,11 @@
 			children = (
 				E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
+				8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */,
 				F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */,
 				F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */,
 				A963BA826F108C2D675FAF21 /* RecoveryError.swift */,
+				4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */,
 				31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */,
 				6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */,
 			);
@@ -335,6 +359,7 @@
 			buildConfigurationList = A6BCF650DEF5DB67553368AF /* Build configuration list for PBXNativeTarget "BrickyTests" */;
 			buildPhases = (
 				A6240D05D4C3539A4F9E7062 /* Sources */,
+				0C9D6799018B8C660EE9707C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -343,6 +368,7 @@
 			);
 			name = BrickyTests;
 			packageProductDependencies = (
+				131FA9216C20002D90F8F63D /* RecoveryMLX */,
 			);
 			productName = BrickyTests;
 			productReference = B9875749055872E5C5260701 /* BrickyTests.xctest */;
@@ -417,6 +443,8 @@
 				87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */,
 				37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */,
 				271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */,
+				3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */,
+				1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */,
 				9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -443,10 +471,13 @@
 				C9ED90E2B917AB752C9A6CB5 /* LDrawInstructionParser.swift in Sources */,
 				144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */,
 				928AE5089033880C101A5680 /* LibraryView.swift in Sources */,
+				7D14165F932B5A8D78F7264A /* ProcessFootprint.swift in Sources */,
 				8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */,
 				8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */,
 				8D82E81D5D251E5324886B92 /* RecoveryCaptureService.swift in Sources */,
 				40CA5ECF1AB42C5A98E282CC /* RecoveryError.swift in Sources */,
+				053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */,
+				77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */,
 				9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */,
 				E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */,
 				F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */,
@@ -774,6 +805,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		131FA9216C20002D90F8F63D /* RecoveryMLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RecoveryMLX;
+		};
 		9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RecoveryMLX;
