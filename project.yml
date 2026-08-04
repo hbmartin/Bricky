@@ -68,6 +68,7 @@ targets:
       - BrickyTests/InstructionParserTests.swift
       - BrickyTests/LDConfigPaletteTests.swift
       - BrickyTests/ModelSurfaceSamplerTests.swift
+      - BrickyTests/ExpectedDepthRendererTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift
