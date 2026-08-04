@@ -62,6 +62,30 @@ targets:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
       - package: ZIPFoundation
+  SyntheticRGBD:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Tools/SyntheticScenes
+      - Bricky/Domain/RecoveryEvidence.swift
+      - Bricky/Domain/InstructionDomain.swift
+      - Bricky/Domain/RegistrationDomain.swift
+      - Bricky/Domain/VerificationDomain.swift
+      - Bricky/Services/Instructions/LDrawInstructionParser.swift
+      - Bricky/Services/Instructions/InstructionPlanBuilder.swift
+      - Bricky/Services/Instructions/LDrawGeometryEngine.swift
+      - Bricky/Services/Registration/ModelSurfaceSampler.swift
+      - Bricky/Services/Registration/ExpectedDepthRenderer.swift
+      - Bricky/Services/Registration/DepthICPTracker.swift
+      - Bricky/Services/Verification/GeometricStepVerifier.swift
+    dependencies:
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bricky.synthetic-rgbd
+        CODE_SIGN_IDENTITY: ""
   BrickyTests:
     type: bundle.unit-test
     platform: iOS
@@ -101,6 +125,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.uitests
 schemes:
+  SyntheticRGBD:
+    build:
+      targets:
+        SyntheticRGBD: all
   Bricky:
     build:
       targets:

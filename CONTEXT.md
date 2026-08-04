@@ -142,6 +142,13 @@ uv run python generate_golden.py --ldraw-root /path/to/ldraw --check
 
 cd ../RecoveryEvaluation
 python3 score_results.py device-results.ndjson
+
+# Synthetic RGB-D rows (registration + verification kinds) from a stepped model:
+xcodebuild -project '../../Bricky the Brick Scanner.xcodeproj' -scheme SyntheticRGBD \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+SyntheticRGBD ../SyntheticScenes/fixtures/synthetic-tower/tower.ldr \
+  --ldraw-root /path/to/ldraw --out synthetic.ndjson --seed 7
+python3 score_results.py synthetic.ndjson --allow-small-corpus
 ```
 
 ## Release gates still requiring physical assets or devices

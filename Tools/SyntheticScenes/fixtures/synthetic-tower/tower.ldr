@@ -1,0 +1,10 @@
+0 Synthetic tower for RGB-D evaluation smoke runs
+0 Name: tower.ldr
+1 4 0 0 0 1 0 0 0 1 0 0 0 1 sbrick.dat
+0 STEP
+1 1 80 0 0 1 0 0 0 1 0 0 0 1 sbrick.dat
+0 STEP
+1 14 0 -48 0 1 0 0 0 1 0 0 0 1 sbrick.dat
+0 STEP
+1 2 80 -48 80 1 0 0 0 1 0 0 0 1 sbrick.dat
+0 STEP
