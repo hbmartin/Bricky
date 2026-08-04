@@ -83,9 +83,9 @@ final class RecoveryModelManager: ObservableObject {
                     missingBytes += Self.creditedMissingBytes(expectedBytes: asset.bytes, destination: url)
                 }
             } catch {
-                // Align with the !isValid branch: the destination is gone,
-                // but a resumable .partial still credits its bytes.
-                try? FileManager.default.removeItem(at: url)
+                // A thrown read or hashing failure can be transient, so keep
+                // the destination. The downloader re-verifies it before
+                // downloading and removes it itself if genuinely corrupt.
                 missingBytes += Self.creditedMissingBytes(expectedBytes: asset.bytes, destination: url)
             }
         }

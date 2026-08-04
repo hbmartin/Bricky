@@ -169,6 +169,9 @@ struct StepCheckView: View {
 
     private func cancelCheckAndDiscardCapture() {
         checkGeneration = UUID()
+        // The rotated generation makes the cancelled task's defer skip its
+        // reset, so the view must recover the flag here.
+        isChecking = false
         let task = checkTask
         checkTask = nil
         task?.cancel()
