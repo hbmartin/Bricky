@@ -38,3 +38,24 @@ Registration quality becomes user-visible state rather than an implicit
 promise. The solver is CPU/simd only under ADR 0006's discipline; the single
 Metal addition is a shared depth-raster render pass used by verification and
 synthetic evaluation alike.
+
+## S1 spike outcome: reference-object auto-init is a no-go (2026-08-04)
+
+iOS 27 does bring ARKit reference-object tracking to iPhone
+(`detectionObjects` / `trackingObjects` on `ARWorldTrackingConfiguration`,
+per WWDC26 session 283), and reference objects trained for visionOS work
+unchanged on iOS. But training happens exclusively on a Mac — the Create ML
+Object Tracking template or the `createml objecttracker` command line, from
+a photorealistic USDZ, taking on the order of hours per object — with no
+runtime or on-device training path.
+
+That rules it out for Bricky's import-only identity on structural grounds,
+independent of fidelity questions: a reference object describes one rigid
+object, while the physical build mutates at every authored step, so honest
+auto-init would need one Mac-side training run per step of every
+user-imported model. Manual coarse alignment therefore remains the sole
+initializer. Unmeasured and left open (they cannot change the decision,
+only a future revisit): USDZ export fidelity from LDraw triangle soup, the
+practical small-object tracking floor, and a power-user path where someone
+trains a `.referenceobject` for a favorite finished model on their own Mac
+and imports it purely for re-registration of a completed build.
