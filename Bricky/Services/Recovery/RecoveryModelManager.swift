@@ -53,8 +53,8 @@ final class RecoveryModelManager: ObservableObject {
 
     func check() async {
         state = .checking
-        guard ARWorldTrackingConfiguration.isSupported else {
-            reject(reason: "Recovery needs ARKit world tracking. Guides remain available.", retryable: false)
+        guard ARCameraManager.isSupported else {
+            reject(reason: "Recovery needs a LiDAR-equipped iPhone. Guides remain available.", retryable: false)
             return
         }
         let memory = os_proc_available_memory()

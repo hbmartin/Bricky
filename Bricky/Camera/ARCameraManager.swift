@@ -21,7 +21,7 @@ final class ARCameraManager: NSObject, ObservableObject {
             case .cameraUnavailable:
                 "The camera is not available on this device."
             case .arNotSupported:
-                "ARKit world tracking is not supported on this device."
+                "Bricky requires a LiDAR-equipped iPhone with ARKit world tracking."
             case .permissionDenied:
                 "Camera access is required for alignment and recovery. Enable it in Settings."
             case .sessionFailed(let message):
@@ -37,7 +37,15 @@ final class ARCameraManager: NSObject, ObservableObject {
     let session = ARSession()
     private let delegateQueue = DispatchQueue(label: AppConfig.queuePrefix + ".ar.delegate")
 
-    static var isSupported: Bool { ARWorldTrackingConfiguration.isSupported }
+    /// The whole app requires LiDAR-class AR: scene-mesh reconstruction for
+    /// occlusion and scene depth for registration and verification. There is
+    /// no Info.plist capability key that expresses LiDAR, so this runtime
+    /// check is the floor.
+    static var isSupported: Bool {
+        ARWorldTrackingConfiguration.isSupported
+            && ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+            && ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)
+    }
 
     override init() {
         super.init()

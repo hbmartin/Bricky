@@ -21,6 +21,19 @@ struct AppEntry: App {
 
     var body: some Scene {
         WindowGroup {
+            if ARCameraManager.isSupported {
+                supportedRoot
+            } else {
+                UnsupportedDeviceView()
+            }
+        }
+        .modelContainer(modelContainer)
+    }
+
+    /// The floor is LiDAR-class AR for the whole app (ADR 0012): registration,
+    /// verification, and occlusion all assume scene depth, so no degraded
+    /// non-LiDAR experience is offered.
+    private var supportedRoot: some View {
             ContentView()
                 .environmentObject(library)
                 .environmentObject(partPack)
@@ -55,8 +68,6 @@ struct AppEntry: App {
                         break
                     }
                 }
-        }
-        .modelContainer(modelContainer)
     }
 
     /// Removes recovery work files orphaned by a crash or force-quit. Runs
@@ -113,6 +124,19 @@ struct AppEntry: App {
             } else {
                 await recoveryModel.suspendInferenceAndAwait()
             }
+        }
+    }
+}
+
+/// Shown instead of the app on devices without LiDAR-class AR. Registration,
+/// verification, and occlusion all assume scene depth, so there is no
+/// degraded non-LiDAR mode to fall back to.
+private struct UnsupportedDeviceView: View {
+    var body: some View {
+        ContentUnavailableView {
+            Label("LiDAR Required", systemImage: "arkit")
+        } description: {
+            Text("Bricky aligns and checks your build using the LiDAR scanner and requires an iPhone model that includes one.")
         }
     }
 }

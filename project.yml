@@ -2,7 +2,7 @@ name: Bricky the Brick Scanner
 options:
   bundleIdPrefix: com.bricky
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "27.0"
   xcodeVersion: "27.0"
   groupSortPosition: top
 packages:
@@ -16,7 +16,7 @@ settings:
     DEVELOPMENT_TEAM: 6UN3X7Q6SP
     SWIFT_VERSION: 5.9
     TARGETED_DEVICE_FAMILY: "1,2"
-    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    IPHONEOS_DEPLOYMENT_TARGET: 27.0
     MARKETING_VERSION: 2.0.0
     CURRENT_PROJECT_VERSION: 6
 targets:
