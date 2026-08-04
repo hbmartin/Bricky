@@ -115,6 +115,8 @@ final class DepthICPTrackerTests: XCTestCase {
         return RegistrationFrameInput(
             depth: map.depth,
             confidence: .init(repeating: 2, count: width * height),
+            rawDepth: nil,
+            rawConfidence: nil,
             width: width,
             height: height,
             depthIntrinsics: intrinsics,
@@ -220,6 +222,8 @@ final class DepthICPTrackerTests: XCTestCase {
         let frame = RegistrationFrameInput(
             depth: .init(repeating: 0, count: width * height),
             confidence: .init(repeating: 2, count: width * height),
+            rawDepth: nil,
+            rawConfidence: nil,
             width: width,
             height: height,
             depthIntrinsics: intrinsics,
@@ -255,6 +259,8 @@ final class DepthICPTrackerTests: XCTestCase {
                 continuation.yield(RegistrationFrameInput(
                     depth: base.depth,
                     confidence: base.confidence,
+                    rawDepth: nil,
+                    rawConfidence: nil,
                     width: base.width,
                     height: base.height,
                     depthIntrinsics: base.depthIntrinsics,

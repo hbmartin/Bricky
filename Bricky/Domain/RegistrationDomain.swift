@@ -6,10 +6,17 @@ import simd
 /// resolution, and the camera pose that produced it. Values are copies —
 /// an `ARFrame` is never retained past the delegate callback.
 struct RegistrationFrameInput: Sendable {
-    /// Row-major depth in meters, `width * height` values.
+    /// Row-major smoothed depth in meters, `width * height` values — the
+    /// ICP tracking input.
     let depth: [Float32]
     /// `ARConfidenceLevel` raw values, same layout as `depth`.
     let confidence: [UInt8]
+    /// Raw (unsmoothed) depth and its confidence for the verifier: temporal
+    /// smoothing lags freshly placed bricks, so verification evidence must
+    /// come from the current frame. Absent when the session provides no raw
+    /// scene depth.
+    let rawDepth: [Float32]?
+    let rawConfidence: [UInt8]?
     let width: Int
     let height: Int
     /// Camera intrinsics rescaled from the capture resolution to

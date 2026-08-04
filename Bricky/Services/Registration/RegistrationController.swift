@@ -10,6 +10,11 @@ import SwiftUI
 final class RegistrationController: ObservableObject {
     @Published private(set) var registration: ModelRegistration?
 
+    /// Called with every processed frame and the registration it produced —
+    /// the verification pipeline taps this so one relay consumer serves both
+    /// tracking and verification.
+    var frameObserver: (@MainActor (RegistrationFrameInput, ModelRegistration) async -> Void)?
+
     private let tracker = DepthICPTracker()
     private var consumeTask: Task<Void, Never>?
     private var sample: ModelSurfaceSample?
@@ -74,10 +79,12 @@ final class RegistrationController: ObservableObject {
                 coarseWorldFromModel: alignment.transform,
                 alignmentID: alignment.id
             )
-            let updates = await tracker.track(frames: relay.frames())
-            for await update in updates {
+            for await frame in relay.frames() {
                 if Task.isCancelled { break }
-                self?.registration = update
+                guard let update = await tracker.process(frame) else { continue }
+                guard let self, !Task.isCancelled else { break }
+                self.registration = update
+                await self.frameObserver?(frame, update)
             }
         }
     }

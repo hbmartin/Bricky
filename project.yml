@@ -33,6 +33,7 @@ targets:
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery
       - Bricky/Services/Registration
+      - Bricky/Services/Verification
       - Bricky/Views/EvidenceSessionsView.swift
       - Bricky/Views/LibraryView.swift
       - Bricky/Views/StorageAndAttributionView.swift
@@ -70,6 +71,7 @@ targets:
       - BrickyTests/ModelSurfaceSamplerTests.swift
       - BrickyTests/ExpectedDepthRendererTests.swift
       - BrickyTests/DepthICPTrackerTests.swift
+      - BrickyTests/GeometricStepVerifierTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift

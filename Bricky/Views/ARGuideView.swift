@@ -9,6 +9,7 @@ struct ARGuideView: View {
     @StateObject private var camera = ARCameraManager()
     @StateObject private var alignment = ARAlignmentController()
     @StateObject private var registration = RegistrationController()
+    @StateObject private var verification = StepVerificationController()
     @State private var entity: Entity?
     @State private var error: String?
 
@@ -41,6 +42,17 @@ struct ARGuideView: View {
                         Button("Reset") { alignment.reset() }
                     }
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
+                    if let verdictLabel = verification.statusLabel {
+                        HStack(spacing: 6) {
+                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : "eye")
+                            Text(verdictLabel)
+                        }
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(verification.isComplete ? .green : .primary)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
+                    }
                     Spacer()
                     if alignment.alignment == nil {
                         Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
@@ -52,9 +64,13 @@ struct ARGuideView: View {
             }
             .task {
                 camera.checkPermissions()
+                registration.frameObserver = { [weak verification] frame, update in
+                    await verification?.observe(frame: frame, registration: update)
+                }
                 await loadEntity()
             }
             .onDisappear {
+                verification.stop()
                 registration.stop()
                 camera.stopSession()
                 // Re-entry re-runs the session with reset options, which
@@ -89,8 +105,8 @@ struct ARGuideView: View {
             let completed = Array(plan.completedPlacements(before: step))
             let additions = Array(plan.addedPlacements(for: step))
             let container = Entity()
+            let completedSnapshot = try await engine.snapshot(placements: completed)
             if !completed.isEmpty {
-                let completedSnapshot = try await engine.snapshot(placements: completed)
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;
                 // that is what the depth tracker registers against.
@@ -103,6 +119,11 @@ struct ARGuideView: View {
             let additionSnapshot = try await engine.snapshot(placements: additions)
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
             entity = container
+            verification.begin(
+                stepID: step.id,
+                completedSnapshot: completedSnapshot,
+                deltaSnapshot: additionSnapshot
+            )
         } catch { self.error = error.localizedDescription }
     }
 }

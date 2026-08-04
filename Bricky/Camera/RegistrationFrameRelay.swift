@@ -65,13 +65,50 @@ final class RegistrationFrameRelay: @unchecked Sendable {
         current?.yield(input)
     }
 
-    /// Copies the smoothed scene depth and its confidence out of the frame.
-    /// Smoothed depth is the tracking input (ADR 0009); the verifier
-    /// captures raw depth separately because smoothing lags fresh bricks.
+    /// Copies scene depth out of the frame: the smoothed variant is the ICP
+    /// tracking input (ADR 0009), the raw variant is the verifier's per-frame
+    /// evidence because smoothing lags freshly placed bricks.
     private static func extract(_ frame: ARFrame) -> RegistrationFrameInput? {
-        guard let sceneDepth = frame.smoothedSceneDepth ?? frame.sceneDepth,
-              let confidenceMap = sceneDepth.confidenceMap else { return nil }
-        let depthMap = sceneDepth.depthMap
+        guard let smoothed = frame.smoothedSceneDepth ?? frame.sceneDepth,
+              let tracking = copy(depthData: smoothed) else { return nil }
+        // Only pay for a second copy when raw depth is a distinct buffer of
+        // the same geometry.
+        var raw: (depth: [Float32], confidence: [UInt8])?
+        if let sceneDepth = frame.sceneDepth, sceneDepth !== smoothed,
+           let copied = copy(depthData: sceneDepth),
+           copied.width == tracking.width, copied.height == tracking.height {
+            raw = (copied.depth, copied.confidence)
+        }
+
+        // Intrinsics are expressed at the capture resolution; rescale to the
+        // depth grid so projection lands in depth pixels directly.
+        let imageSize = frame.camera.imageResolution
+        let scaleX = Float(tracking.width) / Float(imageSize.width)
+        let scaleY = Float(tracking.height) / Float(imageSize.height)
+        var intrinsics = frame.camera.intrinsics
+        intrinsics[0][0] *= scaleX
+        intrinsics[2][0] *= scaleX
+        intrinsics[1][1] *= scaleY
+        intrinsics[2][1] *= scaleY
+
+        return RegistrationFrameInput(
+            depth: tracking.depth,
+            confidence: tracking.confidence,
+            rawDepth: raw?.depth,
+            rawConfidence: raw?.confidence,
+            width: tracking.width,
+            height: tracking.height,
+            depthIntrinsics: intrinsics,
+            worldFromCamera: frame.camera.transform,
+            timestamp: frame.timestamp
+        )
+    }
+
+    private static func copy(
+        depthData: ARDepthData
+    ) -> (depth: [Float32], confidence: [UInt8], width: Int, height: Int)? {
+        guard let confidenceMap = depthData.confidenceMap else { return nil }
+        let depthMap = depthData.depthMap
         guard CVPixelBufferGetPixelFormatType(depthMap) == kCVPixelFormatType_DepthFloat32 else { return nil }
 
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
@@ -104,26 +141,6 @@ final class RegistrationFrameRelay: @unchecked Sendable {
                 confidence[output + column] = confidenceRow[column]
             }
         }
-
-        // Intrinsics are expressed at the capture resolution; rescale to the
-        // depth grid so projection lands in depth pixels directly.
-        let imageSize = frame.camera.imageResolution
-        let scaleX = Float(width) / Float(imageSize.width)
-        let scaleY = Float(height) / Float(imageSize.height)
-        var intrinsics = frame.camera.intrinsics
-        intrinsics[0][0] *= scaleX
-        intrinsics[2][0] *= scaleX
-        intrinsics[1][1] *= scaleY
-        intrinsics[2][1] *= scaleY
-
-        return RegistrationFrameInput(
-            depth: depth,
-            confidence: confidence,
-            width: width,
-            height: height,
-            depthIntrinsics: intrinsics,
-            worldFromCamera: frame.camera.transform,
-            timestamp: frame.timestamp
-        )
+        return (depth, confidence, width, height)
     }
 }

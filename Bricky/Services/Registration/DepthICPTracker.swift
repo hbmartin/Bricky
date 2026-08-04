@@ -85,7 +85,7 @@ actor DepthICPTracker {
             let task = Task {
                 for await frame in frames {
                     guard !Task.isCancelled else { break }
-                    if let update = self.ingest(frame) {
+                    if let update = self.process(frame) {
                         continuation.yield(update)
                     }
                 }
@@ -94,6 +94,13 @@ actor DepthICPTracker {
             trackTask = task
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Solves one frame against the current target and advances the state
+    /// machine. Callers that own the frame loop (RegistrationController, so
+    /// verification can observe the same frames) use this directly.
+    func process(_ frame: RegistrationFrameInput) -> ModelRegistration? {
+        ingest(frame)
     }
 
     private func ingest(_ frame: RegistrationFrameInput) -> ModelRegistration? {
