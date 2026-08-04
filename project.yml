@@ -31,6 +31,7 @@ targets:
       - Bricky/Extensions/UIImage+Orientation.swift
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery
+      - Bricky/Views/EvidenceSessionsView.swift
       - Bricky/Views/LibraryView.swift
       - Bricky/Views/StorageAndAttributionView.swift
       - Bricky/Views/GuideView.swift
@@ -54,6 +55,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Bricky/Resources/App.entitlements
     dependencies:
       - package: RecoveryMLX
+        product: RecoveryMLX
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
       - package: ZIPFoundation
   BrickyTests:
     type: bundle.unit-test
@@ -64,9 +68,16 @@ targets:
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift
       - BrickyTests/RecoveryCaptureTests.swift
+      - BrickyTests/RecoveryBenchmarkWriterTests.swift
+      - BrickyTests/RecoveryEvidenceRecorderTests.swift
+      - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift
     dependencies:
       - target: Bricky
+      - package: RecoveryMLX
+        product: RecoveryMLX
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.tests

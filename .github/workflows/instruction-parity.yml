@@ -63,3 +63,18 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
             -parallel-testing-enabled NO test -only-testing:BrickyTests
+
+  harness-macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Build bricky-harness and run package tests
+        working-directory: Packages/RecoveryMLX
+        run: |
+          swift build --build-tests
+          swift test

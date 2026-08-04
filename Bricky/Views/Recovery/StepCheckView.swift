@@ -1,3 +1,4 @@
+import RecoveryMLX
 import SwiftData
 import SwiftUI
 
@@ -18,6 +19,8 @@ struct StepCheckView: View {
     @State private var error: String?
     @State private var checkTask: Task<Void, Never>?
     @State private var checkGeneration = UUID()
+    @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
+    @State private var recorder: RecoveryEvidenceRecorder?
 
     var body: some View {
         Group {
@@ -61,6 +64,7 @@ struct StepCheckView: View {
                 .font(.caption).multilineTextAlignment(.center)
             HStack {
                 Button("Retake") {
+                    finalizeEvidence(groundTruth: .unlabeled)
                     discardRawCapture()
                     result = nil
                 }
@@ -95,6 +99,8 @@ struct StepCheckView: View {
         capturedURL = nil
         let generation = UUID()
         checkGeneration = generation
+        let sessionRecorder = makeRecorderIfEnabled()
+        recorder = sessionRecorder
         let task = Task {
             await previous?.value
             RecoveryWorkFileCleanup.remove(urls: [previousCaptureURL].compactMap { $0 })
@@ -108,6 +114,7 @@ struct StepCheckView: View {
                 let physical = root.appendingPathComponent(capture.imageRelativePath)
                 capturedURL = physical
                 capturedImage = UIImage(contentsOfFile: physical.path)
+                await sessionRecorder?.recordCaptures([capture])
                 let renderer = try InstructionSnapshotRenderer(plan: plan, partPackRoot: pack)
                 let candidate = try await renderer.image(forStepIndex: step.index - 1)
                 let board = try RecoveryBoardComposer.compose(
@@ -115,16 +122,37 @@ struct StepCheckView: View {
                     candidates: [(slot: "A", image: candidate, stepNumber: step.index)]
                 )
                 defer { try? FileManager.default.removeItem(at: board) }
-                let output = try await recoveryModel.runtime.checkStep(
+                let prompt = "The top image is the physical build. Candidate A is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts."
+                let response = try await recoveryModel.runtime.checkStepWithTrace(
                     imageURL: board,
-                    prompt: "The top image is the physical build. Candidate A is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts.",
+                    prompt: prompt,
                     modelDirectory: modelDirectory
                 )
+                await sessionRecorder?.recordPass(
+                    pass: .check,
+                    passIndex: 0,
+                    capture: capture,
+                    candidates: [.init(
+                        slot: "A",
+                        stepIndex: step.index - 1,
+                        stepID: step.id,
+                        jpegData: candidate.jpegData(compressionQuality: 0.9)
+                    )],
+                    boardURL: board,
+                    prompt: prompt,
+                    trace: response.trace
+                )
+                guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
                 guard generation == checkGeneration, !Task.isCancelled else { return }
                 result = StepCheckResult(rawValue: output.result) ?? .uncertain
             } catch is CancellationError {
                 // Navigation or suspension cancelled the check.
             } catch {
+                await sessionRecorder?.finalize(
+                    estimate: nil,
+                    analysisError: String(describing: error),
+                    groundTruth: .unlabeled
+                )
                 guard generation == checkGeneration else { return }
                 self.error = error.localizedDescription
             }
@@ -136,6 +164,19 @@ struct StepCheckView: View {
     }
 
     private func advance() {
+        // "Confirm & Advance" after a complete verdict is a human label that
+        // the build matches this step; "Advance Anyway" is not.
+        if result == .complete {
+            finalizeEvidence(groundTruth: EvidenceGroundTruth(
+                kind: .confirmed,
+                expectedCompletedCount: step.index,
+                expectedStepID: step.id,
+                confirmedCompletedCount: step.index,
+                confirmedAt: .now
+            ))
+        } else {
+            finalizeEvidence(groundTruth: .unlabeled)
+        }
         model.confirmedLastCompletedStepID = step.id
         model.currentStepIndex = min(step.index, plan.steps.count)
         model.lastOpenedAt = .now
@@ -178,9 +219,32 @@ struct StepCheckView: View {
         let url = capturedURL
         capturedURL = nil
         capturedImage = nil
+        let sessionRecorder = recorder
+        recorder = nil
         Task.detached(priority: .utility) {
             await task?.value
+            await sessionRecorder?.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
             RecoveryWorkFileCleanup.remove(urls: [url].compactMap { $0 })
+        }
+    }
+
+    private func makeRecorderIfEnabled() -> RecoveryEvidenceRecorder? {
+        guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
+        return RecoveryEvidenceRecorder(
+            root: root,
+            instructionSHA256: plan.sourceSHA256,
+            authoredModelID: model.id,
+            modelTitle: model.title,
+            stepCount: plan.steps.count,
+            staged: nil
+        )
+    }
+
+    private func finalizeEvidence(groundTruth: EvidenceGroundTruth) {
+        guard let sessionRecorder = recorder else { return }
+        recorder = nil
+        Task.detached(priority: .utility) {
+            await sessionRecorder.finalize(estimate: nil, analysisError: nil, groundTruth: groundTruth)
         }
     }
 }

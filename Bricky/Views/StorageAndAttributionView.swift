@@ -3,6 +3,8 @@ import SwiftUI
 struct StorageAndAttributionView: View {
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
+    @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
+    @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
 
     var body: some View {
         List {
@@ -32,6 +34,17 @@ struct StorageAndAttributionView: View {
             Section("Privacy") {
                 Label("Images and instruction models stay on this device", systemImage: "lock.shield.fill")
                 Text("Instruction models and recovery images remain on this device. Recovery analysis runs locally.")
+            }
+
+            Section {
+                Toggle("Record recovery evidence", isOn: $evidenceCaptureEnabled)
+                Toggle("Corpus collection mode", isOn: $corpusCollectionEnabled)
+                    .disabled(!evidenceCaptureEnabled)
+                NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
+            } header: {
+                Text("Developer")
+            } footer: {
+                Text("Off by default. When enabled, recovery runs record full inference evidence (images, prompts, raw model output) on this device. Nothing leaves the device unless you export a bundle manually (ADR 0007).")
             }
         }
         .navigationTitle("Storage")

@@ -97,4 +97,24 @@ enum RecoveryWorkFileCleanup {
             try? FileManager.default.removeItem(at: url)
         }
     }
+
+    /// Removes files in the transient work folders that no milestone
+    /// references. `referencedCapturePaths == nil` means the metadata fetch
+    /// failed: captures are left untouched and only the always-transient
+    /// inference boards are swept. `Evidence/` is deliberately outside the
+    /// visited folders — retained evidence sessions own private copies.
+    static func sweepOrphanedWorkFiles(root: URL, referencedCapturePaths: Set<String>?) {
+        let fileManager = FileManager.default
+        for folder in ["RecoveryCaptures", "InferenceBoards"] {
+            if folder == "RecoveryCaptures", referencedCapturePaths == nil { continue }
+            let directory = root.appendingPathComponent(folder, isDirectory: true)
+            guard let files = try? fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) else { continue }
+            for file in files where referencedCapturePaths?.contains("\(folder)/\(file.lastPathComponent)") != true {
+                try? fileManager.removeItem(at: file)
+            }
+        }
+    }
 }

@@ -4,7 +4,10 @@ import PackageDescription
 let package = Package(
     name: "RecoveryMLX",
     platforms: [.iOS(.v17), .macOS(.v14)],
-    products: [.library(name: "RecoveryMLX", targets: ["RecoveryMLX"])],
+    products: [
+        .library(name: "RecoveryMLX", targets: ["RecoveryMLX"]),
+        .library(name: "RecoveryEvidenceKit", targets: ["RecoveryEvidenceKit"])
+    ],
     dependencies: [
         // This exact commit includes MLXGuidedGeneration and trait-gated
         // FoundationModels integration without requiring the post-0.31.4
@@ -26,6 +29,11 @@ let package = Package(
         .package(
             url: "https://github.com/huggingface/swift-transformers.git",
             revision: "0d7842981ff6156c05aebedf23459a780b22c624"
+        ),
+        // CLI-only; the app never links it.
+        .package(
+            url: "https://github.com/apple/swift-argument-parser.git",
+            from: "1.5.0"
         )
     ],
     targets: [
@@ -38,6 +46,27 @@ let package = Package(
                 .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
                 .product(name: "Tokenizers", package: "swift-transformers")
             ]
+        ),
+        // The evidence interchange contract and the authoritative board
+        // layout, shared by the iOS app and the bricky-harness CLI. System
+        // frameworks only (CoreGraphics/CoreText/ImageIO) so it stays cheap
+        // to link everywhere.
+        .target(name: "RecoveryEvidenceKit"),
+        .executableTarget(
+            name: "bricky-harness",
+            dependencies: [
+                "RecoveryMLX",
+                "RecoveryEvidenceKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
+        .testTarget(
+            name: "RecoveryMLXTests",
+            dependencies: ["RecoveryMLX"]
+        ),
+        .testTarget(
+            name: "RecoveryEvidenceKitTests",
+            dependencies: ["RecoveryEvidenceKit"]
         )
     ]
 )
