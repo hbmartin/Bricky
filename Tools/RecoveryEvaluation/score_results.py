@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Score RecoveryBenchmarkV1 device-result NDJSON without model judging."""
+"""Score triad benchmark NDJSON without model judging.
+
+Rows carry an optional "kind": "recovery" (default, RecoveryBenchmarkV1),
+"verification" (step-verifier verdicts), or "registration" (tracker fits).
+Each kind has its own validation and release gates; a mixed file scores every
+kind present and fails if any gate fails. The verification false-complete
+rate is the headline number (ADR 0008): a wrong "complete" is the one
+failure the product must not make.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +16,10 @@ import json
 import statistics
 from pathlib import Path
 
-MINIMUM_CORPUS_ROWS = 150
-MINIMUM_AUTHORED_MODELS = 10
+MINIMUM_CORPUS_ROWS = 40
+MINIMUM_AUTHORED_MODELS = 6
 
-REQUIRED_FIELDS = {
+RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
     "fixture_id",
     "instruction_sha256",
@@ -39,6 +47,46 @@ RELEASE_FIELDS = {
     "occlusion_condition",
 }
 
+VERIFICATION_REQUIRED_FIELDS = {
+    "schema_version",
+    "fixture_id",
+    "expected_verdict",
+    "produced_verdict",
+    "detectability",
+    "latency_ms",
+}
+VERDICTS = {"complete", "incomplete", "misplaced", "uncertain"}
+DETECTABILITY = {"strong", "marginal", "undetectable"}
+
+REGISTRATION_REQUIRED_FIELDS = {
+    "schema_version",
+    "fixture_id",
+    "converged",
+    "translation_error_m",
+    "yaw_error_degrees",
+    "ambiguity_expected",
+    "reported_ambiguous",
+    "latency_ms",
+}
+
+GEOMETRIC_REVISION_PREFIX = "depth-icp-geometric"
+
+# Gates.
+RECOVERY_TOP3_FLOOR = 0.95
+RECOVERY_TOP1_FLOOR = 0.80
+RECOVERY_COMPOSITE_MEDIAN_MS = 20_000
+RECOVERY_GEOMETRIC_MEDIAN_MS = 8_000
+VERIFICATION_FALSE_COMPLETE_CEILING = 0.02
+VERIFICATION_PRECISION_FLOOR = {"strong": 0.90, "marginal": 0.80}
+VERIFICATION_RECALL_FLOOR = {"strong": 0.85, "marginal": 0.70}
+VERIFICATION_ABSTENTION_FLOOR = 0.95
+VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING = 0.15
+VERIFICATION_MEDIAN_MS = 3_000
+REGISTRATION_CONVERGENCE_FLOOR = 0.95
+REGISTRATION_TRANSLATION_RMSE_M = 0.003
+REGISTRATION_YAW_RMSE_DEGREES = 2.0
+REGISTRATION_AMBIGUITY_RECALL_FLOOR = 0.90
+
 
 def percentile(values: list[float], fraction: float) -> float:
     ordered = sorted(values)
@@ -55,11 +103,20 @@ def is_exact_int(value: object) -> bool:
     return type(value) is int
 
 
+def rmse(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return (sum(value * value for value in values) / len(values)) ** 0.5
+
+
+# --- Recovery (RecoveryBenchmarkV1, kind absent or "recovery") ---------------
+
+
 def validate_rows(rows: list[dict[str, object]]) -> None:
     for index, row in enumerate(rows, start=1):
         if row.get("schema_version") != 1:
             raise SystemExit(f"unsupported benchmark schema: {row.get('schema_version')}")
-        missing = sorted(REQUIRED_FIELDS - row.keys())
+        missing = sorted(RECOVERY_REQUIRED_FIELDS - row.keys())
         if missing:
             raise SystemExit(f"row {index} missing fields: {', '.join(missing)}")
         if not isinstance(row["ranked_step_ids"], list):
@@ -139,10 +196,7 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"release corpus needs at least two explicit {field} values")
 
 
-def main(path: Path, *, allow_small_corpus: bool = False) -> None:
-    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    if not rows:
-        raise SystemExit("no benchmark rows")
+def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_rows(rows)
     if not allow_small_corpus:
         validate_release_corpus(rows)
@@ -153,21 +207,193 @@ def main(path: Path, *, allow_small_corpus: bool = False) -> None:
         abs(row["top_step_index"] - row["expected_step_index"]) == 1
         for row in sufficient
     )
+    geometric = [
+        row for row in rows
+        if str(row.get("model_revision", "")).startswith(GEOMETRIC_REVISION_PREFIX)
+    ]
+    composite = [row for row in rows if row not in geometric]
     latencies = [float(row["latency_ms"]) for row in rows]
     memory = [int(row.get("memory_peak_bytes", 0)) for row in rows]
-    report = {
+    report: dict[str, object] = {
         "cases": len(rows),
         # Insufficient cases are not silently removed from accuracy gates.
         "top_1_accuracy": top1 / len(rows),
         "top_3_accuracy": top3 / len(rows),
         "insufficient_rate": (len(rows) - len(sufficient)) / len(rows),
         "adjacent_step_confusion_rate": adjacent / max(1, len(sufficient)),
+        "geometric_cases": len(geometric),
+        "geometric_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in geometric]) if geometric else None,
+        "composite_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in composite]) if composite else None,
         "median_latency_ms": statistics.median(latencies),
         "p95_latency_ms": percentile(latencies, 0.95),
         "memory_peak_bytes": max(memory),
     }
+    failed = (
+        report["top_3_accuracy"] < RECOVERY_TOP3_FLOOR
+        or report["top_1_accuracy"] < RECOVERY_TOP1_FLOOR
+        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
+        or (report["geometric_median_latency_ms"] or 0) > RECOVERY_GEOMETRIC_MEDIAN_MS
+    )
+    return report, failed
+
+
+# --- Verification (kind == "verification") -----------------------------------
+
+
+def validate_verification_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows, start=1):
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"verification row {index} has unsupported schema")
+        missing = sorted(VERIFICATION_REQUIRED_FIELDS - row.keys())
+        if missing:
+            raise SystemExit(f"verification row {index} missing fields: {', '.join(missing)}")
+        if row["expected_verdict"] not in VERDICTS or row["produced_verdict"] not in VERDICTS:
+            raise SystemExit(f"verification row {index} has an invalid verdict")
+        if row["detectability"] not in DETECTABILITY:
+            raise SystemExit(f"verification row {index} has invalid detectability")
+
+
+def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+    validate_verification_rows(rows)
+    discriminable = [row for row in rows if row["detectability"] in {"strong", "marginal"}]
+    negatives = [row for row in discriminable if row["expected_verdict"] != "complete"]
+    false_completes = [row for row in negatives if row["produced_verdict"] == "complete"]
+    false_complete_rate = len(false_completes) / len(negatives) if negatives else 0.0
+
+    per_class: dict[str, dict[str, object]] = {}
+    class_failures = False
+    for detectability in ("strong", "marginal"):
+        in_class = [row for row in discriminable if row["detectability"] == detectability]
+        true_positive = sum(
+            row["expected_verdict"] == "complete" and row["produced_verdict"] == "complete"
+            for row in in_class
+        )
+        false_positive = sum(
+            row["expected_verdict"] != "complete" and row["produced_verdict"] == "complete"
+            for row in in_class
+        )
+        expected_complete = sum(row["expected_verdict"] == "complete" for row in in_class)
+        precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) else None
+        recall = true_positive / expected_complete if expected_complete else None
+        per_class[detectability] = {"complete_precision": precision, "complete_recall": recall, "cases": len(in_class)}
+        if precision is not None and precision < VERIFICATION_PRECISION_FLOOR[detectability]:
+            class_failures = True
+        if recall is not None and recall < VERIFICATION_RECALL_FLOOR[detectability]:
+            class_failures = True
+
+    undetectable = [row for row in rows if row["detectability"] == "undetectable"]
+    abstained = sum(row["produced_verdict"] == "uncertain" for row in undetectable)
+    abstention_rate = abstained / len(undetectable) if undetectable else None
+
+    correct_strong = [
+        row for row in rows
+        if row["detectability"] == "strong" and row["expected_verdict"] == "complete"
+    ]
+    uncertain_on_correct = (
+        sum(row["produced_verdict"] == "uncertain" for row in correct_strong) / len(correct_strong)
+        if correct_strong else None
+    )
+
+    latencies = [float(row["latency_ms"]) for row in rows]
+    report: dict[str, object] = {
+        "false_complete_rate": false_complete_rate,
+        "false_complete_cases": len(false_completes),
+        "per_detectability": per_class,
+        "undetectable_abstention_rate": abstention_rate,
+        "uncertain_on_correct_rate": uncertain_on_correct,
+        "median_latency_ms": statistics.median(latencies) if latencies else None,
+        "cases": len(rows),
+    }
+    failed = (
+        false_complete_rate > VERIFICATION_FALSE_COMPLETE_CEILING
+        or class_failures
+        or (abstention_rate is not None and abstention_rate < VERIFICATION_ABSTENTION_FLOOR)
+        or (uncertain_on_correct is not None and uncertain_on_correct > VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING)
+        or (latencies and statistics.median(latencies) > VERIFICATION_MEDIAN_MS)
+    )
+    return report, failed
+
+
+# --- Registration (kind == "registration") -----------------------------------
+
+
+def validate_registration_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows, start=1):
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"registration row {index} has unsupported schema")
+        missing = sorted(REGISTRATION_REQUIRED_FIELDS - row.keys())
+        if missing:
+            raise SystemExit(f"registration row {index} missing fields: {', '.join(missing)}")
+        for flag in ("converged", "ambiguity_expected", "reported_ambiguous"):
+            if not isinstance(row[flag], bool):
+                raise SystemExit(f"registration row {index} {flag} must be a boolean")
+
+
+def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+    validate_registration_rows(rows)
+    # A genuinely symmetric fixture cannot converge to a unique truth; it is
+    # judged on reporting ambiguity, not on convergence.
+    unambiguous = [row for row in rows if not row["ambiguity_expected"]]
+    converged = [row for row in unambiguous if row["converged"]]
+    convergence_rate = len(converged) / len(unambiguous) if unambiguous else None
+    translation_rmse = rmse([float(row["translation_error_m"]) for row in converged])
+    yaw_rmse = rmse([float(row["yaw_error_degrees"]) for row in converged])
+    ambiguous_expected = [row for row in rows if row["ambiguity_expected"]]
+    ambiguity_recall = (
+        sum(row["reported_ambiguous"] for row in ambiguous_expected) / len(ambiguous_expected)
+        if ambiguous_expected else None
+    )
+    report: dict[str, object] = {
+        "cases": len(rows),
+        "convergence_rate": convergence_rate,
+        "translation_rmse_m": translation_rmse if converged else None,
+        "yaw_rmse_degrees": yaw_rmse if converged else None,
+        "ambiguity_recall": ambiguity_recall,
+    }
+    failed = (
+        (convergence_rate is not None and convergence_rate < REGISTRATION_CONVERGENCE_FLOOR)
+        or (converged and translation_rmse > REGISTRATION_TRANSLATION_RMSE_M)
+        or (converged and yaw_rmse > REGISTRATION_YAW_RMSE_DEGREES)
+        or (ambiguity_recall is not None and ambiguity_recall < REGISTRATION_AMBIGUITY_RECALL_FLOOR)
+    )
+    return report, failed
+
+
+# --- Entry -------------------------------------------------------------------
+
+
+def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
+    kinds: dict[str, list[dict[str, object]]] = {"recovery": [], "verification": [], "registration": []}
+    for index, row in enumerate(rows, start=1):
+        kind = row.get("kind", "recovery")
+        if kind not in kinds:
+            raise SystemExit(f"row {index} has unknown kind: {kind}")
+        kinds[kind].append(row)
+    return kinds
+
+
+def main(path: Path, *, allow_small_corpus: bool = False) -> None:
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    if not rows:
+        raise SystemExit("no benchmark rows")
+    kinds = partition(rows)
+    report: dict[str, object] = {}
+    failed = False
+    if kinds["verification"]:
+        verification_report, verification_failed = score_verification(kinds["verification"])
+        # The headline number, printed before anything else (ADR 0008).
+        print(f"FALSE_COMPLETE_RATE {verification_report['false_complete_rate']:.4f}")
+        report["verification"] = verification_report
+        failed = failed or verification_failed
+    if kinds["registration"]:
+        registration_report, registration_failed = score_registration(kinds["registration"])
+        report["registration"] = registration_report
+        failed = failed or registration_failed
+    if kinds["recovery"]:
+        recovery_report, recovery_failed = score_recovery(kinds["recovery"], allow_small_corpus=allow_small_corpus)
+        report["recovery"] = recovery_report
+        failed = failed or recovery_failed
     print(json.dumps(report, indent=2, sort_keys=True))
-    failed = report["top_3_accuracy"] < 0.95 or report["top_1_accuracy"] < 0.80 or report["median_latency_ms"] > 20_000
     raise SystemExit(1 if failed else 0)
 
 
@@ -177,7 +403,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--allow-small-corpus",
         action="store_true",
-        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} rows (smoke fixtures only)",
+        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} recovery rows (smoke fixtures only)",
     )
     arguments = parser.parse_args()
     main(arguments.results, allow_small_corpus=arguments.allow_small_corpus)

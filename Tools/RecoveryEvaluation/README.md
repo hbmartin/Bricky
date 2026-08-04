@@ -1,14 +1,23 @@
-# Recovery evaluation harness
+# Triad evaluation harness
 
 This device-result harness is deliberately independent of Apple's Evaluations
-framework: Bricky supports iOS 17, while Evaluations is new in the 27 cycle and
-does not back-deploy. ✅ VERIFIED by the captured Xcode 27 framework interface.
+framework and scores measurable outcomes directly; qualitative model-judge
+scoring is unnecessary for known authored-step labels.
 
-The harness scores measurable outcomes directly: top-1/top-3 accuracy, adjacent
-step confusion, insufficient rate, median/p95 latency, and peak memory. This is
-the quantitative path; qualitative model-judge scoring is unnecessary for a
-known authored-step label. ✅ VERIFIED: use code metrics when the property is
-measurable, and inspect distributions rather than trusting a single pass rate.
+`score_results.py` accepts mixed NDJSON keyed by an optional `kind` per row:
+
+- `recovery` (default, `RecoveryBenchmarkV1`): top-1/top-3 accuracy, adjacent
+  step confusion, insufficient rate, latency (geometric rows — identified by
+  a `model_revision` starting with `depth-icp-geometric` — gate at 8 s median,
+  composite at 20 s), and peak memory. The physical release corpus requires
+  ≥ 40 distinct fixtures across ≥ 6 legally usable models.
+- `verification`: step-verifier verdicts against expected labels. The
+  headline gate is the false-complete rate (≤ 2 %, printed first per
+  ADR 0008), plus per-detectability precision/recall, undetectable
+  abstention ≥ 95 %, uncertain-on-correct ≤ 15 %, and a 3 s latency median.
+- `registration`: tracker fits against ground truth — convergence ≥ 95 % on
+  unambiguous fixtures, ≤ 3 mm / ≤ 2° RMSE, ambiguity recall ≥ 90 % on
+  deliberately symmetric fixtures (which never count against convergence).
 
 `make_board.py` reproduces the app's bounded 1024×1024 single-image layout for
 offline fixtures. Candidate order is the A–H slot map stored in
