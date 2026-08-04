@@ -38,21 +38,27 @@ struct GuideView: View {
                             Button("Previous", systemImage: "chevron.left") { stepIndex = max(0, stepIndex - 1) }
                                 .disabled(stepIndex == 0)
                             Spacer()
-                            NavigationLink {
-                                ARGuideView(plan: plan, step: step)
-                            } label: { Label("AR Overlay", systemImage: "arkit") }
-                            .buttonStyle(.bordered)
-                            Spacer()
                             Button(stepIndex == plan.steps.count - 1 ? "Finish" : "Next", systemImage: "chevron.right") {
                                 confirmAndAdvance(step: step, plan: plan)
                             }
                             .buttonStyle(.borderedProminent)
                         }
 
+                        // Geometric-first (ADR 0008): the AR overlay carries
+                        // live depth verification and one-tap confirm; the
+                        // photo check is the VLM advisory fallback.
+                        NavigationLink {
+                            ARGuideView(model: model, plan: plan, step: step)
+                        } label: {
+                            Label("Build & Verify in AR", systemImage: "arkit")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent).tint(.indigo)
+
                         NavigationLink {
                             StepCheckView(model: model, plan: plan, step: step)
                         } label: {
-                            Label("Check This Step", systemImage: "camera.viewfinder")
+                            Label("Photo Check (on-device AI)", systemImage: "camera.viewfinder")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)

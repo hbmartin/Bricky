@@ -3,15 +3,24 @@ import RealityKit
 import SwiftUI
 
 struct ARGuideView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var partPack: LDrawPartPackManager
+    let model: StoredInstructionModel
     let plan: InstructionPlan
-    let step: AuthoredStep
+    @State private var step: AuthoredStep
     @StateObject private var camera = ARCameraManager()
     @StateObject private var alignment = ARAlignmentController()
     @StateObject private var registration = RegistrationController()
     @StateObject private var verification = StepVerificationController()
     @State private var entity: Entity?
     @State private var error: String?
+
+    init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
+        self.model = model
+        self.plan = plan
+        _step = State(initialValue: step)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -20,7 +29,8 @@ struct ARGuideView: View {
                     session: camera.session,
                     entity: entity,
                     alignment: alignment.alignment,
-                    trackedTransform: registration.trackedTransform
+                    trackedTransform: registration.trackedTransform,
+                    isLocked: registration.registration?.state == .locked
                 )
                 .ignoresSafeArea()
                 Image(systemName: "plus").font(.title).foregroundStyle(.white).shadow(radius: 3)
@@ -54,6 +64,16 @@ struct ARGuideView: View {
                         .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
                     }
                     Spacer()
+                    if verification.isStablyComplete {
+                        // One tap after ≥2 s of stable complete — the user
+                        // still confirms; nothing auto-advances (ADR 0008).
+                        Button(
+                            step.index < plan.steps.count ? "Confirm & Next" : "Confirm & Finish",
+                            systemImage: "checkmark.circle.fill"
+                        ) { confirmAndAdvance() }
+                            .buttonStyle(.borderedProminent).tint(.green).controlSize(.large)
+                            .padding(.bottom, 4)
+                    }
                     if alignment.alignment == nil {
                         Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
@@ -89,6 +109,26 @@ struct ARGuideView: View {
         .alert("AR Unavailable", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
+    }
+
+    /// Persists the confirm exactly like `GuideView.confirmAndAdvance`, then
+    /// advances this AR session in place: the next step's geometry loads,
+    /// verification restarts on the new delta, and the tracker re-fits the
+    /// grown build from its current pose.
+    private func confirmAndAdvance() {
+        model.confirmedLastCompletedStepID = step.id
+        model.currentStepIndex = min(plan.steps.count, step.index)
+        model.lastOpenedAt = .now
+        try? context.save()
+        guard step.index < plan.steps.count else {
+            dismiss()
+            return
+        }
+        step = plan.steps[step.index]
+        Task {
+            await loadEntity()
+            registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
+        }
     }
 
     @MainActor

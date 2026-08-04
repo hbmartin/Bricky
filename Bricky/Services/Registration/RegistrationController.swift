@@ -89,6 +89,24 @@ final class RegistrationController: ObservableObject {
         }
     }
 
+    /// Re-seeds after a step confirm: the physical build grew by the
+    /// confirmed delta, so the fit target changes while the pose carries
+    /// over from the current track (ADR 0009 — re-fit on confirm). When no
+    /// track is running because the previous step had no physical geometry,
+    /// starts one from the manual alignment instead.
+    func refit(alignment: ARAlignment?, relay: RegistrationFrameRelay) {
+        guard let sample, !sample.points.isEmpty else { return }
+        if consumeTask != nil, let alignmentID = activeAlignmentID {
+            guard let seed = registration?.worldFromModel ?? alignment?.transform else { return }
+            let tracker = tracker
+            Task {
+                await tracker.setTarget(sample, coarseWorldFromModel: seed, alignmentID: alignmentID)
+            }
+        } else if let alignment {
+            alignmentChanged(alignment, relay: relay)
+        }
+    }
+
     func stop() {
         consumeTask?.cancel()
         consumeTask = nil

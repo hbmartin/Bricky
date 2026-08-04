@@ -8,8 +8,14 @@ import SwiftUI
 @MainActor
 final class StepVerificationController: ObservableObject {
     @Published private(set) var verification: StepVerification?
+    /// True once the verdict has been continuously complete for
+    /// `stableCompleteInterval` — the gate for the one-tap Confirm & Next
+    /// affordance. Never auto-advances (ADR 0008).
+    @Published private(set) var isStablyComplete = false
 
     private var verifier: GeometricStepVerifier?
+    private var completeSince: TimeInterval?
+    private let stableCompleteInterval: TimeInterval = 2.0
     private var lastIngestTimestamp: TimeInterval = -.infinity
     /// The verifier renders several expected-depth maps per ingest; feeding
     /// it slower than the relay rate loses nothing at a 20–40 frame
@@ -50,6 +56,8 @@ final class StepVerificationController: ObservableObject {
         deltaSnapshot: InstructionGeometrySnapshot
     ) {
         verification = nil
+        isStablyComplete = false
+        completeSince = nil
         lastIngestTimestamp = -.infinity
         do {
             let verifier = try verifier ?? GeometricStepVerifier()
@@ -73,10 +81,20 @@ final class StepVerificationController: ObservableObject {
         lastIngestTimestamp = frame.timestamp
         guard let result = try? await verifier.ingest(frame: frame, registration: registration) else { return }
         verification = result
+        if result.verdict.isComplete {
+            let since = completeSince ?? frame.timestamp
+            completeSince = since
+            isStablyComplete = frame.timestamp - since >= stableCompleteInterval
+        } else {
+            completeSince = nil
+            isStablyComplete = false
+        }
     }
 
     func stop() {
         verification = nil
+        isStablyComplete = false
+        completeSince = nil
         lastIngestTimestamp = -.infinity
         if let verifier {
             Task { await verifier.resetEvidence() }
