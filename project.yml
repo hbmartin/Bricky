@@ -64,6 +64,7 @@ targets:
     platform: iOS
     sources:
       - BrickyTests/InstructionParserTests.swift
+      - BrickyTests/LDConfigPaletteTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift

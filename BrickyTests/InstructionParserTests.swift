@@ -149,6 +149,7 @@ final class InstructionParserTests: XCTestCase {
         XCTAssertEqual(document.billOfMaterials, [BOMEntry(partReference: "3005.dat", colorCode: 0x2FF0000, quantity: 1)])
     }
 
+    @MainActor
     func testDirectColourBypassesPaletteAndUsesLow24Bits() {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         XCTAssertTrue(LDrawPalette.color(0x2FF8800).getRed(&red, green: &green, blue: &blue, alpha: &alpha))
