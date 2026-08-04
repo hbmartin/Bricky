@@ -46,7 +46,8 @@ product boundary.
 - `Bricky/Services/Instructions` owns parsing, planning, atomic import, immutable
   geometry buffers, RealityKit adaptation, and the verified part-pack install.
 - `Bricky/Services/Recovery` owns transient alignment, guided capture, bounded
-  comparison boards, admission, and hierarchical estimation.
+  comparison boards, admission, hierarchical estimation, and opt-in evidence
+  recording (ADR 0007).
 - `Packages/RecoveryMLX` is the narrow MLX dependency boundary. It maintains one
   shared load task and `ModelContainer`, serializes inference through an actor,
   and creates a fresh grammar matcher for each stateless call.
@@ -57,11 +58,33 @@ product boundary.
 
 ## Privacy and failure semantics
 
-Instruction models and images never leave the device. Import publishes only
-after the full source closure parses and plans successfully. Recovery is hidden
-behind runtime admission and has no cloud or manual-inference fallback; the
-deterministic guide remains usable when recovery is rejected. Alignment is
-transient and must be repeated after relaunch or unrecoverable tracking loss.
+Instruction models and images never leave the device automatically; the
+off-by-default developer evidence toggle (ADR 0007) permits explicit, manual
+export of recovery evidence bundles through the share sheet, and nothing else
+egresses. Import publishes only after the full source closure parses and plans
+successfully. Recovery is hidden behind runtime admission and has no cloud or
+manual-inference fallback; the deterministic guide remains usable when
+recovery is rejected. Alignment is transient and must be repeated after
+relaunch or unrecoverable tracking loss.
+
+## Evidence vocabulary (ADR 0007)
+
+- **Evidence Trace** — the full record of one VLM inference call: prompt,
+  grammar schema, raw model output, decode error, termination, latency, and
+  memory footprint, plus the board and per-candidate tile images it saw. One
+  NDJSON row in a session's `traces.ndjson`.
+- **Evidence Session** — one recovery run's traces, image copies, ground
+  truth, and estimate summary under `Evidence/<session>/`. Sessions are
+  copies; they never own recovery work files.
+- **Evidence Bundle** — the versioned zip a user explicitly exports from the
+  Developer section. Its directory layout is the interchange format consumed
+  by `bricky-harness` and Python tooling.
+- **Staged Fixture** — a corpus-collection session whose expected step and
+  conditions (lighting, occlusion, physical case, legal use) were declared
+  before capture. Produces a fully-populated `RecoveryBenchmarkV1` row.
+- **Ground truth kinds** — `staged` (declared up front), `confirmed` (labeled
+  by the user's Confirm action after a real recovery), `unlabeled` (failures
+  and abandoned sessions, kept deliberately).
 
 ## Verification commands
 

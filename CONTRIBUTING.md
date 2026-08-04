@@ -32,7 +32,11 @@ xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
   CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation test
 ```
 
-MLX or AR changes also require physical-device benchmark rows. Do not lower an
+MLX or AR changes also require physical-device benchmark rows. Produce them by
+enabling the developer evidence toggle (ADR 0007), exporting an evidence
+bundle, and replaying it with `bricky-harness` so device and Mac numbers share
+the `RecoveryBenchmarkV1` format; prompt or board-layout changes additionally
+require a baseline-vs-variant A/B replay of the same bundle. Do not lower an
 admission threshold or add a custom Metal/TensorOps kernel without an Instruments
 trace, representative benchmark, numerical tolerance, and end-to-end gain.
 

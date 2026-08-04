@@ -25,6 +25,11 @@ struct RecoveryFlowView: View {
     @State private var analysisTask: Task<Void, Never>?
     @State private var analysisGeneration = UUID()
     @State private var warmUpAttempt = 0
+    @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
+    @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
+    @State private var stagedDeclaration: StagedFixtureDeclaration?
+    @State private var showStagedSetup = false
+    @State private var recorder: RecoveryEvidenceRecorder?
 
     enum Phase { case alignment, capture, analyzing, result }
 
@@ -77,6 +82,11 @@ struct RecoveryFlowView: View {
         .alert("Recovery Stopped", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(errorMessage ?? "") }
+        .sheet(isPresented: $showStagedSetup) {
+            if let plan {
+                StagedFixtureSetupView(plan: plan, declaration: $stagedDeclaration)
+            }
+        }
     }
 
     private var warmUpView: some View {
@@ -169,6 +179,21 @@ struct RecoveryFlowView: View {
                     }
                 }
                 .frame(maxWidth: .infinity).padding().background(.ultraThinMaterial)
+                if evidenceCaptureEnabled, corpusCollectionEnabled, plan != nil {
+                    Button {
+                        showStagedSetup = true
+                    } label: {
+                        Label(
+                            stagedDeclaration.map { "Staged fixture: Step \($0.expectedCompletedCount)" }
+                                ?? "Staged fixture: not declared",
+                            systemImage: stagedDeclaration == nil ? "flag.slash" : "flag.checkered"
+                        )
+                        .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(stagedDeclaration == nil ? .orange : .green)
+                    .padding(.top, 6)
+                }
                 Spacer()
                 HStack(spacing: 10) {
                     ForEach(captures) { capture in
@@ -258,6 +283,18 @@ struct RecoveryFlowView: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    private func makeRecorderIfEnabled(plan: InstructionPlan) -> RecoveryEvidenceRecorder? {
+        guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
+        return RecoveryEvidenceRecorder(
+            root: root,
+            instructionSHA256: plan.sourceSHA256,
+            authoredModelID: model.id,
+            modelTitle: model.title,
+            stepCount: plan.steps.count,
+            staged: corpusCollectionEnabled ? stagedDeclaration : nil
+        )
+    }
+
     private func analyze() {
         guard let plan, let currentAlignment = alignment.alignment,
               let modelDirectory = recoveryModel.modelDirectory,
@@ -268,14 +305,20 @@ struct RecoveryFlowView: View {
         let generation = UUID()
         analysisGeneration = generation
         let capturedViews = captures
+        // Each analysis attempt is its own evidence session, so a retry after
+        // a failure preserves both attempts.
+        let sessionRecorder = makeRecorderIfEnabled(plan: plan)
+        recorder = sessionRecorder
         let task = Task {
             await previous?.value
             do {
                 try Task.checkCancellation()
+                await sessionRecorder?.recordCaptures(capturedViews)
                 let estimator = HierarchicalRecoveryEstimator(
                     runtime: recoveryModel.runtime,
                     modelDirectory: modelDirectory,
-                    partPackRoot: partPackRoot
+                    partPackRoot: partPackRoot,
+                    recorder: sessionRecorder
                 )
                 let value = try await estimator.estimate(captures: capturedViews, model: plan, alignment: currentAlignment)
                 guard generation == analysisGeneration, !Task.isCancelled else { return }
@@ -288,6 +331,13 @@ struct RecoveryFlowView: View {
             } catch is CancellationError {
                 if generation == analysisGeneration { phase = .capture }
             } catch {
+                // The trace rows already hold the raw model output; the
+                // session additionally records which error surfaced.
+                await sessionRecorder?.finalize(
+                    estimate: nil,
+                    analysisError: String(describing: error),
+                    groundTruth: .unlabeled
+                )
                 guard generation == analysisGeneration else { return }
                 errorMessage = error.localizedDescription
                 phase = .capture
@@ -356,10 +406,34 @@ struct RecoveryFlowView: View {
         session.certaintyRawValue = estimate?.certainty.rawValue
         context.insert(session)
         try? context.save()
+        finalizeEvidence(plan: plan, confirmedCount: completedCount)
         captures.removeAll()
         estimate = nil
         phase = .alignment
         onFinished?()
+    }
+
+    /// A staged declaration is the label; the user's confirmation is recorded
+    /// as a cross-check. Without a declaration the confirmation is the label.
+    private func finalizeEvidence(plan: InstructionPlan, confirmedCount: Int) {
+        guard let sessionRecorder = recorder else { return }
+        recorder = nil
+        let staged = corpusCollectionEnabled ? stagedDeclaration : nil
+        stagedDeclaration = nil
+        let expectedCount = staged?.expectedCompletedCount ?? confirmedCount
+        let groundTruth = EvidenceGroundTruth(
+            kind: staged == nil ? .confirmed : .staged,
+            expectedCompletedCount: expectedCount,
+            expectedStepID: expectedCount == 0 ? plan.stepZeroID : plan.steps[expectedCount - 1].id,
+            confirmedCompletedCount: confirmedCount,
+            confirmedAt: .now
+        )
+        let inputs = RecoveryBenchmarkInputs(plan: plan, expectedCompletedCount: expectedCount)
+        let estimateValue = estimate
+        Task.detached(priority: .utility) {
+            await sessionRecorder.finalize(estimate: estimateValue, analysisError: nil, groundTruth: groundTruth)
+            await sessionRecorder.writeBenchmarkRow(inputs: inputs)
+        }
     }
 
     /// Invalidates stale UI updates immediately, then waits for all capture
@@ -371,8 +445,14 @@ struct RecoveryFlowView: View {
         task?.cancel()
         let paths = captures.map(\.imageRelativePath)
         captures.removeAll()
+        // Abandoned sessions stay as unlabeled evidence; finalize is
+        // idempotent, so an error-path finalize that already ran wins.
+        let sessionRecorder = recorder
+        recorder = nil
+        let estimateValue = estimate
         Task.detached(priority: .utility) {
             await task?.value
+            await sessionRecorder?.finalize(estimate: estimateValue, analysisError: nil, groundTruth: .unlabeled)
             RecoveryWorkFileCleanup.remove(relativePaths: paths)
         }
     }

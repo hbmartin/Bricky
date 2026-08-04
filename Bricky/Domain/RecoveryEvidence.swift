@@ -250,6 +250,31 @@ struct EvidenceSessionFile: Codable, Sendable {
     }
 }
 
+/// Root `evidence_bundle.json` of an exported bundle. The zip's directory
+/// layout — this manifest plus `sessions/<uuid>/` copied verbatim — is the
+/// interchange format `bricky-harness` and Python tooling consume.
+struct EvidenceBundleManifest: Codable, Sendable {
+    let bundleVersion: Int
+    let createdAt: Date
+    let appVersion: String
+    let deviceModel: String
+    let operatingSystem: String
+    let modelID: String
+    let modelRevision: String
+    let sessionIDs: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case bundleVersion = "bundle_version"
+        case createdAt = "created_at"
+        case appVersion = "app_version"
+        case deviceModel = "device_model"
+        case operatingSystem = "operating_system"
+        case modelID = "model_id"
+        case modelRevision = "model_revision"
+        case sessionIDs = "session_ids"
+    }
+}
+
 enum DeviceIdentity {
     /// Hardware identifier such as "iPhone17,1" — distinct from
     /// `UIDevice.model`, which only says "iPhone".

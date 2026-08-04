@@ -16,6 +16,7 @@
 		24FC629139DC3A7503590BED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846C324539715D80A41F6F3 /* ContentView.swift */; };
 		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
+		2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
 		37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */; };
 		3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */; };
@@ -25,8 +26,10 @@
 		5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */; };
 		5107765EB76F417AE2907EC5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */; };
 		5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
+		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
 		644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
+		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
 		77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
@@ -34,7 +37,9 @@
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
 		87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */; };
+		887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 567FB773888A2246FBF55A98 /* EvidenceSessionsView.swift */; };
 		8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */; };
+		8A88BBC7A5943699EAB11DD7 /* EvidenceExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E1EF565595993B80170831 /* EvidenceExporter.swift */; };
 		8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */; };
 		8D82E81D5D251E5324886B92 /* RecoveryCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */; };
 		9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */; };
@@ -86,10 +91,12 @@
 		4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidence.swift; sourceTree = "<group>"; };
 		53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawPartPackManager.swift; sourceTree = "<group>"; };
 		55B6A6D903236904BC8664B3 /* InstructionLibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionLibraryController.swift; sourceTree = "<group>"; };
+		567FB773888A2246FBF55A98 /* EvidenceSessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceSessionsView.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
 		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
 		5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanBuilder.swift; sourceTree = "<group>"; };
 		61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealityKitInstructionAdapter.swift; sourceTree = "<group>"; };
+		62E1EF565595993B80170831 /* EvidenceExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceExporter.swift; sourceTree = "<group>"; };
 		6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawInstructionParser.swift; sourceTree = "<group>"; };
 		6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryModelManager.swift; sourceTree = "<group>"; };
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,6 +113,7 @@
 		C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionImporterTests.swift; sourceTree = "<group>"; };
 		CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPersistence.swift; sourceTree = "<group>"; };
 		D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngine.swift; sourceTree = "<group>"; };
+		D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedFixtureSetupView.swift; sourceTree = "<group>"; };
 		D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanTests.swift; sourceTree = "<group>"; };
 		D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryFlowView.swift; sourceTree = "<group>"; };
 		D83074A82AF29FB1766EE785 /* RecoveryMLX */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RecoveryMLX; path = Packages/RecoveryMLX; sourceTree = SOURCE_ROOT; };
@@ -119,9 +127,11 @@
 		F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureService.swift; sourceTree = "<group>"; };
 		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriterTests.swift; sourceTree = "<group>"; };
 		F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBoardRenderer.swift; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
 		FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideView.swift; sourceTree = "<group>"; };
+		FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -152,6 +162,7 @@
 				E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */,
 				D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */,
 				3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */,
+				F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */,
 				5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */,
 				F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */,
 				012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */,
@@ -196,6 +207,7 @@
 			isa = PBXGroup;
 			children = (
 				9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */,
+				567FB773888A2246FBF55A98 /* EvidenceSessionsView.swift */,
 				FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */,
 				42FF9EE0A3BFBCADA241890F /* LibraryView.swift */,
 				4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */,
@@ -243,6 +255,7 @@
 			isa = PBXGroup;
 			children = (
 				D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */,
+				D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */,
 				2748072D5C42BC9CAF299882 /* StepCheckView.swift */,
 			);
 			name = Recovery;
@@ -280,8 +293,10 @@
 			isa = PBXGroup;
 			children = (
 				E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */,
+				62E1EF565595993B80170831 /* EvidenceExporter.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
 				8A9FCCB04E06ABD0FCC789A3 /* ProcessFootprint.swift */,
+				FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */,
 				F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */,
 				F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */,
 				A963BA826F108C2D675FAF21 /* RecoveryError.swift */,
@@ -442,6 +457,7 @@
 				7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */,
 				87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */,
 				37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */,
+				2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */,
 				271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */,
 				3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */,
 				1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */,
@@ -460,6 +476,8 @@
 				930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */,
 				5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */,
 				24FC629139DC3A7503590BED /* ContentView.swift in Sources */,
+				8A88BBC7A5943699EAB11DD7 /* EvidenceExporter.swift in Sources */,
+				887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */,
 				493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */,
 				D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */,
 				644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */,
@@ -473,6 +491,7 @@
 				928AE5089033880C101A5680 /* LibraryView.swift in Sources */,
 				7D14165F932B5A8D78F7264A /* ProcessFootprint.swift in Sources */,
 				8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */,
+				609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */,
 				8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */,
 				8D82E81D5D251E5324886B92 /* RecoveryCaptureService.swift in Sources */,
 				40CA5ECF1AB42C5A98E282CC /* RecoveryError.swift in Sources */,
@@ -481,6 +500,7 @@
 				9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */,
 				E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */,
 				F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */,
+				69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */,
 				D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */,
 				746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */,
 				8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */,

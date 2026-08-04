@@ -24,8 +24,8 @@ actor RecoveryEvidenceRecorder {
     nonisolated let sessionID: UUID
 
     private let root: URL
-    private let sessionDirectory: URL
-    private var session: EvidenceSessionFile
+    let sessionDirectory: URL
+    private(set) var session: EvidenceSessionFile
     private var started = false
     private var finalized = false
     private let logger = Logger(subsystem: AppConfig.bundleID, category: "Evidence")
@@ -152,20 +152,18 @@ actor RecoveryEvidenceRecorder {
         }
     }
 
-    /// Peak footprint across the session's trace rows, for benchmark emission.
-    func peakMemoryFootprintBytes() -> Int64 {
+    /// Trace rows written so far, decoded back from `traces.ndjson`.
+    func loadTraceRows() -> [EvidenceTraceRow] {
         let traces = sessionDirectory.appendingPathComponent("traces.ndjson")
-        guard let data = try? Data(contentsOf: traces) else { return 0 }
+        guard let data = try? Data(contentsOf: traces) else { return [] }
         let decoder = EvidenceSchema.decoder()
         return data.split(separator: UInt8(ascii: "\n"))
             .compactMap { try? decoder.decode(EvidenceTraceRow.self, from: Data($0)) }
-            .compactMap(\.memoryFootprintBytes)
-            .max() ?? 0
     }
 
     // MARK: - Internals
 
-    private func perform(_ label: String, _ work: () throws -> Void) {
+    func perform(_ label: String, _ work: () throws -> Void) {
         do {
             try work()
         } catch {
