@@ -16,9 +16,10 @@ coordinate parsing must assume the new convention.
 
 ## Decision
 
-Migrate to a pinned immutable revision of
-`mlx-community/Qwen3-VL-4B-Instruct-4bit` before any new evaluation data is
-collected, so every benchmark row reflects the model that ships. The
+Migrate to `mlx-community/Qwen3-VL-4B-Instruct-4bit` at immutable revision
+`2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b` (3.09 GB safetensors) before any
+new evaluation data is collected, so every benchmark row reflects the model
+that ships. The
 admission process of ADR 0003 is unchanged; its memory floor is re-measured
 with the larger model and remains RECONSTRUCTED until physical-device runs
 replace it. Prompts and grammars are re-validated on the smoke fixtures via

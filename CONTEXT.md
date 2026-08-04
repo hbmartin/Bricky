@@ -66,9 +66,11 @@ until then is manual alignment plus VLM recovery and step checking.
   the immutable `hbmartin/Bricky` GitHub Release `ldraw-2026-07`; the app and CI
   consume the exact pinned asset URL.
 - ✅ VERIFIED — recovery uses model revision
-  `mlx-community/Qwen2.5-VL-3B-Instruct-4bit@46d4cf06a06ffc1a766c214174f9cbed2f45bcab`.
-  ADR 0013 migrates this pin to `mlx-community/Qwen3-VL-4B-Instruct-4bit`
-  (exact revision recorded when the migration lands).
+  `mlx-community/Qwen3-VL-4B-Instruct-4bit@2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b`
+  (ADR 0013). Asset sizes and SHA-256 hashes were captured from that pinned
+  revision; the LFS hashes come from the Hugging Face tree API and the
+  small-file hashes were computed locally from pinned-revision downloads.
+  The pinned `mlx-swift-lm` commit registers `qwen3_vl` in its VLM factory.
 - ⚠️ INFERRED — the release admission threshold starts conservatively at 5.5 GB
   live available memory. It must be replaced by measured worst-case peak plus
   25% from physical-device runs (with AR, scene mesh, ICP, and the warm VLM

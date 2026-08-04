@@ -27,7 +27,7 @@ struct StorageAndAttributionView: View {
                 if case .rejected = recoveryModel.state, recoveryModel.rejectionIsRetryable {
                     Button("Retry Recovery Check") { Task { await recoveryModel.check() } }
                 }
-                Text("Qwen2.5-VL-3B-Instruct 4-bit · pinned revision \(RecoveryModelManager.revision.prefix(12))…")
+                Text("Qwen3-VL-4B-Instruct 4-bit · pinned revision \(RecoveryModelManager.revision.prefix(12))…")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

@@ -10,8 +10,8 @@ struct BrickyHarness: AsyncParsableCommand {
         commandName: "bricky-harness",
         abstract: "Replay Bricky evidence bundles through the exact device inference runtime.",
         discussion: """
-        Weights: hf download mlx-community/Qwen2.5-VL-3B-Instruct-4bit \\
-                   --revision 46d4cf06a06ffc1a766c214174f9cbed2f45bcab --local-dir <model-dir>
+        Weights: hf download mlx-community/Qwen3-VL-4B-Instruct-4bit \\
+                   --revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b --local-dir <model-dir>
 
         Replay is a Mac-vs-Mac A/B instrument: greedy guided decoding is
         deterministic per platform, but iOS and macOS Metal kernels can flip

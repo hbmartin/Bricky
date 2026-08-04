@@ -123,8 +123,8 @@ final class EvidenceKitTests: XCTestCase {
             appVersion: "2.0.0",
             deviceModel: "iPhone17,1",
             operatingSystem: "iOS 17.0",
-            modelID: "mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
-            modelRevision: "46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
+            modelID: "mlx-community/Qwen3-VL-4B-Instruct-4bit",
+            modelRevision: "2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b",
             sessionIDs: [sessionID]
         )
         try encoder.encode(manifest)

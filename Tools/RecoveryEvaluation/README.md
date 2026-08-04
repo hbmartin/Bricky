@@ -41,8 +41,8 @@ constraints, and board layout.
 
 ```sh
 unzip bricky-evidence-*.zip -d bundle
-hf download mlx-community/Qwen2.5-VL-3B-Instruct-4bit \
-  --revision 46d4cf06a06ffc1a766c214174f9cbed2f45bcab --local-dir model
+hf download mlx-community/Qwen3-VL-4B-Instruct-4bit \
+  --revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b --local-dir model
 
 swift run --package-path Packages/RecoveryMLX bricky-harness \
   replay --bundle bundle --model-dir model --out results.ndjson

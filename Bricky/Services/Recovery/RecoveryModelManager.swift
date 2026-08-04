@@ -6,8 +6,8 @@ import UIKit
 
 @MainActor
 final class RecoveryModelManager: ObservableObject {
-    nonisolated static let modelID = "mlx-community/Qwen2.5-VL-3B-Instruct-4bit"
-    nonisolated static let revision = "46d4cf06a06ffc1a766c214174f9cbed2f45bcab"
+    nonisolated static let modelID = "mlx-community/Qwen3-VL-4B-Instruct-4bit"
+    nonisolated static let revision = "2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b"
     // 🟡 RECONSTRUCTED: physical-device profiling must replace this conservative
     // release floor with measured worst-case peak + 25% before App Store release.
     nonisolated static let minimumAvailableMemory: UInt64 = 5_500_000_000
@@ -19,16 +19,19 @@ final class RecoveryModelManager: ObservableObject {
     }
 
     static let assets: [Asset] = [
-        .init(path: "added_tokens.json", bytes: 605, sha256: "58b54bbe36fc752f79a24a271ef66a0a0830054b4dfad94bde757d851968060b"),
-        .init(path: "chat_template.json", bytes: 1_050, sha256: "ad60d90252ed0b0705ba14e2d0ad0fec0beac1ea955642b54059b36052d8bc96"),
-        .init(path: "config.json", bytes: 1_659, sha256: "7ed631bd2786d251cb38bd2a6a8a78c31bc1316f728bffa84b2d8954d3cfcd63"),
+        .init(path: "added_tokens.json", bytes: 707, sha256: "c0284b582e14987fbd3d5a2cb2bd139084371ed9acbae488829a1c900833c680"),
+        .init(path: "chat_template.jinja", bytes: 5_292, sha256: "3636d0f0bd6bef02654cdffdc447b79cb2cef8ab02cc75267345946291a489e4"),
+        .init(path: "chat_template.json", bytes: 5_502, sha256: "6f8a6a55027e3da5160105556cda5dd69f6423f1c32645f6730d32de7773d0c4"),
+        .init(path: "config.json", bytes: 7_137, sha256: "07406d087dfb8a8849427a4da81bc9edd1dd942e518493629b5a983169b47820"),
+        .init(path: "generation_config.json", bytes: 269, sha256: "8469742d1fce0de951c8909b26a2c0c0d8490837ce476efb114da9e0cefc4d44"),
         .init(path: "merges.txt", bytes: 1_671_853, sha256: "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"),
-        .init(path: "model.safetensors", bytes: 3_073_720_461, sha256: "636982419c940321ac0f7793dc9dc3575a4ee4843a6b167b2e8c3d3cd25dacf4"),
-        .init(path: "model.safetensors.index.json", bytes: 108_307, sha256: "3dacd0399838beaa368c4a4278477096c861defca3cfdcdd6f947b62d349af32"),
-        .init(path: "preprocessor_config.json", bytes: 350, sha256: "f2058c716eef96ccaed1cc1e2d0c08306b62586d535b28d9d08e691b2fab7ca0"),
+        .init(path: "model.safetensors", bytes: 3_093_767_283, sha256: "90eeb02604181dbcccd0a30a1f550a4a8928ca7dcbee4aee1449239306cfdfca"),
+        .init(path: "model.safetensors.index.json", bytes: 64_742, sha256: "58a7841d7bff2548dd91577d216274a83cf1b500bc6a534b809d6c1b1707cf2b"),
+        .init(path: "preprocessor_config.json", bytes: 782, sha256: "93585062a80db5e8ca038efc7726a3e6411d9db948472d81d63c6303993be8c5"),
         .init(path: "special_tokens_map.json", bytes: 613, sha256: "76862e765266b85aa9459767e33cbaf13970f327a0e88d1c65846c2ddd3a1ecd"),
-        .init(path: "tokenizer.json", bytes: 11_421_896, sha256: "9c5ae00e602b8860cbd784ba82a8aa14e8feecec692e7076590d014d7b7fdafa"),
-        .init(path: "tokenizer_config.json", bytes: 7_256, sha256: "2f58f4bbd7bbce15d683f525954ef3a92cd82f5e06415a9c513859bf8ab72436"),
+        .init(path: "tokenizer.json", bytes: 11_422_654, sha256: "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+        .init(path: "tokenizer_config.json", bytes: 5_445, sha256: "81ec7bb9530159b326c0bef1d0b6c33d392090524014ea3f0123a3c1eb9c2af5"),
+        .init(path: "video_preprocessor_config.json", bytes: 817, sha256: "59c5c9eb52182eb14c06ffb10ca9effd29adce5f238a95de23ca14a38dbd2cb1"),
         .init(path: "vocab.json", bytes: 2_776_833, sha256: "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910")
     ]
 
@@ -48,7 +51,7 @@ final class RecoveryModelManager: ObservableObject {
 
     var modelDirectory: URL? {
         try? InstructionModelImporter.applicationSupportRoot()
-            .appendingPathComponent("RecoveryModels/Qwen2.5-VL-3B-Instruct-4bit/\(Self.revision)", isDirectory: true)
+            .appendingPathComponent("RecoveryModels/Qwen3-VL-4B-Instruct-4bit/\(Self.revision)", isDirectory: true)
     }
 
     func check() async {
@@ -155,7 +158,7 @@ final class RecoveryModelManager: ObservableObject {
         do {
             let path = await NetworkPathProbe.current()
             if path.usesInterfaceType(.cellular), !allowsCellularDownloads {
-                reject(reason: "The recovery model is about 3.09 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
+                reject(reason: "The recovery model is about 3.1 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
                 return
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
