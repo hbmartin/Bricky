@@ -28,6 +28,10 @@ actor DepthICPTracker {
         var lockInlierFraction: Float = 0.6
         var lockLatticeMargin: Float = 1.3
         var lostInlierFraction: Float = 0.3
+        /// Below this visible fraction the sample is effectively off camera:
+        /// the pose is held and the loss clock does not run, because absence
+        /// of the build in view is not evidence of a bad fit.
+        var offCameraVisibleFraction: Float = 0.2
         /// Seconds of collapsed correspondence before locked degrades to lost.
         var lostGracePeriod: TimeInterval = 1.0
         /// Exponential smoothing factor applied to published poses.
@@ -66,6 +70,8 @@ actor DepthICPTracker {
         self.sample = sample
         self.alignmentID = alignmentID
         worldFromModel = coarseWorldFromModel
+        // Each target starts without the prior target's confidence clock.
+        lastConfidentTimestamp = 0
         state = .coarse
     }
 
@@ -75,6 +81,7 @@ actor DepthICPTracker {
         state = .unplaced
         sample = nil
         alignmentID = nil
+        lastConfidentTimestamp = 0
     }
 
     /// Consumes depth frames and yields registration updates until the input
@@ -114,7 +121,10 @@ actor DepthICPTracker {
 
         let quality = result.quality
         let previousState = state
-        if quality.inlierFraction >= configuration.lostInlierFraction {
+        // An off-camera sample is no evidence of a bad fit: hold the pose
+        // and keep the loss clock from running until the build is in view.
+        let offCamera = result.visibleFraction < configuration.offCameraVisibleFraction
+        if offCamera || quality.inlierFraction >= configuration.lostInlierFraction {
             lastConfidentTimestamp = frame.timestamp
         }
 
@@ -172,6 +182,8 @@ actor DepthICPTracker {
     ) -> SolveResult {
         var pose = initialWorldFromModel
         let iterations = max(1, configuration.maxIterations)
+        // One world-space scratch buffer, reused across every iteration.
+        var worldPoints = [SIMD3<Float>](repeating: .zero, count: sample.points.count)
         for iteration in 0..<iterations {
             let progress = iterations == 1 ? 1 : Float(iteration) / Float(iterations - 1)
             let rejection = configuration.initialRejectionDistance
@@ -181,7 +193,8 @@ actor DepthICPTracker {
                 frame: frame,
                 pose: pose,
                 rejectionDistance: rejection,
-                configuration: configuration
+                configuration: configuration,
+                worldPoints: &worldPoints
             ) else { break }
             pose = update
         }
@@ -202,7 +215,8 @@ actor DepthICPTracker {
         frame: RegistrationFrameInput,
         pose: simd_float4x4,
         rejectionDistance: Float,
-        configuration: Configuration
+        configuration: Configuration,
+        worldPoints: inout [SIMD3<Float>]
     ) -> simd_float4x4? {
         let cameraFromWorld = frame.worldFromCamera.inverse
         let cameraPosition = SIMD3(
@@ -225,15 +239,13 @@ actor DepthICPTracker {
 
         // First pass gathers world points to place the yaw pivot at their
         // centroid, decorrelating yaw from translation.
-        var worldPoints = [SIMD3<Float>]()
-        worldPoints.reserveCapacity(sample.points.count)
-        for point in sample.points {
-            let world4 = pose * SIMD4(point, 1)
+        guard !sample.points.isEmpty else { return nil }
+        for index in sample.points.indices {
+            let world4 = pose * SIMD4(sample.points[index], 1)
             let world = SIMD3(world4.x, world4.y, world4.z)
-            worldPoints.append(world)
+            worldPoints[index] = world
             pivotAccumulator += world
         }
-        guard !worldPoints.isEmpty else { return nil }
         let pivot = pivotAccumulator / Float(worldPoints.count)
         let up = SIMD3<Float>(0, 1, 0)
 
@@ -355,23 +367,28 @@ actor DepthICPTracker {
         let visibleFraction = Float(current.projected) / Float(max(sample.points.count, 1))
 
         // Alternative hypotheses: ±1 stud along the model's x/z axes, 180°
-        // yaw, and 90° yaw for near-square footprints.
-        var margin = Float.greatestFiniteMagnitude
-        let currentCost = max(current.meanClampedCost, 1e-9)
-        for alternative in latticeAlternatives(sample: sample, pose: pose, configuration: configuration) {
-            let altCost = cost(
-                sample: sample, frame: frame, pose: alternative,
-                rejection: tight, configuration: configuration
-            )
-            let ratio: Float
-            if altCost.projected < current.projected / 2 {
-                // The alternative mostly leaves the image; it cannot explain
-                // the observation and does not cap the margin.
-                ratio = .greatestFiniteMagnitude
-            } else {
-                ratio = altCost.meanClampedCost / currentCost
+        // yaw, and 90° yaw for near-square footprints. A fit below the loss
+        // floor can never become a lock candidate, so the sweep is skipped
+        // and the margin reports 0 — no distinctiveness evidence.
+        var margin: Float = 0
+        if inlierFraction >= configuration.lostInlierFraction {
+            margin = .greatestFiniteMagnitude
+            let currentCost = max(current.meanClampedCost, 1e-9)
+            for alternative in latticeAlternatives(sample: sample, pose: pose, configuration: configuration) {
+                let altCost = cost(
+                    sample: sample, frame: frame, pose: alternative,
+                    rejection: tight, configuration: configuration
+                )
+                let ratio: Float
+                if altCost.projected < current.projected / 2 {
+                    // The alternative mostly leaves the image; it cannot
+                    // explain the observation and does not cap the margin.
+                    ratio = .greatestFiniteMagnitude
+                } else {
+                    ratio = altCost.meanClampedCost / currentCost
+                }
+                margin = min(margin, ratio)
             }
-            margin = min(margin, ratio)
         }
 
         return (

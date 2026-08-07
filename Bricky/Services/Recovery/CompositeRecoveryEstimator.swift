@@ -18,13 +18,22 @@ actor CompositeRecoveryEstimator: RecoveryEstimating {
         model: InstructionPlan,
         alignment: ARAlignment
     ) async throws -> RecoveryEstimate {
-        if let geometric,
-           let estimate = try? await geometric.estimate(
-               model: model,
-               alignment: alignment,
-               captureIDs: captures.map(\.id)
-           ) {
-            return estimate
+        if let geometric {
+            do {
+                if let estimate = try await geometric.estimate(
+                    model: model,
+                    alignment: alignment,
+                    captureIDs: captures.map(\.id)
+                ) {
+                    return estimate
+                }
+            } catch is CancellationError {
+                // Cancelled analysis must not fall through and start VLM
+                // inference.
+                throw CancellationError()
+            } catch {
+                // Any other geometric failure steps aside per ADR 0010.
+            }
         }
         return try await fallback.estimate(captures: captures, model: model, alignment: alignment)
     }

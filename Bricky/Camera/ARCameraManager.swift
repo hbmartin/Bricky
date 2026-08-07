@@ -196,6 +196,9 @@ extension ARCameraManager: ARSessionDelegate {
         let message = error.localizedDescription
         os.Logger(subsystem: AppConfig.bundleID, category: "ARCamera")
             .error("AR session failed: \(message, privacy: .public)")
+        // Frame delivery stops with a failed session; finish the relay stream
+        // so the registration consumer ends instead of waiting forever.
+        registrationRelay.stop()
         Task { @MainActor [weak self] in
             self?.isSessionRunning = false
             self?.trackingState = .notAvailable

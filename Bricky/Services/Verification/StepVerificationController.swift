@@ -12,8 +12,14 @@ final class StepVerificationController: ObservableObject {
     /// `stableCompleteInterval` — the gate for the one-tap Confirm & Next
     /// affordance. Never auto-advances (ADR 0008).
     @Published private(set) var isStablyComplete = false
+    /// Set when the geometric verifier cannot be constructed (no Metal);
+    /// surfaced so the guide can explain the missing check.
+    @Published private(set) var unavailableReason: String?
 
     private var verifier: GeometricStepVerifier?
+    /// Bumped on every `begin`: a frame in flight across the step boundary
+    /// must not publish into the new step's verification.
+    private var generation = 0
     private var completeSince: TimeInterval?
     private let stableCompleteInterval: TimeInterval = 2.0
     private var lastIngestTimestamp: TimeInterval = -.infinity
@@ -23,17 +29,16 @@ final class StepVerificationController: ObservableObject {
     private let minimumInterval: TimeInterval = 0.2
 
     var statusLabel: String? {
-        guard let verification else { return nil }
+        guard let verification else { return unavailableReason }
         switch verification.verdict {
         case .complete:
             return "Step looks complete"
         case .incomplete:
             return "Step not complete yet"
-        case .misplaced(let offset):
-            let direction = offset.x != 0
-                ? (offset.x > 0 ? "one stud +x" : "one stud -x")
-                : (offset.y > 0 ? "one stud +z" : "one stud -z")
-            return "Brick looks misplaced (\(direction))"
+        case .misplaced:
+            // Model-space axes mean nothing to the user; the offset stays in
+            // the verdict for diagnostics only.
+            return "Brick looks misplaced by about one stud"
         case .uncertain(let reason):
             switch reason {
             case .registrationNotLocked, .poseAmbiguous:
@@ -55,6 +60,7 @@ final class StepVerificationController: ObservableObject {
         completedSnapshot: InstructionGeometrySnapshot,
         deltaSnapshot: InstructionGeometrySnapshot
     ) {
+        generation += 1
         verification = nil
         isStablyComplete = false
         completeSince = nil
@@ -62,6 +68,7 @@ final class StepVerificationController: ObservableObject {
         do {
             let verifier = try verifier ?? GeometricStepVerifier()
             self.verifier = verifier
+            unavailableReason = nil
             Task {
                 await verifier.begin(
                     stepID: stepID,
@@ -71,6 +78,7 @@ final class StepVerificationController: ObservableObject {
             }
         } catch {
             verifier = nil
+            unavailableReason = "Depth verification is unavailable: \(error.localizedDescription)"
         }
     }
 
@@ -79,7 +87,10 @@ final class StepVerificationController: ObservableObject {
         guard let verifier else { return }
         guard frame.timestamp - lastIngestTimestamp >= minimumInterval else { return }
         lastIngestTimestamp = frame.timestamp
+        let ingestGeneration = generation
         guard let result = try? await verifier.ingest(frame: frame, registration: registration) else { return }
+        // A begin() while this ingest was in flight makes the result stale.
+        guard ingestGeneration == generation else { return }
         verification = result
         if result.verdict.isComplete {
             let since = completeSince ?? frame.timestamp

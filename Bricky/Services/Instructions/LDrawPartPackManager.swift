@@ -35,9 +35,13 @@ final class LDrawPartPackManager: ObservableObject {
         let hasParts = FileManager.default.fileExists(atPath: libraryURL.appendingPathComponent("parts").path)
         let marker = try? String(contentsOf: libraryURL.appendingPathComponent("_release.txt"), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        state = hasParts && marker == Self.version ? .ready : .notInstalled
-        if state == .ready {
+        if hasParts && marker == Self.version {
+            // Install the palette before publishing .ready so renderers never
+            // draw a ready pack with the fallback colours.
             await installPalette(from: libraryURL)
+            state = .ready
+        } else {
+            state = .notInstalled
         }
     }
 
@@ -108,10 +112,10 @@ final class LDrawPartPackManager: ObservableObject {
                 try? FileManager.default.removeItem(at: staging)
                 throw error
             }
-            state = .ready
             if let libraryURL {
                 await installPalette(from: libraryURL)
             }
+            state = .ready
         } catch is CancellationError {
             state = .notInstalled
         } catch {

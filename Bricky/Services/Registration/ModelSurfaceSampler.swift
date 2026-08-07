@@ -52,7 +52,7 @@ enum ModelSurfaceSampler {
                     let u = 1 - su
                     let v = r2 * su
                     let point = a * u + b * v + c * (1 - u - v)
-                    let key = VoxelKey(point: point, inverseSpacing: inverseSpacing)
+                    guard let key = VoxelKey(point: point, inverseSpacing: inverseSpacing) else { continue }
                     guard occupied.insert(key).inserted else { continue }
                     points.append(point)
                     normals.append(normal)
@@ -95,10 +95,24 @@ enum ModelSurfaceSampler {
         let y: Int32
         let z: Int32
 
-        init(point: SIMD3<Float>, inverseSpacing: Float) {
-            x = Int32((point.x * inverseSpacing).rounded(.down))
-            y = Int32((point.y * inverseSpacing).rounded(.down))
-            z = Int32((point.z * inverseSpacing).rounded(.down))
+        init?(point: SIMD3<Float>, inverseSpacing: Float) {
+            guard let x = Self.index(point.x * inverseSpacing),
+                  let y = Self.index(point.y * inverseSpacing),
+                  let z = Self.index(point.z * inverseSpacing) else { return nil }
+            self.x = x
+            self.y = y
+            self.z = z
+        }
+
+        /// Non-finite coordinates cannot key a voxel; finite extremes clamp
+        /// to the representable grid instead of trapping the conversion.
+        private static func index(_ scaled: Float) -> Int32? {
+            guard scaled.isFinite else { return nil }
+            let floored = scaled.rounded(.down)
+            if floored < Float(Int32.min) { return Int32.min }
+            // The largest Float below 2^31; anything above overflows Int32.
+            if floored > 2_147_483_520 { return Int32.max }
+            return Int32(floored)
         }
     }
 }

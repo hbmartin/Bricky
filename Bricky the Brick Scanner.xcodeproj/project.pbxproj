@@ -63,6 +63,7 @@
 		9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */; };
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
 		930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7255416EAA67E75793A6A9 /* AppConfig.swift */; };
+		966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
 		985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		9B3A04E983C16A3C6C1BB06C /* InstructionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */; };
 		9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 131FA9216C20002D90F8F63D /* RecoveryMLX */; };
@@ -72,6 +73,7 @@
 		A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */; };
 		A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
 		A4EBB827338FCD646B4D3D78 /* ARCameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */; };
+		A4F5DDB6993649DCBDF01DD4 /* tower.ldr in Resources */ = {isa = PBXBuildFile; fileRef = 962632602C04E5BE06D65462 /* tower.ldr */; };
 		B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
 		B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
 		B7B0DE172227251CC45DAE90 /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
@@ -158,6 +160,7 @@
 		8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
 		91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimatorTests.swift; sourceTree = "<group>"; };
+		962632602C04E5BE06D65462 /* tower.ldr */ = {isa = PBXFileReference; path = tower.ldr; sourceTree = "<group>"; };
 		9891FC28298A60A802423EF9 /* RegistrationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationController.swift; sourceTree = "<group>"; };
 		9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeRecoveryEstimator.swift; sourceTree = "<group>"; };
 		9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
@@ -287,6 +290,7 @@
 		32EB8296A47FB1E59C377A60 /* fixtures */ = {
 			isa = PBXGroup;
 			children = (
+				C8B31B486614C49A16046E77 /* real-tower */,
 				0BF18925390A1350EE204A35 /* synthetic-tower */,
 			);
 			path = fixtures;
@@ -438,6 +442,14 @@
 			);
 			name = Registration;
 			path = Bricky/Services/Registration;
+			sourceTree = "<group>";
+		};
+		C8B31B486614C49A16046E77 /* real-tower */ = {
+			isa = PBXGroup;
+			children = (
+				962632602C04E5BE06D65462 /* tower.ldr */,
+			);
+			path = "real-tower";
 			sourceTree = "<group>";
 		};
 		D05A08833F588BE4C04EDA26 /* Recovery */ = {
@@ -630,6 +642,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				17E3DDB0BBCFAE800CD543D2 /* sbrick.dat in Resources */,
+				A4F5DDB6993649DCBDF01DD4 /* tower.ldr in Resources */,
 				282152871AC60FF55AE2D6FD /* tower.ldr in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -646,6 +659,7 @@
 				F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */,
 				CD2A2B2EA9C3F3476947C77E /* InstructionDomain.swift in Sources */,
 				1DA8516D92390E39A14AB874 /* InstructionPlanBuilder.swift in Sources */,
+				966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */,
 				985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */,
 				61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */,
 				D6DBB32B222C8A07BA765476 /* ModelSurfaceSampler.swift in Sources */,

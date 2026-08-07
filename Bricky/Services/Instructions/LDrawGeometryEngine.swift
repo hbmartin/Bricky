@@ -29,6 +29,9 @@ actor LDrawGeometryEngine {
     private let maximumTriangles: Int
     private var textCache: [String: String] = [:]
     private var flattenOperations = 0
+    /// Lazily parsed LDConfig palette, needed only to resolve the contextual
+    /// edge colour (code 24) to a concrete colour.
+    private var paletteCache: [Int: LDrawColorDefinition]?
 
     init(
         sourceRoot: URL,
@@ -49,7 +52,7 @@ actor LDrawGeometryEngine {
             try flatten(
                 reference: placement.partReference,
                 transform: placement.transform,
-                inheritedColor: placement.colorCode,
+                inheritedColor: resolve(placement.colorCode, inheritedColor: Self.uncontextedMainColor),
                 invertWinding: false,
                 depth: 0,
                 triangles: &triangles
@@ -93,6 +96,36 @@ actor LDrawGeometryEngine {
         return InstructionGeometrySnapshot(buffers: buffers, bounds: bounds)
     }
 
+    /// Codes 16 (inherit) and 24 (edge complement) are contextual and must
+    /// resolve before buffers are built — a sentinel code in a buffer would
+    /// flow unresolved into palette lookups, sampling evidence, and
+    /// materials. Direct colours and concrete codes pass through unchanged.
+    private func resolve(_ color: Int, inheritedColor: Int) -> Int {
+        switch color {
+        case 16:
+            return inheritedColor
+        case 24:
+            guard let edge = palette()[inheritedColor]?.edgeRGB else { return Self.fallbackEdgeColor }
+            // Direct-colour convention: 0x2RRGGBB carries RGB in the low bits.
+            return 0x2000000 | Int(edge)
+        default:
+            return color
+        }
+    }
+
+    private func palette() -> [Int: LDrawColorDefinition] {
+        if let paletteCache { return paletteCache }
+        let definitions = (try? LDConfigPalette.load(libraryURL: partPackRoot)) ?? [:]
+        paletteCache = definitions
+        return definitions
+    }
+
+    /// Neutral stand-ins when a contextual code appears with no usable
+    /// context: the classic bluish grays, present in both the installed
+    /// palette and the hardcoded fallback.
+    private static let uncontextedMainColor = 71
+    private static let fallbackEdgeColor = 72
+
     private func flatten(
         reference: String,
         transform: LDrawTransform,
@@ -130,7 +163,7 @@ actor LDrawGeometryEngine {
                let color = LDrawInstructionParser.colorCode(tokens[1]),
                let child = Self.transform(tokens: tokens) {
                 let childReference = tokens.dropFirst(14).joined(separator: " ")
-                let childColor = color == 16 ? inheritedColor : color
+                let childColor = resolve(color, inheritedColor: inheritedColor)
                 try flatten(
                     reference: childReference,
                     transform: transform.multiplied(by: child),
@@ -146,12 +179,12 @@ actor LDrawGeometryEngine {
                let color = LDrawInstructionParser.colorCode(tokens[1]),
                let a = Self.point(tokens, 2), let b = Self.point(tokens, 5), let c = Self.point(tokens, 8) {
                 let flipped = (invertWinding != mirrored) != (!counterClockwise)
-                try appendTriangle(a, b, c, color: color == 16 ? inheritedColor : color, transform: transform, flipped: flipped, to: &triangles)
+                try appendTriangle(a, b, c, color: resolve(color, inheritedColor: inheritedColor), transform: transform, flipped: flipped, to: &triangles)
             } else if type == "4", tokens.count >= 14,
                       let color = LDrawInstructionParser.colorCode(tokens[1]),
                       let a = Self.point(tokens, 2), let b = Self.point(tokens, 5),
                       let c = Self.point(tokens, 8), let d = Self.point(tokens, 11) {
-                let resolved = color == 16 ? inheritedColor : color
+                let resolved = resolve(color, inheritedColor: inheritedColor)
                 let flipped = (invertWinding != mirrored) != (!counterClockwise)
                 try appendTriangle(a, b, c, color: resolved, transform: transform, flipped: flipped, to: &triangles)
                 try appendTriangle(a, c, d, color: resolved, transform: transform, flipped: flipped, to: &triangles)

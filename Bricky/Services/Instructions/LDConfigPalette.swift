@@ -50,7 +50,7 @@ enum LDConfigPalette {
     ///  [ALPHA <n>] [LUMINANCE <n>] [CHROME|PEARLESCENT|RUBBER|MATTE_METALLIC|
     ///  METAL|MATERIAL <spec…>]`
     private static func parseLine(_ line: Substring) -> LDrawColorDefinition? {
-        let tokens = line.split(separator: " ", omittingEmptySubsequences: true)
+        let tokens = line.split(omittingEmptySubsequences: true, whereSeparator: \.isWhitespace)
         guard tokens.count >= 8, tokens[0] == "0", tokens[1] == "!COLOUR" else { return nil }
         let name = String(tokens[2])
         var code: Int?

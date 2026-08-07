@@ -56,12 +56,15 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     func ingest(_ frame: ARFrame) {
         let shouldExtract: Bool = lock.withLock {
             guard continuation != nil else { return false }
-            guard frame.timestamp - lastYieldTimestamp >= Self.minimumInterval else { return false }
-            lastYieldTimestamp = frame.timestamp
-            return true
+            return frame.timestamp - lastYieldTimestamp >= Self.minimumInterval
         }
         guard shouldExtract, let input = Self.extract(frame) else { return }
-        let current: AsyncStream<RegistrationFrameInput>.Continuation? = lock.withLock { continuation }
+        // Commit the rate gate only after extraction succeeds so a failed
+        // extraction does not burn the interval slot.
+        let current: AsyncStream<RegistrationFrameInput>.Continuation? = lock.withLock {
+            lastYieldTimestamp = frame.timestamp
+            return continuation
+        }
         current?.yield(input)
     }
 
@@ -116,14 +119,16 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     ) -> (depth: [Float32], confidence: [UInt8], width: Int, height: Int)? {
         guard let confidenceMap = depthData.confidenceMap else { return nil }
         let depthMap = depthData.depthMap
-        guard CVPixelBufferGetPixelFormatType(depthMap) == kCVPixelFormatType_DepthFloat32 else { return nil }
+        guard CVPixelBufferGetPixelFormatType(depthMap) == kCVPixelFormatType_DepthFloat32,
+              CVPixelBufferGetPixelFormatType(confidenceMap) == kCVPixelFormatType_OneComponent8 else { return nil }
 
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
+        let depthLocked = CVPixelBufferLockBaseAddress(depthMap, .readOnly) == kCVReturnSuccess
+        let confidenceLocked = CVPixelBufferLockBaseAddress(confidenceMap, .readOnly) == kCVReturnSuccess
         defer {
-            CVPixelBufferUnlockBaseAddress(depthMap, .readOnly)
-            CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly)
+            if depthLocked { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+            if confidenceLocked { CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly) }
         }
+        guard depthLocked, confidenceLocked else { return nil }
 
         let width = CVPixelBufferGetWidth(depthMap)
         let height = CVPixelBufferGetHeight(depthMap)

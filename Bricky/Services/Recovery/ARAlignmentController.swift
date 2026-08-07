@@ -146,6 +146,9 @@ struct ARInstructionOverlay: UIViewRepresentable {
 
         if coordinator.arAnchor == nil {
             anchor.transform.matrix = transform
+            // A reused entity may still carry a locked-mode correction from a
+            // previous anchor; the manual path renders at the anchor alone.
+            entity?.transform = Transform.identity
         } else if let entity {
             // The child correction places the ghost exactly at the tracked
             // pose regardless of where ARKit currently holds the anchor:

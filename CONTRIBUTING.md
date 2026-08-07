@@ -18,7 +18,9 @@ shipping contracts.
 2. Add a focused MPD/LDR fixture for every syntax or failure case.
 3. Regenerate the pyldraw3 golden corpus and review semantic drift.
 4. Add native unit coverage and, for user flows, UI coverage.
-5. Generate the Xcode project from `project.yml` and build on iOS 17.
+5. Generate the Xcode project from `project.yml` and build on iOS 27. This
+   requires Xcode 27 with the iOS 27 simulator runtime installed (the
+   command below uses the iPhone 17 Pro simulator).
 
 ```sh
 cd Tools/InstructionPipeline

@@ -103,10 +103,23 @@ def is_exact_int(value: object) -> bool:
     return type(value) is int
 
 
+def is_number(value: object) -> bool:
+    return type(value) in (int, float)
+
+
 def rmse(values: list[float]) -> float:
     if not values:
         return 0.0
     return (sum(value * value for value in values) / len(values)) ** 0.5
+
+
+def validate_minimum_corpus(rows: list[dict[str, object]], kind: str) -> None:
+    if len(rows) < MINIMUM_CORPUS_ROWS:
+        raise SystemExit(
+            f"{kind} corpus has {len(rows)} rows but release gates require at least "
+            f"{MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for "
+            "schema/scorer smoke data, never for release-gate metrics"
+        )
 
 
 # --- Recovery (RecoveryBenchmarkV1, kind absent or "recovery") ---------------
@@ -196,6 +209,10 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"release corpus needs at least two explicit {field} values")
 
 
+def is_geometric(row: dict[str, object]) -> bool:
+    return str(row.get("model_revision", "")).startswith(GEOMETRIC_REVISION_PREFIX)
+
+
 def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_rows(rows)
     if not allow_small_corpus:
@@ -207,11 +224,8 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         abs(row["top_step_index"] - row["expected_step_index"]) == 1
         for row in sufficient
     )
-    geometric = [
-        row for row in rows
-        if str(row.get("model_revision", "")).startswith(GEOMETRIC_REVISION_PREFIX)
-    ]
-    composite = [row for row in rows if row not in geometric]
+    geometric = [row for row in rows if is_geometric(row)]
+    composite = [row for row in rows if not is_geometric(row)]
     latencies = [float(row["latency_ms"]) for row in rows]
     memory = [int(row.get("memory_peak_bytes", 0)) for row in rows]
     report: dict[str, object] = {
@@ -251,10 +265,14 @@ def validate_verification_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"verification row {index} has an invalid verdict")
         if row["detectability"] not in DETECTABILITY:
             raise SystemExit(f"verification row {index} has invalid detectability")
+        if not is_number(row["latency_ms"]):
+            raise SystemExit(f"verification row {index} latency_ms must be a number")
 
 
-def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_verification_rows(rows)
+    if not allow_small_corpus:
+        validate_minimum_corpus(rows, "verification")
     discriminable = [row for row in rows if row["detectability"] in {"strong", "marginal"}]
     negatives = [row for row in discriminable if row["expected_verdict"] != "complete"]
     false_completes = [row for row in negatives if row["produced_verdict"] == "complete"]
@@ -327,10 +345,15 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         for flag in ("converged", "ambiguity_expected", "reported_ambiguous"):
             if not isinstance(row[flag], bool):
                 raise SystemExit(f"registration row {index} {flag} must be a boolean")
+        for field in ("translation_error_m", "yaw_error_degrees", "latency_ms"):
+            if not is_number(row[field]):
+                raise SystemExit(f"registration row {index} {field} must be a number")
 
 
-def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+def score_registration(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_registration_rows(rows)
+    if not allow_small_corpus:
+        validate_minimum_corpus(rows, "registration")
     # A genuinely symmetric fixture cannot converge to a unique truth; it is
     # judged on reporting ambiguity, not on convergence.
     unambiguous = [row for row in rows if not row["ambiguity_expected"]]
@@ -380,13 +403,13 @@ def main(path: Path, *, allow_small_corpus: bool = False) -> None:
     report: dict[str, object] = {}
     failed = False
     if kinds["verification"]:
-        verification_report, verification_failed = score_verification(kinds["verification"])
+        verification_report, verification_failed = score_verification(kinds["verification"], allow_small_corpus=allow_small_corpus)
         # The headline number, printed before anything else (ADR 0008).
         print(f"FALSE_COMPLETE_RATE {verification_report['false_complete_rate']:.4f}")
         report["verification"] = verification_report
         failed = failed or verification_failed
     if kinds["registration"]:
-        registration_report, registration_failed = score_registration(kinds["registration"])
+        registration_report, registration_failed = score_registration(kinds["registration"], allow_small_corpus=allow_small_corpus)
         report["registration"] = registration_report
         failed = failed or registration_failed
     if kinds["recovery"]:
@@ -403,7 +426,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--allow-small-corpus",
         action="store_true",
-        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} recovery rows (smoke fixtures only)",
+        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} rows per kind (smoke fixtures only)",
     )
     arguments = parser.parse_args()
     main(arguments.results, allow_small_corpus=arguments.allow_small_corpus)

@@ -15,6 +15,7 @@ struct ARGuideView: View {
     @StateObject private var verification = StepVerificationController()
     @State private var entity: Entity?
     @State private var error: String?
+    @State private var isAdvancing = false
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -88,6 +89,9 @@ struct ARGuideView: View {
                     await verification?.observe(frame: frame, registration: update)
                 }
                 await loadEntity()
+                // Placement can precede the fit sample when geometry loads
+                // slowly; make sure tracking starts once both exist.
+                registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
             }
             .onDisappear {
                 verification.stop()
@@ -116,6 +120,11 @@ struct ARGuideView: View {
     /// verification restarts on the new delta, and the tracker re-fits the
     /// grown build from its current pose.
     private func confirmAndAdvance() {
+        guard !isAdvancing else { return }
+        isAdvancing = true
+        // Dropping the verdict hides the confirm affordance immediately, so
+        // one physical step cannot be confirmed twice before the next loads.
+        verification.stop()
         model.confirmedLastCompletedStepID = step.id
         model.currentStepIndex = min(plan.steps.count, step.index)
         model.lastOpenedAt = .now
@@ -128,6 +137,7 @@ struct ARGuideView: View {
         Task {
             await loadEntity()
             registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
+            isAdvancing = false
         }
     }
 
@@ -150,8 +160,10 @@ struct ARGuideView: View {
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;
                 // that is what the depth tracker registers against.
+                // The snapshot is the build through the *previous* step, so
+                // the sample carries that step's index.
                 registration.setFitSample(
-                    ModelSurfaceSampler.sample(completedSnapshot, stepIndex: step.index)
+                    ModelSurfaceSampler.sample(completedSnapshot, stepIndex: step.index - 1)
                 )
             } else {
                 registration.setFitSample(nil)

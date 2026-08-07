@@ -64,7 +64,9 @@ struct RegistrationQuality: Sendable, Codable, Equatable {
     /// Minimum cost ratio of the competing lattice hypotheses (±1 stud in
     /// x/z, and 90°/180° yaw for near-square footprints) against the current
     /// pose. Values near 1.0 mean an alternative explains the depth equally
-    /// well; values well above 1.0 mean the pose is distinctive.
+    /// well; values well above 1.0 mean the pose is distinctive. A margin of
+    /// 0 records that no sweep ran (the fit was below the loss floor) and
+    /// likewise must never read as distinctive.
     let latticeMargin: Float
 
     static let none = RegistrationQuality(rmsResidual: .infinity, inlierFraction: 0, latticeMargin: 1)

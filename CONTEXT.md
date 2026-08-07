@@ -159,7 +159,9 @@ python3 score_results.py synthetic.ndjson --allow-small-corpus
   precision/recall ≥0.90/0.85 (strong detectability) and ≥0.80/0.70
   (marginal), undetectable-abstention ≥95%, uncertain-on-correct ≤15%.
 - 🔴 GAP — physical corpus: ≥40 distinct staged fixtures across ≥6 legally
-  usable authored models with lighting/angle/occlusion variation; registration
+  usable authored models with lighting/angle/occlusion variation (the scorer
+  enforces the ≥40 minimum on every row kind — recovery, verification, and
+  registration — unless `--allow-small-corpus` is passed); registration
   error ≤5 mm against a jig; the synthetic verification gates re-met on
   device; median latencies ≤3 s verification, ≤8 s geometric recovery, ≤20 s
   composite recovery.

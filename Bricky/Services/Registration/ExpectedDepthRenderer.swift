@@ -38,10 +38,19 @@ final class ExpectedDepthRenderer {
         }
     }
 
+    /// Which surface the rasterizer keeps per pixel: the nearest (standard
+    /// occlusion) or the farthest, whose difference against nearest is the
+    /// ray span through the geometry.
+    enum Surface {
+        case nearest
+        case farthest
+    }
+
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
     private let depthState: MTLDepthStencilState
+    private let farthestDepthState: MTLDepthStencilState
 
     /// The shader is compiled from source at init so the identical pass can
     /// be linked into the iOS app and the macOS synthetic-scene CLI without
@@ -124,6 +133,11 @@ final class ExpectedDepthRenderer {
             throw RendererError.metalUnavailable
         }
         self.depthState = depthState
+        depthDescriptor.depthCompareFunction = .greater
+        guard let farthestDepthState = device.makeDepthStencilState(descriptor: depthDescriptor) else {
+            throw RendererError.metalUnavailable
+        }
+        self.farthestDepthState = farthestDepthState
     }
 
     /// Renders the snapshot's linear depth from the given camera pose.
@@ -137,8 +151,10 @@ final class ExpectedDepthRenderer {
         width: Int,
         height: Int,
         near: Float = 0.05,
-        far: Float = 5.0
+        far: Float = 5.0,
+        surface: Surface = .nearest
     ) throws -> ExpectedDepthMap {
+        guard width > 0, height > 0 else { throw RendererError.renderFailed }
         var vertices: [SIMD3<Float>] = []
         for buffer in snapshot.buffers {
             vertices.append(contentsOf: buffer.positions)
@@ -195,7 +211,7 @@ final class ExpectedDepthRenderer {
         pass.colorAttachments[0].storeAction = .store
         pass.depthAttachment.texture = depthTexture
         pass.depthAttachment.loadAction = .clear
-        pass.depthAttachment.clearDepth = 1
+        pass.depthAttachment.clearDepth = surface == .farthest ? 0 : 1
         pass.depthAttachment.storeAction = .dontCare
 
         guard let commandBuffer = queue.makeCommandBuffer(),
@@ -203,7 +219,7 @@ final class ExpectedDepthRenderer {
             throw RendererError.renderFailed
         }
         encoder.setRenderPipelineState(pipeline)
-        encoder.setDepthStencilState(depthState)
+        encoder.setDepthStencilState(surface == .farthest ? farthestDepthState : depthState)
         encoder.setCullMode(.none)
         encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)

@@ -24,6 +24,7 @@ struct StepCheckView: View {
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
     @State private var boardJPEG: Data?
     @State private var cloudOpinion: CloudAssistOpinion?
+    @State private var cloudTask: Task<Void, Never>?
     @State private var isSendingCloud = false
     @State private var showCloudConsent = false
 
@@ -143,7 +144,7 @@ struct StepCheckView: View {
         guard let boardJPEG, !isSendingCloud else { return }
         isSendingCloud = true
         let context = CloudAssistContext(stepIndex: step.index, stepCount: plan.steps.count)
-        Task {
+        cloudTask = Task {
             defer { isSendingCloud = false }
             do {
                 cloudOpinion = try await ClaudeVisionProvider()
@@ -302,6 +303,8 @@ struct StepCheckView: View {
         let task = checkTask
         checkTask = nil
         task?.cancel()
+        cloudTask?.cancel()
+        cloudTask = nil
         let url = capturedURL
         capturedURL = nil
         capturedImage = nil
