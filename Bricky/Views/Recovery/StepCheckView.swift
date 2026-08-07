@@ -21,6 +21,11 @@ struct StepCheckView: View {
     @State private var checkGeneration = UUID()
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @State private var recorder: RecoveryEvidenceRecorder?
+    @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
+    @State private var boardJPEG: Data?
+    @State private var cloudOpinion: CloudAssistOpinion?
+    @State private var isSendingCloud = false
+    @State private var showCloudConsent = false
 
     var body: some View {
         Group {
@@ -55,6 +60,7 @@ struct StepCheckView: View {
         .alert("Check Failed", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
+        .sheet(isPresented: $showCloudConsent) { cloudConsentSheet }
     }
 
     private func resultCard(_ value: StepCheckResult) -> some View {
@@ -62,17 +68,92 @@ struct StepCheckView: View {
             Label(value.rawValue.capitalized, systemImage: icon(value)).font(.title2.bold())
             Text("This result is advisory. Your authored guide remains under your control.")
                 .font(.caption).multilineTextAlignment(.center)
+            if value == .uncertain {
+                cloudAssistSection
+            }
             HStack {
                 Button("Retake") {
                     finalizeEvidence(groundTruth: .unlabeled)
                     discardRawCapture()
                     result = nil
+                    boardJPEG = nil
+                    cloudOpinion = nil
                 }
                 Button(value == .complete ? "Confirm & Advance" : "Advance Anyway") { advance() }
                     .buttonStyle(.borderedProminent)
             }
         }
         .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
+    }
+
+    /// The cloud escape hatch (ADR 0011): offered only after the local
+    /// pipeline returned uncertain, only with the toggle on, and every send
+    /// passes through the consent sheet showing the exact image.
+    @ViewBuilder
+    private var cloudAssistSection: some View {
+        if let cloudOpinion {
+            VStack(spacing: 4) {
+                Label("Claude: \(cloudOpinion.verdict.rawValue.capitalized)", systemImage: "cloud")
+                    .font(.headline)
+                Text(cloudOpinion.rationale)
+                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+        } else if cloudAssistEnabled {
+            if CloudAssistKeyStore.hasKey {
+                Button("Ask Claude for a Second Opinion", systemImage: "cloud") {
+                    showCloudConsent = true
+                }
+                .disabled(isSendingCloud || boardJPEG == nil)
+                .overlay { if isSendingCloud { ProgressView() } }
+            } else {
+                Text("Add your Anthropic API key in Storage to use cloud assist.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var cloudConsentSheet: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                if let boardJPEG, let image = UIImage(data: boardJPEG) {
+                    Image(uiImage: image)
+                        .resizable().scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                Text("This exact image will be sent to Anthropic using your API key. Nothing else leaves the device.")
+                    .font(.footnote).multilineTextAlignment(.center)
+                Button("Send This Image") {
+                    showCloudConsent = false
+                    sendToCloud()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .navigationTitle("Send to Claude?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showCloudConsent = false }
+                }
+            }
+        }
+    }
+
+    private func sendToCloud() {
+        guard let boardJPEG, !isSendingCloud else { return }
+        isSendingCloud = true
+        let context = CloudAssistContext(stepIndex: step.index, stepCount: plan.steps.count)
+        Task {
+            defer { isSendingCloud = false }
+            do {
+                cloudOpinion = try await ClaudeVisionProvider()
+                    .secondOpinion(boardJPEG: boardJPEG, context: context)
+            } catch is CancellationError {
+                // View dismissed mid-send.
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
     }
 
     private func icon(_ value: StepCheckResult) -> String {
@@ -97,6 +178,8 @@ struct StepCheckView: View {
         // this check replaces it.
         let previousCaptureURL = capturedURL
         capturedURL = nil
+        boardJPEG = nil
+        cloudOpinion = nil
         let generation = UUID()
         checkGeneration = generation
         let sessionRecorder = makeRecorderIfEnabled()
@@ -122,6 +205,9 @@ struct StepCheckView: View {
                     candidates: [(slot: "A", image: candidate, stepNumber: step.index)]
                 )
                 defer { try? FileManager.default.removeItem(at: board) }
+                // Retained so cloud assist can show and send the identical
+                // board the local model judged (ADR 0011).
+                boardJPEG = try Data(contentsOf: board)
                 let prompt = "The top image is the physical build. Candidate A is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts."
                 let response = try await recoveryModel.runtime.checkStepWithTrace(
                     imageURL: board,
@@ -219,6 +305,9 @@ struct StepCheckView: View {
         let url = capturedURL
         capturedURL = nil
         capturedImage = nil
+        boardJPEG = nil
+        cloudOpinion = nil
+        showCloudConsent = false
         let sessionRecorder = recorder
         recorder = nil
         Task.detached(priority: .utility) {

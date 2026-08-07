@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "RecoveryMLX",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS("27.0"), .macOS(.v14)],
     products: [
         .library(name: "RecoveryMLX", targets: ["RecoveryMLX"]),
         .library(name: "RecoveryEvidenceKit", targets: ["RecoveryEvidenceKit"])
@@ -12,7 +12,7 @@ let package = Package(
         // This exact commit includes MLXGuidedGeneration and trait-gated
         // FoundationModels integration without requiring the post-0.31.4
         // maskFill API. Default traits are disabled so MLXFoundationModels is
-        // absent from the iOS 17 graph and Xcode 16.4 remains supported.
+        // absent from the app's dependency graph.
         .package(
             url: "https://github.com/ml-explore/mlx-swift-lm.git",
             revision: "d2424294a6c3bbd0de37a0761d80efc05e6813dd",
@@ -20,8 +20,7 @@ let package = Package(
         ),
         // Direct dependency on the core MLX product so the runtime can bound
         // and clear the GPU buffer cache. 0.31.4 is the newest release in the
-        // LM package's accepted range whose manifest remains compatible with
-        // the Swift 6.1 toolchain shipped by the required Xcode 16.4.
+        // LM package's accepted range.
         .package(
             url: "https://github.com/ml-explore/mlx-swift",
             exact: "0.31.4"

@@ -16,6 +16,13 @@ Instruments identifies a stable, material bottleneck, a written benchmark
 defines numerical tolerances and representative shapes, and the kernel improves
 end-to-end latency or peak memory on admitted devices without regressions.
 
+Amended 2026-08-03: the same discipline extends to registration compute — the
+depth-ICP solver (ADR 0009) stays on CPU/simd until profiling proves
+otherwise. The one permitted Metal addition is the shared expected-depth
+raster render pass, which is an ordinary render pipeline, not a compute
+kernel, and is required for correctness (RealityKit exposes no depth
+readback), not speed.
+
 ## Consequences
 
 The `apple-metal-tensorops` review does not cause speculative kernel work. The

@@ -36,6 +36,21 @@ final class LDrawPartPackManager: ObservableObject {
         let marker = try? String(contentsOf: libraryURL.appendingPathComponent("_release.txt"), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         state = hasParts && marker == Self.version ? .ready : .notInstalled
+        if state == .ready {
+            await installPalette(from: libraryURL)
+        }
+    }
+
+    /// Loads `LDConfig.ldr` off the main actor and installs the parsed palette
+    /// for every renderer. A missing or unreadable LDConfig leaves the
+    /// hardcoded fallback palette in place; it never fails the pack.
+    private func installPalette(from libraryURL: URL) async {
+        let definitions = await Task.detached(priority: .utility) {
+            try? LDConfigPalette.load(libraryURL: libraryURL)
+        }.value
+        if let definitions, !definitions.isEmpty {
+            LDrawPalette.install(definitions)
+        }
     }
 
     func install() async {
@@ -94,6 +109,9 @@ final class LDrawPartPackManager: ObservableObject {
                 throw error
             }
             state = .ready
+            if let libraryURL {
+                await installPalette(from: libraryURL)
+            }
         } catch is CancellationError {
             state = .notInstalled
         } catch {

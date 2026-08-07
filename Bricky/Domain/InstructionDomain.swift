@@ -283,9 +283,17 @@ struct RecoveryEstimate: Codable, Hashable, Sendable {
     let latencyMilliseconds: Int
     let captureIDs: [UUID]
     let insufficiencyCause: RecoveryInsufficiencyCause?
+    /// Which pipeline produced the estimate (ADR 0010). Optional so
+    /// previously persisted estimates decode unchanged.
+    var method: RecoveryMethod?
 }
 
-enum StepCheckResult: String, Codable, Sendable {
+enum RecoveryMethod: String, Codable, Hashable, Sendable {
+    case geometric
+    case vlm
+}
+
+enum StepCheckResult: String, Codable, Sendable, CaseIterable {
     case complete
     case incomplete
     case uncertain

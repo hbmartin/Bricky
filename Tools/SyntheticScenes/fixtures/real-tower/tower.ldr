@@ -1,0 +1,30 @@
+0 Realistic RGB-D evaluation fixture: real parts, tall corner tower on an
+0 8x10-stud base. Massing features are multi-brick so their walls survive
+0 the sensor model's edge dilation; a far-corner bump breaks yaw symmetry.
+0 Name: tower.ldr
+0 !LDRAW_ORG Model
+1 4 -40 0 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 4 40 0 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 -40 0 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 40 0 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 14 -40 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 14 40 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 -40 0 40 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 40 0 40 1 0 0 0 1 0 0 0 1 3001.dat
+1 4 -40 0 80 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 40 0 80 1 0 0 0 1 0 0 0 1 3001.dat
+0 STEP
+1 14 -40 -24 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 -40 -24 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 4 -60 -48 -60 0 0 -1 0 1 0 1 0 0 3001.dat
+1 1 -20 -48 -60 0 0 -1 0 1 0 1 0 0 3001.dat
+0 STEP
+1 2 -40 -72 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 14 -40 -72 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 -60 -96 -60 0 0 -1 0 1 0 1 0 0 3001.dat
+1 4 -20 -96 -60 0 0 -1 0 1 0 1 0 0 3001.dat
+0 STEP
+1 14 -40 -120 -60 1 0 0 0 1 0 0 0 1 3001.dat
+0 STEP
+1 2 60 -24 60 1 0 0 0 1 0 0 0 1 3003.dat
+0 STEP

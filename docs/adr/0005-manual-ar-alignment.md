@@ -1,6 +1,7 @@
 # ADR 0005: AR alignment is manual and transient
 
-- Status: Accepted
+- Status: Superseded by ADR 0009 (2026-08-03); manual placement survives as
+  coarse init and fallback
 - Date: 2026-08-02
 
 ## Context

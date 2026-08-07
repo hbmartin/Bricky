@@ -8,9 +8,11 @@ enum AppConfig {
     /// The development-time semantic oracle version recorded in benchmark rows.
     static let pyldraw3Version = "1.5.0"
 
-    /// UserDefaults keys for the developer evidence controls (ADR 0007).
+    /// UserDefaults keys for the developer evidence controls (ADR 0007)
+    /// and the opt-in cloud assist toggle (ADR 0011).
     enum Defaults {
         static let evidenceCaptureEnabled = "developer.evidenceCaptureEnabled"
         static let corpusCollectionEnabled = "developer.corpusCollectionEnabled"
+        static let cloudAssistEnabled = "cloudAssist.enabled"
     }
 }

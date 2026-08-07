@@ -72,3 +72,6 @@ BrickyTests/GroundTruth/reports/*.md
 # reinstall from the lock instead of committing the materialized files.
 .claude/skills/
 .agents/skills/
+
+# Xcode indexing cache written inside the project bundle
+*.xcodeproj/-Xcc/

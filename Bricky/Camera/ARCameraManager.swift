@@ -21,7 +21,7 @@ final class ARCameraManager: NSObject, ObservableObject {
             case .cameraUnavailable:
                 "The camera is not available on this device."
             case .arNotSupported:
-                "ARKit world tracking is not supported on this device."
+                "Bricky requires a LiDAR-equipped iPhone with ARKit world tracking."
             case .permissionDenied:
                 "Camera access is required for alignment and recovery. Enable it in Settings."
             case .sessionFailed(let message):
@@ -35,9 +35,20 @@ final class ARCameraManager: NSObject, ObservableObject {
     @Published private(set) var trackingState: ARCamera.TrackingState = .notAvailable
 
     let session = ARSession()
+    /// Fan-out of copied LiDAR depth frames for the registration tracker;
+    /// fed from the delegate queue, so it lives outside actor isolation.
+    nonisolated let registrationRelay = RegistrationFrameRelay()
     private let delegateQueue = DispatchQueue(label: AppConfig.queuePrefix + ".ar.delegate")
 
-    static var isSupported: Bool { ARWorldTrackingConfiguration.isSupported }
+    /// The whole app requires LiDAR-class AR: scene-mesh reconstruction for
+    /// occlusion and scene depth for registration and verification. There is
+    /// no Info.plist capability key that expresses LiDAR, so this runtime
+    /// check is the floor.
+    static var isSupported: Bool {
+        ARWorldTrackingConfiguration.isSupported
+            && ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+            && ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)
+    }
 
     override init() {
         super.init()
@@ -79,6 +90,7 @@ final class ARCameraManager: NSObject, ObservableObject {
 
     func stopSession() {
         session.pause()
+        registrationRelay.stop()
         isSessionRunning = false
         trackingState = .notAvailable
     }
@@ -139,6 +151,17 @@ final class ARCameraManager: NSObject, ObservableObject {
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal]
         configuration.isAutoFocusEnabled = true
+        // The LiDAR floor (ADR 0012) guarantees mesh reconstruction; the mesh
+        // occludes virtual bricks behind the physical build, and person
+        // segmentation keeps hands in front of the ghost while placing parts.
+        configuration.sceneReconstruction = .mesh
+        // Scene depth feeds registration and verification (ADR 0009); the
+        // smoothed variant is the ICP tracking input, the raw variant is the
+        // verifier's per-frame evidence.
+        configuration.frameSemantics.insert([.sceneDepth, .smoothedSceneDepth])
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
+            configuration.frameSemantics.insert(.personSegmentationWithDepth)
+        }
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         error = nil
         isSessionRunning = true
@@ -147,6 +170,7 @@ final class ARCameraManager: NSObject, ObservableObject {
 
 extension ARCameraManager: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        registrationRelay.ingest(frame)
         let tracking = frame.camera.trackingState
         // This fires at ~60 fps; skip the @Published write when nothing
         // changed so observing SwiftUI views are not invalidated per frame.

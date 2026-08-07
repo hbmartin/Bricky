@@ -3,28 +3,77 @@ import RealityKit
 import SwiftUI
 
 struct ARGuideView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var partPack: LDrawPartPackManager
+    let model: StoredInstructionModel
     let plan: InstructionPlan
-    let step: AuthoredStep
+    @State private var step: AuthoredStep
     @StateObject private var camera = ARCameraManager()
     @StateObject private var alignment = ARAlignmentController()
+    @StateObject private var registration = RegistrationController()
+    @StateObject private var verification = StepVerificationController()
     @State private var entity: Entity?
     @State private var error: String?
+
+    init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
+        self.model = model
+        self.plan = plan
+        _step = State(initialValue: step)
+    }
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                ARInstructionOverlay(session: camera.session, entity: entity, alignment: alignment.alignment)
-                    .ignoresSafeArea()
+                ARInstructionOverlay(
+                    session: camera.session,
+                    entity: entity,
+                    alignment: alignment.alignment,
+                    trackedTransform: registration.trackedTransform,
+                    isLocked: registration.registration?.state == .locked
+                )
+                .ignoresSafeArea()
                 Image(systemName: "plus").font(.title).foregroundStyle(.white).shadow(radius: 3)
                 VStack {
                     HStack {
                         Text(alignment.guidance).font(.callout.weight(.semibold))
                         Spacer()
+                        if let status = registration.statusLabel {
+                            Text(status)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(
+                                    registration.registration?.state == .locked
+                                        ? Color.green.opacity(0.25)
+                                        : Color.orange.opacity(0.25),
+                                    in: Capsule()
+                                )
+                        }
                         Button("Reset") { alignment.reset() }
                     }
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
+                    if let verdictLabel = verification.statusLabel {
+                        HStack(spacing: 6) {
+                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : "eye")
+                            Text(verdictLabel)
+                        }
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(verification.isComplete ? .green : .primary)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
+                    }
                     Spacer()
+                    if verification.isStablyComplete {
+                        // One tap after ≥2 s of stable complete — the user
+                        // still confirms; nothing auto-advances (ADR 0008).
+                        Button(
+                            step.index < plan.steps.count ? "Confirm & Next" : "Confirm & Finish",
+                            systemImage: "checkmark.circle.fill"
+                        ) { confirmAndAdvance() }
+                            .buttonStyle(.borderedProminent).tint(.green).controlSize(.large)
+                            .padding(.bottom, 4)
+                    }
                     if alignment.alignment == nil {
                         Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
@@ -35,9 +84,14 @@ struct ARGuideView: View {
             }
             .task {
                 camera.checkPermissions()
+                registration.frameObserver = { [weak verification] frame, update in
+                    await verification?.observe(frame: frame, registration: update)
+                }
                 await loadEntity()
             }
             .onDisappear {
+                verification.stop()
+                registration.stop()
                 camera.stopSession()
                 // Re-entry re-runs the session with reset options, which
                 // starts a new world frame; drop the stale ghost pose.
@@ -45,6 +99,9 @@ struct ARGuideView: View {
             }
             .onChange(of: camera.trackingState) { _, state in
                 if case .notAvailable = state, alignment.alignment != nil { alignment.trackingLost() }
+            }
+            .onChange(of: alignment.alignment) { _, newValue in
+                registration.alignmentChanged(newValue, relay: camera.registrationRelay)
             }
         }
         .navigationTitle("AR Step \(step.index)")
@@ -54,6 +111,26 @@ struct ARGuideView: View {
         } message: { Text(error ?? "") }
     }
 
+    /// Persists the confirm exactly like `GuideView.confirmAndAdvance`, then
+    /// advances this AR session in place: the next step's geometry loads,
+    /// verification restarts on the new delta, and the tracker re-fits the
+    /// grown build from its current pose.
+    private func confirmAndAdvance() {
+        model.confirmedLastCompletedStepID = step.id
+        model.currentStepIndex = min(plan.steps.count, step.index)
+        model.lastOpenedAt = .now
+        try? context.save()
+        guard step.index < plan.steps.count else {
+            dismiss()
+            return
+        }
+        step = plan.steps[step.index]
+        Task {
+            await loadEntity()
+            registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
+        }
+    }
+
     @MainActor
     private func loadEntity() async {
         guard let partPackRoot = partPack.libraryURL else { error = "Install the LDraw part pack first."; return }
@@ -61,8 +138,32 @@ struct ARGuideView: View {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
             let engine = LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPackRoot)
-            let snapshot = try await engine.snapshot(placements: Array(plan.cumulativePlacements(through: step)))
-            entity = try RealityKitInstructionAdapter.makeEntity(from: snapshot)
+            // Same completed/new treatment as the on-screen guide: dimmed
+            // prior work under a full-opacity ghost of this step's additions.
+            // Both stay solid translucent renders — never wireframe — per the
+            // ADR 0008 design-around.
+            let completed = Array(plan.completedPlacements(before: step))
+            let additions = Array(plan.addedPlacements(for: step))
+            let container = Entity()
+            let completedSnapshot = try await engine.snapshot(placements: completed)
+            if !completed.isEmpty {
+                container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
+                // The physical build at this point is the completed geometry;
+                // that is what the depth tracker registers against.
+                registration.setFitSample(
+                    ModelSurfaceSampler.sample(completedSnapshot, stepIndex: step.index)
+                )
+            } else {
+                registration.setFitSample(nil)
+            }
+            let additionSnapshot = try await engine.snapshot(placements: additions)
+            container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
+            entity = container
+            verification.begin(
+                stepID: step.id,
+                completedSnapshot: completedSnapshot,
+                deltaSnapshot: additionSnapshot
+            )
         } catch { self.error = error.localizedDescription }
     }
 }

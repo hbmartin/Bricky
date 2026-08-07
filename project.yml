@@ -2,7 +2,7 @@ name: Bricky the Brick Scanner
 options:
   bundleIdPrefix: com.bricky
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "27.0"
   xcodeVersion: "27.0"
   groupSortPosition: top
 packages:
@@ -16,7 +16,7 @@ settings:
     DEVELOPMENT_TEAM: 6UN3X7Q6SP
     SWIFT_VERSION: 5.9
     TARGETED_DEVICE_FAMILY: "1,2"
-    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    IPHONEOS_DEPLOYMENT_TARGET: 27.0
     MARKETING_VERSION: 2.0.0
     CURRENT_PROJECT_VERSION: 6
 targets:
@@ -28,9 +28,13 @@ targets:
       - Bricky/Domain
       - Bricky/Camera/ARCameraManager.swift
       - Bricky/Camera/ARCameraPreview.swift
+      - Bricky/Camera/RegistrationFrameRelay.swift
       - Bricky/Extensions/UIImage+Orientation.swift
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery
+      - Bricky/Services/Registration
+      - Bricky/Services/Verification
+      - Bricky/Services/Cloud
       - Bricky/Views/EvidenceSessionsView.swift
       - Bricky/Views/LibraryView.swift
       - Bricky/Views/StorageAndAttributionView.swift
@@ -59,11 +63,42 @@ targets:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
       - package: ZIPFoundation
+  SyntheticRGBD:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Tools/SyntheticScenes
+      - Bricky/Domain/RecoveryEvidence.swift
+      - Bricky/Domain/InstructionDomain.swift
+      - Bricky/Domain/RegistrationDomain.swift
+      - Bricky/Domain/VerificationDomain.swift
+      - Bricky/Services/Instructions/LDrawInstructionParser.swift
+      - Bricky/Services/Instructions/InstructionPlanBuilder.swift
+      - Bricky/Services/Instructions/LDrawGeometryEngine.swift
+      - Bricky/Services/Registration/ModelSurfaceSampler.swift
+      - Bricky/Services/Registration/ExpectedDepthRenderer.swift
+      - Bricky/Services/Registration/DepthICPTracker.swift
+      - Bricky/Services/Verification/GeometricStepVerifier.swift
+    dependencies:
+      - package: RecoveryMLX
+        product: RecoveryEvidenceKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bricky.synthetic-rgbd
+        CODE_SIGN_IDENTITY: ""
   BrickyTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - BrickyTests/InstructionParserTests.swift
+      - BrickyTests/LDConfigPaletteTests.swift
+      - BrickyTests/ModelSurfaceSamplerTests.swift
+      - BrickyTests/ExpectedDepthRendererTests.swift
+      - BrickyTests/DepthICPTrackerTests.swift
+      - BrickyTests/GeometricStepVerifierTests.swift
+      - BrickyTests/GeometricRecoveryEstimatorTests.swift
+      - BrickyTests/ClaudeVisionProviderTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift
       - BrickyTests/LDrawGeometryEngineTests.swift
@@ -92,6 +127,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.uitests
 schemes:
+  SyntheticRGBD:
+    build:
+      targets:
+        SyntheticRGBD: all
   Bricky:
     build:
       targets:
