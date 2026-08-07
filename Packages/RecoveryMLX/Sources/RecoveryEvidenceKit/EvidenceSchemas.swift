@@ -43,6 +43,26 @@ public enum RecoveryCertainty: String, Codable, Hashable, Sendable {
     case insufficient
 }
 
+/// Which pipeline produced a recovery estimate (ADR 0010). Lives here, beside
+/// `RecoveryBenchmarkV1`, so the scorer contract has exactly one Swift
+/// definition — the same reason `RecoveryCertainty` moved out of the app
+/// domain.
+///
+/// The three cases are distinguished because they are budgeted differently:
+/// a geometric conclusion pays only for the fit, whereas a fallback pays for
+/// the fit *and* the inference it did not avoid. Collapsing the last two would
+/// make the composite latency gate unmeasurable.
+public enum RecoveryMethod: String, Codable, Hashable, Sendable {
+    /// The geometric pass concluded; no VLM weights were loaded.
+    case geometric
+    /// The geometric pass ran, stepped aside, and the VLM estimator concluded.
+    /// Latency covers both legs.
+    case composite
+    /// No geometric pass was possible (no depth observation), so the VLM
+    /// estimator ran alone.
+    case vlm
+}
+
 /// One inference call's full record. Rows are appended to a session's
 /// `traces.ndjson` and reference sibling image files by relative path.
 public struct EvidenceTraceRow: Codable, Sendable {
@@ -252,13 +272,24 @@ public struct EvidenceSessionFile: Codable, Sendable {
         public let certainty: String
         public let insufficiencyCause: String?
         public let latencyMilliseconds: Int
+        /// Which pipeline produced this estimate. Optional so sessions written
+        /// before the field existed still decode; the session header's
+        /// `model_revision` records only which VLM was loadable and must never
+        /// be read as the method.
+        public let method: RecoveryMethod?
+        /// Revision of whatever produced the estimate — the pinned VLM for
+        /// `.vlm`/`.composite`, the solver revision for `.geometric`.
+        public let modelRevision: String?
 
         public init(rankedStepIDs: [String], certainty: String, insufficiencyCause: String?,
-                    latencyMilliseconds: Int) {
+                    latencyMilliseconds: Int, method: RecoveryMethod? = nil,
+                    modelRevision: String? = nil) {
             self.rankedStepIDs = rankedStepIDs
             self.certainty = certainty
             self.insufficiencyCause = insufficiencyCause
             self.latencyMilliseconds = latencyMilliseconds
+            self.method = method
+            self.modelRevision = modelRevision
         }
 
         enum CodingKeys: String, CodingKey {
@@ -266,6 +297,8 @@ public struct EvidenceSessionFile: Codable, Sendable {
             case certainty
             case insufficiencyCause = "insufficiency_cause"
             case latencyMilliseconds = "latency_ms"
+            case method
+            case modelRevision = "model_revision"
         }
     }
 
@@ -382,8 +415,17 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     public let expectedStepIndex: Int
     public let rankedStepIDs: [String]
     public let certainty: RecoveryCertainty
+    /// Which pipeline produced the estimate. Required: the scorer buckets
+    /// latency on it, and a row that cannot say how it was produced cannot be
+    /// scored against the right gate.
+    public let estimatorMethod: RecoveryMethod
+    /// Weights or solver revision. Informational only — never parsed to infer
+    /// the method (that mistake made the geometric bucket unreachable).
+    public let modelRevision: String?
     public let deviceModel: String
     public let operatingSystem: String
+    /// Wall clock for the whole recovery, including a geometric leg that
+    /// stepped aside. See `estimatorMethod`.
     public let latencyMilliseconds: Int
     public let memoryPeakBytes: Int64
     public let topStepIndex: Int?
@@ -398,7 +440,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
         partPackVersion: String, expectedStepID: String, candidateSlots: [String: String],
         boardRelativePaths: [String], cameraMetadata: [[String: Float]], expectedStepIndex: Int,
-        rankedStepIDs: [String], certainty: RecoveryCertainty, deviceModel: String,
+        rankedStepIDs: [String], certainty: RecoveryCertainty,
+        estimatorMethod: RecoveryMethod, modelRevision: String?, deviceModel: String,
         operatingSystem: String, latencyMilliseconds: Int, memoryPeakBytes: Int64,
         topStepIndex: Int?, physicalCase: Bool?, authoredModelID: String?,
         legalUseConfirmed: Bool?, lightingCondition: String?, captureAngle: String?,
@@ -416,6 +459,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.expectedStepIndex = expectedStepIndex
         self.rankedStepIDs = rankedStepIDs
         self.certainty = certainty
+        self.estimatorMethod = estimatorMethod
+        self.modelRevision = modelRevision
         self.deviceModel = deviceModel
         self.operatingSystem = operatingSystem
         self.latencyMilliseconds = latencyMilliseconds
@@ -442,6 +487,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case expectedStepIndex = "expected_step_index"
         case rankedStepIDs = "ranked_step_ids"
         case certainty
+        case estimatorMethod = "estimator_method"
+        case modelRevision = "model_revision"
         case deviceModel = "device_model"
         case operatingSystem = "operating_system"
         case latencyMilliseconds = "latency_ms"

@@ -22,12 +22,18 @@ extension EvidenceCaptureRecord {
 }
 
 extension EvidenceSessionFile.EstimateSummary {
+    /// Carries the estimate's own method and revision, not the session
+    /// header's: the header records which VLM was loadable when the session
+    /// opened, which says nothing about whether the geometric path is what
+    /// actually answered.
     init(_ estimate: RecoveryEstimate) {
         self.init(
             rankedStepIDs: estimate.rankedStepIDs,
             certainty: estimate.certainty.rawValue,
             insufficiencyCause: estimate.insufficiencyCause?.rawValue,
-            latencyMilliseconds: estimate.latencyMilliseconds
+            latencyMilliseconds: estimate.latencyMilliseconds,
+            method: estimate.method,
+            modelRevision: estimate.modelRevision
         )
     }
 }

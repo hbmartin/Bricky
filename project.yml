@@ -99,6 +99,7 @@ targets:
       - BrickyTests/DepthICPTrackerTests.swift
       - BrickyTests/GeometricStepVerifierTests.swift
       - BrickyTests/GeometricRecoveryEstimatorTests.swift
+      - BrickyTests/CompositeRecoveryEstimatorTests.swift
       - BrickyTests/ClaudeVisionProviderTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift

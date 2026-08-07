@@ -67,9 +67,8 @@ scores better.
   median ≤ 20 s. Currently: **zero rows**.
 - **Triad physical corpus (CONTEXT gap):** ≥40 staged fixtures across ≥6
   models for the registration/verification gates — a distinct corpus with
-  its own producer (geometric rows carry `model_revision` starting
-  `depth-icp-geometric`), but the same staged-fixture declarations and
-  scorer.
+  its own producer (geometric rows carry `estimator_method: geometric`),
+  but the same staged-fixture declarations and scorer.
 - **Failure library:** unlabeled sessions are kept on purpose; a growing set
   of reproducible-on-Mac failure bundles is the raw material for the A/B
   table above. Purge caps (40 sessions / 2 GB) mean interesting sessions

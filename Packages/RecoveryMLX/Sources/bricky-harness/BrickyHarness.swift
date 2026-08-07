@@ -187,6 +187,11 @@ struct Replay: AsyncParsableCommand {
             expectedStepIndex: expectedCount,
             rankedStepIDs: ranked,
             certainty: certainty,
+            // Replay reconstructs the estimate from recorded VLM rank traces
+            // alone, so a replayed row is `.vlm` by construction regardless of
+            // what produced the original estimate on device.
+            estimatorMethod: .vlm,
+            modelRevision: session.file.modelRevision,
             // Replay rows must never enter a release corpus as device rows.
             deviceModel: "replay:\(DeviceIdentity.modelIdentifier)",
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,

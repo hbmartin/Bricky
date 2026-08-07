@@ -145,10 +145,22 @@ Always present: `schema_version`, `fixture_id` (session uuid),
 finalist row), `board_relative_paths` (voting rows), `camera_metadata`
 (per capture: `fx`, `fy`, `cx`, `cy` from the column-major intrinsics —
 indices 0, 4, 6, 7 — plus `width`/`height`), `expected_step_index`,
-`ranked_step_ids`, `certainty`, `device_model`, `operating_system`,
-`latency_ms`, `memory_peak_bytes` (max footprint across trace rows).
+`ranked_step_ids`, `certainty`, `estimator_method`, `device_model`,
+`operating_system`, `latency_ms`, `memory_peak_bytes` (max footprint across
+trace rows).
 
-Nullable / release-corpus fields: `top_step_index` (null only when
+`estimator_method` is `geometric`, `composite`, or `vlm` (ADR 0010) and is
+taken from the **estimate**, never from the session header — the header's
+`model_revision` only records which VLM was loadable when the session
+opened, which is true even of a recovery the geometric path answered
+without loading any weights. The scorer buckets latency on this field;
+`geometric` gates at 8 s and both fallback methods at 20 s. A `composite`
+row's `latency_ms` covers both legs, because `CompositeRecoveryEstimator`
+owns the wall clock while each underlying estimator times only itself.
+
+Nullable / release-corpus fields: `model_revision` (informational — which
+weights or solver produced the ranking; never parsed to infer the method),
+`top_step_index` (null only when
 `certainty` is `insufficient`), `physical_case`, `authored_model_id`,
 `legal_use_confirmed`, `lighting_condition`, `capture_angle`,
 `occlusion_condition`. Release rows must populate all of them (see the

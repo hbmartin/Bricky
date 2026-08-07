@@ -285,12 +285,28 @@ struct RecoveryEstimate: Codable, Hashable, Sendable {
     let insufficiencyCause: RecoveryInsufficiencyCause?
     /// Which pipeline produced the estimate (ADR 0010). Optional so
     /// previously persisted estimates decode unchanged.
+    ///
+    /// `RecoveryMethod` itself lives in `RecoveryEvidenceKit` beside
+    /// `RecoveryBenchmarkV1`, so the app and the scorer contract share one
+    /// definition; it arrives here through the re-export in
+    /// `RecoveryEvidence.swift`.
     var method: RecoveryMethod?
-}
 
-enum RecoveryMethod: String, Codable, Hashable, Sendable {
-    case geometric
-    case vlm
+    /// Re-labels an estimate with the composite pipeline's own accounting.
+    /// The producing estimator only ever measures its own leg, so a fallback
+    /// estimate under-reports the wall clock the user actually waited; the
+    /// composite estimator is the only place that knows the total.
+    func restamped(method: RecoveryMethod, latencyMilliseconds: Int) -> RecoveryEstimate {
+        RecoveryEstimate(
+            rankedStepIDs: rankedStepIDs,
+            certainty: certainty,
+            modelRevision: modelRevision,
+            latencyMilliseconds: latencyMilliseconds,
+            captureIDs: captureIDs,
+            insufficiencyCause: insufficiencyCause,
+            method: method
+        )
+    }
 }
 
 enum StepCheckResult: String, Codable, Sendable, CaseIterable {

@@ -94,6 +94,7 @@
 		E574CF1DBA2D2CA988DFF067 /* RecoveryImageNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */; };
 		E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54A9BE39C13EBC727ADF2B5 /* CloudAssistKeyStore.swift */; };
 		EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
+		EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */; };
 		F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
 		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
@@ -190,6 +191,7 @@
 		E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionParserTests.swift; sourceTree = "<group>"; };
 		E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionModelImporter.swift; sourceTree = "<group>"; };
 		EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDConfigPaletteTests.swift; sourceTree = "<group>"; };
+		EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeRecoveryEstimatorTests.swift; sourceTree = "<group>"; };
 		F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureService.swift; sourceTree = "<group>"; };
 		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 			isa = PBXGroup;
 			children = (
 				5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */,
+				EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */,
 				78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */,
 				A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */,
 				91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */,
@@ -676,6 +679,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */,
+				EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */,
 				436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */,
 				BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */,
 				47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */,

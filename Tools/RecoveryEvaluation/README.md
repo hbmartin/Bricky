@@ -7,10 +7,23 @@ scoring is unnecessary for known authored-step labels.
 `score_results.py` accepts mixed NDJSON keyed by an optional `kind` per row:
 
 - `recovery` (default, `RecoveryBenchmarkV1`): top-1/top-3 accuracy, adjacent
-  step confusion, insufficient rate, latency (geometric rows — identified by
-  a `model_revision` starting with `depth-icp-geometric` — gate at 8 s median,
-  composite at 20 s), and peak memory. The physical release corpus requires
-  ≥ 40 distinct fixtures across ≥ 6 legally usable models.
+  step confusion, insufficient rate, latency, and peak memory. Latency is
+  bucketed by the required `estimator_method` field (ADR 0010) and each
+  bucket is judged against its own budget:
+
+  | `estimator_method` | meaning | median gate |
+  | --- | --- | --- |
+  | `geometric` | the geometric pass concluded; no weights loaded | 8 s |
+  | `composite` | geometric ran, stepped aside, VLM concluded | 20 s |
+  | `vlm` | no depth observation, so the VLM ran alone | 20 s |
+
+  A `composite` row's latency covers **both** legs — the composite estimator
+  owns the wall clock, because each underlying estimator times only itself.
+  `model_revision` is informational (which weights or solver produced the
+  ranking) and is never parsed to infer the method.
+
+  The physical release corpus requires ≥ 40 distinct fixtures across ≥ 6
+  legally usable models.
 - `verification`: step-verifier verdicts against expected labels. The
   headline gate is the false-complete rate (≤ 2 %, printed first per
   ADR 0008), plus per-detectability precision/recall, undetectable

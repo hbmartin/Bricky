@@ -32,11 +32,18 @@ RECOVERY_REQUIRED_FIELDS = {
     "expected_step_index",
     "ranked_step_ids",
     "certainty",
+    "estimator_method",
     "device_model",
     "operating_system",
     "latency_ms",
     "memory_peak_bytes",
 }
+
+# Which pipeline produced an estimate (ADR 0010). Required, not inferred: this
+# was previously sniffed from a `model_revision` prefix on a field the row
+# schema never carried, so every row silently bucketed as composite and the
+# geometric latency gate could not fire.
+ESTIMATOR_METHODS = {"geometric", "composite", "vlm"}
 
 RELEASE_FIELDS = {
     "physical_case",
@@ -68,8 +75,6 @@ REGISTRATION_REQUIRED_FIELDS = {
     "reported_ambiguous",
     "latency_ms",
 }
-
-GEOMETRIC_REVISION_PREFIX = "depth-icp-geometric"
 
 # Gates.
 RECOVERY_TOP3_FLOOR = 0.95
@@ -136,6 +141,8 @@ def validate_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"row {index} ranked_step_ids must be a list")
         if row["certainty"] not in {"high", "medium", "low", "insufficient"}:
             raise SystemExit(f"row {index} has invalid certainty")
+        if row["estimator_method"] not in ESTIMATOR_METHODS:
+            raise SystemExit(f"row {index} has invalid estimator_method")
         expected_index = row["expected_step_index"]
         if not is_exact_int(expected_index) or expected_index < -1:
             raise SystemExit(f"row {index} expected_step_index must be an integer >= -1")
@@ -209,8 +216,10 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"release corpus needs at least two explicit {field} values")
 
 
-def is_geometric(row: dict[str, object]) -> bool:
-    return str(row.get("model_revision", "")).startswith(GEOMETRIC_REVISION_PREFIX)
+def median_latency(rows: list[dict[str, object]]) -> float | None:
+    if not rows:
+        return None
+    return statistics.median([float(row["latency_ms"]) for row in rows])
 
 
 def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
@@ -224,8 +233,10 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         abs(row["top_step_index"] - row["expected_step_index"]) == 1
         for row in sufficient
     )
-    geometric = [row for row in rows if is_geometric(row)]
-    composite = [row for row in rows if not is_geometric(row)]
+    by_method = {
+        method: [row for row in rows if row["estimator_method"] == method]
+        for method in ESTIMATOR_METHODS
+    }
     latencies = [float(row["latency_ms"]) for row in rows]
     memory = [int(row.get("memory_peak_bytes", 0)) for row in rows]
     report: dict[str, object] = {
@@ -235,18 +246,25 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         "top_3_accuracy": top3 / len(rows),
         "insufficient_rate": (len(rows) - len(sufficient)) / len(rows),
         "adjacent_step_confusion_rate": adjacent / max(1, len(sufficient)),
-        "geometric_cases": len(geometric),
-        "geometric_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in geometric]) if geometric else None,
-        "composite_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in composite]) if composite else None,
+        "geometric_cases": len(by_method["geometric"]),
+        "composite_cases": len(by_method["composite"]),
+        "vlm_cases": len(by_method["vlm"]),
+        "geometric_median_latency_ms": median_latency(by_method["geometric"]),
+        "composite_median_latency_ms": median_latency(by_method["composite"]),
+        "vlm_median_latency_ms": median_latency(by_method["vlm"]),
         "median_latency_ms": statistics.median(latencies),
         "p95_latency_ms": percentile(latencies, 0.95),
         "memory_peak_bytes": max(memory),
     }
+    # Each method is judged against its own budget. Both fallback methods take
+    # the composite budget: they pay for inference either way, and a composite
+    # row's latency already includes the geometric leg that stepped aside.
     failed = (
         report["top_3_accuracy"] < RECOVERY_TOP3_FLOOR
         or report["top_1_accuracy"] < RECOVERY_TOP1_FLOOR
-        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
         or (report["geometric_median_latency_ms"] or 0) > RECOVERY_GEOMETRIC_MEDIAN_MS
+        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
+        or (report["vlm_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
     )
     return report, failed
 

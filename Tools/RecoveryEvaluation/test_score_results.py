@@ -22,7 +22,13 @@ from score_results import (
 )
 
 
-def benchmark_row(*, certainty: str = "high", include_top: bool = True) -> dict[str, object]:
+def benchmark_row(
+    *,
+    certainty: str = "high",
+    include_top: bool = True,
+    estimator_method: str = "vlm",
+    latency: int = 12_000,
+) -> dict[str, object]:
     row: dict[str, object] = {
         "schema_version": 1,
         "fixture_id": "fixture",
@@ -36,9 +42,10 @@ def benchmark_row(*, certainty: str = "high", include_top: bool = True) -> dict[
         "expected_step_index": 2,
         "ranked_step_ids": [] if certainty == "insufficient" else ["main.ldr#2"],
         "certainty": certainty,
+        "estimator_method": estimator_method,
         "device_model": "iPhone",
         "operating_system": "iOS",
-        "latency_ms": 12_000,
+        "latency_ms": latency,
         "memory_peak_bytes": 4_800_000_000,
     }
     if include_top:
@@ -237,38 +244,74 @@ class RegistrationScoringTests(unittest.TestCase):
 
 class RecoveryScoringTests(unittest.TestCase):
     @staticmethod
-    def mixed_revision_rows(
-        *, geometric_latency: int = 4_000, composite_latency: int = 12_000
+    def mixed_method_rows(
+        *,
+        geometric_latency: int = 4_000,
+        composite_latency: int = 12_000,
+        vlm_latency: int = 12_000,
     ) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
-        for _ in range(4):
-            row = benchmark_row()
-            row.update(model_revision="depth-icp-geometric-v1", latency_ms=geometric_latency)
-            rows.append(row)
-        for _ in range(4):
-            row = benchmark_row()
-            row.update(model_revision="qwen3-vl-composite", latency_ms=composite_latency)
-            rows.append(row)
+        for method, latency in (
+            ("geometric", geometric_latency),
+            ("composite", composite_latency),
+            ("vlm", vlm_latency),
+        ):
+            rows.extend(
+                benchmark_row(estimator_method=method, latency=latency) for _ in range(4)
+            )
         return rows
 
-    def test_mixed_revisions_report_separate_latency_medians(self) -> None:
-        report, failed = score_recovery(self.mixed_revision_rows(), allow_small_corpus=True)
+    def test_each_method_reports_its_own_latency_median(self) -> None:
+        report, failed = score_recovery(self.mixed_method_rows(), allow_small_corpus=True)
         self.assertFalse(failed)
         self.assertEqual(report["geometric_cases"], 4)
+        self.assertEqual(report["composite_cases"], 4)
+        self.assertEqual(report["vlm_cases"], 4)
         self.assertEqual(report["geometric_median_latency_ms"], 4_000)
         self.assertEqual(report["composite_median_latency_ms"], 12_000)
+        self.assertEqual(report["vlm_median_latency_ms"], 12_000)
 
     def test_slow_geometric_median_fails_its_gate(self) -> None:
         _, failed = score_recovery(
-            self.mixed_revision_rows(geometric_latency=9_000), allow_small_corpus=True
+            self.mixed_method_rows(geometric_latency=9_000), allow_small_corpus=True
         )
         self.assertTrue(failed)
 
     def test_slow_composite_median_fails_its_gate(self) -> None:
         _, failed = score_recovery(
-            self.mixed_revision_rows(composite_latency=21_000), allow_small_corpus=True
+            self.mixed_method_rows(composite_latency=21_000), allow_small_corpus=True
         )
         self.assertTrue(failed)
+
+    def test_slow_vlm_median_fails_the_composite_gate(self) -> None:
+        # A VLM-only run has no geometric leg to blame, but it spends the same
+        # budget, so it is judged against the same ceiling.
+        _, failed = score_recovery(
+            self.mixed_method_rows(vlm_latency=21_000), allow_small_corpus=True
+        )
+        self.assertTrue(failed)
+
+    def test_geometric_rows_are_not_charged_the_composite_budget(self) -> None:
+        # The regression this whole field exists to prevent: before
+        # estimator_method, every row bucketed as composite because the scorer
+        # read a prefix off a field the row schema never carried, so a
+        # geometric row at 9 s passed the 20 s gate and geometric_cases read 0.
+        rows = [benchmark_row(estimator_method="geometric", latency=9_000) for _ in range(4)]
+        report, failed = score_recovery(rows, allow_small_corpus=True)
+        self.assertEqual(report["geometric_cases"], 4)
+        self.assertEqual(report["composite_cases"], 0)
+        self.assertTrue(failed)
+
+    def test_unknown_estimator_method_is_rejected(self) -> None:
+        rows = [benchmark_row(estimator_method="magic")]
+        with self.assertRaisesRegex(SystemExit, "invalid estimator_method"):
+            validate_rows(rows)
+
+    def test_missing_estimator_method_is_named_in_the_error(self) -> None:
+        row = benchmark_row()
+        del row["estimator_method"]
+        with self.assertRaisesRegex(SystemExit, "missing fields: estimator_method"):
+            validate_rows([row])
 
 
 class MainTests(unittest.TestCase):
