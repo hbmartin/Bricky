@@ -44,3 +44,32 @@ toggle is visible in release builds and documented here rather than hidden.
 Evidence adds bounded disk usage that the Storage tab reports and can purge.
 Benchmark rows for MLX/AR changes should originate from exported bundles
 replayed through `bricky-harness` so device and Mac numbers share one format.
+
+## Amendment 2026-08-07: depth frames join the carve-out
+
+Geometric-first recovery (ADR 0010) fits a LiDAR depth observation, and that
+observation is the one bundle input that cannot be reconstructed from anything
+else: the captures are JPEGs of the same scene at a different resolution with
+no metric depth, and fit records are outputs. A corpus collected without it
+could never support a geometric A/B without re-capturing every physical
+fixture — precisely the re-collection this format exists to prevent, and the
+same "capture it once, correctly" reasoning that governs the training path.
+
+Sessions therefore retain the recovery depth frame: raw little-endian float32
+and uint8 planes under `depth/`, plus a JSON sidecar with the intrinsics,
+pose, and timestamp needed to reproject them. Roughly 0.5 MB per session
+against the existing 40-session / 2 GB caps.
+
+This adds a sensor modality to what an exported bundle can contain, so it is
+recorded here rather than assumed. The incremental privacy exposure is nil:
+the same bundle already carries a full-resolution JPEG of the identical view,
+which is strictly more revealing than a 256×192 depth map of it. Nothing
+changes about consent — the same off-by-default toggle gates recording, and
+the same manual share-sheet export remains the only egress. What would need a
+fresh decision is retaining depth from frames the user never chose to capture,
+and that is not what this does.
+
+Geometric candidate fits are likewise recorded, as `fits.ndjson`. They are
+derived data rather than a new modality and raise no additional exposure, but
+they are named here so the bundle's contents are fully enumerated in one
+place.

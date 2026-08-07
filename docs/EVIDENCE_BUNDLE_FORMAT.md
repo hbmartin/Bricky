@@ -50,6 +50,11 @@ Evidence/<session-uuid>/
   captures/<capture-uuid>.jpg          # the 3 guided AR photos (copies)
   boards/<trace-uuid>.jpg              # exact board image the model saw
   tiles/<trace-uuid>/<slot>.jpg        # per-candidate renders, JPEG q0.9
+  depth/<capture-uuid>.json            # EvidenceDepthFrameRecord sidecar
+  depth/<capture-uuid>.depth           # float32 smoothed depth, row-major
+  depth/<capture-uuid>.confidence      # uint8 ARConfidenceLevel
+  depth/<capture-uuid>.raw-depth       # float32 unsmoothed (optional)
+  depth/<capture-uuid>.raw-confidence  # uint8 (optional)
 ```
 
 `fits.ndjson` is absent when the recovery never ran a geometric pass, and

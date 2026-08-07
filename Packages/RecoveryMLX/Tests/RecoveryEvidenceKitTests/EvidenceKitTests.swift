@@ -132,6 +132,57 @@ final class EvidenceKitTests: XCTestCase {
         }
     }
 
+    // MARK: - Retained depth frames
+
+    func testBundleWithoutDepthIsStillValid() throws {
+        let reader = try EvidenceBundleReader(bundleDirectory: try makeBundle())
+        XCTAssertEqual(reader.validate(), [])
+        XCTAssertTrue(try reader.loadSessions()[0].depthFrames.isEmpty)
+    }
+
+    func testDepthFrameRoundTripsAndPlanesReshape() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let sessionDirectory = try reader.loadSessions()[0].directory
+        let captureID = UUID()
+        try Self.writeDepthFrame(into: sessionDirectory, captureID: captureID, width: 4, height: 3)
+
+        XCTAssertEqual(reader.validate(), [])
+        let frame = try XCTUnwrap(try reader.loadSessions()[0].depthFrames.first)
+        XCTAssertEqual(frame.captureID, captureID)
+        XCTAssertEqual(frame.width, 4)
+        XCTAssertEqual(frame.height, 3)
+        XCTAssertEqual(frame.expectedBytes(elementSize: MemoryLayout<Float32>.size), 48)
+
+        // The plane must reshape to exactly width x height, which is the only
+        // thing that makes the blob usable without a decoder.
+        let data = try Data(contentsOf: sessionDirectory.appendingPathComponent(frame.depthRelativePath))
+        XCTAssertEqual(data.count, 48)
+        let values = data.withUnsafeBytes { Array($0.bindMemory(to: Float32.self)) }
+        XCTAssertEqual(values.count, 12)
+        XCTAssertEqual(values.first, 0.5)
+    }
+
+    func testReaderRejectsATruncatedDepthPlane() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let sessionDirectory = try reader.loadSessions()[0].directory
+        // Declares 4x3 but writes 8 floats: reshaping this would silently
+        // produce wrong geometry rather than fail.
+        try Self.writeDepthFrame(
+            into: sessionDirectory, captureID: UUID(), width: 4, height: 3, depthElements: 8
+        )
+        XCTAssertTrue(reader.validate().contains { $0.contains("expected 48") })
+    }
+
+    func testReaderRejectsUnsupportedDepthVersion() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let sessionDirectory = try reader.loadSessions()[0].directory
+        try Self.writeDepthFrame(into: sessionDirectory, captureID: UUID(), depthVersion: 99)
+        XCTAssertTrue(reader.validate().contains { $0.contains("depth_version") })
+    }
+
     func testSchemaKeysAreSnakeCase() throws {
         let bundleDirectory = try makeBundle()
         let raw = try String(
@@ -184,6 +235,48 @@ final class EvidenceKitTests: XCTestCase {
             conclusive: conclusive,
             createdAt: .now
         )
+    }
+
+    /// Writes a depth sidecar and its planes into a session directory.
+    /// `depthBytes` overrides the plane size so a test can truncate it.
+    @discardableResult
+    static func writeDepthFrame(
+        into sessionDirectory: URL,
+        captureID: UUID,
+        width: Int = 4,
+        height: Int = 3,
+        depthVersion: Int = EvidenceSchema.depthVersion,
+        depthElements: Int? = nil
+    ) throws -> EvidenceDepthFrameRecord {
+        let stem = "depth/\(captureID.uuidString)"
+        try FileManager.default.createDirectory(
+            at: sessionDirectory.appendingPathComponent("depth", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let depth = [Float32](repeating: 0.5, count: depthElements ?? (width * height))
+        try depth.withUnsafeBufferPointer {
+            try Data(buffer: $0).write(to: sessionDirectory.appendingPathComponent("\(stem).depth"))
+        }
+        let confidence = [UInt8](repeating: 2, count: width * height)
+        try confidence.withUnsafeBufferPointer {
+            try Data(buffer: $0).write(to: sessionDirectory.appendingPathComponent("\(stem).confidence"))
+        }
+        let record = EvidenceDepthFrameRecord(
+            depthVersion: depthVersion,
+            captureID: captureID,
+            width: width,
+            height: height,
+            depthIntrinsics: Array(repeating: 1, count: 9),
+            worldFromCamera: Array(repeating: 0, count: 16),
+            timestamp: 12.5,
+            depthRelativePath: "\(stem).depth",
+            confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: nil,
+            rawConfidenceRelativePath: nil
+        )
+        try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
+            .write(to: sessionDirectory.appendingPathComponent("\(stem).json"))
+        return record
     }
 
     /// Builds a minimal on-disk bundle with one staged session and one trace.

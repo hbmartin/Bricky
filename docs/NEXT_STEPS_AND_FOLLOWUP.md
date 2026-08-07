@@ -58,6 +58,28 @@ scores better.
 | Finalist selection | The ±1-neighbor finalist set and center-capture funnel may structurally exclude the true step when the narrow pass is off by more than one | `--all-passes` traces quantify how often the truth was outside the finalist set before any redesign |
 | Recompose vs stored boards | JPEG re-encode of tiles through the kit should be visually irrelevant | Same-bundle stored-vs-recomposed replay (doubles as item 1.3) |
 
+## 2a. The RGB support term (owed, ADR 0008)
+
+`GeometricStepVerifier` refuses a `complete` verdict under marginal
+detectability because ADR 0008 requires depth **and RGB** agreement there and
+the RGB half was never built. Measured on the real-tower fixture: 6 marginal
+cases, complete-recall 0.0 — the gate fails every run and only
+`continue-on-error` hides it. Marginal+complete fixtures are out of corpus
+scope until this lands (ADR 0008 amendment).
+
+What it needs, in order:
+
+1. A colour plane on `RegistrationFrameInput` — the relay copies depth,
+   confidence, intrinsics and pose only, no image.
+2. An expected-colour render pass; `ExpectedDepthRenderer` emits depth only,
+   its colour attachment being an R32Float depth carrier.
+   `ModelSurfaceSample.colorCodes` already exists for this and is read by
+   nobody.
+3. The verifier agreement term itself.
+4. A synthetic **colour** sensor model — which is why this waits for depth
+   calibration (ADR 0014) rather than racing it. Building the term against an
+   invented colour model would repeat the mistake being corrected.
+
 ## 3. Corpus goals
 
 - **Release gate (VLM recovery):** ≥150 physical cases from ≥10 legally
@@ -76,19 +98,30 @@ scores better.
 
 ## 4. Harness engineering follow-ups (small, unordered)
 
-- **Record geometric recovery attempts.** Since geometric-first recovery
-  landed (ADR 0010), the VLM estimator is the fallback; evidence capture
-  currently records only VLM calls (`RecoveryPassKind` has no geometric
-  kind). A future session/trace extension covering geometric fits would let
-  one bundle explain *both* stages of a composite recovery. Requires a
-  `trace_version`/`session_version` discussion — additive optional fields
-  may suffice.
+- ✅ **Record geometric recovery attempts.** Done 2026-08-07 as a sibling
+  record type (`fits.ndjson`, one `GeometricFitRecord` per scored candidate)
+  rather than by widening `RecoveryPassKind`, so "Evidence Trace" keeps
+  meaning one VLM inference call. Additive optional file; no version bump.
+  Sessions also retain the recovery depth frame (ADR 0007 amendment), which
+  is what makes a future geometric replay possible without re-collecting the
+  physical corpus.
+- **Geometric replay on Mac.** Now unblocked by the retained depth frames,
+  but blocked on a refactor: `GeometricRecoveryEstimator` calls
+  `HierarchicalRecoveryEstimator.evenlySampledIndices` / `.stepID`, and that
+  file imports `RecoveryMLX` and `UIKit`, so the geometric stack cannot
+  compile into a macOS tool. `Tools/SyntheticScenes/SyntheticRGBDMain.swift`
+  already hand-duplicates `HierarchicalIndices.evenly` because of it — the
+  same constant drift the board-layout kit was created to kill. Extract both
+  helpers into a UIKit-free home first.
 - **Check-trace replay.** `bricky-harness replay` skips `check` traces
   entirely; a `--checks` mode replaying them against `checkStepWithTrace`
   would unlock the check-token-budget A/B in §2.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
-  fails mid-replay. Consider an opt-in `--verify-images` pass.
+  fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes
+  are now checked by *size* against their declared `width * height`, because
+  a truncated blob reshapes into silently wrong geometry rather than
+  failing; images still need the equivalent.)
 - **Export ergonomics.** Consider a size warning before staging very large
   exports (AirDrop over ~500 MB gets slow), and surfacing recorder write
   failures in `EvidenceSessionsView` (recording is deliberately best-effort
@@ -119,7 +152,14 @@ the harness.
 ## 6. Format-evolution reminders
 
 - New fields in interchange types: add as optional, snake_case CodingKeys
-  spelled out, no version bump.
+  spelled out, no version bump. **Exception while the corpus is empty:** this
+  rule exists to keep already-collected rows readable, so it does not apply
+  when there are none. `estimator_method` was added as *required* on
+  2026-08-07 for exactly that reason — an optional field with a silent
+  default is what made the geometric latency gate unreachable in the first
+  place, and `validate_recovery_rows` names a missing field more usefully
+  than a schema-version mismatch would. Once real rows exist, the rule binds
+  again.
 - Semantic changes: bump the specific version stamp
   (`trace_version`/`session_version`/`bundle_version`) and teach
   `EvidenceBundleReader.validate` plus the kit tests to reject the old one

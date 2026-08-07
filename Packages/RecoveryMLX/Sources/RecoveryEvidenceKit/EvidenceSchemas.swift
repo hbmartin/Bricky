@@ -11,6 +11,7 @@ public enum EvidenceSchema {
     public static let sessionVersion = 1
     public static let bundleVersion = 1
     public static let fitVersion = 1
+    public static let depthVersion = 1
 
     public static func encoder(prettyPrinted: Bool = false) -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -53,6 +54,81 @@ public enum FitDisqualification: String, Codable, Sendable {
     /// The fit slid further horizontally than a user's coarse placement can
     /// explain, so it matched some other surface.
     case horizontalDeviation = "horizontal_deviation"
+}
+
+/// Sidecar describing one retained LiDAR depth observation, written beside its
+/// binary planes as `depth/<capture-id>.json`.
+///
+/// The depth frame is the only input to a geometric recovery that cannot be
+/// reconstructed from anything else in a bundle: captures are JPEGs of the same
+/// scene but at the wrong resolution and without metric depth, and the fit
+/// records are outputs, not inputs. A corpus collected without it could never
+/// support a geometric A/B without re-capturing every physical fixture — the
+/// re-collection the bundle format exists to prevent.
+///
+/// Planes are raw little-endian binary, row-major, `width * height` elements,
+/// so any reader can reshape them without a decoder:
+///
+///     numpy.fromfile(path, dtype=numpy.float32).reshape(height, width)
+public struct EvidenceDepthFrameRecord: Codable, Sendable {
+    public let depthVersion: Int
+    public let captureID: UUID
+    public let width: Int
+    public let height: Int
+    /// Column-major 3x3, already scaled to the depth grid, so projecting a
+    /// world point yields depth pixels directly.
+    public let depthIntrinsics: [Float]
+    /// Row-major 4x4.
+    public let worldFromCamera: [Float]
+    public let timestamp: TimeInterval
+    /// `float32` — ARKit's smoothed scene depth, the ICP tracking input.
+    public let depthRelativePath: String
+    /// `uint8` — `ARConfidenceLevel` raw values.
+    public let confidenceRelativePath: String
+    /// `float32` — unsmoothed depth, the verifier's per-frame evidence.
+    /// Absent when the session provided no distinct raw buffer.
+    public let rawDepthRelativePath: String?
+    public let rawConfidenceRelativePath: String?
+
+    public init(
+        depthVersion: Int, captureID: UUID, width: Int, height: Int,
+        depthIntrinsics: [Float], worldFromCamera: [Float], timestamp: TimeInterval,
+        depthRelativePath: String, confidenceRelativePath: String,
+        rawDepthRelativePath: String?, rawConfidenceRelativePath: String?
+    ) {
+        self.depthVersion = depthVersion
+        self.captureID = captureID
+        self.width = width
+        self.height = height
+        self.depthIntrinsics = depthIntrinsics
+        self.worldFromCamera = worldFromCamera
+        self.timestamp = timestamp
+        self.depthRelativePath = depthRelativePath
+        self.confidenceRelativePath = confidenceRelativePath
+        self.rawDepthRelativePath = rawDepthRelativePath
+        self.rawConfidenceRelativePath = rawConfidenceRelativePath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case depthVersion = "depth_version"
+        case captureID = "capture_id"
+        case width
+        case height
+        case depthIntrinsics = "depth_intrinsics"
+        case worldFromCamera = "world_from_camera"
+        case timestamp
+        case depthRelativePath = "depth_relative_path"
+        case confidenceRelativePath = "confidence_relative_path"
+        case rawDepthRelativePath = "raw_depth_relative_path"
+        case rawConfidenceRelativePath = "raw_confidence_relative_path"
+    }
+
+    /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes
+    /// into silently wrong geometry, so the reader checks this rather than
+    /// trusting the file exists.
+    public func expectedBytes(elementSize: Int) -> Int {
+        width * height * elementSize
+    }
 }
 
 /// One scored candidate from a geometric recovery attempt (ADR 0010). Rows are

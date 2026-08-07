@@ -233,9 +233,21 @@ finalists.
 - Package tests (macOS, run in CI's `harness-macos` job on every PR):
   `RankSchemaTests` (per-count grammar, clamping) and `EvidenceKitTests`
   (board is exactly 1024², candidate-count bounds, JPEG round-trip, reader
-  validation, version rejection, snake_case manifest keys).
+  validation, version rejection, snake_case manifest keys, fit-record and
+  depth-frame round-trips, and truncated-plane rejection).
 - App tests (iOS simulator): recorder round-trip and purge caps, sweep
-  leaves `Evidence/` intact, benchmark-writer key set mirrors the scorer's
-  `REQUIRED_FIELDS`/`RELEASE_FIELDS`, and step-zero index semantics against
-  `fixtures/example-device-results.ndjson`.
+  leaves `Evidence/` intact including `fits.ndjson` and `depth/`,
+  benchmark-writer key set mirrors the scorer's
+  `REQUIRED_FIELDS`/`RELEASE_FIELDS`, step-zero index semantics against
+  `fixtures/example-device-results.ndjson`, composite wall-clock accounting,
+  and that a disqualified candidate keeps its reason.
+- Python tests: `test_score_results.py` (scorer contract),
+  `test_check_regression.py` (baseline comparison both ways), and
+  `test_fit_sensor_model.py` (planted-parameter recovery).
 - CI never runs inference; `--dry-run` covers bundle structure.
+- CI blocks on `check_regression.py` against
+  `Tools/SyntheticScenes/fixtures/real-tower/baseline.json`. That is a
+  different question from the release gates — "is the solver worse than it
+  was?" needs only determinism and a baseline, while the CONTEXT.md
+  thresholds need calibrated absolute truth and therefore stay informational
+  (ADR 0014). Conflating them is why neither could block.

@@ -12,6 +12,8 @@ public struct EvidenceBundleReader {
         /// before `fits.ndjson` existed — the file is optional, but must
         /// parse when present.
         public let fitRecords: [GeometricFitRecord]
+        /// Retained LiDAR observations, one per `depth/<capture-id>.json`.
+        public let depthFrames: [EvidenceDepthFrameRecord]
     }
 
     public let bundleDirectory: URL
@@ -55,7 +57,25 @@ public struct EvidenceBundleReader {
                         try decoder.decode(GeometricFitRecord.self, from: Data($0))
                     }
                 }
-                return Session(directory: directory, file: file, traceRows: rows, fitRecords: fits)
+                var depthFrames: [EvidenceDepthFrameRecord] = []
+                let depthDirectory = directory.appendingPathComponent("depth", isDirectory: true)
+                let depthSidecars = (try? FileManager.default.contentsOfDirectory(
+                    at: depthDirectory, includingPropertiesForKeys: nil
+                )) ?? []
+                for url in depthSidecars.filter({ $0.pathExtension == "json" }).sorted(by: {
+                    $0.lastPathComponent < $1.lastPathComponent
+                }) {
+                    depthFrames.append(try decoder.decode(
+                        EvidenceDepthFrameRecord.self, from: Data(contentsOf: url)
+                    ))
+                }
+                return Session(
+                    directory: directory,
+                    file: file,
+                    traceRows: rows,
+                    fitRecords: fits,
+                    depthFrames: depthFrames
+                )
             }
             .sorted { $0.file.createdAt < $1.file.createdAt }
     }
@@ -105,6 +125,32 @@ public struct EvidenceBundleReader {
                     issues.append(
                         "\(name): fit \(record.fitID) has \(record.worldFromModel.count) pose values, expected 16"
                     )
+                }
+            }
+            for frame in session.depthFrames {
+                if frame.depthVersion != EvidenceSchema.depthVersion {
+                    issues.append("\(name): unsupported depth_version \(frame.depthVersion)")
+                }
+                // A truncated plane reshapes into silently wrong geometry, so
+                // size is checked rather than mere existence — the failure this
+                // whole harness exists to stop being invisible.
+                for (path, elementSize) in [
+                    (frame.depthRelativePath, MemoryLayout<Float32>.size),
+                    (frame.confidenceRelativePath, MemoryLayout<UInt8>.size),
+                    (frame.rawDepthRelativePath, MemoryLayout<Float32>.size),
+                    (frame.rawConfidenceRelativePath, MemoryLayout<UInt8>.size),
+                ] {
+                    guard let path else { continue }
+                    let url = session.directory.appendingPathComponent(path)
+                    guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+                          let size = values.fileSize else {
+                        issues.append("\(name): missing depth plane \(path)")
+                        continue
+                    }
+                    let expected = frame.expectedBytes(elementSize: elementSize)
+                    if size != expected {
+                        issues.append("\(name): depth plane \(path) is \(size) bytes, expected \(expected)")
+                    }
                 }
             }
             for capture in session.file.captures {

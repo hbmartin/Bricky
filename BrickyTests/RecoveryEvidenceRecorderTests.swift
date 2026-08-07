@@ -1,5 +1,6 @@
 import RecoveryMLX
 import XCTest
+import simd
 @testable import Bricky
 
 final class RecoveryEvidenceRecorderTests: XCTestCase {
@@ -132,6 +133,81 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: sessionDirectory.appendingPathComponent("fits.ndjson").path)
         )
+    }
+
+    func testDepthFramePlanesRoundTripByteForByte() async throws {
+        let recorder = makeRecorder()
+        let captureID = UUID()
+        let width = 4
+        let height = 3
+        let depth = (0..<(width * height)).map { Float32($0) * 0.01 }
+        let confidence = [UInt8](repeating: 2, count: width * height)
+        let rawDepth = depth.map { $0 + 0.005 }
+        var intrinsics = matrix_identity_float3x3
+        intrinsics[0][0] = 210
+        intrinsics[2][0] = 128
+        var pose = matrix_identity_float4x4
+        pose.columns.3 = SIMD4(0.1, 0.2, 0.3, 1)
+
+        await recorder.recordDepthFrame(
+            RegistrationFrameInput(
+                depth: depth,
+                confidence: confidence,
+                rawDepth: rawDepth,
+                rawConfidence: confidence,
+                width: width,
+                height: height,
+                depthIntrinsics: intrinsics,
+                worldFromCamera: pose,
+                timestamp: 42.5
+            ),
+            captureID: captureID
+        )
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let frames = await recorder.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        XCTAssertEqual(record.captureID, captureID)
+        XCTAssertEqual(record.width, width)
+        XCTAssertEqual(record.timestamp, 42.5)
+        // Row-major, so translation lands at 3/7/11 rather than in a column.
+        XCTAssertEqual(record.worldFromCamera[3], 0.1, accuracy: 1e-6)
+        XCTAssertEqual(record.worldFromCamera[7], 0.2, accuracy: 1e-6)
+        XCTAssertNotNil(record.rawDepthRelativePath)
+
+        // The plane is the whole point: it must reload to the exact array,
+        // because a corpus is collected once and replayed for years.
+        let reloaded = try Data(contentsOf: sessionDirectory.appendingPathComponent(record.depthRelativePath))
+            .withUnsafeBytes { Array($0.bindMemory(to: Float32.self)) }
+        XCTAssertEqual(reloaded, depth)
+        XCTAssertEqual(
+            try Data(contentsOf: sessionDirectory.appendingPathComponent(record.depthRelativePath)).count,
+            record.expectedBytes(elementSize: MemoryLayout<Float32>.size)
+        )
+    }
+
+    func testDepthFrameWithoutARawVariantOmitsThosePlanes() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordDepthFrame(
+            RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 6),
+                confidence: [UInt8](repeating: 1, count: 6),
+                rawDepth: nil,
+                rawConfidence: nil,
+                width: 3,
+                height: 2,
+                depthIntrinsics: matrix_identity_float3x3,
+                worldFromCamera: matrix_identity_float4x4,
+                timestamp: 1
+            ),
+            captureID: UUID()
+        )
+        let frames = await recorder.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        XCTAssertNil(record.rawDepthRelativePath)
+        XCTAssertNil(record.rawConfidenceRelativePath)
     }
 
     func testPurgeRemovesOldestSessionsBeyondCap() throws {
