@@ -159,6 +159,10 @@ xcodebuild -project '../../Bricky the Brick Scanner.xcodeproj' -scheme Synthetic
 SyntheticRGBD ../SyntheticScenes/fixtures/synthetic-tower/tower.ldr \
   --ldraw-root /path/to/ldraw --out synthetic.ndjson --seed 7
 python3 score_results.py synthetic.ndjson --allow-small-corpus
+
+# Did this change make the solver worse? (blocking in CI; needs no calibration)
+python3 check_regression.py synthetic.ndjson \
+  --baseline ../SyntheticScenes/fixtures/real-tower/baseline.json
 ```
 
 ## Release gates still requiring physical assets or devices
@@ -168,6 +172,13 @@ python3 score_results.py synthetic.ndjson --allow-small-corpus
   verification false-complete rate ≤2% (reported first), per-class
   precision/recall ≥0.90/0.85 (strong detectability) and ≥0.80/0.70
   (marginal), undetectable-abstention ≥95%, uncertain-on-correct ≤15%.
+  These are *certification* gates and stay informational in CI while the
+  synthetic sensor constants remain RECONSTRUCTED (ADR 0014,
+  [SENSOR_CALIBRATION.md](docs/SENSOR_CALIBRATION.md)). *Regression* against
+  a committed fixture baseline blocks today and needs no calibration — the
+  two questions were previously conflated in one job that could answer
+  neither. The marginal precision/recall pair is dormant by decision until
+  the RGB support term lands (ADR 0008 amendment).
 - 🔴 GAP — physical corpus: ≥40 distinct staged fixtures across ≥6 legally
   usable authored models with lighting/angle/occlusion variation (the scorer
   enforces the ≥40 minimum on every row kind — recovery, verification, and
