@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "Regression baseline for the real-tower fixture at --seed 7, checked by",
+    "Tools/RecoveryEvaluation/check_regression.py. These are NOT release",
+    "gates: the sensor model is still invented (ADR 0014), so the absolute",
+    "numbers mean little. What they catch is movement -- a change that makes",
+    "the solver or verifier worse than it is today.",
+    "",
+    "false_complete_rate is the one that matters most and is currently",
+    "perfect. Nothing else in CI protects it.",
+    "",
+    "convergence_rate is 0.0 because the reconstructed edge model injects a",
+    "systematic per-view bias the solver cannot overcome. It is baselined at",
+    "its true value rather than aspirationally, so the entry starts guarding",
+    "the moment calibration lifts it.",
+    "",
+    "Tolerances absorb small floating-point differences in the Metal raster",
+    "pass across runner GPUs. They are not headroom for regressions.",
+    "Regenerate with --update and explain the movement in the commit message."
+  ],
+  "fixture": "fixtures/real-tower/tower.ldr",
+  "seed": 7,
+  "generated": "2026-08-07",
+  "metrics": {
+    "registration.convergence_rate": {
+      "direction": "higher_is_better",
+      "tolerance": 0.05,
+      "value": 0.0
+    },
+    "verification.false_complete_rate": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "verification.per_detectability.strong.complete_precision": {
+      "direction": "higher_is_better",
+      "tolerance": 0.05,
+      "value": 1.0
+    },
+    "verification.per_detectability.strong.complete_recall": {
+      "direction": "higher_is_better",
+      "tolerance": 0.1,
+      "value": 0.6666666666666666
+    },
+    "verification.uncertain_on_correct_rate": {
+      "direction": "lower_is_better",
+      "tolerance": 0.1,
+      "value": 0.3333333333333333
+    },
+    "verification.undetectable_abstention_rate": {
+      "direction": "higher_is_better",
+      "tolerance": 0.05,
+      "value": 1.0
+    }
+  }
+}

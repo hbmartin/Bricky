@@ -53,11 +53,12 @@ RGB agreement** before a marginal delta may be called complete. The RGB half
 was never built. `GeometricStepVerifier` therefore refuses `complete` unless
 detectability is `strong`, which is the correct conservative behaviour — but
 `score_results.py` still enforces a 0.70 complete-recall floor on the
-marginal class. A corpus containing any marginal delta whose expected verdict
-is `complete` fails that gate with recall exactly 0.0, and today it passes
-only because no such fixture exists. That is a gate satisfied by an accident
-of the corpus rather than by the system, which is the failure mode this
-project's evaluation work exists to eliminate.
+marginal class. Measured on the real-tower fixture (2026-08-07): 6 marginal
+cases, `complete_recall` **0.0**. The gate is not dormant — it fails on every
+run, and only the `continue-on-error` on the scoring step keeps that from
+blocking. A permanently-failing gate that nobody can act on is indistinguishable
+from noise, and gets read as background failure rather than as the specific
+missing capability it is.
 
 Building the RGB term now would mean tuning it against a **synthetic colour
 sensor model that does not exist and would have to be invented** — the same
@@ -65,7 +66,9 @@ mistake the depth sensor model is being corrected for (ADR 0014). So:
 
 1. Marginal deltas whose expected verdict is `complete` are **out of corpus
    scope** until the RGB support term ships. Staged fixtures must not declare
-   them; the marginal recall floor is dormant, not met.
+   them, and the synthetic taxonomy must not generate them. The marginal
+   recall floor is then genuinely dormant rather than permanently red — and
+   when the term lands, restoring the fixtures is what proves it works.
 2. The RGB term is owed work, tracked in
    [NEXT_STEPS_AND_FOLLOWUP.md](../NEXT_STEPS_AND_FOLLOWUP.md). It needs a
    colour plane on `RegistrationFrameInput` (which today carries depth only),
