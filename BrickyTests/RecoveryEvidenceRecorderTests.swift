@@ -95,6 +95,45 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         }
     }
 
+    func testFitRecordsGoToTheirOwnFileNotTracesNdjson() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordFits([
+            makeFit(sessionID: recorder.sessionID, candidateIndex: 0, conclusive: false),
+            makeFit(sessionID: recorder.sessionID, candidateIndex: 3, conclusive: true),
+        ])
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+
+        // "Evidence Trace" means one VLM inference call; a geometric fit is
+        // not one, so it must never land in traces.ndjson.
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: sessionDirectory.appendingPathComponent("traces.ndjson").path)
+        )
+        let loaded = await recorder.loadFitRecords()
+        XCTAssertEqual(loaded.count, 2)
+        XCTAssertEqual(loaded.map(\.candidateIndex), [0, 3])
+        XCTAssertEqual(loaded.filter(\.conclusive).count, 1)
+
+        let raw = try String(contentsOf: sessionDirectory.appendingPathComponent("fits.ndjson"), encoding: .utf8)
+        for key in ["fit_version", "candidate_index", "phantom_fraction", "world_from_model", "disqualification"] {
+            XCTAssertTrue(raw.contains("\"\(key)\""), "missing key \(key) in \(raw)")
+        }
+    }
+
+    func testRecordingNoFitsWritesNothing() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordFits([])
+        // An empty call must not even create the session directory: a VLM-only
+        // recovery has no geometric evidence and should leave no trace of one.
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: sessionDirectory.appendingPathComponent("fits.ndjson").path)
+        )
+    }
+
     func testPurgeRemovesOldestSessionsBeyondCap() throws {
         let store = root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName, isDirectory: true)
         let sessionTotal = RecoveryEvidenceRecorder.maxSessions + 5
@@ -116,6 +155,32 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
     }
 
     // MARK: - Fixtures
+
+    private func makeFit(
+        sessionID: UUID,
+        candidateIndex: Int,
+        conclusive: Bool
+    ) -> GeometricFitRecord {
+        GeometricFitRecord(
+            fitVersion: EvidenceSchema.fitVersion,
+            fitID: UUID(),
+            sessionID: sessionID,
+            passIndex: 0,
+            candidateIndex: candidateIndex,
+            stepID: "main.ldr#\(candidateIndex + 1)",
+            score: 0.6,
+            inlierFraction: 0.5,
+            visibleFraction: 0.4,
+            unexplainedFraction: 0.1,
+            phantomFraction: 0.05,
+            rmsResidual: 0.004,
+            latticeMargin: 1.4,
+            worldFromModel: Array(repeating: 0, count: 16),
+            disqualification: .none,
+            conclusive: conclusive,
+            createdAt: .now
+        )
+    }
 
     private func makeRecorder(staged: StagedFixtureDeclaration? = nil) -> RecoveryEvidenceRecorder {
         RecoveryEvidenceRecorder(

@@ -151,6 +151,13 @@ Design rules the recorder enforces:
 - **Idempotent finalize.** `finalize(estimate:analysisError:groundTruth:)`
   writes the estimate summary, any analysis error, and the ground-truth
   label exactly once.
+- **Geometric fits are their own record.** `GeometricRecoveryEstimator` takes
+  the same optional-observer parameter and emits one `GeometricFitRecord` per
+  scored candidate into `fits.ndjson`. They are deliberately *not*
+  `EvidenceTraceRow`s: an Evidence Trace is the record of one VLM inference
+  call, and a depth fit is not one. Since geometric-first recovery landed
+  (ADR 0010) the primary path had been leaving no evidence at all, so a
+  bundle could only ever explain the fallback.
 
 `RecoveryBenchmarkWriter` turns a labeled, finalized session into the
 session's single `benchmark.ndjson` row — the producer `score_results.py`

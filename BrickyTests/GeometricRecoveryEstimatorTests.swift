@@ -161,6 +161,70 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         XCTAssertEqual(ranked.first?.index, 0)
     }
 
+    func testPhantomAndUnexplainedLossesAreDistinguishable() throws {
+        // Both terms weigh into the score identically, so without retaining
+        // them a losing candidate cannot be told from one that lost the other
+        // way — which is exactly what a fit record has to explain.
+        let oversizedLosers = try rankedScores(physical: [base])
+        let oversized = try XCTUnwrap(oversizedLosers.first { $0.index == 2 })
+        XCTAssertGreaterThan(oversized.phantomFraction, 0.05, "predicted bricks that are not there")
+        XCTAssertLessThan(oversized.unexplainedFraction, oversized.phantomFraction)
+
+        let subsetLosers = try rankedScores(physical: [base, brickA, brickB])
+        let subset = try XCTUnwrap(subsetLosers.first { $0.index == 0 })
+        XCTAssertGreaterThan(subset.unexplainedFraction, 0.05, "observed bricks it cannot explain")
+        XCTAssertLessThan(subset.phantomFraction, subset.unexplainedFraction)
+    }
+
+    func testMatchingCandidatesAreNotDisqualified() throws {
+        // The control for the test below: with the shipping ceilings, a good
+        // fit records no disqualification at all. Unwrapped first, because on
+        // an optional `.none` would resolve to nil rather than the case.
+        let winner = try XCTUnwrap(try rankedScores(physical: [base, brickA]).first)
+        XCTAssertEqual(winner.disqualification, .none)
+    }
+
+    func testPoseSanityRecordsWhyACandidateWasDisqualified() throws {
+        // Deviation is measured from the *coarse init*, not from truth, so
+        // disqualification needs a solve that moves — an init far outside
+        // ICP's basin produces no movement and no deviation. A small offset
+        // plus a zero horizontal ceiling makes the trip deterministic, while
+        // a wide vertical ceiling keeps the axis under test unambiguous.
+        var configuration = GeometricRecoveryEstimator.Configuration()
+        configuration.maxHorizontalDeviation = 0
+        configuration.maxVerticalDeviation = 1
+        var coarse = matrix_identity_float4x4
+        coarse.columns.3 = SIMD4(0.01, 0, 0, 1)
+        let scores = try GeometricRecoveryEstimator.scoreCandidates(
+            candidates: candidates,
+            frame: try observedFrame(physical: [base, brickA]),
+            coarseWorldFromModel: coarse,
+            renderer: makeRenderer(),
+            configuration: configuration
+        )
+        let disqualified = scores.filter { $0.disqualification != .none }
+        XCTAssertFalse(disqualified.isEmpty, "a solve that moved must trip a zero ceiling")
+        for score in disqualified {
+            XCTAssertEqual(score.disqualification, .horizontalDeviation)
+            // The clamp is what stops a disqualified candidate winning; the
+            // reason is what the clamped score can no longer express.
+            XCTAssertLessThanOrEqual(score.score, -1)
+        }
+    }
+
+    func testRowMajorPoseIsTransposedFromSIMDColumnOrder() {
+        var matrix = matrix_identity_float4x4
+        // Translation lives in the last simd column; row-major puts it in the
+        // last column of each of the first three rows: indices 3, 7, 11.
+        matrix.columns.3 = SIMD4(1, 2, 3, 1)
+        let flat = GeometricRecoveryEstimator.rowMajor(matrix)
+        XCTAssertEqual(flat.count, 16)
+        XCTAssertEqual(flat[3], 1)
+        XCTAssertEqual(flat[7], 2)
+        XCTAssertEqual(flat[11], 3)
+        XCTAssertEqual(flat[15], 1)
+    }
+
     func testUnrelatedSceneIsInconclusive() throws {
         // Nothing brick-like on the table: no candidate may conclude.
         let ranked = try rankedScores(physical: [])

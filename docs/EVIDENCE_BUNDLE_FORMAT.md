@@ -45,11 +45,17 @@ On device (Application Support namespace), per session:
 Evidence/<session-uuid>/
   session.json          # one EvidenceSessionFile (pretty-printed)
   traces.ndjson         # one EvidenceTraceRow per inference call
+  fits.ndjson           # one GeometricFitRecord per scored candidate (optional)
   benchmark.ndjson      # 0 or 1 RecoveryBenchmarkV1 rows (labeled sessions)
   captures/<capture-uuid>.jpg          # the 3 guided AR photos (copies)
   boards/<trace-uuid>.jpg              # exact board image the model saw
   tiles/<trace-uuid>/<slot>.jpg        # per-candidate renders, JPEG q0.9
 ```
+
+`fits.ndjson` is absent when the recovery never ran a geometric pass, and
+`traces.ndjson` is absent when the geometric pass concluded without loading
+the VLM. A session normally has one or the other; a composite recovery has
+both.
 
 An exported bundle wraps selected sessions verbatim:
 
@@ -102,8 +108,43 @@ Mutable over the session's life:
 - `estimate` — nullable summary: `ranked_step_ids`, `certainty`,
   `insufficiency_cause` (nullable: `broad_pass_unmatched`,
   `narrowing_pass_unmatched`, `final_pass_unmatched`,
-  `finalist_quorum_not_reached`), `latency_ms`.
+  `finalist_quorum_not_reached`), `latency_ms`, `method`
+  (`geometric` / `composite` / `vlm`), and `model_revision`. The last two are
+  the estimate's own, not the session header's — see `benchmark.ndjson`.
 - `analysis_error` — nullable string when the run threw.
+
+## `fits.ndjson` — GeometricFitRecord (one line per scored candidate)
+
+Geometric recovery is the primary path (ADR 0010) but produced no evidence,
+so a bundle could only ever explain the VLM fallback. These rows answer the
+geometric analogue of what the trace rows answer: which candidates were
+considered, what each scored, and — when the truth lost — which term beat it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `fit_version` | int | 1 |
+| `fit_id` | uuid | |
+| `session_id` | uuid | |
+| `pass_index` | int | which coarse-to-fine refinement pass scored it |
+| `candidate_index` | int | position in `plan.steps`; **-1 is step zero** |
+| `step_id` | string | e.g. `main.ldr#4` |
+| `score` | float | two-sided coverage; comparable only within one attempt |
+| `inlier_fraction` | float | from the ICP solve |
+| `visible_fraction` | float | how much of the sample was on camera |
+| `unexplained_fraction` | float | observed structure the candidate cannot explain |
+| `phantom_fraction` | float | candidate surface with nothing observed at it |
+| `rms_residual` | float | meters |
+| `lattice_margin` | float | 1.0 means an alternative explains depth equally well |
+| `world_from_model` | [float] | 16 values, **row-major** |
+| `disqualification` | string | `none`, `vertical_deviation`, `horizontal_deviation` |
+| `conclusive` | bool | true on the candidate the attempt concluded with |
+| `created_at` | ISO-8601 | |
+
+`unexplained_fraction` and `phantom_fraction` weigh into `score` identically,
+so without both a losing candidate cannot be told from one that lost the
+other way. `disqualification` is recorded separately because a disqualified
+candidate's `score` is a clamped sentinel, not a measurement — the clamp is
+what keeps it from winning, and it cannot also carry the reason.
 
 ## `traces.ndjson` — EvidenceTraceRow (one line per inference call)
 

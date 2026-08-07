@@ -45,3 +45,42 @@ Vision scope expands from "which step am I on" to "was this step done
 right", but every verdict is grounded in authored geometry, honest about
 detectability, and measured against a false-complete gate. ADR 0004's
 constrained-output VLM machinery survives as the advisory and fallback layer.
+
+## Amendment 2026-08-07: the RGB support term is owed, and the marginal gate says so
+
+The decision above splits detectability three ways and requires **depth and
+RGB agreement** before a marginal delta may be called complete. The RGB half
+was never built. `GeometricStepVerifier` therefore refuses `complete` unless
+detectability is `strong`, which is the correct conservative behaviour — but
+`score_results.py` still enforces a 0.70 complete-recall floor on the
+marginal class. A corpus containing any marginal delta whose expected verdict
+is `complete` fails that gate with recall exactly 0.0, and today it passes
+only because no such fixture exists. That is a gate satisfied by an accident
+of the corpus rather than by the system, which is the failure mode this
+project's evaluation work exists to eliminate.
+
+Building the RGB term now would mean tuning it against a **synthetic colour
+sensor model that does not exist and would have to be invented** — the same
+mistake the depth sensor model is being corrected for (ADR 0014). So:
+
+1. Marginal deltas whose expected verdict is `complete` are **out of corpus
+   scope** until the RGB support term ships. Staged fixtures must not declare
+   them; the marginal recall floor is dormant, not met.
+2. The RGB term is owed work, tracked in
+   [NEXT_STEPS_AND_FOLLOWUP.md](../NEXT_STEPS_AND_FOLLOWUP.md). It needs a
+   colour plane on `RegistrationFrameInput` (which today carries depth only),
+   an expected-colour render pass (`ExpectedDepthRenderer` emits depth only),
+   the verifier term itself, and a colour sensor model built as deliberately
+   as the depth one.
+3. `ModelSurfaceSample.colorCodes` already exists and is read by nobody. It
+   is scaffolding for this term, not dead code — but until the term lands it
+   is indistinguishable from dead code, so it is named here.
+
+Independent evidence that the marginal band is genuinely at the sensor floor,
+and that this is a sensing limit rather than an implementation gap: published
+iPhone LiDAR evaluations measure ±1 cm absolute accuracy on objects with side
+length above 10 cm and place features under roughly 1 cm below the sensor's
+reliable resolution (Luetzenburg et al., *Scientific Reports* 11, 22221,
+2021). A stud is 8 mm pitch and a plate 3.2 mm tall. Depth alone should not
+be trusted to call a marginal delta complete, and the current refusal is
+right even though the gate covering it is currently unsatisfiable.

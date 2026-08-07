@@ -10,6 +10,7 @@ public enum EvidenceSchema {
     public static let traceVersion = 1
     public static let sessionVersion = 1
     public static let bundleVersion = 1
+    public static let fitVersion = 1
 
     public static func encoder(prettyPrinted: Bool = false) -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -26,12 +27,117 @@ public enum EvidenceSchema {
 }
 
 /// Which stage of the hierarchical estimate an inference call served.
+///
+/// VLM passes only. A geometric candidate fit is not an inference call and is
+/// recorded as a `GeometricFitRecord`, so that "Evidence Trace" keeps meaning
+/// exactly one thing.
 public enum RecoveryPassKind: String, Codable, Sendable {
     case broad
     case narrowing
     case narrow
     case finalist
     case check
+}
+
+/// Why a candidate fit was ruled out before its score could count.
+///
+/// The geometric estimator clamps a disqualified candidate's score to a
+/// sentinel, which makes "left the build plane" indistinguishable from
+/// "genuinely scored badly". Recording the reason separately keeps the
+/// distinction that the score alone destroys.
+public enum FitDisqualification: String, Codable, Sendable {
+    case none
+    /// The fit sank or climbed off the build plane — on an empty table,
+    /// 4-DoF ICP will happily drop a candidate's top face onto the tabletop.
+    case verticalDeviation = "vertical_deviation"
+    /// The fit slid further horizontally than a user's coarse placement can
+    /// explain, so it matched some other surface.
+    case horizontalDeviation = "horizontal_deviation"
+}
+
+/// One scored candidate from a geometric recovery attempt (ADR 0010). Rows are
+/// appended to a session's `fits.ndjson`.
+///
+/// Geometric recovery became the primary path but left no evidence, so a
+/// bundle could only ever explain the VLM fallback. These rows answer the
+/// geometric analogue of the estimator questions the trace rows answer: which
+/// candidates were considered, what each scored, and — when the truth lost —
+/// which term beat it.
+public struct GeometricFitRecord: Codable, Sendable {
+    public let fitVersion: Int
+    public let fitID: UUID
+    public let sessionID: UUID
+    /// Which coarse-to-fine refinement pass scored this candidate.
+    public let passIndex: Int
+    /// Position in `plan.steps`; -1 is step zero. See the step-numbering
+    /// section of EVIDENCE_BUNDLE_FORMAT.md.
+    public let candidateIndex: Int
+    public let stepID: String
+    /// Two-sided coverage score. Comparable only within one attempt.
+    public let score: Float
+    public let inlierFraction: Float
+    public let visibleFraction: Float
+    /// Observed depth in front of the candidate surface: structure the
+    /// candidate cannot explain.
+    public let unexplainedFraction: Float
+    /// Candidate surface with nothing observed at it: geometry the candidate
+    /// predicts that is not there.
+    public let phantomFraction: Float
+    public let rmsResidual: Float
+    public let latticeMargin: Float
+    /// Row-major 4x4 solved pose, model to world.
+    public let worldFromModel: [Float]
+    public let disqualification: FitDisqualification
+    /// True on the candidate the attempt concluded with; all false when the
+    /// attempt was inconclusive and fell through to the VLM.
+    public let conclusive: Bool
+    public let createdAt: Date
+
+    public init(
+        fitVersion: Int, fitID: UUID, sessionID: UUID, passIndex: Int, candidateIndex: Int,
+        stepID: String, score: Float, inlierFraction: Float, visibleFraction: Float,
+        unexplainedFraction: Float, phantomFraction: Float, rmsResidual: Float,
+        latticeMargin: Float, worldFromModel: [Float], disqualification: FitDisqualification,
+        conclusive: Bool, createdAt: Date
+    ) {
+        self.fitVersion = fitVersion
+        self.fitID = fitID
+        self.sessionID = sessionID
+        self.passIndex = passIndex
+        self.candidateIndex = candidateIndex
+        self.stepID = stepID
+        self.score = score
+        self.inlierFraction = inlierFraction
+        self.visibleFraction = visibleFraction
+        self.unexplainedFraction = unexplainedFraction
+        self.phantomFraction = phantomFraction
+        self.rmsResidual = rmsResidual
+        self.latticeMargin = latticeMargin
+        self.worldFromModel = worldFromModel
+        self.disqualification = disqualification
+        self.conclusive = conclusive
+        self.createdAt = createdAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case fitVersion = "fit_version"
+        case fitID = "fit_id"
+        case sessionID = "session_id"
+        case passIndex = "pass_index"
+        case candidateIndex = "candidate_index"
+        case stepID = "step_id"
+        case score
+        case inlierFraction = "inlier_fraction"
+        case visibleFraction = "visible_fraction"
+        case unexplainedFraction = "unexplained_fraction"
+        case phantomFraction = "phantom_fraction"
+        case rmsResidual = "rms_residual"
+        case latticeMargin = "lattice_margin"
+        case worldFromModel = "world_from_model"
+        case disqualification
+        case conclusive
+        case createdAt = "created_at"
+    }
 }
 
 /// Advisory certainty of a recovery estimate, shared by the app's domain and

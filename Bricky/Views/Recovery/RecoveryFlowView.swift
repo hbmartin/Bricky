@@ -335,7 +335,8 @@ struct RecoveryFlowView: View {
                     geometric = try? GeometricRecoveryEstimator(
                         frame: depthFrame,
                         sourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
-                        partPackRoot: partPackRoot
+                        partPackRoot: partPackRoot,
+                        recorder: sessionRecorder
                     )
                 }
                 let estimator = CompositeRecoveryEstimator(geometric: geometric, fallback: vlmEstimator)

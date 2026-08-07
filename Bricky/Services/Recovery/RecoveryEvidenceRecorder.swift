@@ -140,6 +140,32 @@ actor RecoveryEvidenceRecorder {
         }
     }
 
+    /// Appends one geometric recovery attempt's candidate fits (ADR 0010).
+    /// Written to `fits.ndjson`, not `traces.ndjson`: a fit is not an
+    /// inference call, and an Evidence Trace means exactly one of those.
+    func recordFits(_ records: [GeometricFitRecord]) {
+        guard !records.isEmpty else { return }
+        perform("record geometric fits") {
+            try ensureStarted()
+            let encoder = EvidenceSchema.encoder()
+            var payload = Data()
+            for record in records {
+                payload.append(try encoder.encode(record))
+                payload.append(UInt8(ascii: "\n"))
+            }
+            try append(payload, to: "fits.ndjson")
+        }
+    }
+
+    /// Fit rows written so far, decoded back from `fits.ndjson`.
+    func loadFitRecords() -> [GeometricFitRecord] {
+        let fits = sessionDirectory.appendingPathComponent("fits.ndjson")
+        guard let data = try? Data(contentsOf: fits) else { return [] }
+        let decoder = EvidenceSchema.decoder()
+        return data.split(separator: UInt8(ascii: "\n"))
+            .compactMap { try? decoder.decode(GeometricFitRecord.self, from: Data($0)) }
+    }
+
     func finalize(estimate: RecoveryEstimate?, analysisError: String?, groundTruth: EvidenceGroundTruth) {
         perform("finalize session") {
             try ensureStarted()
@@ -192,15 +218,21 @@ actor RecoveryEvidenceRecorder {
     private func appendTraceRow(_ row: EvidenceTraceRow) throws {
         var line = try EvidenceSchema.encoder().encode(row)
         line.append(UInt8(ascii: "\n"))
-        let url = sessionDirectory.appendingPathComponent("traces.ndjson")
+        try append(line, to: "traces.ndjson")
+    }
+
+    /// Appends already-encoded NDJSON bytes to a session file, creating it on
+    /// first write.
+    private func append(_ payload: Data, to filename: String) throws {
+        let url = sessionDirectory.appendingPathComponent(filename)
         if !FileManager.default.fileExists(atPath: url.path) {
-            try line.write(to: url, options: .atomic)
+            try payload.write(to: url, options: .atomic)
             return
         }
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         try handle.seekToEnd()
-        try handle.write(contentsOf: line)
+        try handle.write(contentsOf: payload)
     }
 
     /// Oldest-first purge keeping the store under the session and byte caps.
