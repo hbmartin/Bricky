@@ -112,4 +112,31 @@ final class ExpectedDepthRendererTests: XCTestCase {
         )
         XCTAssertTrue(map.depth.allSatisfy { $0 == 0 })
     }
+
+    func testGeometryBehindCameraRendersAllMasked() throws {
+        let renderer = try makeRenderer()
+        let map = try renderer.render(
+            snapshot: InstructionGeometrySnapshot(buffers: facingQuad(distance: -0.3), bounds: nil),
+            viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics,
+            width: width,
+            height: height
+        )
+        XCTAssertEqual(map.depthAt(x: 128, y: 96), 0)
+        XCTAssertTrue(map.depth.allSatisfy { !$0.isNaN && $0 == 0 })
+    }
+
+    func testGeometryBeyondFarPlaneStaysMasked() throws {
+        let renderer = try makeRenderer()
+        let map = try renderer.render(
+            snapshot: InstructionGeometrySnapshot(buffers: facingQuad(distance: 8.0), bounds: nil),
+            viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics,
+            width: width,
+            height: height,
+            far: 5.0
+        )
+        XCTAssertEqual(map.depthAt(x: 128, y: 96), 0)
+        XCTAssertTrue(map.depth.allSatisfy { !$0.isNaN && $0 == 0 })
+    }
 }

@@ -194,12 +194,20 @@ final class DepthICPTrackerTests: XCTestCase {
         )
         let finalX = result.worldFromModel.columns.3.x
         XCTAssertLessThanOrEqual(abs(finalX), 0.012, "must never end farther from truth than init plus slack")
+        let outcome: String?
         if abs(finalX) > 0.004 {
             XCTAssertLessThan(
                 result.quality.latticeMargin, 1.3,
                 "an unrecovered stud offset must not report a confident lock"
             )
+            outcome = "held-offset-with-honest-margin"
+        } else {
+            // The blind view recovered the offset outright; the margin holds
+            // no obligation, but the fit itself must be sound.
+            XCTAssertGreaterThanOrEqual(result.quality.inlierFraction, 0.6)
+            outcome = "recovered-offset"
         }
+        XCTAssertNotNil(outcome, "one outcome branch must always be exercised")
     }
 
     func testPlainBoxIsFlaggedAmbiguousUnderHalfTurn() throws {
@@ -284,5 +292,69 @@ final class DepthICPTrackerTests: XCTestCase {
         XCTAssertEqual(last.worldFromModel.columns.3.x, 0, accuracy: 0.002)
         XCTAssertEqual(last.worldFromModel.columns.3.z, 0, accuracy: 0.002)
         XCTAssertEqual(yawDegrees(of: last.worldFromModel), 0, accuracy: 1.5)
+    }
+
+    private func retimed(_ base: RegistrationFrameInput, at timestamp: TimeInterval) -> RegistrationFrameInput {
+        RegistrationFrameInput(
+            depth: base.depth,
+            confidence: base.confidence,
+            rawDepth: base.rawDepth,
+            rawConfidence: base.rawConfidence,
+            width: base.width,
+            height: base.height,
+            depthIntrinsics: base.depthIntrinsics,
+            worldFromCamera: base.worldFromCamera,
+            timestamp: timestamp
+        )
+    }
+
+    func testDegradationHonorsGraceOffCameraHoldAndRecovery() async throws {
+        let sample = ModelSurfaceSampler.sample(lShapeSnapshot, stepIndex: 0)
+        let plusX = try syntheticFrame(snapshot: lShapeSnapshot, worldFromCamera: viewFromPlusX)
+        let minusX = try syntheticFrame(snapshot: lShapeSnapshot, worldFromCamera: viewFromMinusX)
+        // The build vanishes: rays land on the tabletop — valid depth, a
+        // visible sample, and collapsed correspondence.
+        let collapsed = try syntheticFrame(
+            snapshot: InstructionGeometrySnapshot(buffers: [], bounds: nil),
+            worldFromCamera: viewFromPlusX
+        )
+        // Camera pointed away from the build entirely: off camera, not misfit.
+        let awayView = lookAt(eye: SIMD3(2.0, 0.35, 2.0), target: SIMD3(3.0, 0.35, 3.0))
+        let offCamera = try syntheticFrame(snapshot: lShapeSnapshot, worldFromCamera: awayView)
+
+        let tracker = DepthICPTracker()
+        await tracker.setTarget(sample, coarseWorldFromModel: matrix_identity_float4x4, alignmentID: UUID())
+        var time: TimeInterval = 0
+        var last: ModelRegistration?
+        for index in 0..<16 {
+            let base = index.isMultiple(of: 2) ? plusX : minusX
+            last = await tracker.process(retimed(base, at: time))
+            time += 0.1
+        }
+        XCTAssertEqual(last?.state, .locked)
+
+        // A single collapsed frame inside the grace period holds the lock.
+        last = await tracker.process(retimed(collapsed, at: time))
+        time += 0.1
+        XCTAssertEqual(last?.state, .locked)
+
+        // Off camera for far longer than the grace period: the loss clock
+        // must not run while the build is simply out of view.
+        for _ in 0..<30 {
+            last = await tracker.process(retimed(offCamera, at: time))
+            time += 0.1
+        }
+        XCTAssertEqual(last?.state, .locked)
+
+        // Sustained visible collapse past the grace period degrades to lost.
+        for _ in 0..<15 {
+            last = await tracker.process(retimed(collapsed, at: time))
+            time += 0.1
+        }
+        XCTAssertEqual(last?.state, .lost)
+
+        // A recovering fit re-enters through refining, never straight to lock.
+        last = await tracker.process(retimed(plusX, at: time))
+        XCTAssertEqual(last?.state, .refining)
     }
 }

@@ -320,6 +320,14 @@ struct RecoveryFlowView: View {
             do {
                 try Task.checkCancellation()
                 await sessionRecorder?.recordCaptures(capturedViews)
+                // The depth observation the geometric pass fits against. Kept
+                // because it is the one bundle input that cannot be
+                // reconstructed later, so a corpus without it could never
+                // support a geometric A/B without re-capturing every fixture.
+                if let depthFrame = centerDepthFrame,
+                   let centerCapture = capturedViews.first(where: { $0.angle == .center }) ?? capturedViews.first {
+                    await sessionRecorder?.recordDepthFrame(depthFrame, captureID: centerCapture.id)
+                }
                 let vlmEstimator = HierarchicalRecoveryEstimator(
                     runtime: recoveryModel.runtime,
                     modelDirectory: modelDirectory,
@@ -335,7 +343,8 @@ struct RecoveryFlowView: View {
                     geometric = try? GeometricRecoveryEstimator(
                         frame: depthFrame,
                         sourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
-                        partPackRoot: partPackRoot
+                        partPackRoot: partPackRoot,
+                        recorder: sessionRecorder
                     )
                 }
                 let estimator = CompositeRecoveryEstimator(geometric: geometric, fallback: vlmEstimator)

@@ -42,16 +42,14 @@ jobs:
         working-directory: Tools/RecoveryEvaluation
         run: |
           uv sync --frozen
-          uv run python -m unittest test_score_results.py
+          uv run python -m unittest test_score_results.py test_check_regression.py
+      - name: Test sensor-model fitting
+        working-directory: Tools/SensorCalibration
+        run: python3 -m unittest test_fit_sensor_model.py
 
-  # Informational until the sensor constants are calibrated against real
-  # device captures (see SyntheticRGBDMain calibration status): the
-  # registration and verification gates fail honestly on the RECONSTRUCTED
-  # sensor model, so this job reports without blocking merges yet.
   synthetic-gates:
     runs-on: macos-15
     timeout-minutes: 60
-    continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -75,25 +73,44 @@ jobs:
           xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme SyntheticRGBD \
             -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO \
             -skipPackagePluginValidation -derivedDataPath "$RUNNER_TEMP/dd" build
-      - name: Run synthetic gates
+      - name: Run SyntheticRGBD
         working-directory: Tools/SyntheticScenes
         run: |
           "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
             fixtures/real-tower/tower.ldr \
             --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
             --out "$RUNNER_TEMP/synthetic.ndjson" --seed 7
+      # Blocking. Asks "is the solver worse than it was?", which needs only a
+      # deterministic fixture and a committed baseline — no calibrated truth,
+      # so it can gate today. Notably it is the only thing in CI protecting
+      # the false-complete rate, the headline safety number of ADR 0008.
+      - name: Check regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/synthetic.ndjson" \
+            --baseline fixtures/real-tower/baseline.json
+      # Informational. Asks "does the solver meet the CONTEXT.md release
+      # gates?", which needs calibrated absolute truth; the constants are
+      # still invented (ADR 0014), so registration and verification fail
+      # honestly here. Flips to blocking when calibration lands.
+      - name: Score synthetic gates (informational)
+        working-directory: Tools/SyntheticScenes
+        continue-on-error: true
+        run: |
           python3 ../RecoveryEvaluation/score_results.py \
             "$RUNNER_TEMP/synthetic.ndjson" --allow-small-corpus
 
   swift-parity:
-    runs-on: macos-15
+    # The Xcode 27 image carries the iOS 27 SDK required by the project's
+    # deployment target; building and testing here is also the workflow's
+    # iOS 27 build check.
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -101,7 +118,7 @@ jobs:
       - name: Build and run native parity tests
         run: |
           xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
             -parallel-testing-enabled NO test -only-testing:BrickyTests
 

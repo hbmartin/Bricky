@@ -43,6 +43,11 @@ until then is manual alignment plus VLM recovery and step checking.
   user; runs only while registration is locked.
 - **Recovery** — estimating *which* authored step the physical build
   matches. Geometric-first, VLM fallback.
+- **Composite recovery** — a recovery where the geometric pass ran, did not
+  conclude, and the VLM estimator answered instead. Distinct from a recovery
+  where no geometric pass was possible: both spend the inference budget, but
+  only a composite also paid for the attempt that did not help. Every
+  estimate names which of the three it was.
 - **Step delta** — the exact placements a step adds:
   `plan.addedPlacements(for:)` over `AuthoredStep.addedPlacementRange` into
   `placementTimeline`. The unit of verification.
@@ -115,9 +120,14 @@ tracking loss.
   grammar schema, raw model output, decode error, termination, latency, and
   memory footprint, plus the board and per-candidate tile images it saw. One
   NDJSON row in a session's `traces.ndjson`.
-- **Evidence Session** — one recovery run's traces, image copies, ground
-  truth, and estimate summary under `Evidence/<session>/`. Sessions are
-  copies; they never own recovery work files.
+- **Fit Record** — the record of one candidate step scored by a geometric
+  recovery attempt: its fit quality, the two-sided coverage terms that
+  decided it, the solved pose, and why it was ruled out if it was. A fit is
+  not an inference call, so it is never an Evidence Trace.
+- **Evidence Session** — one recovery run's traces, fit records, image and
+  depth copies, ground truth, and estimate summary under
+  `Evidence/<session>/`. Sessions are copies; they never own recovery work
+  files.
 - **Evidence Bundle** — the versioned zip a user explicitly exports from the
   Developer section. Its directory layout is the interchange format consumed
   by `bricky-harness` and Python tooling.
@@ -149,6 +159,10 @@ xcodebuild -project '../../Bricky the Brick Scanner.xcodeproj' -scheme Synthetic
 SyntheticRGBD ../SyntheticScenes/fixtures/synthetic-tower/tower.ldr \
   --ldraw-root /path/to/ldraw --out synthetic.ndjson --seed 7
 python3 score_results.py synthetic.ndjson --allow-small-corpus
+
+# Did this change make the solver worse? (blocking in CI; needs no calibration)
+python3 check_regression.py synthetic.ndjson \
+  --baseline ../SyntheticScenes/fixtures/real-tower/baseline.json
 ```
 
 ## Release gates still requiring physical assets or devices
@@ -158,8 +172,17 @@ python3 score_results.py synthetic.ndjson --allow-small-corpus
   verification false-complete rate ≤2% (reported first), per-class
   precision/recall ≥0.90/0.85 (strong detectability) and ≥0.80/0.70
   (marginal), undetectable-abstention ≥95%, uncertain-on-correct ≤15%.
+  These are *certification* gates and stay informational in CI while the
+  synthetic sensor constants remain RECONSTRUCTED (ADR 0014,
+  [SENSOR_CALIBRATION.md](docs/SENSOR_CALIBRATION.md)). *Regression* against
+  a committed fixture baseline blocks today and needs no calibration — the
+  two questions were previously conflated in one job that could answer
+  neither. The marginal precision/recall pair is dormant by decision until
+  the RGB support term lands (ADR 0008 amendment).
 - 🔴 GAP — physical corpus: ≥40 distinct staged fixtures across ≥6 legally
-  usable authored models with lighting/angle/occlusion variation; registration
+  usable authored models with lighting/angle/occlusion variation (the scorer
+  enforces the ≥40 minimum on every row kind — recovery, verification, and
+  registration — unless `--allow-small-corpus` is passed); registration
   error ≤5 mm against a jig; the synthetic verification gates re-met on
   device; median latencies ≤3 s verification, ≤8 s geometric recovery, ≤20 s
   composite recovery.

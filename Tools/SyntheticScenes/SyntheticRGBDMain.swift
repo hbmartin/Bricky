@@ -63,8 +63,12 @@ struct SyntheticRGBDMain {
             switch flag {
             case "--ldraw-root": options.ldrawRoot = value
             case "--out": options.outPath = value
-            case "--seed": options.seed = UInt64(value) ?? 42
-            case "--steps": options.sampledSteps = max(1, Int(value) ?? 6)
+            case "--seed":
+                guard let seed = UInt64(value) else { throw CLIError("invalid value for --seed: \(value)") }
+                options.seed = seed
+            case "--steps":
+                guard let steps = Int(value) else { throw CLIError("invalid value for --steps: \(value)") }
+                options.sampledSteps = max(1, steps)
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
@@ -131,8 +135,9 @@ struct SyntheticRGBDMain {
                     perturbation: perturbation,
                     sensor: SensorModel(rng: &rng)
                 )
-                rows.append(Row.registration(
+                rows.append(try Row.registration(
                     fixture: "\(fixtureStem)-s\(stepIndex)-\(perturbation.label)",
+                    ambiguityExpected: perturbation.ambiguityExpected,
                     outcome: outcome
                 ))
             }
@@ -141,20 +146,25 @@ struct SyntheticRGBDMain {
             // error, the verifier judges the authored delta.
             for scenario in VerificationScenario.taxonomy {
                 let physical = scenario.physicalSnapshot(completed: completed, delta: delta)
+                let started = ContinuousClock.now
                 let verdict = try await scene.verify(
-                    completed: completed,
+                    completed: scenario.authoredCompleted(completed: completed, delta: delta),
                     delta: delta,
                     physical: physical,
                     sensor: SensorModel(rng: &rng)
                 )
-                rows.append(Row.verification(
+                rows.append(try Row.verification(
                     fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
                     expected: scenario.expectedVerdict,
-                    verification: verdict
+                    verification: verdict,
+                    latencyMilliseconds: started.duration(to: .now).milliseconds
                 ))
             }
         }
 
+        guard !rows.isEmpty else {
+            throw CLIError("no benchmark rows were generated from \(options.modelPath)")
+        }
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
         print("wrote \(rows.count) rows to \(options.outPath)")

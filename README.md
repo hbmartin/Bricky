@@ -32,13 +32,13 @@ release gates, and intentional exclusions.
 
 ## Build and test
 
-Requirements: Xcode 16.4+ (Xcode 27 beta is also exercised), XcodeGen, iOS 17+,
+Requirements: Xcode 27 with the iOS 27 SDK and simulator runtime, XcodeGen,
 and Python 3.12+ with `uv` for development parity.
 
 ```sh
 xcodegen generate
 xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation test
 ```
 

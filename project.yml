@@ -76,6 +76,7 @@ targets:
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
+      - Bricky/Services/Instructions/LDConfigPalette.swift
       - Bricky/Services/Registration/ModelSurfaceSampler.swift
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
@@ -98,6 +99,7 @@ targets:
       - BrickyTests/DepthICPTrackerTests.swift
       - BrickyTests/GeometricStepVerifierTests.swift
       - BrickyTests/GeometricRecoveryEstimatorTests.swift
+      - BrickyTests/CompositeRecoveryEstimatorTests.swift
       - BrickyTests/ClaudeVisionProviderTests.swift
       - BrickyTests/InstructionPlanTests.swift
       - BrickyTests/InstructionImporterTests.swift

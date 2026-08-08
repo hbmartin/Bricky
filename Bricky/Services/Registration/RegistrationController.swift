@@ -19,6 +19,9 @@ final class RegistrationController: ObservableObject {
     private var consumeTask: Task<Void, Never>?
     private var sample: ModelSurfaceSample?
     private var activeAlignmentID: UUID?
+    /// A placement that arrived before any usable fit sample; consumed by
+    /// `setFitSample` so the alignment is not silently discarded.
+    private var pendingAlignment: (alignment: ARAlignment, relay: RegistrationFrameRelay)?
 
     /// The pose the AR overlay should render at, when the tracker has a
     /// usable estimate; nil means fall back to the manual alignment.
@@ -49,6 +52,10 @@ final class RegistrationController: ObservableObject {
     /// off — nothing physical exists yet to register against.
     func setFitSample(_ sample: ModelSurfaceSample?) {
         self.sample = sample
+        if let sample, !sample.points.isEmpty, let pending = pendingAlignment {
+            pendingAlignment = nil
+            alignmentChanged(pending.alignment, relay: pending.relay)
+        }
     }
 
     /// Reconciles tracking with the manual alignment: placement starts the
@@ -58,7 +65,13 @@ final class RegistrationController: ObservableObject {
             stop()
             return
         }
-        guard let sample, !sample.points.isEmpty else { return }
+        guard let sample, !sample.points.isEmpty else {
+            // Nothing physical to fit yet; keep the placement so tracking
+            // starts as soon as the sample lands.
+            pendingAlignment = (alignment, relay)
+            return
+        }
+        pendingAlignment = nil
         if alignment.id == activeAlignmentID {
             let tracker = tracker
             Task {
@@ -111,6 +124,7 @@ final class RegistrationController: ObservableObject {
         consumeTask?.cancel()
         consumeTask = nil
         activeAlignmentID = nil
+        pendingAlignment = nil
         registration = nil
         let tracker = tracker
         Task { await tracker.stop() }

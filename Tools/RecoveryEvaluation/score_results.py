@@ -32,11 +32,18 @@ RECOVERY_REQUIRED_FIELDS = {
     "expected_step_index",
     "ranked_step_ids",
     "certainty",
+    "estimator_method",
     "device_model",
     "operating_system",
     "latency_ms",
     "memory_peak_bytes",
 }
+
+# Which pipeline produced an estimate (ADR 0010). Required, not inferred: this
+# was previously sniffed from a `model_revision` prefix on a field the row
+# schema never carried, so every row silently bucketed as composite and the
+# geometric latency gate could not fire.
+ESTIMATOR_METHODS = {"geometric", "composite", "vlm"}
 
 RELEASE_FIELDS = {
     "physical_case",
@@ -68,8 +75,6 @@ REGISTRATION_REQUIRED_FIELDS = {
     "reported_ambiguous",
     "latency_ms",
 }
-
-GEOMETRIC_REVISION_PREFIX = "depth-icp-geometric"
 
 # Gates.
 RECOVERY_TOP3_FLOOR = 0.95
@@ -103,10 +108,23 @@ def is_exact_int(value: object) -> bool:
     return type(value) is int
 
 
+def is_number(value: object) -> bool:
+    return type(value) in (int, float)
+
+
 def rmse(values: list[float]) -> float:
     if not values:
         return 0.0
     return (sum(value * value for value in values) / len(values)) ** 0.5
+
+
+def validate_minimum_corpus(rows: list[dict[str, object]], kind: str) -> None:
+    if len(rows) < MINIMUM_CORPUS_ROWS:
+        raise SystemExit(
+            f"{kind} corpus has {len(rows)} rows but release gates require at least "
+            f"{MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for "
+            "schema/scorer smoke data, never for release-gate metrics"
+        )
 
 
 # --- Recovery (RecoveryBenchmarkV1, kind absent or "recovery") ---------------
@@ -123,6 +141,8 @@ def validate_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"row {index} ranked_step_ids must be a list")
         if row["certainty"] not in {"high", "medium", "low", "insufficient"}:
             raise SystemExit(f"row {index} has invalid certainty")
+        if row["estimator_method"] not in ESTIMATOR_METHODS:
+            raise SystemExit(f"row {index} has invalid estimator_method")
         expected_index = row["expected_step_index"]
         if not is_exact_int(expected_index) or expected_index < -1:
             raise SystemExit(f"row {index} expected_step_index must be an integer >= -1")
@@ -196,6 +216,12 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"release corpus needs at least two explicit {field} values")
 
 
+def median_latency(rows: list[dict[str, object]]) -> float | None:
+    if not rows:
+        return None
+    return statistics.median([float(row["latency_ms"]) for row in rows])
+
+
 def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_rows(rows)
     if not allow_small_corpus:
@@ -207,11 +233,10 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         abs(row["top_step_index"] - row["expected_step_index"]) == 1
         for row in sufficient
     )
-    geometric = [
-        row for row in rows
-        if str(row.get("model_revision", "")).startswith(GEOMETRIC_REVISION_PREFIX)
-    ]
-    composite = [row for row in rows if row not in geometric]
+    by_method = {
+        method: [row for row in rows if row["estimator_method"] == method]
+        for method in ESTIMATOR_METHODS
+    }
     latencies = [float(row["latency_ms"]) for row in rows]
     memory = [int(row.get("memory_peak_bytes", 0)) for row in rows]
     report: dict[str, object] = {
@@ -221,18 +246,25 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         "top_3_accuracy": top3 / len(rows),
         "insufficient_rate": (len(rows) - len(sufficient)) / len(rows),
         "adjacent_step_confusion_rate": adjacent / max(1, len(sufficient)),
-        "geometric_cases": len(geometric),
-        "geometric_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in geometric]) if geometric else None,
-        "composite_median_latency_ms": statistics.median([float(r["latency_ms"]) for r in composite]) if composite else None,
+        "geometric_cases": len(by_method["geometric"]),
+        "composite_cases": len(by_method["composite"]),
+        "vlm_cases": len(by_method["vlm"]),
+        "geometric_median_latency_ms": median_latency(by_method["geometric"]),
+        "composite_median_latency_ms": median_latency(by_method["composite"]),
+        "vlm_median_latency_ms": median_latency(by_method["vlm"]),
         "median_latency_ms": statistics.median(latencies),
         "p95_latency_ms": percentile(latencies, 0.95),
         "memory_peak_bytes": max(memory),
     }
+    # Each method is judged against its own budget. Both fallback methods take
+    # the composite budget: they pay for inference either way, and a composite
+    # row's latency already includes the geometric leg that stepped aside.
     failed = (
         report["top_3_accuracy"] < RECOVERY_TOP3_FLOOR
         or report["top_1_accuracy"] < RECOVERY_TOP1_FLOOR
-        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
         or (report["geometric_median_latency_ms"] or 0) > RECOVERY_GEOMETRIC_MEDIAN_MS
+        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
+        or (report["vlm_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
     )
     return report, failed
 
@@ -251,10 +283,14 @@ def validate_verification_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"verification row {index} has an invalid verdict")
         if row["detectability"] not in DETECTABILITY:
             raise SystemExit(f"verification row {index} has invalid detectability")
+        if not is_number(row["latency_ms"]):
+            raise SystemExit(f"verification row {index} latency_ms must be a number")
 
 
-def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_verification_rows(rows)
+    if not allow_small_corpus:
+        validate_minimum_corpus(rows, "verification")
     discriminable = [row for row in rows if row["detectability"] in {"strong", "marginal"}]
     negatives = [row for row in discriminable if row["expected_verdict"] != "complete"]
     false_completes = [row for row in negatives if row["produced_verdict"] == "complete"]
@@ -327,10 +363,15 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         for flag in ("converged", "ambiguity_expected", "reported_ambiguous"):
             if not isinstance(row[flag], bool):
                 raise SystemExit(f"registration row {index} {flag} must be a boolean")
+        for field in ("translation_error_m", "yaw_error_degrees", "latency_ms"):
+            if not is_number(row[field]):
+                raise SystemExit(f"registration row {index} {field} must be a number")
 
 
-def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], bool]:
+def score_registration(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
     validate_registration_rows(rows)
+    if not allow_small_corpus:
+        validate_minimum_corpus(rows, "registration")
     # A genuinely symmetric fixture cannot converge to a unique truth; it is
     # judged on reporting ambiguity, not on convergence.
     unambiguous = [row for row in rows if not row["ambiguity_expected"]]
@@ -380,13 +421,13 @@ def main(path: Path, *, allow_small_corpus: bool = False) -> None:
     report: dict[str, object] = {}
     failed = False
     if kinds["verification"]:
-        verification_report, verification_failed = score_verification(kinds["verification"])
+        verification_report, verification_failed = score_verification(kinds["verification"], allow_small_corpus=allow_small_corpus)
         # The headline number, printed before anything else (ADR 0008).
         print(f"FALSE_COMPLETE_RATE {verification_report['false_complete_rate']:.4f}")
         report["verification"] = verification_report
         failed = failed or verification_failed
     if kinds["registration"]:
-        registration_report, registration_failed = score_registration(kinds["registration"])
+        registration_report, registration_failed = score_registration(kinds["registration"], allow_small_corpus=allow_small_corpus)
         report["registration"] = registration_report
         failed = failed or registration_failed
     if kinds["recovery"]:
@@ -403,7 +444,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--allow-small-corpus",
         action="store_true",
-        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} recovery rows (smoke fixtures only)",
+        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} rows per kind (smoke fixtures only)",
     )
     arguments = parser.parse_args()
     main(arguments.results, allow_small_corpus=arguments.allow_small_corpus)

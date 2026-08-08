@@ -22,11 +22,17 @@ enum CloudAssistKeyStore {
             delete()
             return
         }
-        delete()
-        var query = baseQuery
-        query[kSecValueData as String] = Data(trimmed.utf8)
-        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let status = SecItemAdd(query as CFDictionary, nil)
+        // Update in place so a failed write never destroys the stored key.
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(trimmed.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        var status = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var query = baseQuery
+            query.merge(attributes) { _, new in new }
+            status = SecItemAdd(query as CFDictionary, nil)
+        }
         guard status == errSecSuccess else {
             throw CloudAssistError.api("Could not store the API key in the Keychain (\(status)).")
         }
@@ -45,7 +51,13 @@ enum CloudAssistKeyStore {
         return key
     }
 
-    static var hasKey: Bool { load() != nil }
+    /// Existence check via Keychain metadata only; the credential itself is
+    /// neither returned nor decrypted.
+    static var hasKey: Bool {
+        var query = baseQuery
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+    }
 
     static func delete() {
         SecItemDelete(baseQuery as CFDictionary)

@@ -7,7 +7,10 @@ final class RecoveryEvidenceSweepTests: XCTestCase {
     override func setUpWithError() throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("sweep-tests-\(UUID().uuidString)", isDirectory: true)
-        for folder in ["RecoveryCaptures", "InferenceBoards", "Evidence/session-1/boards"] {
+        for folder in [
+            "RecoveryCaptures", "InferenceBoards",
+            "Evidence/session-1/boards", "Evidence/session-1/depth",
+        ] {
             try FileManager.default.createDirectory(
                 at: root.appendingPathComponent(folder, isDirectory: true),
                 withIntermediateDirectories: true
@@ -33,6 +36,8 @@ final class RecoveryEvidenceSweepTests: XCTestCase {
         try write("InferenceBoards/board.jpg")
         try write("Evidence/session-1/session.json")
         try write("Evidence/session-1/boards/copy.jpg")
+        try write("Evidence/session-1/fits.ndjson")
+        try write("Evidence/session-1/depth/frame.depth")
 
         RecoveryWorkFileCleanup.sweepOrphanedWorkFiles(
             root: root,
@@ -44,6 +49,11 @@ final class RecoveryEvidenceSweepTests: XCTestCase {
         XCTAssertFalse(exists("InferenceBoards/board.jpg"))
         XCTAssertTrue(exists("Evidence/session-1/session.json"))
         XCTAssertTrue(exists("Evidence/session-1/boards/copy.jpg"))
+        // Fit records and depth planes are session-owned copies like the
+        // rest; the sweep must not treat an unreferenced .depth blob as an
+        // orphaned work file.
+        XCTAssertTrue(exists("Evidence/session-1/fits.ndjson"))
+        XCTAssertTrue(exists("Evidence/session-1/depth/frame.depth"))
     }
 
     func testFailedMetadataFetchLeavesCapturesUntouchedButSweepsBoards() throws {

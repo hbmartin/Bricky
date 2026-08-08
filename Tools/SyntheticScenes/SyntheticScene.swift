@@ -91,11 +91,24 @@ struct RegistrationOutcome {
     let latencyMilliseconds: Int
 }
 
+extension Duration {
+    /// Whole milliseconds, for benchmark latency fields.
+    var milliseconds: Int {
+        Int(components.seconds) * 1_000 + Int(components.attoseconds / 1_000_000_000_000_000)
+    }
+}
+
 struct RegistrationPerturbation {
     let label: String
     let x: Float
     let z: Float
     let yawDegrees: Float
+    /// Whether this fixture is authored to be genuinely ambiguous (a
+    /// symmetric or lattice-aliased basin the solver cannot uniquely
+    /// resolve); the scorer judges such rows on reporting ambiguity, not on
+    /// convergence. Every current sweep entry is a sub-lattice perturbation
+    /// expected to converge to the unique truth.
+    var ambiguityExpected = false
 
     var pose: simd_float4x4 {
         let yaw = yawDegrees * .pi / 180
@@ -119,6 +132,10 @@ struct VerificationScenario {
     let label: String
     let expectedVerdict: String
     let transform: (InstructionGeometrySnapshot, InstructionGeometrySnapshot) -> [LDrawGeometryBuffer]
+    /// The occluded scenario hides the delta behind completed geometry
+    /// relative to the verifier's view pose, so detectability collapses to
+    /// "undetectable" and the verifier must abstain.
+    var occludesDelta = false
 
     /// Physical scene = completed geometry plus the scenario's version of the
     /// delta (present, absent, or shifted).
@@ -127,6 +144,19 @@ struct VerificationScenario {
         delta: InstructionGeometrySnapshot
     ) -> InstructionGeometrySnapshot {
         InstructionGeometrySnapshot(buffers: transform(completed, delta), bounds: nil)
+    }
+
+    /// Completed geometry as the verifier receives it. The occluded scenario
+    /// folds the delta's surfaces into the completed snapshot, so from the
+    /// verifier's view pose every delta pixel sits at or behind a completed
+    /// surface: no visible footprint, detectability "undetectable",
+    /// exercising the scorer's abstention floor.
+    func authoredCompleted(
+        completed: InstructionGeometrySnapshot,
+        delta: InstructionGeometrySnapshot
+    ) -> InstructionGeometrySnapshot {
+        guard occludesDelta else { return completed }
+        return InstructionGeometrySnapshot(buffers: completed.buffers + delta.buffers, bounds: nil)
     }
 
     static let taxonomy: [VerificationScenario] = [
@@ -139,6 +169,12 @@ struct VerificationScenario {
         .init(label: "shift1x", expectedVerdict: "misplaced") { completed, delta in
             completed.buffers + delta.buffers.map { $0.translated(by: SIMD3(0.008, 0, 0)) }
         },
+        // Delta fully hidden behind completed geometry from the verifier's
+        // view: the brick is physically present but unverifiable, so the
+        // verifier must abstain rather than guess.
+        .init(label: "occluded", expectedVerdict: "uncertain", transform: { completed, delta in
+            completed.buffers + delta.buffers
+        }, occludesDelta: true),
     ]
 }
 
@@ -160,6 +196,39 @@ struct SyntheticScene {
     let model: InstructionGeometrySnapshot
     let width = 256
     let height = 192
+    /// Model bounds are scanned once here; every derived view quantity reads
+    /// the cached values instead of rescanning the buffers.
+    private let boundsCenter: SIMD3<Float>
+    private let viewDistance: Float
+    private let tableBuffer: LDrawGeometryBuffer
+
+    init(renderer: ExpectedDepthRenderer, model: InstructionGeometrySnapshot) {
+        self.renderer = renderer
+        self.model = model
+        var minimum = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
+        var maximum = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
+        for buffer in model.buffers {
+            for point in buffer.positions {
+                minimum = simd_min(minimum, point)
+                maximum = simd_max(maximum, point)
+            }
+        }
+        let center = (minimum + maximum) / 2
+        let extent = max(0.35, simd_length(maximum - minimum) / 2 * 3)
+        boundsCenter = center
+        viewDistance = extent
+        let up = SIMD3<Float>(0, 1, 0)
+        let a = SIMD3<Float>(center.x - extent, 0, center.z - extent)
+        let b = SIMD3<Float>(center.x + extent, 0, center.z - extent)
+        let c = SIMD3<Float>(center.x + extent, 0, center.z + extent)
+        let d = SIMD3<Float>(center.x - extent, 0, center.z + extent)
+        tableBuffer = LDrawGeometryBuffer(
+            colorCode: 0,
+            positions: [a, b, c, a, c, d],
+            normals: Array(repeating: up, count: 6),
+            indices: [0, 1, 2, 3, 4, 5]
+        )
+    }
 
     var intrinsics: simd_float3x3 {
         var matrix = matrix_identity_float3x3
@@ -168,31 +237,6 @@ struct SyntheticScene {
         matrix[2][0] = 128
         matrix[2][1] = 96
         return matrix
-    }
-
-    private var boundsCenter: SIMD3<Float> {
-        var minimum = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
-        var maximum = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
-        for buffer in model.buffers {
-            for point in buffer.positions {
-                minimum = simd_min(minimum, point)
-                maximum = simd_max(maximum, point)
-            }
-        }
-        return (minimum + maximum) / 2
-    }
-
-    private var viewDistance: Float {
-        var maximum = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
-        var minimum = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
-        for buffer in model.buffers {
-            for point in buffer.positions {
-                minimum = simd_min(minimum, point)
-                maximum = simd_max(maximum, point)
-            }
-        }
-        let radius = simd_length(maximum - minimum) / 2
-        return max(0.35, radius * 3)
     }
 
     private func lookAt(eye: SIMD3<Float>, target: SIMD3<Float>) -> simd_float4x4 {
@@ -224,22 +268,6 @@ struct SyntheticScene {
                 target: center
             ),
         ]
-    }
-
-    private var tableBuffer: LDrawGeometryBuffer {
-        let center = boundsCenter
-        let extent = viewDistance
-        let up = SIMD3<Float>(0, 1, 0)
-        let a = SIMD3<Float>(center.x - extent, 0, center.z - extent)
-        let b = SIMD3<Float>(center.x + extent, 0, center.z - extent)
-        let c = SIMD3<Float>(center.x + extent, 0, center.z + extent)
-        let d = SIMD3<Float>(center.x - extent, 0, center.z + extent)
-        return LDrawGeometryBuffer(
-            colorCode: 0,
-            positions: [a, b, c, a, c, d],
-            normals: Array(repeating: up, count: 6),
-            indices: [0, 1, 2, 3, 4, 5]
-        )
     }
 
     func frame(
@@ -321,7 +349,12 @@ struct SyntheticScene {
             let currentYaw = atan2(-pose.columns.0.z, pose.columns.0.x)
             let targetYaw = atan2(-result.worldFromModel.columns.0.z, result.worldFromModel.columns.0.x)
             let translation = simd_mix(current, target, SIMD3(repeating: smoothing))
-            let yaw = currentYaw + smoothing * (targetYaw - currentYaw)
+            // Shortest-arc yaw delta: normalize to [-π, π] so smoothing
+            // across the ±π branch cut does not swing the long way around.
+            var yawDelta = (targetYaw - currentYaw).truncatingRemainder(dividingBy: 2 * .pi)
+            if yawDelta > .pi { yawDelta -= 2 * .pi }
+            if yawDelta < -.pi { yawDelta += 2 * .pi }
+            let yaw = currentYaw + smoothing * yawDelta
             var blended = matrix_identity_float4x4
             blended.columns.0 = SIMD4(cos(yaw), 0, -sin(yaw), 0)
             blended.columns.2 = SIMD4(sin(yaw), 0, cos(yaw), 0)
@@ -331,13 +364,18 @@ struct SyntheticScene {
         let translation = SIMD3(pose.columns.3.x, pose.columns.3.y, pose.columns.3.z)
         let yaw = atan2(-pose.columns.0.z, pose.columns.0.x) * 180 / Float.pi
         let duration = started.duration(to: .now)
+        // Converged is the solver's own lock signal (DepthICPTracker's lock
+        // thresholds on fit quality), independent of the accuracy numbers
+        // the scorer gates on — a sloppy-but-locked fit must be able to
+        // surface as converged-with-error.
+        let lock = DepthICPTracker.Configuration()
         return RegistrationOutcome(
-            converged: simd_length(translation) <= 0.003 && abs(yaw) <= 2,
+            converged: lastQuality.rmsResidual <= lock.lockRMS
+                && lastQuality.inlierFraction >= lock.lockInlierFraction,
             translationErrorMeters: simd_length(translation),
             yawErrorDegrees: abs(yaw),
             reportedAmbiguous: lastQuality.latticeMargin < 1.3,
-            latencyMilliseconds: Int(duration.components.seconds) * 1_000
-                + Int(duration.components.attoseconds / 1_000_000_000_000_000)
+            latencyMilliseconds: duration.milliseconds
         )
     }
 
@@ -375,26 +413,35 @@ struct SyntheticScene {
 }
 
 enum Row {
-    static func encode(_ object: [String: Any]) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-        return String(data: data, encoding: .utf8)!
+    static func encode(_ object: [String: Any]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        return String(decoding: data, as: UTF8.self)
     }
 
-    static func registration(fixture: String, outcome: RegistrationOutcome) -> String {
-        encode([
+    static func registration(
+        fixture: String,
+        ambiguityExpected: Bool,
+        outcome: RegistrationOutcome
+    ) throws -> String {
+        try encode([
             "kind": "registration",
             "schema_version": 1,
             "fixture_id": fixture,
             "converged": outcome.converged,
             "translation_error_m": Double(outcome.translationErrorMeters),
             "yaw_error_degrees": Double(outcome.yawErrorDegrees),
-            "ambiguity_expected": false,
+            "ambiguity_expected": ambiguityExpected,
             "reported_ambiguous": outcome.reportedAmbiguous,
             "latency_ms": outcome.latencyMilliseconds,
         ])
     }
 
-    static func verification(fixture: String, expected: String, verification: StepVerification) -> String {
+    static func verification(
+        fixture: String,
+        expected: String,
+        verification: StepVerification,
+        latencyMilliseconds: Int
+    ) throws -> String {
         let produced: String
         switch verification.verdict {
         case .complete: produced = "complete"
@@ -402,7 +449,7 @@ enum Row {
         case .misplaced: produced = "misplaced"
         case .uncertain: produced = "uncertain"
         }
-        return encode([
+        return try encode([
             "kind": "verification",
             "schema_version": 1,
             "fixture_id": fixture,
@@ -410,7 +457,7 @@ enum Row {
             "produced_verdict": produced,
             "detectability": verification.detectability.rawValue,
             "frames_used": verification.framesUsed,
-            "latency_ms": 1_000,
+            "latency_ms": latencyMilliseconds,
         ])
     }
 }

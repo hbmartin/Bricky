@@ -7,6 +7,13 @@ public struct EvidenceBundleReader {
         public let directory: URL
         public let file: EvidenceSessionFile
         public let traceRows: [EvidenceTraceRow]
+        /// Geometric candidate fits (ADR 0010). Empty for sessions whose
+        /// recovery never ran a geometric pass, and for sessions recorded
+        /// before `fits.ndjson` existed — the file is optional, but must
+        /// parse when present.
+        public let fitRecords: [GeometricFitRecord]
+        /// Retained LiDAR observations, one per `depth/<capture-id>.json`.
+        public let depthFrames: [EvidenceDepthFrameRecord]
     }
 
     public let bundleDirectory: URL
@@ -44,7 +51,31 @@ public struct EvidenceBundleReader {
                         try decoder.decode(EvidenceTraceRow.self, from: Data($0))
                     }
                 }
-                return Session(directory: directory, file: file, traceRows: rows)
+                var fits: [GeometricFitRecord] = []
+                if let data = try? Data(contentsOf: directory.appendingPathComponent("fits.ndjson")) {
+                    fits = try data.split(separator: UInt8(ascii: "\n")).map {
+                        try decoder.decode(GeometricFitRecord.self, from: Data($0))
+                    }
+                }
+                var depthFrames: [EvidenceDepthFrameRecord] = []
+                let depthDirectory = directory.appendingPathComponent("depth", isDirectory: true)
+                let depthSidecars = (try? FileManager.default.contentsOfDirectory(
+                    at: depthDirectory, includingPropertiesForKeys: nil
+                )) ?? []
+                for url in depthSidecars.filter({ $0.pathExtension == "json" }).sorted(by: {
+                    $0.lastPathComponent < $1.lastPathComponent
+                }) {
+                    depthFrames.append(try decoder.decode(
+                        EvidenceDepthFrameRecord.self, from: Data(contentsOf: url)
+                    ))
+                }
+                return Session(
+                    directory: directory,
+                    file: file,
+                    traceRows: rows,
+                    fitRecords: fits,
+                    depthFrames: depthFrames
+                )
             }
             .sorted { $0.file.createdAt < $1.file.createdAt }
     }
@@ -82,6 +113,44 @@ public struct EvidenceBundleReader {
                 for tile in row.tileRelativePaths.values
                 where !fileManager.fileExists(atPath: session.directory.appendingPathComponent(tile).path) {
                     issues.append("\(name): missing tile \(tile)")
+                }
+            }
+            for record in session.fitRecords {
+                if record.fitVersion != EvidenceSchema.fitVersion {
+                    issues.append("\(name): unsupported fit_version \(record.fitVersion)")
+                }
+                // A pose that cannot be reshaped to 4x4 makes the fit
+                // unreplayable, which is the whole reason the row is kept.
+                if record.worldFromModel.count != 16 {
+                    issues.append(
+                        "\(name): fit \(record.fitID) has \(record.worldFromModel.count) pose values, expected 16"
+                    )
+                }
+            }
+            for frame in session.depthFrames {
+                if frame.depthVersion != EvidenceSchema.depthVersion {
+                    issues.append("\(name): unsupported depth_version \(frame.depthVersion)")
+                }
+                // A truncated plane reshapes into silently wrong geometry, so
+                // size is checked rather than mere existence — the failure this
+                // whole harness exists to stop being invisible.
+                for (path, elementSize) in [
+                    (frame.depthRelativePath, MemoryLayout<Float32>.size),
+                    (frame.confidenceRelativePath, MemoryLayout<UInt8>.size),
+                    (frame.rawDepthRelativePath, MemoryLayout<Float32>.size),
+                    (frame.rawConfidenceRelativePath, MemoryLayout<UInt8>.size),
+                ] {
+                    guard let path else { continue }
+                    let url = session.directory.appendingPathComponent(path)
+                    guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+                          let size = values.fileSize else {
+                        issues.append("\(name): missing depth plane \(path)")
+                        continue
+                    }
+                    let expected = frame.expectedBytes(elementSize: elementSize)
+                    if size != expected {
+                        issues.append("\(name): depth plane \(path) is \(size) bytes, expected \(expected)")
+                    }
                 }
             }
             for capture in session.file.captures {

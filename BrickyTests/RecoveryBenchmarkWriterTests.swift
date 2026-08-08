@@ -8,8 +8,8 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         "schema_version", "fixture_id", "instruction_sha256", "pyldraw3_version",
         "part_pack_version", "expected_step_id", "candidate_slots",
         "board_relative_paths", "camera_metadata", "expected_step_index",
-        "ranked_step_ids", "certainty", "device_model", "operating_system",
-        "latency_ms", "memory_peak_bytes"
+        "ranked_step_ids", "certainty", "estimator_method", "device_model",
+        "operating_system", "latency_ms", "memory_peak_bytes"
     ]
 
     /// Mirrors RELEASE_FIELDS in score_results.py.
@@ -50,7 +50,8 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
                 modelRevision: "test-revision",
                 latencyMilliseconds: 12_000,
                 captureIDs: [capture.id],
-                insufficiencyCause: nil
+                insufficiencyCause: nil,
+                method: .composite
             ),
             analysisError: nil,
             groundTruth: EvidenceGroundTruth(
@@ -84,6 +85,10 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         XCTAssertEqual(row["expected_step_id"] as? String, "main.ldr#8")
         XCTAssertEqual(row["top_step_index"] as? Int, 8)
         XCTAssertEqual(row["certainty"] as? String, "high")
+        // From the estimate, not the session header: the header records only
+        // which VLM was loadable when the session opened.
+        XCTAssertEqual(row["estimator_method"] as? String, "composite")
+        XCTAssertEqual(row["model_revision"] as? String, "test-revision")
         XCTAssertEqual(row["latency_ms"] as? Int, 12_000)
         XCTAssertEqual(
             row["candidate_slots"] as? [String: String],
@@ -112,7 +117,8 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
                 modelRevision: "test-revision",
                 latencyMilliseconds: 9_000,
                 captureIDs: [capture.id],
-                insufficiencyCause: nil
+                insufficiencyCause: nil,
+                method: .geometric
             ),
             analysisError: nil,
             groundTruth: EvidenceGroundTruth(kind: .confirmed, expectedCompletedCount: 0, expectedStepID: "main.ldr#0")

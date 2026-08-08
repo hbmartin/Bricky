@@ -26,7 +26,13 @@ actor GeometricStepVerifier {
         var completeVoteFloor: Float = 0.7
         var completeContraryCeiling: Float = 0.15
         var incompleteVoteFloor: Float = 0.5
-        var misplacedPresenceFloor: Float = 0.5
+        /// Accumulated exclusive-evidence pixels a lattice alternative needs
+        /// before it may block complete or claim misplaced.
+        var minimumLatticeEvidence = 30
+        /// The four alternative renders run every Nth ingested frame; the
+        /// exclusive-evidence votes accumulate across frames, so cadence
+        /// trades verdict latency for per-frame render cost.
+        var latticeFrameStride = 3
         var minimumConfidence: UInt8 = 1
         var studPitch: Float = 0.008
     }
@@ -51,8 +57,8 @@ actor GeometricStepVerifier {
     /// one-stud shift leaves most of a flat top at identical depth; only the
     /// disagreement strips discriminate, so scoring anything else dilutes
     /// the signal into a false "complete".
-    private var alternativeWinsComplete = [Int](repeating: 0, count: 4)
-    private var alternativeWinsShifted = [Int](repeating: 0, count: 4)
+    private var alternativeWinsComplete = [Int](repeating: 0, count: GeometricStepVerifier.latticeOffsets.count)
+    private var alternativeWinsShifted = [Int](repeating: 0, count: GeometricStepVerifier.latticeOffsets.count)
     private var lastDetectability: DeltaDetectability = .undetectable
     private var lastDeltaPixels = 0
 
@@ -78,8 +84,8 @@ actor GeometricStepVerifier {
         completeVotes = 0
         incompleteVotes = 0
         classifiedVotes = 0
-        alternativeWinsComplete = [Int](repeating: 0, count: 4)
-        alternativeWinsShifted = [Int](repeating: 0, count: 4)
+        alternativeWinsComplete = [Int](repeating: 0, count: Self.latticeOffsets.count)
+        alternativeWinsShifted = [Int](repeating: 0, count: Self.latticeOffsets.count)
         lastDetectability = .undetectable
         lastDeltaPixels = 0
     }
@@ -125,6 +131,19 @@ actor GeometricStepVerifier {
             height: frame.height
         )
 
+        // Farthest delta surface: where nothing completed sits behind the
+        // brick, the honest expected depth change is the ray span through
+        // the delta itself, not a fixed optimistic constant that would
+        // inflate thin overhanging deltas to strong detectability.
+        let deltaBackMap = try renderer.render(
+            snapshot: deltaSnapshot,
+            viewFromModel: viewFromModel,
+            intrinsics: frame.depthIntrinsics,
+            width: frame.width,
+            height: frame.height,
+            surface: .farthest
+        )
+
         // Visible footprint: pixels where the delta is the nearest expected
         // surface (in front of any completed geometry behind it).
         var region: [Int] = []
@@ -133,7 +152,8 @@ actor GeometricStepVerifier {
             let behind = completedMap.depth[index]
             if behind <= 0 || deltaMap.depth[index] < behind - 0.0015 {
                 region.append(index)
-                depthChanges.append(behind > 0 ? behind - deltaMap.depth[index] : 0.05)
+                let span = max(deltaBackMap.depth[index] - deltaMap.depth[index], 0)
+                depthChanges.append(behind > 0 ? behind - deltaMap.depth[index] : span)
             }
         }
         lastDeltaPixels = region.count
@@ -184,7 +204,11 @@ actor GeometricStepVerifier {
         // placement evidence — otherwise a fully missing brick reads as
         // "misplaced" because each strip favors whichever hypothesis
         // predicts no brick there.
-        for (slot, offset) in Self.latticeOffsets.enumerated() {
+        // The four alternative renders are the expensive half of ingest; run
+        // them on a cadence — the exclusive-evidence votes accumulate across
+        // frames either way.
+        let runLatticePass = framesUsed.isMultiple(of: max(1, configuration.latticeFrameStride))
+        for (slot, offset) in Self.latticeOffsets.enumerated() where runLatticePass {
             var shift = matrix_identity_float4x4
             shift.columns.3 = SIMD4(
                 Float(offset.x) * configuration.studPitch,
@@ -247,10 +271,10 @@ actor GeometricStepVerifier {
         var completeBlocked = false
         var bestMisplacedSlot: Int?
         var bestMisplacedScore: Float = 0
-        for slot in 0..<4 {
+        for slot in Self.latticeOffsets.indices {
             let winsComplete = Float(alternativeWinsComplete[slot])
             let winsShifted = Float(alternativeWinsShifted[slot])
-            guard winsComplete + winsShifted >= Float(configuration.minimumDeltaPixels) else { continue }
+            guard winsComplete + winsShifted >= Float(configuration.minimumLatticeEvidence) else { continue }
             if winsComplete < 2 * winsShifted {
                 completeBlocked = true
             }
@@ -260,6 +284,11 @@ actor GeometricStepVerifier {
             }
         }
         if let bestMisplacedSlot {
+            // Misplaced is a strong claim: under marginal detectability the
+            // disagreement strips sit within noise of the tolerance.
+            guard lastDetectability == .strong else {
+                return .uncertain(.insufficientEvidence)
+            }
             return .misplaced(offsetStuds: Self.latticeOffsets[bestMisplacedSlot])
         }
 

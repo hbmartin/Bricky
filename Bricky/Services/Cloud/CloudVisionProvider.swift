@@ -28,7 +28,10 @@ struct ClaudeVisionProvider: CloudVisionProvider {
     func secondOpinion(boardJPEG: Data, context: CloudAssistContext) async throws -> CloudAssistOpinion {
         guard let apiKey = CloudAssistKeyStore.load() else { throw CloudAssistError.missingKey }
         let request = try Self.makeRequest(apiKey: apiKey, boardJPEG: boardJPEG, context: context)
-        let (data, _) = try await transport(request)
+        let (data, response) = try await transport(request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw Self.apiError(statusCode: http.statusCode, responseBody: data)
+        }
         return try Self.parse(responseBody: data)
     }
 
@@ -113,6 +116,17 @@ struct ClaudeVisionProvider: CloudVisionProvider {
     private struct StructuredVerdict: Decodable {
         let result: String
         let rationale: String
+    }
+
+    /// Non-2xx bodies are usually the API's error envelope, but intermediaries
+    /// (proxies, rate limiters) can return anything; fall back to the status
+    /// code so those failures are not misreported as undecodable messages.
+    static func apiError(statusCode: Int, responseBody: Data) -> CloudAssistError {
+        if let message = try? JSONDecoder().decode(MessageResponse.self, from: responseBody),
+           message.type == "error", let detail = message.error?.message {
+            return .api(detail)
+        }
+        return .api("The cloud request failed (HTTP \(statusCode)).")
     }
 
     static func parse(responseBody: Data) throws -> CloudAssistOpinion {

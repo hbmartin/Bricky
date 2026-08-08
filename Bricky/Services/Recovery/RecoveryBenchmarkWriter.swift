@@ -52,6 +52,14 @@ extension RecoveryEvidenceRecorder {
                 expectedStepIndex: inputs.expectedCompletedCount,
                 rankedStepIDs: estimate.rankedStepIDs,
                 certainty: RecoveryCertainty(rawValue: estimate.certainty) ?? .insufficient,
+                // From the estimate, never the session header: the header's
+                // `modelRevision` records which VLM was loadable when the
+                // session opened, which is true even of a recovery the
+                // geometric path answered without loading any weights.
+                // Sessions written before the summary carried a method fall
+                // back to `.vlm`, matching what those rows actually were.
+                estimatorMethod: estimate.method ?? .vlm,
+                modelRevision: estimate.modelRevision ?? session.modelRevision,
                 deviceModel: session.deviceModel,
                 operatingSystem: session.operatingSystem,
                 latencyMilliseconds: estimate.latencyMilliseconds,

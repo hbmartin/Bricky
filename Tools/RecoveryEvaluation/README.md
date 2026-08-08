@@ -7,10 +7,23 @@ scoring is unnecessary for known authored-step labels.
 `score_results.py` accepts mixed NDJSON keyed by an optional `kind` per row:
 
 - `recovery` (default, `RecoveryBenchmarkV1`): top-1/top-3 accuracy, adjacent
-  step confusion, insufficient rate, latency (geometric rows — identified by
-  a `model_revision` starting with `depth-icp-geometric` — gate at 8 s median,
-  composite at 20 s), and peak memory. The physical release corpus requires
-  ≥ 40 distinct fixtures across ≥ 6 legally usable models.
+  step confusion, insufficient rate, latency, and peak memory. Latency is
+  bucketed by the required `estimator_method` field (ADR 0010) and each
+  bucket is judged against its own budget:
+
+  | `estimator_method` | meaning | median gate |
+  | --- | --- | --- |
+  | `geometric` | the geometric pass concluded; no weights loaded | 8 s |
+  | `composite` | geometric ran, stepped aside, VLM concluded | 20 s |
+  | `vlm` | no depth observation, so the VLM ran alone | 20 s |
+
+  A `composite` row's latency covers **both** legs — the composite estimator
+  owns the wall clock, because each underlying estimator times only itself.
+  `model_revision` is informational (which weights or solver produced the
+  ranking) and is never parsed to infer the method.
+
+  The physical release corpus requires ≥ 40 distinct fixtures across ≥ 6
+  legally usable models.
 - `verification`: step-verifier verdicts against expected labels. The
   headline gate is the false-complete rate (≤ 2 %, printed first per
   ADR 0008), plus per-detectability precision/recall, undetectable
@@ -18,6 +31,11 @@ scoring is unnecessary for known authored-step labels.
 - `registration`: tracker fits against ground truth — convergence ≥ 95 % on
   unambiguous fixtures, ≤ 3 mm / ≤ 2° RMSE, ambiguity recall ≥ 90 % on
   deliberately symmetric fixtures (which never count against convergence).
+
+Every kind present enforces the release corpus minimum unless
+`--allow-small-corpus` is passed: at least 40 rows per kind (`recovery`
+counts distinct fixture IDs and additionally requires at least 6 legally
+usable authored models).
 
 `make_board.py` reproduces the app's bounded 1024×1024 single-image layout for
 offline fixtures. Candidate order is the A–H slot map stored in
@@ -93,16 +111,17 @@ uv run python score_results.py device-results.ndjson
 
 `fixtures/example-device-results.ndjson` is schema/scorer smoke data only. It is
 not physical evidence and must never be included in release-gate metrics. The
-scorer refuses corpora smaller than 150 rows; for smoke data such as the example
-fixture, pass `--allow-small-corpus`:
+scorer refuses corpora below the release minimum (40 rows per kind — distinct
+fixtures for recovery, which also needs 6 authored models); for smoke data such
+as the example fixture, pass `--allow-small-corpus`:
 
 ```sh
 uv run python score_results.py fixtures/example-device-results.ndjson --allow-small-corpus
 ```
 
-The release corpus must contain at least 150 physical cases from at least 10
-legally usable authored models, with adjacent steps, varied lighting, angles,
-and occlusion represented explicitly. Release-gate runs must never use
+The release corpus must contain at least 40 distinct physical fixtures from at
+least 6 legally usable authored models, with adjacent steps, varied lighting,
+angles, and occlusion represented explicitly. Release-gate runs must never use
 `--allow-small-corpus`.
 
 Every release row therefore also includes `physical_case: true`, a stable
@@ -110,5 +129,5 @@ Every release row therefore also includes `physical_case: true`, a stable
 `lighting_condition`, `capture_angle`, and `occlusion_condition` labels. Each
 row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
 the scorer requires at least two distinct labels for each variation dimension
-and at least 10 distinct authored model IDs. `top_step_index` may be omitted or
+and at least 6 distinct authored model IDs. `top_step_index` may be omitted or
 null only when `certainty` is `insufficient`.

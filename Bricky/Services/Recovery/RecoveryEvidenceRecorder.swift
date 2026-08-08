@@ -140,6 +140,90 @@ actor RecoveryEvidenceRecorder {
         }
     }
 
+    /// Copies the depth observation a geometric recovery fit against.
+    ///
+    /// The only bundle input that cannot be reconstructed from anything else,
+    /// so a corpus collected without it could never support a geometric A/B
+    /// without re-capturing every physical fixture. Roughly 0.5 MB per
+    /// session against a 2 GB cap.
+    func recordDepthFrame(_ frame: RegistrationFrameInput, captureID: UUID) {
+        perform("record depth frame") {
+            try ensureStarted()
+            let stem = "depth/\(captureID.uuidString)"
+            try write(frame.depth, to: "\(stem).depth")
+            try write(frame.confidence, to: "\(stem).confidence")
+            var rawDepthPath: String?
+            var rawConfidencePath: String?
+            if let rawDepth = frame.rawDepth, let rawConfidence = frame.rawConfidence {
+                rawDepthPath = "\(stem).raw-depth"
+                rawConfidencePath = "\(stem).raw-confidence"
+                try write(rawDepth, to: rawDepthPath!)
+                try write(rawConfidence, to: rawConfidencePath!)
+            }
+            let record = EvidenceDepthFrameRecord(
+                depthVersion: EvidenceSchema.depthVersion,
+                captureID: captureID,
+                width: frame.width,
+                height: frame.height,
+                depthIntrinsics: (0..<3).flatMap { column in
+                    (0..<3).map { row in frame.depthIntrinsics[column][row] }
+                },
+                worldFromCamera: (0..<4).flatMap { row in
+                    (0..<4).map { column in frame.worldFromCamera[column][row] }
+                },
+                timestamp: frame.timestamp,
+                depthRelativePath: "\(stem).depth",
+                confidenceRelativePath: "\(stem).confidence",
+                rawDepthRelativePath: rawDepthPath,
+                rawConfidenceRelativePath: rawConfidencePath
+            )
+            try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
+                .write(to: sessionDirectory.appendingPathComponent("\(stem).json"), options: .atomic)
+        }
+    }
+
+    /// Depth sidecars written so far, decoded back from `depth/*.json`.
+    func loadDepthFrames() -> [EvidenceDepthFrameRecord] {
+        let directory = sessionDirectory.appendingPathComponent("depth", isDirectory: true)
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil
+        ) else { return [] }
+        let decoder = EvidenceSchema.decoder()
+        return contents
+            .filter { $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return try? decoder.decode(EvidenceDepthFrameRecord.self, from: data)
+            }
+    }
+
+    /// Appends one geometric recovery attempt's candidate fits (ADR 0010).
+    /// Written to `fits.ndjson`, not `traces.ndjson`: a fit is not an
+    /// inference call, and an Evidence Trace means exactly one of those.
+    func recordFits(_ records: [GeometricFitRecord]) {
+        guard !records.isEmpty else { return }
+        perform("record geometric fits") {
+            try ensureStarted()
+            let encoder = EvidenceSchema.encoder()
+            var payload = Data()
+            for record in records {
+                payload.append(try encoder.encode(record))
+                payload.append(UInt8(ascii: "\n"))
+            }
+            try append(payload, to: "fits.ndjson")
+        }
+    }
+
+    /// Fit rows written so far, decoded back from `fits.ndjson`.
+    func loadFitRecords() -> [GeometricFitRecord] {
+        let fits = sessionDirectory.appendingPathComponent("fits.ndjson")
+        guard let data = try? Data(contentsOf: fits) else { return [] }
+        let decoder = EvidenceSchema.decoder()
+        return data.split(separator: UInt8(ascii: "\n"))
+            .compactMap { try? decoder.decode(GeometricFitRecord.self, from: Data($0)) }
+    }
+
     func finalize(estimate: RecoveryEstimate?, analysisError: String?, groundTruth: EvidenceGroundTruth) {
         perform("finalize session") {
             try ensureStarted()
@@ -174,7 +258,7 @@ actor RecoveryEvidenceRecorder {
     private func ensureStarted() throws {
         guard !started else { return }
         try Self.purgeIfNeeded(root: root, logger: logger)
-        for subdirectory in ["captures", "boards", "tiles"] {
+        for subdirectory in ["captures", "boards", "tiles", "depth"] {
             try FileManager.default.createDirectory(
                 at: sessionDirectory.appendingPathComponent(subdirectory, isDirectory: true),
                 withIntermediateDirectories: true
@@ -192,15 +276,32 @@ actor RecoveryEvidenceRecorder {
     private func appendTraceRow(_ row: EvidenceTraceRow) throws {
         var line = try EvidenceSchema.encoder().encode(row)
         line.append(UInt8(ascii: "\n"))
-        let url = sessionDirectory.appendingPathComponent("traces.ndjson")
+        try append(line, to: "traces.ndjson")
+    }
+
+    /// Writes a numeric plane as raw little-endian binary, row-major, so any
+    /// reader can reshape it without a decoder.
+    private func write<Element>(_ values: [Element], to relativePath: String) throws {
+        try values.withUnsafeBufferPointer { buffer in
+            try Data(buffer: buffer).write(
+                to: sessionDirectory.appendingPathComponent(relativePath),
+                options: .atomic
+            )
+        }
+    }
+
+    /// Appends already-encoded NDJSON bytes to a session file, creating it on
+    /// first write.
+    private func append(_ payload: Data, to filename: String) throws {
+        let url = sessionDirectory.appendingPathComponent(filename)
         if !FileManager.default.fileExists(atPath: url.path) {
-            try line.write(to: url, options: .atomic)
+            try payload.write(to: url, options: .atomic)
             return
         }
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         try handle.seekToEnd()
-        try handle.write(contentsOf: line)
+        try handle.write(contentsOf: payload)
     }
 
     /// Oldest-first purge keeping the store under the session and byte caps.

@@ -31,10 +31,12 @@ final class ModelSurfaceSamplerTests: XCTestCase {
         XCTAssertEqual(sample.stepIndex, 3)
         XCTAssertTrue(sample.normals.allSatisfy { $0 == SIMD3<Float>(0, 1, 0) })
         XCTAssertTrue(sample.colorCodes.allSatisfy { $0 == 4 })
+        // Barycentric arithmetic can land a hair outside the quad in Float.
+        let epsilon: Float = 1e-5
         for point in sample.points {
             XCTAssertEqual(point.y, 0)
-            XCTAssertTrue((0...0.1).contains(point.x))
-            XCTAssertTrue((0...0.1).contains(point.z))
+            XCTAssertTrue((-epsilon...0.1 + epsilon).contains(point.x))
+            XCTAssertTrue((-epsilon...0.1 + epsilon).contains(point.z))
         }
     }
 
@@ -49,6 +51,9 @@ final class ModelSurfaceSamplerTests: XCTestCase {
     func testCapAppliesStratifiedThinning() {
         let sample = ModelSurfaceSampler.sample(quadSnapshot(), stepIndex: 0, maxPoints: 100)
         XCTAssertEqual(sample.points.count, 100)
+        // The parallel arrays must stay aligned through thinning.
+        XCTAssertEqual(sample.normals.count, 100)
+        XCTAssertEqual(sample.colorCodes.count, 100)
         // Thinning must preserve spread: both halves of the quad stay covered.
         XCTAssertTrue(sample.points.contains { $0.x < 0.05 })
         XCTAssertTrue(sample.points.contains { $0.x > 0.05 })

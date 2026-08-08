@@ -10,6 +10,8 @@ public enum EvidenceSchema {
     public static let traceVersion = 1
     public static let sessionVersion = 1
     public static let bundleVersion = 1
+    public static let fitVersion = 1
+    public static let depthVersion = 1
 
     public static func encoder(prettyPrinted: Bool = false) -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -26,12 +28,192 @@ public enum EvidenceSchema {
 }
 
 /// Which stage of the hierarchical estimate an inference call served.
+///
+/// VLM passes only. A geometric candidate fit is not an inference call and is
+/// recorded as a `GeometricFitRecord`, so that "Evidence Trace" keeps meaning
+/// exactly one thing.
 public enum RecoveryPassKind: String, Codable, Sendable {
     case broad
     case narrowing
     case narrow
     case finalist
     case check
+}
+
+/// Why a candidate fit was ruled out before its score could count.
+///
+/// The geometric estimator clamps a disqualified candidate's score to a
+/// sentinel, which makes "left the build plane" indistinguishable from
+/// "genuinely scored badly". Recording the reason separately keeps the
+/// distinction that the score alone destroys.
+public enum FitDisqualification: String, Codable, Sendable {
+    case none
+    /// The fit sank or climbed off the build plane — on an empty table,
+    /// 4-DoF ICP will happily drop a candidate's top face onto the tabletop.
+    case verticalDeviation = "vertical_deviation"
+    /// The fit slid further horizontally than a user's coarse placement can
+    /// explain, so it matched some other surface.
+    case horizontalDeviation = "horizontal_deviation"
+}
+
+/// Sidecar describing one retained LiDAR depth observation, written beside its
+/// binary planes as `depth/<capture-id>.json`.
+///
+/// The depth frame is the only input to a geometric recovery that cannot be
+/// reconstructed from anything else in a bundle: captures are JPEGs of the same
+/// scene but at the wrong resolution and without metric depth, and the fit
+/// records are outputs, not inputs. A corpus collected without it could never
+/// support a geometric A/B without re-capturing every physical fixture — the
+/// re-collection the bundle format exists to prevent.
+///
+/// Planes are raw little-endian binary, row-major, `width * height` elements,
+/// so any reader can reshape them without a decoder:
+///
+///     numpy.fromfile(path, dtype=numpy.float32).reshape(height, width)
+public struct EvidenceDepthFrameRecord: Codable, Sendable {
+    public let depthVersion: Int
+    public let captureID: UUID
+    public let width: Int
+    public let height: Int
+    /// Column-major 3x3, already scaled to the depth grid, so projecting a
+    /// world point yields depth pixels directly.
+    public let depthIntrinsics: [Float]
+    /// Row-major 4x4.
+    public let worldFromCamera: [Float]
+    public let timestamp: TimeInterval
+    /// `float32` — ARKit's smoothed scene depth, the ICP tracking input.
+    public let depthRelativePath: String
+    /// `uint8` — `ARConfidenceLevel` raw values.
+    public let confidenceRelativePath: String
+    /// `float32` — unsmoothed depth, the verifier's per-frame evidence.
+    /// Absent when the session provided no distinct raw buffer.
+    public let rawDepthRelativePath: String?
+    public let rawConfidenceRelativePath: String?
+
+    public init(
+        depthVersion: Int, captureID: UUID, width: Int, height: Int,
+        depthIntrinsics: [Float], worldFromCamera: [Float], timestamp: TimeInterval,
+        depthRelativePath: String, confidenceRelativePath: String,
+        rawDepthRelativePath: String?, rawConfidenceRelativePath: String?
+    ) {
+        self.depthVersion = depthVersion
+        self.captureID = captureID
+        self.width = width
+        self.height = height
+        self.depthIntrinsics = depthIntrinsics
+        self.worldFromCamera = worldFromCamera
+        self.timestamp = timestamp
+        self.depthRelativePath = depthRelativePath
+        self.confidenceRelativePath = confidenceRelativePath
+        self.rawDepthRelativePath = rawDepthRelativePath
+        self.rawConfidenceRelativePath = rawConfidenceRelativePath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case depthVersion = "depth_version"
+        case captureID = "capture_id"
+        case width
+        case height
+        case depthIntrinsics = "depth_intrinsics"
+        case worldFromCamera = "world_from_camera"
+        case timestamp
+        case depthRelativePath = "depth_relative_path"
+        case confidenceRelativePath = "confidence_relative_path"
+        case rawDepthRelativePath = "raw_depth_relative_path"
+        case rawConfidenceRelativePath = "raw_confidence_relative_path"
+    }
+
+    /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes
+    /// into silently wrong geometry, so the reader checks this rather than
+    /// trusting the file exists.
+    public func expectedBytes(elementSize: Int) -> Int {
+        width * height * elementSize
+    }
+}
+
+/// One scored candidate from a geometric recovery attempt (ADR 0010). Rows are
+/// appended to a session's `fits.ndjson`.
+///
+/// Geometric recovery became the primary path but left no evidence, so a
+/// bundle could only ever explain the VLM fallback. These rows answer the
+/// geometric analogue of the estimator questions the trace rows answer: which
+/// candidates were considered, what each scored, and — when the truth lost —
+/// which term beat it.
+public struct GeometricFitRecord: Codable, Sendable {
+    public let fitVersion: Int
+    public let fitID: UUID
+    public let sessionID: UUID
+    /// Which coarse-to-fine refinement pass scored this candidate.
+    public let passIndex: Int
+    /// Position in `plan.steps`; -1 is step zero. See the step-numbering
+    /// section of EVIDENCE_BUNDLE_FORMAT.md.
+    public let candidateIndex: Int
+    public let stepID: String
+    /// Two-sided coverage score. Comparable only within one attempt.
+    public let score: Float
+    public let inlierFraction: Float
+    public let visibleFraction: Float
+    /// Observed depth in front of the candidate surface: structure the
+    /// candidate cannot explain.
+    public let unexplainedFraction: Float
+    /// Candidate surface with nothing observed at it: geometry the candidate
+    /// predicts that is not there.
+    public let phantomFraction: Float
+    public let rmsResidual: Float
+    public let latticeMargin: Float
+    /// Row-major 4x4 solved pose, model to world.
+    public let worldFromModel: [Float]
+    public let disqualification: FitDisqualification
+    /// True on the candidate the attempt concluded with; all false when the
+    /// attempt was inconclusive and fell through to the VLM.
+    public let conclusive: Bool
+    public let createdAt: Date
+
+    public init(
+        fitVersion: Int, fitID: UUID, sessionID: UUID, passIndex: Int, candidateIndex: Int,
+        stepID: String, score: Float, inlierFraction: Float, visibleFraction: Float,
+        unexplainedFraction: Float, phantomFraction: Float, rmsResidual: Float,
+        latticeMargin: Float, worldFromModel: [Float], disqualification: FitDisqualification,
+        conclusive: Bool, createdAt: Date
+    ) {
+        self.fitVersion = fitVersion
+        self.fitID = fitID
+        self.sessionID = sessionID
+        self.passIndex = passIndex
+        self.candidateIndex = candidateIndex
+        self.stepID = stepID
+        self.score = score
+        self.inlierFraction = inlierFraction
+        self.visibleFraction = visibleFraction
+        self.unexplainedFraction = unexplainedFraction
+        self.phantomFraction = phantomFraction
+        self.rmsResidual = rmsResidual
+        self.latticeMargin = latticeMargin
+        self.worldFromModel = worldFromModel
+        self.disqualification = disqualification
+        self.conclusive = conclusive
+        self.createdAt = createdAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case fitVersion = "fit_version"
+        case fitID = "fit_id"
+        case sessionID = "session_id"
+        case passIndex = "pass_index"
+        case candidateIndex = "candidate_index"
+        case stepID = "step_id"
+        case score
+        case inlierFraction = "inlier_fraction"
+        case visibleFraction = "visible_fraction"
+        case unexplainedFraction = "unexplained_fraction"
+        case phantomFraction = "phantom_fraction"
+        case rmsResidual = "rms_residual"
+        case latticeMargin = "lattice_margin"
+        case worldFromModel = "world_from_model"
+        case disqualification
+        case conclusive
+        case createdAt = "created_at"
+    }
 }
 
 /// Advisory certainty of a recovery estimate, shared by the app's domain and
@@ -41,6 +223,26 @@ public enum RecoveryCertainty: String, Codable, Hashable, Sendable {
     case medium
     case low
     case insufficient
+}
+
+/// Which pipeline produced a recovery estimate (ADR 0010). Lives here, beside
+/// `RecoveryBenchmarkV1`, so the scorer contract has exactly one Swift
+/// definition — the same reason `RecoveryCertainty` moved out of the app
+/// domain.
+///
+/// The three cases are distinguished because they are budgeted differently:
+/// a geometric conclusion pays only for the fit, whereas a fallback pays for
+/// the fit *and* the inference it did not avoid. Collapsing the last two would
+/// make the composite latency gate unmeasurable.
+public enum RecoveryMethod: String, Codable, Hashable, Sendable {
+    /// The geometric pass concluded; no VLM weights were loaded.
+    case geometric
+    /// The geometric pass ran, stepped aside, and the VLM estimator concluded.
+    /// Latency covers both legs.
+    case composite
+    /// No geometric pass was possible (no depth observation), so the VLM
+    /// estimator ran alone.
+    case vlm
 }
 
 /// One inference call's full record. Rows are appended to a session's
@@ -252,13 +454,24 @@ public struct EvidenceSessionFile: Codable, Sendable {
         public let certainty: String
         public let insufficiencyCause: String?
         public let latencyMilliseconds: Int
+        /// Which pipeline produced this estimate. Optional so sessions written
+        /// before the field existed still decode; the session header's
+        /// `model_revision` records only which VLM was loadable and must never
+        /// be read as the method.
+        public let method: RecoveryMethod?
+        /// Revision of whatever produced the estimate — the pinned VLM for
+        /// `.vlm`/`.composite`, the solver revision for `.geometric`.
+        public let modelRevision: String?
 
         public init(rankedStepIDs: [String], certainty: String, insufficiencyCause: String?,
-                    latencyMilliseconds: Int) {
+                    latencyMilliseconds: Int, method: RecoveryMethod? = nil,
+                    modelRevision: String? = nil) {
             self.rankedStepIDs = rankedStepIDs
             self.certainty = certainty
             self.insufficiencyCause = insufficiencyCause
             self.latencyMilliseconds = latencyMilliseconds
+            self.method = method
+            self.modelRevision = modelRevision
         }
 
         enum CodingKeys: String, CodingKey {
@@ -266,6 +479,8 @@ public struct EvidenceSessionFile: Codable, Sendable {
             case certainty
             case insufficiencyCause = "insufficiency_cause"
             case latencyMilliseconds = "latency_ms"
+            case method
+            case modelRevision = "model_revision"
         }
     }
 
@@ -382,8 +597,17 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     public let expectedStepIndex: Int
     public let rankedStepIDs: [String]
     public let certainty: RecoveryCertainty
+    /// Which pipeline produced the estimate. Required: the scorer buckets
+    /// latency on it, and a row that cannot say how it was produced cannot be
+    /// scored against the right gate.
+    public let estimatorMethod: RecoveryMethod
+    /// Weights or solver revision. Informational only — never parsed to infer
+    /// the method (that mistake made the geometric bucket unreachable).
+    public let modelRevision: String?
     public let deviceModel: String
     public let operatingSystem: String
+    /// Wall clock for the whole recovery, including a geometric leg that
+    /// stepped aside. See `estimatorMethod`.
     public let latencyMilliseconds: Int
     public let memoryPeakBytes: Int64
     public let topStepIndex: Int?
@@ -398,7 +622,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
         partPackVersion: String, expectedStepID: String, candidateSlots: [String: String],
         boardRelativePaths: [String], cameraMetadata: [[String: Float]], expectedStepIndex: Int,
-        rankedStepIDs: [String], certainty: RecoveryCertainty, deviceModel: String,
+        rankedStepIDs: [String], certainty: RecoveryCertainty,
+        estimatorMethod: RecoveryMethod, modelRevision: String?, deviceModel: String,
         operatingSystem: String, latencyMilliseconds: Int, memoryPeakBytes: Int64,
         topStepIndex: Int?, physicalCase: Bool?, authoredModelID: String?,
         legalUseConfirmed: Bool?, lightingCondition: String?, captureAngle: String?,
@@ -416,6 +641,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.expectedStepIndex = expectedStepIndex
         self.rankedStepIDs = rankedStepIDs
         self.certainty = certainty
+        self.estimatorMethod = estimatorMethod
+        self.modelRevision = modelRevision
         self.deviceModel = deviceModel
         self.operatingSystem = operatingSystem
         self.latencyMilliseconds = latencyMilliseconds
@@ -442,6 +669,8 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case expectedStepIndex = "expected_step_index"
         case rankedStepIDs = "ranked_step_ids"
         case certainty
+        case estimatorMethod = "estimator_method"
+        case modelRevision = "model_revision"
         case deviceModel = "device_model"
         case operatingSystem = "operating_system"
         case latencyMilliseconds = "latency_ms"
