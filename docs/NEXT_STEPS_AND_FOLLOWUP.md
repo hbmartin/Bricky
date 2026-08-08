@@ -140,8 +140,12 @@ ceiling. Prerequisites before any training run:
 2. ≥150 *labeled* cases (staged + confirmed) in the store, exported.
 3. A stable eval baseline from the release-corpus scorer to measure lift.
 
-Then: Apple Foundation Models custom adapters are discontinued in OS 27, so
-the path is **mlx-vlm (Python) LoRA** on the pinned Qwen3-VL revision. The
+Then: Apple's Foundation Models adapter *training toolkit* ended at 26.0.0 —
+its final release — and adapters it produces are incompatible with the OS 27+
+base models (runtime custom-adapter loading and its entitlement remain
+documented; it is the toolkit that cannot target the current base model). With
+no supported way to train an adapter for OS 27, the path is **mlx-vlm
+(Python) LoRA** on the pinned Qwen3-VL revision. The
 bundle format was designed for this: per-candidate tile renders, exact
 boards, prompts, and grammar schemas are all present, so training pairs
 (board image + prompt → correct slot ranking) can be generated from bundles

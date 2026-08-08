@@ -76,6 +76,35 @@ final class ExpectedDepthRendererTests: XCTestCase {
         XCTAssertEqual(map.depthAt(x: 128 + 25, y: 96), 0.3, accuracy: 0.002)
     }
 
+    func testSurfaceSelectionKeepsNearestOrFarthestOfOverlappingQuads() throws {
+        // GeometricStepVerifier renders the delta with `.farthest` (the back
+        // surface bounds the ray span); a regression that ignored the surface
+        // parameter would silently judge absence against the wrong depth.
+        let renderer = try makeRenderer()
+        let snapshot = InstructionGeometrySnapshot(
+            buffers: facingQuad(distance: 0.5, colorCode: 1) + facingQuad(distance: 0.3, colorCode: 4),
+            bounds: nil
+        )
+        let nearest = try renderer.render(
+            snapshot: snapshot,
+            viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics,
+            width: width,
+            height: height,
+            surface: .nearest
+        )
+        let farthest = try renderer.render(
+            snapshot: snapshot,
+            viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics,
+            width: width,
+            height: height,
+            surface: .farthest
+        )
+        XCTAssertEqual(nearest.depthAt(x: 128, y: 96), 0.3, accuracy: 0.002)
+        XCTAssertEqual(farthest.depthAt(x: 128, y: 96), 0.5, accuracy: 0.002)
+    }
+
     func testViewFromModelTransformApplies() throws {
         let renderer = try makeRenderer()
         // Model authored at the origin; the transform pushes it 0.4 m ahead.

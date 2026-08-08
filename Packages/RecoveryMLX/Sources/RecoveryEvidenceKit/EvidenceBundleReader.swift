@@ -119,6 +119,13 @@ public struct EvidenceBundleReader {
                 if record.fitVersion != EvidenceSchema.fitVersion {
                     issues.append("\(name): unsupported fit_version \(record.fitVersion)")
                 }
+                // A fit that names some other session would replay against the
+                // wrong captures; ownership is part of the contract.
+                if record.sessionID != session.file.sessionID {
+                    issues.append(
+                        "\(name): fit \(record.fitID) belongs to session \(record.sessionID), not this one"
+                    )
+                }
                 // A pose that cannot be reshaped to 4x4 makes the fit
                 // unreplayable, which is the whole reason the row is kept.
                 if record.worldFromModel.count != 16 {
@@ -127,9 +134,36 @@ public struct EvidenceBundleReader {
                     )
                 }
             }
+            let captureIDs = Set(session.file.captures.map(\.captureID))
             for frame in session.depthFrames {
                 if frame.depthVersion != EvidenceSchema.depthVersion {
                     issues.append("\(name): unsupported depth_version \(frame.depthVersion)")
+                }
+                // A depth frame is only usable through the capture it observed;
+                // one referencing no capture in this session is orphaned data.
+                if !captureIDs.contains(frame.captureID) {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) references no capture in this session"
+                    )
+                }
+                if frame.depthIntrinsics.count != 9 {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) has \(frame.depthIntrinsics.count) intrinsics values, expected 9"
+                    )
+                }
+                if frame.worldFromCamera.count != 16 {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) has \(frame.worldFromCamera.count) pose values, expected 16"
+                    )
+                }
+                // Dimensions are judged before plane sizes: a zero, negative,
+                // or overflowing width x height makes every byte count
+                // meaningless (and 0 x N would let an empty plane pass).
+                guard frame.width > 0, frame.height > 0 else {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) has non-positive dimensions \(frame.width)x\(frame.height)"
+                    )
+                    continue
                 }
                 // A truncated plane reshapes into silently wrong geometry, so
                 // size is checked rather than mere existence — the failure this
@@ -147,7 +181,12 @@ public struct EvidenceBundleReader {
                         issues.append("\(name): missing depth plane \(path)")
                         continue
                     }
-                    let expected = frame.expectedBytes(elementSize: elementSize)
+                    guard let expected = frame.expectedBytes(elementSize: elementSize) else {
+                        issues.append(
+                            "\(name): depth frame \(frame.captureID) dimensions \(frame.width)x\(frame.height) overflow"
+                        )
+                        continue
+                    }
                     if size != expected {
                         issues.append("\(name): depth plane \(path) is \(size) bytes, expected \(expected)")
                     }

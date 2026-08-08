@@ -133,6 +133,8 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: sessionDirectory.appendingPathComponent("fits.ndjson").path)
         )
+        // Not just fits.ndjson: no session.json or any other evidence either.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionDirectory.path))
     }
 
     func testDepthFramePlanesRoundTripByteForByte() async throws {

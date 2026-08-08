@@ -125,9 +125,16 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
 
     /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes
     /// into silently wrong geometry, so the reader checks this rather than
-    /// trusting the file exists.
-    public func expectedBytes(elementSize: Int) -> Int {
-        width * height * elementSize
+    /// trusting the file exists. `nil` when the declared dimensions are
+    /// non-positive or the product overflows — hostile metadata must surface
+    /// as a validation issue, not a crash.
+    public func expectedBytes(elementSize: Int) -> Int? {
+        guard width > 0, height > 0, elementSize > 0 else { return nil }
+        let (pixels, pixelsOverflow) = width.multipliedReportingOverflow(by: height)
+        guard !pixelsOverflow else { return nil }
+        let (bytes, bytesOverflow) = pixels.multipliedReportingOverflow(by: elementSize)
+        guard !bytesOverflow else { return nil }
+        return bytes
     }
 }
 

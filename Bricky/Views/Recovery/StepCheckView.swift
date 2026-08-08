@@ -25,6 +25,7 @@ struct StepCheckView: View {
     @State private var boardJPEG: Data?
     @State private var cloudOpinion: CloudAssistOpinion?
     @State private var cloudTask: Task<Void, Never>?
+    @State private var cloudGeneration = UUID()
     @State private var isSendingCloud = false
     @State private var showCloudConsent = false
 
@@ -75,6 +76,7 @@ struct StepCheckView: View {
             HStack {
                 Button("Retake") {
                     finalizeEvidence(groundTruth: .unlabeled)
+                    cancelCloudRequest()
                     discardRawCapture()
                     result = nil
                     boardJPEG = nil
@@ -143,18 +145,38 @@ struct StepCheckView: View {
     private func sendToCloud() {
         guard let boardJPEG, !isSendingCloud else { return }
         isSendingCloud = true
+        let generation = UUID()
+        cloudGeneration = generation
         let context = CloudAssistContext(stepIndex: step.index, stepCount: plan.steps.count)
         cloudTask = Task {
-            defer { isSendingCloud = false }
+            // A rotated generation means a Retake or cancel superseded this
+            // request; a stale task must not touch state that now describes
+            // a different capture.
+            defer {
+                if generation == cloudGeneration { isSendingCloud = false }
+            }
             do {
-                cloudOpinion = try await ClaudeVisionProvider()
+                let opinion = try await ClaudeVisionProvider()
                     .secondOpinion(boardJPEG: boardJPEG, context: context)
+                guard generation == cloudGeneration else { return }
+                cloudOpinion = opinion
             } catch is CancellationError {
                 // View dismissed mid-send.
             } catch {
+                guard generation == cloudGeneration else { return }
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// Invalidates the in-flight cloud request before capture state is
+    /// cleared. The rotated generation makes the cancelled task's defer skip
+    /// its reset, so the flag is recovered here.
+    private func cancelCloudRequest() {
+        cloudGeneration = UUID()
+        cloudTask?.cancel()
+        cloudTask = nil
+        isSendingCloud = false
     }
 
     private func icon(_ value: StepCheckResult) -> String {
@@ -166,7 +188,7 @@ struct StepCheckView: View {
     }
 
     private func check() {
-        guard let pack = partPack.libraryURL, let modelDirectory = recoveryModel.modelDirectory else {
+        guard let pack = partPack.readyLibraryURL, let modelDirectory = recoveryModel.modelDirectory else {
             error = "Step checks need the verified LDraw part pack and the on-device recovery model. Install both in Storage."
             return
         }
@@ -303,8 +325,7 @@ struct StepCheckView: View {
         let task = checkTask
         checkTask = nil
         task?.cancel()
-        cloudTask?.cancel()
-        cloudTask = nil
+        cancelCloudRequest()
         let url = capturedURL
         capturedURL = nil
         capturedImage = nil

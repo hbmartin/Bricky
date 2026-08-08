@@ -38,7 +38,7 @@ measured instead of guessed.
 
 ## Components
 
-```
+```text
 ┌──────────────────────────── iOS app ────────────────────────────┐
 │ RecoveryFlowView / StepCheckView                                │
 │   └─ HierarchicalRecoveryEstimator ──▶ RecoveryEvidenceRecorder │

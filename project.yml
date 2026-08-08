@@ -68,7 +68,12 @@ targets:
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - Tools/SyntheticScenes
+      # Fixtures are read from the filesystem by path (CI passes
+      # fixtures/real-tower/tower.ldr as an argument); packaging them as
+      # target resources put two files named tower.ldr into one build phase.
+      - path: Tools/SyntheticScenes
+        excludes:
+          - "fixtures/**"
       - Bricky/Domain/RecoveryEvidence.swift
       - Bricky/Domain/InstructionDomain.swift
       - Bricky/Domain/RegistrationDomain.swift

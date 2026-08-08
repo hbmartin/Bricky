@@ -72,7 +72,8 @@ hf download mlx-community/Qwen3-VL-4B-Instruct-4bit \
   --revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b --local-dir model
 
 swift run --package-path Packages/RecoveryMLX bricky-harness \
-  replay --bundle bundle --model-dir model --out results.ndjson
+  replay --bundle bundle --model-dir model \
+  --model-revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b --out results.ndjson
 uv run python score_results.py results.ndjson --allow-small-corpus
 ```
 
@@ -88,10 +89,12 @@ baseline replay against a variant replay of the same bundle:
 
 ```sh
 swift run --package-path Packages/RecoveryMLX bricky-harness \
-  replay --bundle bundle --model-dir model --out baseline.ndjson
+  replay --bundle bundle --model-dir model \
+  --model-revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b --out baseline.ndjson
 swift run --package-path Packages/RecoveryMLX bricky-harness \
-  replay --bundle bundle --model-dir model --prompt-file variant-prompt.txt \
-  --out variant.ndjson
+  replay --bundle bundle --model-dir model \
+  --model-revision 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b \
+  --prompt-file variant-prompt.txt --out variant.ndjson
 uv run python score_results.py baseline.ndjson --allow-small-corpus
 uv run python score_results.py variant.ndjson --allow-small-corpus
 ```

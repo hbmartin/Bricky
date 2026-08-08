@@ -27,6 +27,14 @@ final class LDrawPartPackManager: ObservableObject {
         return root.appendingPathComponent("PartPacks/\(Self.version)/ldraw", isDirectory: true)
     }
 
+    /// Non-nil only once the pack is `.ready` — parts verified and the palette
+    /// installed. Renderers must gate on this, not on `libraryURL`, which
+    /// names the install location whether or not anything is there yet.
+    var readyLibraryURL: URL? {
+        guard state == .ready else { return nil }
+        return libraryURL
+    }
+
     func checkInstalled() async {
         guard let libraryURL else {
             state = .failed("Application Support is unavailable.")

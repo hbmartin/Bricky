@@ -59,7 +59,7 @@ final class StepVerificationController: ObservableObject {
         stepID: String,
         completedSnapshot: InstructionGeometrySnapshot,
         deltaSnapshot: InstructionGeometrySnapshot
-    ) {
+    ) async {
         generation += 1
         verification = nil
         isStablyComplete = false
@@ -69,13 +69,14 @@ final class StepVerificationController: ObservableObject {
             let verifier = try verifier ?? GeometricStepVerifier()
             self.verifier = verifier
             unavailableReason = nil
-            Task {
-                await verifier.begin(
-                    stepID: stepID,
-                    completedSnapshot: completedSnapshot,
-                    deltaSnapshot: deltaSnapshot
-                )
-            }
+            // Awaited so no observe() can reach the verifier before it holds
+            // this step's snapshots — an unstructured Task here let a frame
+            // race the setup and judge the new step against the old geometry.
+            await verifier.begin(
+                stepID: stepID,
+                completedSnapshot: completedSnapshot,
+                deltaSnapshot: deltaSnapshot
+            )
         } catch {
             verifier = nil
             unavailableReason = "Depth verification is unavailable: \(error.localizedDescription)"
@@ -103,6 +104,9 @@ final class StepVerificationController: ObservableObject {
     }
 
     func stop() {
+        // Invalidates any in-flight observe() first, so a result landing
+        // after this stop cannot repopulate the cleared verification.
+        generation += 1
         verification = nil
         isStablyComplete = false
         completeSince = nil
