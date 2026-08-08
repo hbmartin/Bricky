@@ -153,6 +153,14 @@ struct SyntheticRGBDMain {
                     physical: physical,
                     sensor: SensorModel(rng: &rng)
                 )
+                // An expected-complete row whose delta the verifier itself
+                // rates below strong is not a fair recall target: the honest
+                // response to a weakly visible delta is abstention (ADR 0008),
+                // so such rows would punish correct behavior. Every other
+                // scenario keeps its row regardless of detectability.
+                if scenario.expectedVerdict == "complete", verdict.detectability != .strong {
+                    continue
+                }
                 rows.append(try Row.verification(
                     fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
                     expected: scenario.expectedVerdict,

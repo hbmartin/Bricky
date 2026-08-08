@@ -41,7 +41,7 @@ Rules:
 
 On device (Application Support namespace), per session:
 
-```
+```text
 Evidence/<session-uuid>/
   session.json          # one EvidenceSessionFile (pretty-printed)
   traces.ndjson         # one EvidenceTraceRow per inference call
@@ -64,7 +64,7 @@ both.
 
 An exported bundle wraps selected sessions verbatim:
 
-```
+```text
 bricky-evidence-<yyyyMMdd-HHmmss>.zip
 └─ (unzipped root)
    ├─ evidence_bundle.json             # EvidenceBundleManifest

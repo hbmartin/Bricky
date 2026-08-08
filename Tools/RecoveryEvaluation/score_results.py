@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 from pathlib import Path
 
@@ -109,7 +110,17 @@ def is_exact_int(value: object) -> bool:
 
 
 def is_number(value: object) -> bool:
-    return type(value) in (int, float)
+    # NaN and infinities are not measurements: NaN silently poisons every
+    # median and comparison it touches instead of failing a gate.
+    if type(value) is int:
+        return True
+    return type(value) is float and math.isfinite(value)
+
+
+def require_valid_latency(row: dict[str, object], label: str) -> None:
+    latency = row["latency_ms"]
+    if not (isinstance(latency, (int, float)) and is_number(latency) and latency >= 0):
+        raise SystemExit(f"{label} latency_ms must be a finite non-negative number")
 
 
 def rmse(values: list[float]) -> float:
@@ -151,6 +162,7 @@ def validate_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"row {index} requires top_step_index unless certainty is insufficient")
         if top_index is not None and (not is_exact_int(top_index) or top_index < -1):
             raise SystemExit(f"row {index} top_step_index must be null or an integer >= -1")
+        require_valid_latency(row, f"row {index}")
 
 
 def step_index(step_id: object) -> int | None:
@@ -283,8 +295,7 @@ def validate_verification_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"verification row {index} has an invalid verdict")
         if row["detectability"] not in DETECTABILITY:
             raise SystemExit(f"verification row {index} has invalid detectability")
-        if not is_number(row["latency_ms"]):
-            raise SystemExit(f"verification row {index} latency_ms must be a number")
+        require_valid_latency(row, f"verification row {index}")
 
 
 def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
@@ -363,9 +374,10 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         for flag in ("converged", "ambiguity_expected", "reported_ambiguous"):
             if not isinstance(row[flag], bool):
                 raise SystemExit(f"registration row {index} {flag} must be a boolean")
-        for field in ("translation_error_m", "yaw_error_degrees", "latency_ms"):
+        for field in ("translation_error_m", "yaw_error_degrees"):
             if not is_number(row[field]):
-                raise SystemExit(f"registration row {index} {field} must be a number")
+                raise SystemExit(f"registration row {index} {field} must be a finite number")
+        require_valid_latency(row, f"registration row {index}")
 
 
 def score_registration(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:

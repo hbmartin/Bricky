@@ -4,6 +4,7 @@ import json
 import random
 import tempfile
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 
 from fit_sensor_model import (
@@ -159,6 +160,41 @@ class LoadPairsTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "no prepared capture"):
                 load_pairs(Path(directory))
 
+    def test_non_finite_and_non_positive_pairs_are_skipped(self) -> None:
+        # NaN or infinity would poison every residual it touches, and a
+        # non-positive depth is a pixel with no return, not a measurement.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "measured": [float("nan"), float("inf"), -0.2, 0.0, 0.51],
+                        "truth": [0.50, 0.50, 0.50, 0.50, float("nan")],
+                        "near_edge": [False] * 5,
+                        "foreground": [None] * 5,
+                        "background": [None] * 5,
+                    }
+                )
+            )
+            self.assertEqual(load_pairs(Path(directory)), [])
+
+    def test_mismatched_edge_array_lengths_are_an_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "measured": [0.51, 0.62],
+                        "truth": [0.50, 0.60],
+                        "near_edge": [False, True],
+                        "foreground": [None],
+                        "background": [None, 0.9],
+                    }
+                )
+            )
+            with self.assertRaisesRegex(SystemExit, "lengths disagree"):
+                load_pairs(Path(directory))
+
 
 class ReportTests(unittest.TestCase):
     def test_report_names_the_evidence_level_and_working_range(self) -> None:
@@ -177,6 +213,22 @@ class ReportTests(unittest.TestCase):
 
     def test_evidence_level_cannot_silently_default_to_verified(self) -> None:
         self.assertEqual(SensorModelFit.__dataclass_fields__["evidence"].default, "INFERRED")
+
+    def test_unfitted_constants_carry_reconstructed_provenance(self) -> None:
+        # `fit` does not derive quantum or edge_radius from the corpus; the
+        # model and its JSON must say so rather than presenting the assumed
+        # values as measurements (ADR 0014).
+        samples = planted_samples(
+            bias_offset=0.002,
+            bias_per_meter=0.001,
+            noise_offset=0.002,
+            noise_per_square=0.003,
+        )
+        model = fit(samples, source="planted")
+        self.assertEqual(model.reconstructed_fields, ("quantum", "edge_radius"))
+        round_tripped = json.loads(json.dumps(asdict(model)))
+        self.assertEqual(round_tripped["reconstructed_fields"], ["quantum", "edge_radius"])
+        self.assertIn("reconstructed, not fitted: quantum, edge_radius", report(model, samples))
 
 
 if __name__ == "__main__":

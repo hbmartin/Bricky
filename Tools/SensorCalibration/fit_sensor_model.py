@@ -73,6 +73,10 @@ class SensorModelFit:
     source: str
     evidence: str = "INFERRED"
     sample_count: int = 0
+    # Fields `fit` did not derive from the corpus (ADR 0014): they keep their
+    # assumed values and are named here so the JSON itself says which numbers
+    # are reconstructed placeholders rather than fitted results.
+    reconstructed_fields: tuple[str, ...] = ()
 
     def bias(self, depth: float) -> float:
         return self.bias_offset + self.bias_per_meter * depth
@@ -176,6 +180,11 @@ def fit(samples: list[Sample], *, source: str, quantum: float = 0.001) -> Sensor
         edge_radius=1,
         source=source,
         sample_count=len(samples),
+        # The prepared-pair corpus carries no quantisation signature (truth
+        # projection re-samples the grid) and no per-pixel edge distances, so
+        # neither value can be derived from it; both stay at their assumed
+        # values and are declared reconstructed until measured (ADR 0014).
+        reconstructed_fields=("quantum", "edge_radius"),
     )
 
 
@@ -196,6 +205,13 @@ def report(model: SensorModelFit, samples: list[Sample]) -> str:
         "",
         f"edge_mix: {model.edge_mix:.3f} "
         "(0 = edge pixels read foreground, 1 = background)",
+    ]
+    if model.reconstructed_fields:
+        lines += [
+            "",
+            "reconstructed, not fitted: " + ", ".join(model.reconstructed_fields),
+        ]
+    lines += [
         "",
         "Bricky works at roughly 0.3-0.6 m against 8 mm studs and 3.2 mm plates.",
         "Bins far from that range are extrapolation, not evidence.",
@@ -224,15 +240,25 @@ def load_pairs(directory: Path) -> list[Sample]:
         near_edge = payload.get("near_edge", [False] * len(measured))
         foreground = payload.get("foreground", [None] * len(measured))
         background = payload.get("background", [None] * len(measured))
-        if not len(measured) == len(truth) == len(near_edge):
-            raise SystemExit(f"{path.name}: measured/truth/near_edge lengths disagree")
+        if not len(measured) == len(truth) == len(near_edge) == len(foreground) == len(background):
+            raise SystemExit(
+                f"{path.name}: measured/truth/near_edge/foreground/background lengths disagree"
+            )
         for index, value in enumerate(measured):
-            if value is None or truth[index] is None or truth[index] <= 0:
+            if value is None or truth[index] is None:
+                continue
+            measured_value = float(value)
+            truth_value = float(truth[index])
+            # NaN or infinity would poison every residual it touches, and a
+            # non-positive depth is a pixel with no return, not a measurement.
+            if not (math.isfinite(measured_value) and math.isfinite(truth_value)):
+                continue
+            if measured_value <= 0 or truth_value <= 0:
                 continue
             samples.append(
                 Sample(
-                    measured=float(value),
-                    truth=float(truth[index]),
+                    measured=measured_value,
+                    truth=truth_value,
                     near_edge=bool(near_edge[index]),
                     foreground=foreground[index],
                     background=background[index],

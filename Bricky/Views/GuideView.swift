@@ -18,7 +18,7 @@ struct GuideView: View {
                 let step = plan.steps[stepIndex]
                 ScrollView {
                     VStack(spacing: 18) {
-                        GuidePreviewView(plan: plan, step: step, partPackRoot: partPack.libraryURL)
+                        GuidePreviewView(plan: plan, step: step, partPackRoot: partPack.readyLibraryURL)
                             .frame(minHeight: 330)
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                             .overlay(alignment: .topLeading) {

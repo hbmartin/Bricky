@@ -143,7 +143,7 @@ struct ARGuideView: View {
 
     @MainActor
     private func loadEntity() async {
-        guard let partPackRoot = partPack.libraryURL else { error = "Install the LDraw part pack first."; return }
+        guard let partPackRoot = partPack.readyLibraryURL else { error = "Install the LDraw part pack first."; return }
         do {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
@@ -171,7 +171,7 @@ struct ARGuideView: View {
             let additionSnapshot = try await engine.snapshot(placements: additions)
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
             entity = container
-            verification.begin(
+            await verification.begin(
                 stepID: step.id,
                 completedSnapshot: completedSnapshot,
                 deltaSnapshot: additionSnapshot
