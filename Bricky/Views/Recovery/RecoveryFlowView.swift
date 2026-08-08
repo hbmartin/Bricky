@@ -261,7 +261,7 @@ struct RecoveryFlowView: View {
             let loaded = try library.loadPlan(for: model)
             plan = loaded
             selectedCompletedCount = model.currentStepIndex
-            if let pack = partPack.libraryURL {
+            if let pack = partPack.readyLibraryURL {
                 ghost = try RealityKitInstructionAdapter.makeEntity(
                     from: await geometrySnapshotForFinal(plan: loaded, partPack: pack), dimmed: true
                 )
@@ -304,7 +304,7 @@ struct RecoveryFlowView: View {
     private func analyze() {
         guard let plan, let currentAlignment = alignment.alignment,
               let modelDirectory = recoveryModel.modelDirectory,
-              let partPackRoot = partPack.libraryURL else { return }
+              let partPackRoot = partPack.readyLibraryURL else { return }
         phase = .analyzing
         let previous = analysisTask
         previous?.cancel()

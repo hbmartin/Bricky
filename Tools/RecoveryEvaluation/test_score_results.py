@@ -27,7 +27,7 @@ def benchmark_row(
     certainty: str = "high",
     include_top: bool = True,
     estimator_method: str = "vlm",
-    latency: int = 12_000,
+    latency: int | float = 12_000,
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "schema_version": 1,
@@ -58,7 +58,7 @@ def verification_row(
     expected: str = "complete",
     produced: str = "complete",
     detectability: str = "strong",
-    latency: int = 1_500,
+    latency: int | float = 1_500,
 ) -> dict[str, object]:
     return {
         "kind": "verification",
@@ -105,6 +105,35 @@ class RowValidationTests(unittest.TestCase):
         row["top_step_index"] = True
         with self.assertRaisesRegex(SystemExit, "integer >= -1"):
             validate_rows([row])
+
+
+class MeasurementValidationTests(unittest.TestCase):
+    # NaN silently poisons every median and comparison it touches instead of
+    # failing a gate, and a negative latency is a recording bug, not a fast
+    # run; all three row kinds must refuse them.
+
+    def test_recovery_rejects_non_finite_and_negative_latency(self) -> None:
+        for latency in (float("nan"), float("inf"), -1):
+            with self.assertRaisesRegex(SystemExit, "latency_ms"):
+                validate_rows([benchmark_row(latency=latency)])
+
+    def test_verification_rejects_non_finite_and_negative_latency(self) -> None:
+        for latency in (float("nan"), float("-inf"), -5):
+            with self.assertRaisesRegex(SystemExit, "latency_ms"):
+                score_verification(
+                    [verification_row(latency=latency)], allow_small_corpus=True
+                )
+
+    def test_registration_rejects_non_finite_measurements(self) -> None:
+        for field, value in (
+            ("translation_error_m", float("nan")),
+            ("yaw_error_degrees", float("inf")),
+            ("latency_ms", -3),
+        ):
+            row = registration_row()
+            row[field] = value
+            with self.assertRaisesRegex(SystemExit, field):
+                score_registration([row], allow_small_corpus=True)
 
 
 class ReleaseCorpusValidationTests(unittest.TestCase):

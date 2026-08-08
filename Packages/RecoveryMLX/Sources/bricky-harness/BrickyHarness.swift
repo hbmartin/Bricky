@@ -34,6 +34,9 @@ struct Replay: AsyncParsableCommand {
     @Option(name: .customLong("model-dir"), help: "Directory containing the pinned model revision.")
     var modelDirectory: String?
 
+    @Option(name: .customLong("model-revision"), help: "Revision of the weights actually in --model-dir; recorded as model_revision on replay rows.")
+    var modelRevision: String?
+
     @Option(help: "Output NDJSON path for benchmark rows; per-trace results land beside it as <out>.traces.ndjson.")
     var out: String?
 
@@ -62,8 +65,8 @@ struct Replay: AsyncParsableCommand {
         let sessions = try reader.loadSessions()
         print("bundle ok: \(sessions.count) sessions, \(sessions.reduce(0) { $0 + $1.traceRows.count }) traces, device \(reader.manifest.deviceModel), model \(reader.manifest.modelRevision.prefix(12))…")
         if dryRun { return }
-        guard let modelDirectory, let out else {
-            throw ValidationError("--model-dir and --out are required unless --dry-run is set.")
+        guard let modelDirectory, let out, let modelRevision else {
+            throw ValidationError("--model-dir, --out, and --model-revision are required unless --dry-run is set.")
         }
         let promptOverride = try promptFile.map { try String(contentsOfFile: $0, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines) }
         let modelURL = URL(fileURLWithPath: modelDirectory)
@@ -96,10 +99,16 @@ struct Replay: AsyncParsableCommand {
                                                                        recomposed: recompose)))
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
-            if let rowData = try benchmarkRow(session: session, finalistReplays: finalistReplays, replayLatency: replayLatency) {
+            if let rowData = try benchmarkRow(session: session, finalistReplays: finalistReplays,
+                                              replayLatency: replayLatency, replayModelRevision: modelRevision) {
                 benchmarkLines.append(rowData)
-            } else {
+            } else if session.file.groundTruth.kind == .unlabeled {
                 print("session \(session.file.sessionID.uuidString.prefix(8)) is unlabeled — no benchmark row")
+            } else {
+                // Corpus accounting: a labeled geometric-only session has no
+                // rank traces to replay, and geometric replay does not exist
+                // yet, so the row it would contribute is explicitly missing.
+                print("session \(session.file.sessionID.uuidString.prefix(8)) is labeled but has no replayable finalist rank traces (geometric-only) — no benchmark row")
             }
         }
 
@@ -124,7 +133,8 @@ struct Replay: AsyncParsableCommand {
     private func benchmarkRow(
         session: EvidenceBundleReader.Session,
         finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)],
-        replayLatency: Int
+        replayLatency: Int,
+        replayModelRevision: String
     ) throws -> Data? {
         let truth = session.file.groundTruth
         guard truth.kind != .unlabeled,
@@ -191,7 +201,10 @@ struct Replay: AsyncParsableCommand {
             // alone, so a replayed row is `.vlm` by construction regardless of
             // what produced the original estimate on device.
             estimatorMethod: .vlm,
-            modelRevision: session.file.modelRevision,
+            // The revision of the weights this replay actually loaded from
+            // --model-dir — never the source session's revision, which may
+            // differ in an A/B and would misattribute the scores.
+            modelRevision: replayModelRevision,
             // Replay rows must never enter a release corpus as device rows.
             deviceModel: "replay:\(DeviceIdentity.modelIdentifier)",
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,

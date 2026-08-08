@@ -84,7 +84,7 @@ final class EvidenceKitTests: XCTestCase {
 
     func testFitRecordsRoundTripThroughABundle() throws {
         let sessionID = UUID()
-        let bundleDirectory = try makeBundle(fits: [
+        let bundleDirectory = try makeBundle(sessionID: sessionID, fits: [
             Self.fitRecord(sessionID: sessionID, disqualification: .verticalDeviation, conclusive: false),
             Self.fitRecord(sessionID: sessionID),
         ])
@@ -102,14 +102,26 @@ final class EvidenceKitTests: XCTestCase {
     }
 
     func testReaderRejectsUnsupportedFitVersion() throws {
-        let bundleDirectory = try makeBundle(fits: [Self.fitRecord(sessionID: UUID(), fitVersion: 99)])
+        let sessionID = UUID()
+        let bundleDirectory = try makeBundle(sessionID: sessionID, fits: [
+            Self.fitRecord(sessionID: sessionID, fitVersion: 99),
+        ])
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
         XCTAssertTrue(reader.validate().contains { $0.contains("fit_version") })
     }
 
+    func testReaderRejectsAFitFromAForeignSession() throws {
+        // A fit naming another session would replay against the wrong
+        // captures; ownership must be validated, not assumed.
+        let bundleDirectory = try makeBundle(fits: [Self.fitRecord(sessionID: UUID())])
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        XCTAssertTrue(reader.validate().contains { $0.contains("belongs to session") })
+    }
+
     func testReaderRejectsAPoseThatCannotBeReshaped() throws {
-        let bundleDirectory = try makeBundle(fits: [
-            Self.fitRecord(sessionID: UUID(), pose: Array(repeating: 0, count: 12)),
+        let sessionID = UUID()
+        let bundleDirectory = try makeBundle(sessionID: sessionID, fits: [
+            Self.fitRecord(sessionID: sessionID, pose: Array(repeating: 0, count: 12)),
         ])
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 16") })
@@ -143,8 +155,10 @@ final class EvidenceKitTests: XCTestCase {
     func testDepthFrameRoundTripsAndPlanesReshape() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
-        let sessionDirectory = try reader.loadSessions()[0].directory
-        let captureID = UUID()
+        let session = try reader.loadSessions()[0]
+        let sessionDirectory = session.directory
+        // The frame must reference a capture this session actually owns.
+        let captureID = session.file.captures[0].captureID
         try Self.writeDepthFrame(into: sessionDirectory, captureID: captureID, width: 4, height: 3)
 
         XCTAssertEqual(reader.validate(), [])
@@ -166,11 +180,12 @@ final class EvidenceKitTests: XCTestCase {
     func testReaderRejectsATruncatedDepthPlane() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
-        let sessionDirectory = try reader.loadSessions()[0].directory
+        let session = try reader.loadSessions()[0]
         // Declares 4x3 but writes 8 floats: reshaping this would silently
         // produce wrong geometry rather than fail.
         try Self.writeDepthFrame(
-            into: sessionDirectory, captureID: UUID(), width: 4, height: 3, depthElements: 8
+            into: session.directory, captureID: session.file.captures[0].captureID,
+            width: 4, height: 3, depthElements: 8
         )
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 48") })
     }
@@ -178,9 +193,85 @@ final class EvidenceKitTests: XCTestCase {
     func testReaderRejectsUnsupportedDepthVersion() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
-        let sessionDirectory = try reader.loadSessions()[0].directory
-        try Self.writeDepthFrame(into: sessionDirectory, captureID: UUID(), depthVersion: 99)
+        let session = try reader.loadSessions()[0]
+        try Self.writeDepthFrame(
+            into: session.directory, captureID: session.file.captures[0].captureID, depthVersion: 99
+        )
         XCTAssertTrue(reader.validate().contains { $0.contains("depth_version") })
+    }
+
+    func testReaderRejectsADepthFrameFromAForeignCapture() throws {
+        // A depth frame is only usable through the capture it observed; one
+        // referencing a capture this session does not own is orphaned data.
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let sessionDirectory = try reader.loadSessions()[0].directory
+        try Self.writeDepthFrame(into: sessionDirectory, captureID: UUID())
+        XCTAssertTrue(reader.validate().contains { $0.contains("references no capture") })
+    }
+
+    func testReaderRejectsNonPositiveDepthDimensions() throws {
+        for (width, height) in [(0, 3), (4, -3)] {
+            let bundleDirectory = try makeBundle()
+            let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+            let session = try reader.loadSessions()[0]
+            // A 0 x N plane would pass a naive byte-size check with an empty
+            // file; dimensions must be rejected before sizes are compared.
+            try Self.writeDepthFrame(
+                into: session.directory, captureID: session.file.captures[0].captureID,
+                width: width, height: height, depthElements: 0
+            )
+            XCTAssertTrue(
+                reader.validate().contains { $0.contains("non-positive dimensions") },
+                "\(width)x\(height) must be rejected"
+            )
+            try FileManager.default.removeItem(at: bundleDirectory)
+        }
+    }
+
+    func testReaderRejectsOverflowingDepthDimensions() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        // width * height overflows Int; the reader must report, not trap.
+        try Self.writeDepthFrame(
+            into: session.directory, captureID: session.file.captures[0].captureID,
+            width: Int.max, height: 2, depthElements: 0
+        )
+        XCTAssertTrue(reader.validate().contains { $0.contains("overflow") })
+    }
+
+    func testReaderRejectsMalformedIntrinsicsAndPose() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        // Intrinsics that cannot reshape to 3x3 and a pose that cannot
+        // reshape to 4x4 make the frame unusable for any geometric replay.
+        try Self.writeDepthFrame(
+            into: session.directory, captureID: session.file.captures[0].captureID,
+            intrinsicsCount: 4, poseCount: 12
+        )
+        let issues = reader.validate()
+        XCTAssertTrue(issues.contains { $0.contains("expected 9") })
+        XCTAssertTrue(issues.contains { $0.contains("expected 16") })
+    }
+
+    func testExpectedBytesRejectsDegenerateDimensions() throws {
+        func record(width: Int, height: Int) -> EvidenceDepthFrameRecord {
+            EvidenceDepthFrameRecord(
+                depthVersion: EvidenceSchema.depthVersion, captureID: UUID(),
+                width: width, height: height,
+                depthIntrinsics: Array(repeating: 1, count: 9),
+                worldFromCamera: Array(repeating: 0, count: 16),
+                timestamp: 0, depthRelativePath: "d", confidenceRelativePath: "c",
+                rawDepthRelativePath: nil, rawConfidenceRelativePath: nil
+            )
+        }
+        XCTAssertEqual(record(width: 4, height: 3).expectedBytes(elementSize: 4), 48)
+        XCTAssertNil(record(width: 0, height: 3).expectedBytes(elementSize: 4))
+        XCTAssertNil(record(width: 4, height: -3).expectedBytes(elementSize: 4))
+        XCTAssertNil(record(width: Int.max, height: 2).expectedBytes(elementSize: 4))
+        XCTAssertNil(record(width: Int.max / 2, height: 1).expectedBytes(elementSize: 4))
     }
 
     func testSchemaKeysAreSnakeCase() throws {
@@ -238,7 +329,8 @@ final class EvidenceKitTests: XCTestCase {
     }
 
     /// Writes a depth sidecar and its planes into a session directory.
-    /// `depthBytes` overrides the plane size so a test can truncate it.
+    /// `depthElements` overrides the plane size so a test can truncate it;
+    /// `intrinsicsCount`/`poseCount` let a test malform the metadata.
     @discardableResult
     static func writeDepthFrame(
         into sessionDirectory: URL,
@@ -246,18 +338,24 @@ final class EvidenceKitTests: XCTestCase {
         width: Int = 4,
         height: Int = 3,
         depthVersion: Int = EvidenceSchema.depthVersion,
-        depthElements: Int? = nil
+        depthElements: Int? = nil,
+        intrinsicsCount: Int = 9,
+        poseCount: Int = 16
     ) throws -> EvidenceDepthFrameRecord {
         let stem = "depth/\(captureID.uuidString)"
         try FileManager.default.createDirectory(
             at: sessionDirectory.appendingPathComponent("depth", isDirectory: true),
             withIntermediateDirectories: true
         )
-        let depth = [Float32](repeating: 0.5, count: depthElements ?? (width * height))
+        // Degenerate declared dimensions (tests for the validator) still need
+        // writable plane files; clamp without trapping on overflow.
+        let (pixels, overflow) = width.multipliedReportingOverflow(by: height)
+        let planeElements = overflow ? 0 : max(0, pixels)
+        let depth = [Float32](repeating: 0.5, count: depthElements ?? planeElements)
         try depth.withUnsafeBufferPointer {
             try Data(buffer: $0).write(to: sessionDirectory.appendingPathComponent("\(stem).depth"))
         }
-        let confidence = [UInt8](repeating: 2, count: width * height)
+        let confidence = [UInt8](repeating: 2, count: planeElements)
         try confidence.withUnsafeBufferPointer {
             try Data(buffer: $0).write(to: sessionDirectory.appendingPathComponent("\(stem).confidence"))
         }
@@ -266,8 +364,8 @@ final class EvidenceKitTests: XCTestCase {
             captureID: captureID,
             width: width,
             height: height,
-            depthIntrinsics: Array(repeating: 1, count: 9),
-            worldFromCamera: Array(repeating: 0, count: 16),
+            depthIntrinsics: Array(repeating: 1, count: intrinsicsCount),
+            worldFromCamera: Array(repeating: 0, count: poseCount),
             timestamp: 12.5,
             depthRelativePath: "\(stem).depth",
             confidenceRelativePath: "\(stem).confidence",
@@ -280,12 +378,13 @@ final class EvidenceKitTests: XCTestCase {
     }
 
     /// Builds a minimal on-disk bundle with one staged session and one trace.
+    /// Pass `sessionID` when fixture records must be owned by the session.
     private func makeBundle(
         bundleVersion: Int = EvidenceSchema.bundleVersion,
+        sessionID: UUID = UUID(),
         fits: [GeometricFitRecord]? = nil
     ) throws -> URL {
         let bundleDirectory = root.appendingPathComponent("bundle", isDirectory: true)
-        let sessionID = UUID()
         let traceID = UUID()
         let captureID = UUID()
         let sessionDirectory = bundleDirectory

@@ -34,8 +34,12 @@ on every PR (`harness-macos` job) without weights.
 
 ```sh
 swift run --package-path Packages/RecoveryMLX bricky-harness replay \
-  --bundle bundle --model-dir model --out results.ndjson
+  --bundle bundle --model-dir model --model-revision <sha> --out results.ndjson
 ```
+
+`--model-revision` names the weights actually in `--model-dir` and is recorded
+as `model_revision` on every replay row — never the source session's revision,
+which may differ in an A/B.
 
 Behavior:
 
@@ -49,11 +53,15 @@ Behavior:
 3. Each replay calls `rankWithTrace` with the recorded prompt, the recorded
    board image, and `candidateCount` from the recorded slot map — the same
    dynamic grammar the device compiled.
-4. For **labeled** sessions, aggregates the replayed finalist outputs into a
-   `RecoveryBenchmarkV1` row using a mirror of the estimator's Borda scoring
-   and cross-view certainty (leader agreement 3 → high, 2 → medium; fewer
-   than two voting views → insufficient). Unlabeled sessions replay but emit
-   no benchmark row.
+4. For **labeled** sessions that have replayable finalist rank traces,
+   aggregates the replayed finalist outputs into a `RecoveryBenchmarkV1` row
+   using a mirror of the estimator's Borda scoring and cross-view certainty
+   (leader agreement 3 → high, 2 → medium; fewer than two voting views →
+   insufficient). Both conditions are required: unlabeled sessions replay but
+   emit no benchmark row, and a labeled **geometric-only** session (fits but
+   no rank traces) emits none either because geometric replay does not exist
+   yet — the CLI reports each such skip explicitly so corpus counts account
+   for those sessions.
 5. Writes benchmark rows to `--out` and every per-call result to
    `<out>.traces.ndjson`.
 
@@ -122,8 +130,9 @@ uv run python Tools/RecoveryEvaluation/score_results.py results.ndjson --allow-s
 Baseline and variant are two replays **of the same bundle** on the same Mac:
 
 ```sh
-bricky-harness replay --bundle bundle --model-dir model --out baseline.ndjson
-bricky-harness replay --bundle bundle --model-dir model \
+bricky-harness replay --bundle bundle --model-dir model --model-revision <sha> \
+  --out baseline.ndjson
+bricky-harness replay --bundle bundle --model-dir model --model-revision <sha> \
   --prompt-file variant-prompt.txt --out variant.ndjson
 # score both, compare
 ```
