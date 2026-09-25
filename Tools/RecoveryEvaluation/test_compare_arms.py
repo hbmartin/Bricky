@@ -46,8 +46,8 @@ class ComparisonTests(unittest.TestCase):
 
     def test_six_clean_wins_make_a_flip_candidate(self) -> None:
         control, variant = self.arms(
-            [pass_row(i, i >= 6) for i in range(10)],
-            [pass_row(i, True) for i in range(10)],
+            [pass_row(i, i >= 6) for i in range(20)],
+            [pass_row(i, True) for i in range(20)],
         )
         verdict = compare(control, [variant])[0]
         self.assertEqual((verdict.accuracy["pass_top1"].wins, verdict.accuracy["pass_top1"].losses), (6, 0))
@@ -62,8 +62,8 @@ class ComparisonTests(unittest.TestCase):
 
     def test_latency_win_without_accuracy_loss_is_a_candidate(self) -> None:
         control, variant = self.arms(
-            [pass_row(i, True, latency=10_000) for i in range(5)],
-            [pass_row(i, True, latency=9_000) for i in range(5)],
+            [pass_row(i, True, latency=10_000) for i in range(20)],
+            [pass_row(i, True, latency=9_000) for i in range(20)],
         )
         verdict = compare(control, [variant])[0]
         self.assertAlmostEqual(verdict.latency["geometric_mean"], 0.9)
@@ -71,12 +71,19 @@ class ComparisonTests(unittest.TestCase):
 
     def test_a_rise_in_insufficient_holds_the_flip(self) -> None:
         control, variant = self.arms(
-            [pass_row(i, i >= 6) for i in range(10)],
-            [pass_row(i, True) for i in range(10)],
+            [pass_row(i, i >= 6) for i in range(20)],
+            [pass_row(i, True) for i in range(20)],
             control_sessions=[session_row(0, True)],
             variant_sessions=[session_row(0, False, certainty="insufficient")],
         )
         self.assertIn("HOLD", compare(control, [variant])[0].decision)
+
+    def test_too_few_pairs_is_underpowered_not_a_candidate(self) -> None:
+        control, variant = self.arms(
+            [pass_row(i, False, latency=10_000) for i in range(3)],
+            [pass_row(i, False, latency=6_000) for i in range(3)],
+        )
+        self.assertIn("UNDERPOWERED", compare(control, [variant])[0].decision)
 
     def test_slot_histogram_exposes_positional_bias(self) -> None:
         control, _ = self.arms(

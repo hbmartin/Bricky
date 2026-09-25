@@ -29,6 +29,10 @@ from pathlib import Path
 
 ALPHA = 0.05
 LATENCY_NOISE = 0.05
+# Below this many paired passes a verdict is an anecdote: a latency "win"
+# with no accuracy loss is trivially true when neither arm got anything
+# right, as on a synthetic board where every answer is "insufficient".
+MINIMUM_PAIRS = 20
 SLOTS = "ABCDEFGH"
 
 
@@ -191,6 +195,8 @@ class Verdict:
             return "HOLD (insufficient or false-complete rate rose)"
         if primary.pairs == 0:
             return "UNMEASURED (no paired passes with the truth on the board)"
+        if primary.pairs < MINIMUM_PAIRS:
+            return f"UNDERPOWERED ({primary.pairs} paired passes; a verdict needs >= {MINIMUM_PAIRS})"
         if primary.wins > primary.losses and self.adjusted_p < ALPHA:
             return "FLIP CANDIDATE: accuracy win (device rows still required)"
         geometric = self.latency.get("geometric_mean")
