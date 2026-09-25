@@ -12,8 +12,10 @@ final class RegistrationController: ObservableObject {
 
     /// Called with every processed frame and the registration it produced —
     /// the verification pipeline taps this so one relay consumer serves both
-    /// tracking and verification.
-    var frameObserver: (@MainActor (RegistrationFrameInput, ModelRegistration) async -> Void)?
+    /// tracking and verification. Synchronous on purpose: the observer must
+    /// hand the frame off and return, because awaiting verification here
+    /// stalled ICP tracking for as long as the verifier took to render.
+    var frameObserver: (@MainActor (RegistrationFrameInput, ModelRegistration) -> Void)?
 
     private let tracker = DepthICPTracker()
     private var consumeTask: Task<Void, Never>?
@@ -97,7 +99,7 @@ final class RegistrationController: ObservableObject {
                 guard let update = await tracker.process(frame) else { continue }
                 guard let self, !Task.isCancelled else { break }
                 self.registration = update
-                await self.frameObserver?(frame, update)
+                self.frameObserver?(frame, update)
             }
         }
     }

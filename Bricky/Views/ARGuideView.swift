@@ -86,7 +86,7 @@ struct ARGuideView: View {
             .task {
                 camera.checkPermissions()
                 registration.frameObserver = { [weak verification] frame, update in
-                    await verification?.observe(frame: frame, registration: update)
+                    verification?.submit(frame: frame, registration: update)
                 }
                 await loadEntity()
                 // Placement can precede the fit sample when geometry loads
