@@ -61,7 +61,12 @@ let package = Package(
         ),
         .testTarget(
             name: "RecoveryMLXTests",
-            dependencies: ["RecoveryMLX"]
+            dependencies: [
+                "RecoveryMLX",
+                "RecoveryEvidenceKit",
+                .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm")
+            ]
         ),
         .testTarget(
             name: "RecoveryEvidenceKitTests",

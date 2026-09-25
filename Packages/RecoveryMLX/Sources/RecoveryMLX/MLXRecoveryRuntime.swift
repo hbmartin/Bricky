@@ -219,9 +219,12 @@ public actor MLXRecoveryRuntime {
             var userInput = UserInput(prompt: values.prompt, images: [.url(values.imageURL)])
             userInput.processing = .init(resize: CGSize(width: 1024, height: 1024))
             let input = try await context.processor.prepare(input: userInput)
-            let root = values.cache.rootConstraint(for: values.kind)
-            // A matcher is stateful. Clone the compiled root for every stateless call.
-            let constraint = try root.clone()
+            // A matcher is stateful, so every stateless call gets a fresh
+            // one. It is compiled rather than cloned: the pinned bridge's
+            // clone() always throws ("Fork() not available in xgrammar
+            // v0.1.30"), and compiling one of these schemas takes ~7 ms
+            // once the grammar tokenizer (~0.7 s) is cached.
+            let constraint = try values.cache.freshConstraint(for: values.kind, hostTokenizer: context.tokenizer)
             var output = ""
             var generatedTokens: Int?
             var termination = MLXGenerationTrace.Termination.accepted
@@ -266,7 +269,7 @@ public actor MLXRecoveryRuntime {
         let generation = loadGeneration
         let task = Task<ModelContainer, Error> {
             try await VLMModelFactory.shared.loadContainer(
-                from: modelDirectory,
+                from: try LoadableModelDirectory.resolve(modelDirectory),
                 using: TransformersTokenizerLoader()
             )
         }
@@ -316,27 +319,14 @@ public actor MLXRecoveryRuntime {
                 vocabType: vocab.vocabType,
                 eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0)
             )
-            // Compile every slot-count variant up front. The cost lands in the
-            // admission warm-up, and the immutable array keeps the cache free
-            // of locking under @unchecked Sendable.
-            let rankConstraints = try (1...Self.rankSlotLetters.count).map { count in
-                try GrammarConstraint(
-                    tokenizer: tokenizer,
-                    jsonSchema: Self.rankSchema(slotCount: count),
-                    fastForward: true,
-                    hostTokenizer: context.tokenizer
-                )
+            let cache = GrammarCache(tokenizer: tokenizer, checkSchema: Self.checkSchema)
+            // Compile every schema once so a bad one fails the admission
+            // warm-up rather than the first recovery.
+            for count in 1...Self.rankSlotLetters.count {
+                _ = try cache.freshConstraint(for: .rank(slotCount: count), hostTokenizer: context.tokenizer)
             }
-            return GrammarCache(
-                tokenizer: tokenizer,
-                rankConstraints: rankConstraints,
-                checkConstraint: try GrammarConstraint(
-                    tokenizer: tokenizer,
-                    jsonSchema: Self.checkSchema,
-                    fastForward: true,
-                    hostTokenizer: context.tokenizer
-                )
-            )
+            _ = try cache.freshConstraint(for: .check, hostTokenizer: context.tokenizer)
+            return cache
         }
         grammarCache = cache
         return cache
@@ -351,25 +341,27 @@ private struct GenerationValues: @unchecked Sendable {
     let cache: GrammarCache
 }
 
+/// Holds the expensive, immutable part of grammar setup — the tokenizer
+/// info xgrammar builds from the vocabulary — and compiles a fresh matcher
+/// per call.
 private final class GrammarCache: @unchecked Sendable {
     let tokenizer: GrammarTokenizer
-    /// Index N-1 holds the constraint permitting slots A through the Nth letter.
-    private let rankConstraints: [GrammarConstraint]
-    private let checkConstraint: GrammarConstraint
+    private let checkSchema: String
 
-    init(tokenizer: GrammarTokenizer, rankConstraints: [GrammarConstraint], checkConstraint: GrammarConstraint) {
+    init(tokenizer: GrammarTokenizer, checkSchema: String) {
         self.tokenizer = tokenizer
-        self.rankConstraints = rankConstraints
-        self.checkConstraint = checkConstraint
+        self.checkSchema = checkSchema
     }
 
-    func rootConstraint(for kind: MLXRecoveryRuntime.GrammarKind) -> GrammarConstraint {
+    func freshConstraint(for kind: MLXRecoveryRuntime.GrammarKind, hostTokenizer: any MLXLMCommon.Tokenizer) throws -> GrammarConstraint {
+        let schema: String
         switch kind {
         case .check:
-            checkConstraint
+            schema = checkSchema
         case .rank(let slotCount):
-            rankConstraints[min(max(slotCount, 1), rankConstraints.count) - 1]
+            schema = MLXRecoveryRuntime.rankSchema(slotCount: slotCount)
         }
+        return try GrammarConstraint(tokenizer: tokenizer, jsonSchema: schema, fastForward: true, hostTokenizer: hostTokenizer)
     }
 }
 
