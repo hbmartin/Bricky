@@ -8,11 +8,18 @@ import unittest
 from pathlib import Path
 
 from score_results import (
+    DORMANT,
+    FAIL,
     MINIMUM_AUTHORED_MODELS,
-    MINIMUM_CORPUS_ROWS,
+    PASS,
     REGISTRATION_YAW_RMSE_DEGREES,
+    UNMEASURED,
     VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING,
+    clopper_pearson_lower,
+    clopper_pearson_upper,
+    evaluate,
     main,
+    median_upper_bound,
     partition,
     score_recovery,
     score_registration,
@@ -20,6 +27,12 @@ from score_results import (
     validate_release_corpus,
     validate_rows,
 )
+
+RELEASE_ROWS = 60
+
+
+def gate_named(gates, name):
+    return next(gate for gate in gates if gate.name == name)
 
 
 def benchmark_row(
@@ -120,9 +133,7 @@ class MeasurementValidationTests(unittest.TestCase):
     def test_verification_rejects_non_finite_and_negative_latency(self) -> None:
         for latency in (float("nan"), float("-inf"), -5):
             with self.assertRaisesRegex(SystemExit, "latency_ms"):
-                score_verification(
-                    [verification_row(latency=latency)], allow_small_corpus=True
-                )
+                score_verification([verification_row(latency=latency)])
 
     def test_registration_rejects_non_finite_measurements(self) -> None:
         for field, value in (
@@ -133,14 +144,14 @@ class MeasurementValidationTests(unittest.TestCase):
             row = registration_row()
             row[field] = value
             with self.assertRaisesRegex(SystemExit, field):
-                score_registration([row], allow_small_corpus=True)
+                score_registration([row])
 
 
 class ReleaseCorpusValidationTests(unittest.TestCase):
     @staticmethod
     def release_rows(fixture_id: str | None = None) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
-        for index in range(MINIMUM_CORPUS_ROWS):
+        for index in range(RELEASE_ROWS):
             row = benchmark_row()
             row.update(
                 fixture_id=fixture_id or f"fixture-{index}",
@@ -160,11 +171,13 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
         validate_release_corpus(rows)
 
     def test_duplicated_fixture_ids_fail_preflight(self) -> None:
-        with self.assertRaisesRegex(SystemExit, "distinct fixture IDs"):
+        # A repeated fixture would pad every bound's sample size with
+        # correlated evidence, so it is rejected outright rather than counted.
+        with self.assertRaisesRegex(SystemExit, "repeats fixture_id"):
             validate_release_corpus(self.release_rows(fixture_id="fixture-repeated"))
 
     def test_release_row_requires_explicit_provenance(self) -> None:
-        rows = [benchmark_row() for _ in range(MINIMUM_CORPUS_ROWS)]
+        rows = [benchmark_row() for _ in range(RELEASE_ROWS)]
         with self.assertRaisesRegex(SystemExit, "missing fields"):
             validate_release_corpus(rows)
 
@@ -182,16 +195,48 @@ class PartitionTests(unittest.TestCase):
 
 
 class VerificationScoringTests(unittest.TestCase):
-    def test_clean_results_pass_all_gates(self) -> None:
+    @staticmethod
+    def release_sized_clean_rows() -> list[dict[str, object]]:
+        # Just past every zero-miss minimum: 149 negatives for the 2%
+        # false-complete ceiling, 59 undetectable rows for 95% abstention.
+        return (
+            [verification_row() for _ in range(60)]
+            + [verification_row(expected="incomplete", produced="incomplete") for _ in range(150)]
+            + [verification_row(expected="uncertain", produced="uncertain", detectability="undetectable") for _ in range(60)]
+        )
+
+    def test_clean_release_sized_results_pass_all_gates(self) -> None:
+        report, gates = score_verification(self.release_sized_clean_rows())
+        self.assertFalse(evaluate(gates, release=True))
+        self.assertEqual(report["false_complete_rate"], 0.0)
+        self.assertEqual(report["negatives"], 150)
+        self.assertLessEqual(report["false_complete_upper_95"], 0.02)
+        self.assertEqual(report["undetectable_abstention_rate"], 1.0)
+
+    def test_clean_but_small_results_fail_release_on_their_bounds(self) -> None:
+        # 40 perfect negatives prove a false-complete rate below ~7.2%, not
+        # below 2%: a flawless small sample is not release evidence.
         rows = (
             [verification_row() for _ in range(40)]
             + [verification_row(expected="incomplete", produced="incomplete") for _ in range(40)]
             + [verification_row(expected="uncertain", produced="uncertain", detectability="undetectable") for _ in range(20)]
         )
-        report, failed = score_verification(rows, allow_small_corpus=False)
-        self.assertFalse(failed)
-        self.assertEqual(report["false_complete_rate"], 0.0)
-        self.assertEqual(report["undetectable_abstention_rate"], 1.0)
+        _, gates = score_verification(rows)
+        self.assertFalse(evaluate(gates, release=False))
+        self.assertTrue(evaluate(gates, release=True))
+        self.assertEqual(gate_named(gates, "verification.false_complete_rate").status(release=True), FAIL)
+
+    def test_no_negatives_is_unmeasured_not_zero(self) -> None:
+        # The defect this replaces: an all-complete corpus used to report a
+        # perfect 0.0 false-complete rate while measuring nothing.
+        report, gates = score_verification([verification_row() for _ in range(200)])
+        self.assertIsNone(report["false_complete_rate"])
+        self.assertIsNone(report["false_complete_upper_95"])
+        self.assertEqual(report["negatives"], 0)
+        gate = gate_named(gates, "verification.false_complete_rate")
+        self.assertEqual(gate.status(release=True), UNMEASURED)
+        self.assertTrue(gate.fails(release=True))
+        self.assertFalse(gate.fails(release=False))
 
     def test_false_complete_is_the_headline_gate(self) -> None:
         # 3 wrong "complete" verdicts in 40 negatives is 7.5% — over the 2%
@@ -201,41 +246,52 @@ class VerificationScoringTests(unittest.TestCase):
             + [verification_row(expected="incomplete", produced="incomplete") for _ in range(37)]
             + [verification_row(expected="incomplete", produced="complete") for _ in range(3)]
         )
-        report, failed = score_verification(rows, allow_small_corpus=False)
-        self.assertTrue(failed)
+        report, gates = score_verification(rows)
+        self.assertTrue(evaluate(gates, release=False))
+        self.assertTrue(evaluate(gates, release=True))
         self.assertGreater(report["false_complete_rate"], 0.02)
 
-    def test_missing_abstention_on_undetectable_fails(self) -> None:
+    def test_complete_on_undetectable_is_a_hard_failure_in_both_modes(self) -> None:
         rows = (
             [verification_row() for _ in range(20)]
             + [verification_row(expected="uncertain", produced="complete", detectability="undetectable") for _ in range(5)]
         )
-        _, failed = score_verification(rows, allow_small_corpus=True)
-        self.assertTrue(failed)
+        report, gates = score_verification(rows)
+        self.assertEqual(report["undetectable_false_completes"], 5)
+        gate = gate_named(gates, "verification.undetectable_false_completes")
+        self.assertTrue(gate.fails(release=False))
+        self.assertTrue(gate.fails(release=True))
 
     def test_chronic_uncertainty_on_correct_builds_fails(self) -> None:
         rows = (
             [verification_row() for _ in range(10)]
             + [verification_row(expected="complete", produced="uncertain") for _ in range(4)]
         )
-        report, failed = score_verification(rows, allow_small_corpus=True)
-        self.assertTrue(failed)
+        report, gates = score_verification(rows)
+        self.assertTrue(evaluate(gates, release=False))
         self.assertGreater(report["uncertain_on_correct_rate"], VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING)
 
-    def test_small_corpus_fails_without_the_flag(self) -> None:
-        rows = [verification_row() for _ in range(MINIMUM_CORPUS_ROWS - 1)]
-        with self.assertRaisesRegex(SystemExit, "verification corpus"):
-            score_verification(rows, allow_small_corpus=False)
+    def test_marginal_gates_are_dormant(self) -> None:
+        # Marginal complete is blocked until the RGB term exists (ADR 0008);
+        # zero marginal recall must be reported, never fail the run.
+        rows = self.release_sized_clean_rows() + [
+            verification_row(detectability="marginal", produced="incomplete") for _ in range(10)
+        ]
+        report, gates = score_verification(rows)
+        self.assertEqual(report["per_detectability"]["marginal"]["complete_recall"], 0.0)
+        gate = gate_named(gates, "verification.marginal.complete_recall")
+        self.assertEqual(gate.status(release=True), DORMANT)
+        self.assertFalse(evaluate(gates, release=True))
 
 
 class RegistrationScoringTests(unittest.TestCase):
-    def test_clean_results_pass(self) -> None:
+    def test_clean_release_sized_results_pass(self) -> None:
         rows = (
-            [registration_row() for _ in range(35)]
-            + [registration_row(ambiguity_expected=True, reported_ambiguous=True) for _ in range(5)]
+            [registration_row() for _ in range(60)]
+            + [registration_row(ambiguity_expected=True, reported_ambiguous=True) for _ in range(30)]
         )
-        report, failed = score_registration(rows, allow_small_corpus=False)
-        self.assertFalse(failed)
+        report, gates = score_registration(rows)
+        self.assertFalse(evaluate(gates, release=True))
         self.assertEqual(report["ambiguity_recall"], 1.0)
 
     def test_missed_ambiguity_fails(self) -> None:
@@ -243,32 +299,44 @@ class RegistrationScoringTests(unittest.TestCase):
             [registration_row() for _ in range(30)]
             + [registration_row(ambiguity_expected=True, reported_ambiguous=False) for _ in range(5)]
         )
-        _, failed = score_registration(rows, allow_small_corpus=True)
-        self.assertTrue(failed)
+        _, gates = score_registration(rows)
+        self.assertTrue(evaluate(gates, release=False))
 
     def test_symmetric_fixtures_do_not_count_against_convergence(self) -> None:
         rows = (
             [registration_row() for _ in range(20)]
             + [registration_row(converged=False, ambiguity_expected=True, reported_ambiguous=True) for _ in range(10)]
         )
-        report, failed = score_registration(rows, allow_small_corpus=True)
-        self.assertFalse(failed)
+        report, gates = score_registration(rows)
+        self.assertFalse(evaluate(gates, release=False))
         self.assertEqual(report["convergence_rate"], 1.0)
 
     def test_sloppy_converged_fits_fail_rmse(self) -> None:
         rows = [registration_row(translation=0.006) for _ in range(20)]
-        _, failed = score_registration(rows, allow_small_corpus=True)
-        self.assertTrue(failed)
+        _, gates = score_registration(rows)
+        self.assertTrue(evaluate(gates, release=False))
 
     def test_sloppy_converged_fits_fail_yaw_rmse(self) -> None:
         rows = [registration_row(yaw=REGISTRATION_YAW_RMSE_DEGREES + 1.0) for _ in range(20)]
-        _, failed = score_registration(rows, allow_small_corpus=True)
-        self.assertTrue(failed)
+        _, gates = score_registration(rows)
+        self.assertTrue(evaluate(gates, release=False))
 
-    def test_small_corpus_fails_without_the_flag(self) -> None:
-        rows = [registration_row() for _ in range(MINIMUM_CORPUS_ROWS - 1)]
-        with self.assertRaisesRegex(SystemExit, "registration corpus"):
-            score_registration(rows, allow_small_corpus=False)
+    def test_few_converged_fits_leave_rmse_unmeasured_in_release(self) -> None:
+        rows = [registration_row() for _ in range(10)]
+        report, gates = score_registration(rows)
+        self.assertIsNotNone(report["translation_rmse_m"])
+        gate = gate_named(gates, "registration.translation_rmse_m")
+        self.assertEqual(gate.status(release=False), PASS)
+        self.assertEqual(gate.status(release=True), UNMEASURED)
+
+    def test_sweep_without_ambiguity_fixtures_cannot_pass_release(self) -> None:
+        # The synthetic sweep sets no ambiguity-expected rows; that gate used
+        # to be silently skipped, which read as a pass.
+        _, gates = score_registration([registration_row() for _ in range(80)])
+        gate = gate_named(gates, "registration.ambiguity_recall")
+        self.assertEqual(gate.status(release=True), UNMEASURED)
+        self.assertTrue(evaluate(gates, release=True))
+        self.assertFalse(evaluate(gates, release=False))
 
 
 class RecoveryScoringTests(unittest.TestCase):
@@ -291,8 +359,8 @@ class RecoveryScoringTests(unittest.TestCase):
         return rows
 
     def test_each_method_reports_its_own_latency_median(self) -> None:
-        report, failed = score_recovery(self.mixed_method_rows(), allow_small_corpus=True)
-        self.assertFalse(failed)
+        report, gates = score_recovery(self.mixed_method_rows(), release=False)
+        self.assertFalse(evaluate(gates, release=False))
         self.assertEqual(report["geometric_cases"], 4)
         self.assertEqual(report["composite_cases"], 4)
         self.assertEqual(report["vlm_cases"], 4)
@@ -301,24 +369,18 @@ class RecoveryScoringTests(unittest.TestCase):
         self.assertEqual(report["vlm_median_latency_ms"], 12_000)
 
     def test_slow_geometric_median_fails_its_gate(self) -> None:
-        _, failed = score_recovery(
-            self.mixed_method_rows(geometric_latency=9_000), allow_small_corpus=True
-        )
-        self.assertTrue(failed)
+        _, gates = score_recovery(self.mixed_method_rows(geometric_latency=9_000), release=False)
+        self.assertTrue(evaluate(gates, release=False))
 
     def test_slow_composite_median_fails_its_gate(self) -> None:
-        _, failed = score_recovery(
-            self.mixed_method_rows(composite_latency=21_000), allow_small_corpus=True
-        )
-        self.assertTrue(failed)
+        _, gates = score_recovery(self.mixed_method_rows(composite_latency=21_000), release=False)
+        self.assertTrue(evaluate(gates, release=False))
 
     def test_slow_vlm_median_fails_the_composite_gate(self) -> None:
         # A VLM-only run has no geometric leg to blame, but it spends the same
         # budget, so it is judged against the same ceiling.
-        _, failed = score_recovery(
-            self.mixed_method_rows(vlm_latency=21_000), allow_small_corpus=True
-        )
-        self.assertTrue(failed)
+        _, gates = score_recovery(self.mixed_method_rows(vlm_latency=21_000), release=False)
+        self.assertTrue(evaluate(gates, release=False))
 
     def test_geometric_rows_are_not_charged_the_composite_budget(self) -> None:
         # The regression this whole field exists to prevent: before
@@ -326,10 +388,29 @@ class RecoveryScoringTests(unittest.TestCase):
         # read a prefix off a field the row schema never carried, so a
         # geometric row at 9 s passed the 20 s gate and geometric_cases read 0.
         rows = [benchmark_row(estimator_method="geometric", latency=9_000) for _ in range(4)]
-        report, failed = score_recovery(rows, allow_small_corpus=True)
+        report, gates = score_recovery(rows, release=False)
         self.assertEqual(report["geometric_cases"], 4)
         self.assertEqual(report["composite_cases"], 0)
-        self.assertTrue(failed)
+        self.assertTrue(evaluate(gates, release=False))
+
+    def test_empty_required_latency_bucket_is_unmeasured_not_zero_ms(self) -> None:
+        # The defect this replaces: `(median or 0) > limit` passed an empty
+        # bucket as "0 ms". Geometric is the primary path, so a release corpus
+        # without it has not measured the gate.
+        rows = [benchmark_row(estimator_method="composite") for _ in range(10)]
+        report, gates = score_recovery(rows, release=False)
+        self.assertIsNone(report["geometric_median_latency_ms"])
+        geometric = gate_named(gates, "recovery.geometric_median_latency_ms")
+        self.assertEqual(geometric.status(release=True), UNMEASURED)
+        self.assertTrue(geometric.fails(release=True))
+        self.assertFalse(geometric.fails(release=False))
+
+    def test_empty_vlm_bucket_is_optional(self) -> None:
+        rows = [benchmark_row(estimator_method="geometric", latency=4_000) for _ in range(10)]
+        _, gates = score_recovery(rows, release=False)
+        vlm = gate_named(gates, "recovery.vlm_median_latency_ms")
+        self.assertEqual(vlm.status(release=True), UNMEASURED)
+        self.assertFalse(vlm.fails(release=True))
 
     def test_unknown_estimator_method_is_rejected(self) -> None:
         rows = [benchmark_row(estimator_method="magic")]
@@ -353,31 +434,86 @@ class MainTests(unittest.TestCase):
         ]
 
     @staticmethod
-    def run_main(rows: list[dict[str, object]]) -> tuple[int, str]:
+    def run_main(rows: list[dict[str, object]], **options: object) -> tuple[int, str]:
+        options.setdefault("informational", True)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "results.ndjson"
             path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 try:
-                    main(path, allow_small_corpus=True)
+                    main(path, **options)
                 except SystemExit as caught:
                     return int(caught.code or 0), stdout.getvalue()
         raise AssertionError("main() must exit via SystemExit")
 
+    @staticmethod
+    def report_json(output: str) -> dict[str, object]:
+        return json.loads(output[output.index("\n{") + 1:])
+
     def test_every_present_kind_is_scored(self) -> None:
         code, output = self.run_main(self.mixed_kind_rows())
         self.assertEqual(code, 0)
-        headline, _, report_json = output.partition("\n")
-        self.assertTrue(headline.startswith("FALSE_COMPLETE_RATE "))
-        report = json.loads(report_json)
+        self.assertTrue(output.startswith("FALSE_COMPLETE_RATE "))
+        report = self.report_json(output)
         self.assertEqual(sorted(report), ["recovery", "registration", "verification"])
+        self.assertIn("verification.false_complete_rate", report["verification"]["gates"])
 
     def test_failed_is_the_union_of_kind_failures(self) -> None:
         code, output = self.run_main(self.mixed_kind_rows(ambiguity_reported=False))
         self.assertEqual(code, 1)
-        report = json.loads(output.partition("\n")[2])
+        report = self.report_json(output)
         self.assertEqual(sorted(report), ["recovery", "registration", "verification"])
+
+    def test_headline_prints_even_without_verification_rows(self) -> None:
+        code, output = self.run_main([benchmark_row()])
+        self.assertEqual(code, 0)
+        self.assertTrue(output.startswith(f"FALSE_COMPLETE_RATE {UNMEASURED}"))
+        self.assertIn(f"KIND verification {UNMEASURED}", output)
+
+    def test_missing_required_kind_fails_and_is_named(self) -> None:
+        code, output = self.run_main([benchmark_row()], require_kinds={"registration"})
+        self.assertEqual(code, 1)
+        self.assertIn("KIND registration UNMEASURED (required: FAIL)", output)
+
+
+class ConfidenceBoundTests(unittest.TestCase):
+    def test_zero_event_upper_bound_has_the_closed_form(self) -> None:
+        for trials in (1, 10, 149):
+            self.assertAlmostEqual(clopper_pearson_upper(0, trials), 1 - 0.05 ** (1 / trials), places=12)
+
+    def test_false_complete_needs_149_clean_negatives(self) -> None:
+        self.assertLessEqual(clopper_pearson_upper(0, 149), 0.02)
+        self.assertGreater(clopper_pearson_upper(0, 148), 0.02)
+
+    def test_forty_of_forty_only_demonstrates_about_093(self) -> None:
+        self.assertAlmostEqual(clopper_pearson_lower(40, 40), 0.9278, places=3)
+
+    def test_interior_bound_matches_the_reference_value(self) -> None:
+        # One event in ten: the one-sided 95% upper bound is 0.3942.
+        self.assertAlmostEqual(clopper_pearson_upper(1, 10), 0.3942, places=3)
+
+    def test_lower_bound_mirrors_the_upper_bound(self) -> None:
+        for events, trials in ((0, 5), (3, 17), (12, 12)):
+            self.assertAlmostEqual(
+                clopper_pearson_lower(events, trials),
+                1 - clopper_pearson_upper(trials - events, trials),
+                places=12,
+            )
+
+    def test_edges(self) -> None:
+        self.assertEqual(clopper_pearson_upper(7, 7), 1.0)
+        self.assertEqual(clopper_pearson_lower(0, 7), 0.0)
+        self.assertIsNone(clopper_pearson_upper(0, 0))
+        self.assertIsNone(clopper_pearson_lower(0, 0))
+
+    def test_median_bound_needs_five_samples(self) -> None:
+        self.assertIsNone(median_upper_bound([1.0, 2.0, 3.0, 4.0]))
+        self.assertEqual(median_upper_bound([5.0, 1.0, 4.0, 2.0, 3.0]), 5.0)
+
+    def test_median_bound_picks_the_qualifying_order_statistic(self) -> None:
+        # n = 10: P(Bin(10, 0.5) <= 7) = 0.945 < 0.95 <= P(<= 8), so X(9).
+        self.assertEqual(median_upper_bound([float(value) for value in range(1, 11)]), 9.0)
 
 
 if __name__ == "__main__":

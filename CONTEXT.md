@@ -179,13 +179,15 @@ python3 check_regression.py synthetic.ndjson \
   two questions were previously conflated in one job that could answer
   neither. The marginal precision/recall pair is dormant by decision until
   the RGB support term lands (ADR 0008 amendment).
-- 🔴 GAP — physical corpus: ≥40 distinct staged fixtures across ≥6 legally
-  usable authored models with lighting/angle/occlusion variation (the scorer
-  enforces the ≥40 minimum on every row kind — recovery, verification, and
-  registration — unless `--allow-small-corpus` is passed); registration
-  error ≤5 mm against a jig; the synthetic verification gates re-met on
-  device; median latencies ≤3 s verification, ≤8 s geometric recovery, ≤20 s
-  composite recovery.
+- 🔴 GAP — physical corpus: one row per staged fixture across ≥6 legally
+  usable authored models (a floor pending an owner decision between 6 and
+  10) with lighting/angle/occlusion variation; registration error ≤5 mm
+  against a jig; the synthetic verification gates re-met on device; median
+  latencies ≤3 s verification, ≤8 s geometric recovery, ≤20 s composite
+  recovery. Release mode judges every gate on a one-sided 95% confidence
+  bound and fails any required gate it could not measure, so the corpus size
+  follows from the gates (`score_results.py --explain-minimums`: e.g. ≥149
+  negatives for false-complete ≤2%) rather than from a fixed row count.
 - 🔴 GAP — profile the production-sized warm-up while AR, scene mesh, and the
   ICP tracker are active on candidate devices, set the memory floor to
   worst-case peak plus 25%, and record the admitted hardware set.

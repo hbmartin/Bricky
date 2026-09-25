@@ -3,10 +3,18 @@
 
 Rows carry an optional "kind": "recovery" (default, RecoveryBenchmarkV1),
 "verification" (step-verifier verdicts), or "registration" (tracker fits).
-Each kind has its own validation and release gates; a mixed file scores every
-kind present and fails if any gate fails. The verification false-complete
-rate is the headline number (ADR 0008): a wrong "complete" is the one
-failure the product must not make.
+Each kind has its own validation and gates; a mixed file scores every kind
+present. The verification false-complete rate is the headline number
+(ADR 0008): a wrong "complete" is the one failure the product must not make.
+
+Unmeasured is not zero. A gate whose denominator is empty is UNMEASURED,
+never a perfect score. In release mode (the default) every rate gate is
+judged on a one-sided 95% Clopper-Pearson bound and every median-latency gate
+on a distribution-free order-statistic bound, so the sample size a gate needs
+follows from the arithmetic (`--explain-minimums`) instead of a fixed row
+count; a required gate or kind that is UNMEASURED fails the run. The
+informational mode (`--informational`, formerly `--allow-small-corpus`)
+judges point estimates and only reports UNMEASURED gates.
 """
 
 from __future__ import annotations
@@ -15,10 +23,17 @@ import argparse
 import json
 import math
 import statistics
+from dataclasses import dataclass
 from pathlib import Path
 
-MINIMUM_CORPUS_ROWS = 40
+# PENDING owner decision (2026-09-25): whether the recovery release corpus
+# must span 6 or 10 authored models. Kept at the historical value until then.
 MINIMUM_AUTHORED_MODELS = 6
+
+CONFIDENCE = 0.95
+# Below this many converged fits an RMSE is an anecdote, not a measurement.
+MINIMUM_RMSE_SAMPLES = 20
+KINDS = ("recovery", "verification", "registration")
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -123,19 +138,162 @@ def require_valid_latency(row: dict[str, object], label: str) -> None:
         raise SystemExit(f"{label} latency_ms must be a finite non-negative number")
 
 
-def rmse(values: list[float]) -> float:
+def rmse(values: list[float]) -> float | None:
     if not values:
-        return 0.0
+        return None
     return (sum(value * value for value in values) / len(values)) ** 0.5
 
 
-def validate_minimum_corpus(rows: list[dict[str, object]], kind: str) -> None:
-    if len(rows) < MINIMUM_CORPUS_ROWS:
-        raise SystemExit(
-            f"{kind} corpus has {len(rows)} rows but release gates require at least "
-            f"{MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for "
-            "schema/scorer smoke data, never for release-gate metrics"
+# --- Confidence bounds (stdlib only: CI runs plain python3) ------------------
+
+
+def binomial_cdf(k: int, n: int, p: float) -> float:
+    """P(X <= k) for X ~ Binomial(n, p), summed in log space."""
+    if k < 0:
+        return 0.0
+    if k >= n:
+        return 1.0
+    if p <= 0.0:
+        return 1.0
+    if p >= 1.0:
+        return 0.0
+    log_p, log_q = math.log(p), math.log1p(-p)
+    log_n_factorial = math.lgamma(n + 1)
+    total = 0.0
+    for i in range(k + 1):
+        log_term = (
+            log_n_factorial - math.lgamma(i + 1) - math.lgamma(n - i + 1)
+            + i * log_p + (n - i) * log_q
         )
+        total += math.exp(log_term)
+    return min(total, 1.0)
+
+
+def _bisect(predicate, low: float = 0.0, high: float = 1.0) -> float:
+    """Smallest p in [low, high] for which the monotone predicate holds."""
+    for _ in range(100):
+        middle = (low + high) / 2
+        if predicate(middle):
+            high = middle
+        else:
+            low = middle
+    return high
+
+
+def clopper_pearson_upper(events: int, trials: int, confidence: float = CONFIDENCE) -> float | None:
+    """One-sided upper confidence bound on a rate. None without trials."""
+    if trials <= 0:
+        return None
+    if events >= trials:
+        return 1.0
+    alpha = 1.0 - confidence
+    if events == 0:
+        return 1.0 - alpha ** (1.0 / trials)
+    return _bisect(lambda p: binomial_cdf(events, trials, p) <= alpha)
+
+
+def clopper_pearson_lower(events: int, trials: int, confidence: float = CONFIDENCE) -> float | None:
+    """One-sided lower confidence bound on a rate. None without trials."""
+    if trials <= 0:
+        return None
+    upper_of_misses = clopper_pearson_upper(trials - events, trials, confidence)
+    return None if upper_of_misses is None else 1.0 - upper_of_misses
+
+
+def median_upper_bound(values: list[float], confidence: float = CONFIDENCE) -> float | None:
+    """Distribution-free upper confidence bound on the median: the smallest
+    order statistic X(k) with P(X(k) >= median) >= confidence. None when the
+    sample is too small for any order statistic to qualify (n < 5 at 95%)."""
+    ordered = sorted(values)
+    n = len(ordered)
+    for k in range(1, n + 1):
+        if binomial_cdf(k - 1, n, 0.5) >= confidence:
+            return ordered[k - 1]
+    return None
+
+
+# --- Gates -------------------------------------------------------------------
+
+PASS, FAIL, UNMEASURED, DORMANT = "PASS", "FAIL", "UNMEASURED", "DORMANT"
+
+
+@dataclass(frozen=True)
+class Gate:
+    """One release gate. `value` is the point estimate; `bound` is the
+    conservative figure release mode judges (a confidence bound, or the
+    value itself for counts and sufficiently sampled RMSEs)."""
+
+    name: str
+    comparator: str  # "min": judged >= threshold; "max": judged <= threshold
+    threshold: float
+    value: float | None
+    bound: float | None
+    trials: int
+    events: int | None = None
+    required: bool = True
+    dormant: bool = False
+
+    def status(self, *, release: bool) -> str:
+        if self.dormant:
+            return DORMANT
+        judged = self.bound if release else self.value
+        if judged is None:
+            return UNMEASURED
+        passed = judged >= self.threshold if self.comparator == "min" else judged <= self.threshold
+        return PASS if passed else FAIL
+
+    def fails(self, *, release: bool) -> bool:
+        status = self.status(release=release)
+        return status == FAIL or (release and status == UNMEASURED and self.required)
+
+    def summary(self, *, release: bool) -> dict[str, object]:
+        return {
+            "status": self.status(release=release),
+            "value": self.value,
+            "bound": self.bound,
+            "events": self.events,
+            "trials": self.trials,
+            "threshold": self.threshold,
+            "comparator": self.comparator,
+            "required": self.required,
+        }
+
+
+def rate_gate(
+    name: str,
+    events: int,
+    trials: int,
+    *,
+    floor: float | None = None,
+    ceiling: float | None = None,
+    required: bool = True,
+    dormant: bool = False,
+) -> Gate:
+    value = events / trials if trials else None
+    if floor is not None:
+        return Gate(name, "min", floor, value, clopper_pearson_lower(events, trials), trials, events, required, dormant)
+    assert ceiling is not None
+    return Gate(name, "max", ceiling, value, clopper_pearson_upper(events, trials), trials, events, required, dormant)
+
+
+def median_gate(name: str, latencies: list[float], ceiling: float, *, required: bool = True) -> Gate:
+    value = statistics.median(latencies) if latencies else None
+    return Gate(name, "max", ceiling, value, median_upper_bound(latencies), len(latencies), None, required)
+
+
+def rmse_gate(name: str, errors: list[float], ceiling: float) -> Gate:
+    value = rmse(errors)
+    bound = value if len(errors) >= MINIMUM_RMSE_SAMPLES else None
+    return Gate(name, "max", ceiling, value, bound, len(errors))
+
+
+def count_gate(name: str, count: int, ceiling: int) -> Gate:
+    """A hard count limit, judged identically in both modes."""
+    return Gate(name, "max", ceiling, count, count, count, count)
+
+
+def evaluate(gates: list[Gate], *, release: bool) -> bool:
+    return any(gate.fails(release=release) for gate in gates)
 
 
 # --- Recovery (RecoveryBenchmarkV1, kind absent or "recovery") ---------------
@@ -175,6 +333,8 @@ def step_index(step_id: object) -> int | None:
 
 
 def validate_release_corpus(rows: list[dict[str, object]]) -> None:
+    """Provenance preflight for release mode. It checks what the rows are,
+    not how many there are: sample size is judged per gate by its bound."""
     fixtures: set[str] = set()
     models: set[str] = set()
     variation: dict[str, set[str]] = {
@@ -189,6 +349,10 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
         fixture_id = row.get("fixture_id")
         if not isinstance(fixture_id, str) or not fixture_id.strip():
             raise SystemExit(f"release row {index} fixture_id must be a non-empty string")
+        # One row per fixture: a repeated capture would otherwise pad every
+        # bound's sample size with correlated evidence.
+        if fixture_id.strip() in fixtures:
+            raise SystemExit(f"release row {index} repeats fixture_id {fixture_id.strip()!r}")
         fixtures.add(fixture_id.strip())
         if row["physical_case"] is not True:
             raise SystemExit(f"release row {index} is not explicitly marked as a physical case")
@@ -210,14 +374,6 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             for step_id in slots.values()
         ):
             raise SystemExit(f"release row {index} has no explicitly represented adjacent-step candidate")
-    # Distinct fixtures, not raw rows: duplicated captures must not pad the
-    # corpus past the release gate.
-    if len(fixtures) < MINIMUM_CORPUS_ROWS:
-        raise SystemExit(
-            f"corpus has {len(fixtures)} distinct fixture IDs but release gates require "
-            f"at least {MINIMUM_CORPUS_ROWS}; pass --allow-small-corpus only for "
-            "schema/scorer smoke data, never for release-gate metrics"
-        )
     if len(models) < MINIMUM_AUTHORED_MODELS:
         raise SystemExit(
             f"release corpus has {len(models)} authored models but requires at least "
@@ -234,9 +390,9 @@ def median_latency(rows: list[dict[str, object]]) -> float | None:
     return statistics.median([float(row["latency_ms"]) for row in rows])
 
 
-def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
+def score_recovery(rows: list[dict[str, object]], *, release: bool) -> tuple[dict[str, object], list[Gate]]:
     validate_rows(rows)
-    if not allow_small_corpus:
+    if release:
         validate_release_corpus(rows)
     sufficient = [row for row in rows if row.get("certainty") != "insufficient"]
     top1 = sum(bool(row["ranked_step_ids"]) and row["ranked_step_ids"][0] == row["expected_step_id"] for row in sufficient)
@@ -257,7 +413,7 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
         "top_1_accuracy": top1 / len(rows),
         "top_3_accuracy": top3 / len(rows),
         "insufficient_rate": (len(rows) - len(sufficient)) / len(rows),
-        "adjacent_step_confusion_rate": adjacent / max(1, len(sufficient)),
+        "adjacent_step_confusion_rate": adjacent / len(sufficient) if sufficient else None,
         "geometric_cases": len(by_method["geometric"]),
         "composite_cases": len(by_method["composite"]),
         "vlm_cases": len(by_method["vlm"]),
@@ -270,15 +426,22 @@ def score_recovery(rows: list[dict[str, object]], *, allow_small_corpus: bool) -
     }
     # Each method is judged against its own budget. Both fallback methods take
     # the composite budget: they pay for inference either way, and a composite
-    # row's latency already includes the geometric leg that stepped aside.
-    failed = (
-        report["top_3_accuracy"] < RECOVERY_TOP3_FLOOR
-        or report["top_1_accuracy"] < RECOVERY_TOP1_FLOOR
-        or (report["geometric_median_latency_ms"] or 0) > RECOVERY_GEOMETRIC_MEDIAN_MS
-        or (report["composite_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
-        or (report["vlm_median_latency_ms"] or 0) > RECOVERY_COMPOSITE_MEDIAN_MS
-    )
-    return report, failed
+    # row's latency already includes the geometric leg that stepped aside. An
+    # empty bucket is unmeasured, never "0 ms": geometric recovery is the
+    # primary path and composite the fallback a release must have exercised,
+    # so both are required; a VLM-only row has no geometric leg and is judged
+    # only when present.
+    def bucket_latencies(method: str) -> list[float]:
+        return [float(row["latency_ms"]) for row in by_method[method]]
+
+    gates = [
+        rate_gate("recovery.top_3_accuracy", top3, len(rows), floor=RECOVERY_TOP3_FLOOR),
+        rate_gate("recovery.top_1_accuracy", top1, len(rows), floor=RECOVERY_TOP1_FLOOR),
+        median_gate("recovery.geometric_median_latency_ms", bucket_latencies("geometric"), RECOVERY_GEOMETRIC_MEDIAN_MS),
+        median_gate("recovery.composite_median_latency_ms", bucket_latencies("composite"), RECOVERY_COMPOSITE_MEDIAN_MS),
+        median_gate("recovery.vlm_median_latency_ms", bucket_latencies("vlm"), RECOVERY_COMPOSITE_MEDIAN_MS, required=False),
+    ]
+    return report, gates
 
 
 # --- Verification (kind == "verification") -----------------------------------
@@ -298,17 +461,32 @@ def validate_verification_rows(rows: list[dict[str, object]]) -> None:
         require_valid_latency(row, f"verification row {index}")
 
 
-def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
+# Reported but never required or failing: the marginal complete verdict is
+# blocked until the RGB support term exists (ADR 0008 amendment), so these
+# would fail every run for a reason no solver change can address.
+DORMANT_GATES = {
+    "verification.marginal.complete_precision",
+    "verification.marginal.complete_recall",
+}
+
+
+def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
     validate_verification_rows(rows)
-    if not allow_small_corpus:
-        validate_minimum_corpus(rows, "verification")
     discriminable = [row for row in rows if row["detectability"] in {"strong", "marginal"}]
+    # Undetectable negatives stay out of this denominator: including them
+    # would make the bound easier to meet with rows the verifier abstains on
+    # by construction. A "complete" on them is a separate hard failure.
     negatives = [row for row in discriminable if row["expected_verdict"] != "complete"]
     false_completes = [row for row in negatives if row["produced_verdict"] == "complete"]
-    false_complete_rate = len(false_completes) / len(negatives) if negatives else 0.0
+    false_complete_gate = rate_gate(
+        "verification.false_complete_rate",
+        len(false_completes),
+        len(negatives),
+        ceiling=VERIFICATION_FALSE_COMPLETE_CEILING,
+    )
 
     per_class: dict[str, dict[str, object]] = {}
-    class_failures = False
+    gates: list[Gate] = [false_complete_gate]
     for detectability in ("strong", "marginal"):
         in_class = [row for row in discriminable if row["detectability"] == detectability]
         true_positive = sum(
@@ -323,14 +501,19 @@ def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: boo
         precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) else None
         recall = true_positive / expected_complete if expected_complete else None
         per_class[detectability] = {"complete_precision": precision, "complete_recall": recall, "cases": len(in_class)}
-        if precision is not None and precision < VERIFICATION_PRECISION_FLOOR[detectability]:
-            class_failures = True
-        if recall is not None and recall < VERIFICATION_RECALL_FLOOR[detectability]:
-            class_failures = True
+        for metric, events, trials, floor in (
+            ("complete_precision", true_positive, true_positive + false_positive, VERIFICATION_PRECISION_FLOOR),
+            ("complete_recall", true_positive, expected_complete, VERIFICATION_RECALL_FLOOR),
+        ):
+            name = f"verification.{detectability}.{metric}"
+            gates.append(
+                rate_gate(name, events, trials, floor=floor[detectability], dormant=name in DORMANT_GATES)
+            )
 
     undetectable = [row for row in rows if row["detectability"] == "undetectable"]
     abstained = sum(row["produced_verdict"] == "uncertain" for row in undetectable)
     abstention_rate = abstained / len(undetectable) if undetectable else None
+    undetectable_false_completes = sum(row["produced_verdict"] == "complete" for row in undetectable)
 
     correct_strong = [
         row for row in rows
@@ -343,22 +526,37 @@ def score_verification(rows: list[dict[str, object]], *, allow_small_corpus: boo
 
     latencies = [float(row["latency_ms"]) for row in rows]
     report: dict[str, object] = {
-        "false_complete_rate": false_complete_rate,
+        "false_complete_rate": false_complete_gate.value,
+        "false_complete_upper_95": false_complete_gate.bound,
         "false_complete_cases": len(false_completes),
+        "negatives": len(negatives),
+        "discriminable_cases": len(discriminable),
+        "undetectable_cases": len(undetectable),
+        "undetectable_false_completes": undetectable_false_completes,
         "per_detectability": per_class,
         "undetectable_abstention_rate": abstention_rate,
         "uncertain_on_correct_rate": uncertain_on_correct,
         "median_latency_ms": statistics.median(latencies) if latencies else None,
         "cases": len(rows),
     }
-    failed = (
-        false_complete_rate > VERIFICATION_FALSE_COMPLETE_CEILING
-        or class_failures
-        or (abstention_rate is not None and abstention_rate < VERIFICATION_ABSTENTION_FLOOR)
-        or (uncertain_on_correct is not None and uncertain_on_correct > VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING)
-        or (latencies and statistics.median(latencies) > VERIFICATION_MEDIAN_MS)
-    )
-    return report, failed
+    gates += [
+        # A "complete" on a delta depth cannot see is never earned evidence.
+        count_gate("verification.undetectable_false_completes", undetectable_false_completes, 0),
+        rate_gate(
+            "verification.undetectable_abstention_rate",
+            abstained,
+            len(undetectable),
+            floor=VERIFICATION_ABSTENTION_FLOOR,
+        ),
+        rate_gate(
+            "verification.uncertain_on_correct_rate",
+            sum(row["produced_verdict"] == "uncertain" for row in correct_strong),
+            len(correct_strong),
+            ceiling=VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING,
+        ),
+        median_gate("verification.median_latency_ms", latencies, VERIFICATION_MEDIAN_MS),
+    ]
+    return report, gates
 
 
 # --- Registration (kind == "registration") -----------------------------------
@@ -380,17 +578,15 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         require_valid_latency(row, f"registration row {index}")
 
 
-def score_registration(rows: list[dict[str, object]], *, allow_small_corpus: bool) -> tuple[dict[str, object], bool]:
+def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
     validate_registration_rows(rows)
-    if not allow_small_corpus:
-        validate_minimum_corpus(rows, "registration")
     # A genuinely symmetric fixture cannot converge to a unique truth; it is
     # judged on reporting ambiguity, not on convergence.
     unambiguous = [row for row in rows if not row["ambiguity_expected"]]
     converged = [row for row in unambiguous if row["converged"]]
     convergence_rate = len(converged) / len(unambiguous) if unambiguous else None
-    translation_rmse = rmse([float(row["translation_error_m"]) for row in converged])
-    yaw_rmse = rmse([float(row["yaw_error_degrees"]) for row in converged])
+    translation_errors = [float(row["translation_error_m"]) for row in converged]
+    yaw_errors = [float(row["yaw_error_degrees"]) for row in converged]
     ambiguous_expected = [row for row in rows if row["ambiguity_expected"]]
     ambiguity_recall = (
         sum(row["reported_ambiguous"] for row in ambiguous_expected) / len(ambiguous_expected)
@@ -399,17 +595,27 @@ def score_registration(rows: list[dict[str, object]], *, allow_small_corpus: boo
     report: dict[str, object] = {
         "cases": len(rows),
         "convergence_rate": convergence_rate,
-        "translation_rmse_m": translation_rmse if converged else None,
-        "yaw_rmse_degrees": yaw_rmse if converged else None,
+        "translation_rmse_m": rmse(translation_errors),
+        "yaw_rmse_degrees": rmse(yaw_errors),
         "ambiguity_recall": ambiguity_recall,
     }
-    failed = (
-        (convergence_rate is not None and convergence_rate < REGISTRATION_CONVERGENCE_FLOOR)
-        or (converged and translation_rmse > REGISTRATION_TRANSLATION_RMSE_M)
-        or (converged and yaw_rmse > REGISTRATION_YAW_RMSE_DEGREES)
-        or (ambiguity_recall is not None and ambiguity_recall < REGISTRATION_AMBIGUITY_RECALL_FLOOR)
-    )
-    return report, failed
+    gates = [
+        rate_gate(
+            "registration.convergence_rate",
+            len(converged),
+            len(unambiguous),
+            floor=REGISTRATION_CONVERGENCE_FLOOR,
+        ),
+        rmse_gate("registration.translation_rmse_m", translation_errors, REGISTRATION_TRANSLATION_RMSE_M),
+        rmse_gate("registration.yaw_rmse_degrees", yaw_errors, REGISTRATION_YAW_RMSE_DEGREES),
+        rate_gate(
+            "registration.ambiguity_recall",
+            sum(row["reported_ambiguous"] for row in ambiguous_expected),
+            len(ambiguous_expected),
+            floor=REGISTRATION_AMBIGUITY_RECALL_FLOOR,
+        ),
+    ]
+    return report, gates
 
 
 # --- Entry -------------------------------------------------------------------
@@ -425,38 +631,152 @@ def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]
     return kinds
 
 
-def main(path: Path, *, allow_small_corpus: bool = False) -> None:
+def zero_miss_minimum(gate: Gate) -> int | None:
+    """Smallest sample that can pass `gate` in release mode with no misses."""
+    for n in range(1, 100_000):
+        if gate.name.endswith("median_latency_ms"):
+            if median_upper_bound([0.0] * n) is not None:
+                return n
+            continue
+        if gate.name.endswith("_rmse_m") or gate.name.endswith("_rmse_degrees"):
+            return MINIMUM_RMSE_SAMPLES
+        bound = clopper_pearson_upper(0, n) if gate.comparator == "max" else clopper_pearson_lower(n, n)
+        if bound is not None and (bound <= gate.threshold if gate.comparator == "max" else bound >= gate.threshold):
+            return n
+    return None
+
+
+def explain_minimums() -> None:
+    """Print the zero-miss sample size each release gate implies."""
+    empty_verification = [
+        {"schema_version": 1, "fixture_id": "x", "expected_verdict": "complete",
+         "produced_verdict": "complete", "detectability": "strong", "latency_ms": 0}
+    ]
+    empty_registration = [
+        {"schema_version": 1, "fixture_id": "x", "converged": True, "translation_error_m": 0.0,
+         "yaw_error_degrees": 0.0, "ambiguity_expected": False, "reported_ambiguous": False,
+         "latency_ms": 0}
+    ]
+    gates = (
+        score_verification(empty_verification)[1]
+        + score_registration(empty_registration)[1]
+        + [
+            rate_gate("recovery.top_3_accuracy", 1, 1, floor=RECOVERY_TOP3_FLOOR),
+            rate_gate("recovery.top_1_accuracy", 1, 1, floor=RECOVERY_TOP1_FLOOR),
+            median_gate("recovery.geometric_median_latency_ms", [0.0], RECOVERY_GEOMETRIC_MEDIAN_MS),
+            median_gate("recovery.composite_median_latency_ms", [0.0], RECOVERY_COMPOSITE_MEDIAN_MS),
+        ]
+    )
+    print(f"Zero-miss sample size per release gate at {CONFIDENCE:.0%} one-sided confidence:")
+    for gate in gates:
+        if gate.name == "verification.undetectable_false_completes":
+            continue
+        suffix = " (dormant)" if gate.dormant else ""
+        symbol = ">=" if gate.comparator == "min" else "<="
+        print(f"  {gate.name} {symbol} {gate.threshold:g}: n >= {zero_miss_minimum(gate)}{suffix}")
+
+
+def format_number(value: float | None) -> str:
+    return "-" if value is None else f"{value:.4f}"
+
+
+def headline(verification_report: dict[str, object] | None, gate: Gate | None, *, release: bool) -> str:
+    if verification_report is None or gate is None:
+        return f"FALSE_COMPLETE_RATE {UNMEASURED} (no verification rows) {UNMEASURED}"
+    rate = verification_report["false_complete_rate"]
+    shown = UNMEASURED if rate is None else f"{rate:.4f}"
+    return (
+        f"FALSE_COMPLETE_RATE {shown} "
+        f"({verification_report['false_complete_cases']}/{verification_report['negatives']} negatives, "
+        f"upper95={format_number(gate.bound)}) {gate.status(release=release)}"
+    )
+
+
+def main(
+    path: Path,
+    *,
+    informational: bool = False,
+    require_kinds: set[str] | None = None,
+) -> None:
+    release = not informational
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     if not rows:
         raise SystemExit("no benchmark rows")
+    if require_kinds is None:
+        require_kinds = set(KINDS) if release else set()
     kinds = partition(rows)
+    scorers = {
+        "verification": lambda kind_rows: score_verification(kind_rows),
+        "registration": lambda kind_rows: score_registration(kind_rows),
+        "recovery": lambda kind_rows: score_recovery(kind_rows, release=release),
+    }
     report: dict[str, object] = {}
+    gates_by_kind: dict[str, list[Gate]] = {}
+    for kind in ("verification", "registration", "recovery"):
+        if kinds[kind]:
+            report[kind], gates_by_kind[kind] = scorers[kind](kinds[kind])
+
+    # The headline number, printed before anything else (ADR 0008) — even
+    # when it could not be measured, so its absence is never silent.
+    false_complete_gate = next(
+        (gate for gate in gates_by_kind.get("verification", []) if gate.name == "verification.false_complete_rate"),
+        None,
+    )
+    print(headline(report.get("verification"), false_complete_gate, release=release))
+
     failed = False
-    if kinds["verification"]:
-        verification_report, verification_failed = score_verification(kinds["verification"], allow_small_corpus=allow_small_corpus)
-        # The headline number, printed before anything else (ADR 0008).
-        print(f"FALSE_COMPLETE_RATE {verification_report['false_complete_rate']:.4f}")
-        report["verification"] = verification_report
-        failed = failed or verification_failed
-    if kinds["registration"]:
-        registration_report, registration_failed = score_registration(kinds["registration"], allow_small_corpus=allow_small_corpus)
-        report["registration"] = registration_report
-        failed = failed or registration_failed
-    if kinds["recovery"]:
-        recovery_report, recovery_failed = score_recovery(kinds["recovery"], allow_small_corpus=allow_small_corpus)
-        report["recovery"] = recovery_report
-        failed = failed or recovery_failed
+    for kind in KINDS:
+        if kind not in report:
+            required = kind in require_kinds
+            failed = failed or required
+            print(f"KIND {kind} {UNMEASURED}{' (required: FAIL)' if required else ''}")
+            continue
+        summaries: dict[str, object] = {}
+        for gate in gates_by_kind[kind]:
+            status = gate.status(release=release)
+            failed = failed or gate.fails(release=release)
+            print(
+                f"GATE {gate.name} {status} value={format_number(gate.value)} "
+                f"bound={format_number(gate.bound)} n={gate.trials} "
+                f"threshold{'>=' if gate.comparator == 'min' else '<='}{gate.threshold:g}"
+            )
+            summaries[gate.name] = gate.summary(release=release)
+        report[kind]["gates"] = summaries
     print(json.dumps(report, indent=2, sort_keys=True))
     raise SystemExit(1 if failed else 0)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("results", type=Path, metavar="DEVICE_RESULTS.ndjson")
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("results", type=Path, nargs="?", metavar="DEVICE_RESULTS.ndjson")
     parser.add_argument(
+        "--informational",
         "--allow-small-corpus",
+        dest="informational",
         action="store_true",
-        help=f"permit fewer than {MINIMUM_CORPUS_ROWS} rows per kind (smoke fixtures only)",
+        help="judge point estimates and only report UNMEASURED gates (smoke data, CI trends); "
+        "never for release decisions",
+    )
+    parser.add_argument(
+        "--require-kinds",
+        help="comma-separated row kinds that must be present "
+        "(default: all three in release mode, none in informational mode)",
+    )
+    parser.add_argument(
+        "--explain-minimums",
+        action="store_true",
+        help="print the zero-miss sample size each release gate implies and exit",
     )
     arguments = parser.parse_args()
-    main(arguments.results, allow_small_corpus=arguments.allow_small_corpus)
+    if arguments.explain_minimums:
+        explain_minimums()
+        raise SystemExit(0)
+    if arguments.results is None:
+        parser.error("DEVICE_RESULTS.ndjson is required")
+    required = None
+    if arguments.require_kinds is not None:
+        required = {kind.strip() for kind in arguments.require_kinds.split(",") if kind.strip()}
+        unknown = required - set(KINDS)
+        if unknown:
+            parser.error(f"unknown kinds: {', '.join(sorted(unknown))}")
+    main(arguments.results, informational=arguments.informational, require_kinds=required)

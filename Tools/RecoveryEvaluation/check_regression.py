@@ -52,13 +52,12 @@ def measure(path: Path) -> dict[str, float]:
         raise SystemExit("no rows to measure")
     kinds = partition(rows)
     report: dict[str, object] = {}
-    # allow_small_corpus throughout: a regression fixture is by definition not
-    # a release corpus, and the minimum-corpus rule exists to stop small
-    # samples masquerading as release evidence.
+    # Only the metrics are read, never the gates: a regression fixture is by
+    # definition not a release corpus, so its bounds would be meaningless.
     if kinds["verification"]:
-        report["verification"], _ = score_verification(kinds["verification"], allow_small_corpus=True)
+        report["verification"], _ = score_verification(kinds["verification"])
     if kinds["registration"]:
-        report["registration"], _ = score_registration(kinds["registration"], allow_small_corpus=True)
+        report["registration"], _ = score_registration(kinds["registration"])
     return flatten(report)
 
 

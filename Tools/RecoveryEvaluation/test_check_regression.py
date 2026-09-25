@@ -119,8 +119,17 @@ class EndToEndTests(unittest.TestCase):
             bad = self.write(regressed, directory, "bad.ndjson")
             self.assertEqual(main([str(bad), "--baseline", str(baseline_path)]), 1)
 
+    def test_an_all_complete_corpus_does_not_measure_false_complete(self) -> None:
+        # With no negatives the false-complete rate is unmeasured, and flatten
+        # drops it, so a baseline that guards it reports "no longer measured"
+        # instead of accepting a vacuous 0.0.
+        with tempfile.TemporaryDirectory() as directory:
+            results = self.write([verification_row() for _ in range(6)], directory, "results.ndjson")
+            self.assertNotIn("verification.false_complete_rate", measure(results))
+
     def test_update_rewrites_the_baseline_in_place(self) -> None:
         rows = [verification_row() for _ in range(6)]
+        rows += [verification_row(expected="incomplete", produced="incomplete") for _ in range(4)]
         with tempfile.TemporaryDirectory() as directory:
             results = self.write(rows, directory, "results.ndjson")
             baseline_path = Path(directory) / "baseline.json"
