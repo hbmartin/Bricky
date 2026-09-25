@@ -3,8 +3,8 @@ import RealityKit
 import SwiftUI
 
 struct ARGuideView: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var partPack: LDrawPartPackManager
     let model: StoredInstructionModel
     let plan: InstructionPlan
@@ -107,6 +107,9 @@ struct ARGuideView: View {
             .onChange(of: alignment.alignment) { _, newValue in
                 registration.alignmentChanged(newValue, relay: camera.registrationRelay)
             }
+            .onChange(of: session.cursorStep?.id) { _, _ in
+                follow(session.cursorStep)
+            }
         }
         .navigationTitle("AR Step \(step.index)")
         .navigationBarTitleDisplayMode(.inline)
@@ -115,25 +118,33 @@ struct ARGuideView: View {
         } message: { Text(error ?? "") }
     }
 
-    /// Persists the confirm exactly like `GuideView.confirmAndAdvance`, then
-    /// advances this AR session in place: the next step's geometry loads,
-    /// verification restarts on the new delta, and the tracker re-fits the
-    /// grown build from its current pose.
+    /// Confirms through the shared session; the cursor change then advances
+    /// this AR session in place (`follow(_:)`).
     private func confirmAndAdvance() {
         guard !isAdvancing else { return }
         isAdvancing = true
         // Dropping the verdict hides the confirm affordance immediately, so
         // one physical step cannot be confirmed twice before the next loads.
         verification.stop()
-        model.confirmedLastCompletedStepID = step.id
-        model.currentStepIndex = min(plan.steps.count, step.index)
-        model.lastOpenedAt = .now
-        try? context.save()
+        session.confirm(step, source: .arVerified)
         guard step.index < plan.steps.count else {
             dismiss()
             return
         }
-        step = plan.steps[step.index]
+        follow(session.cursorStep)
+    }
+
+    /// Moves this AR session to `next` — after a confirm here, or when the
+    /// cursor moved elsewhere (voice, Siri, another view): the next step's
+    /// geometry loads, verification restarts on the new delta, and the
+    /// tracker re-fits the grown build from its current pose.
+    private func follow(_ next: AuthoredStep?) {
+        guard let next, next.id != step.id else {
+            isAdvancing = false
+            return
+        }
+        verification.stop()
+        step = next
         Task {
             await loadEntity()
             registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)

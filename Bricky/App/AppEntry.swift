@@ -8,6 +8,7 @@ struct AppEntry: App {
     @StateObject private var library = InstructionLibraryController()
     @StateObject private var partPack = LDrawPartPackManager()
     @StateObject private var recoveryModel = RecoveryModelManager()
+    @State private var buildSession = BuildSessionController()
     @State private var lifecycleTeardownTask: Task<Void, Never>?
     private let modelContainer: ModelContainer
 
@@ -37,6 +38,7 @@ struct AppEntry: App {
     /// offered below it.
     private var supportedRoot: some View {
             ContentView()
+                .environment(buildSession)
                 .environmentObject(library)
                 .environmentObject(partPack)
                 .environmentObject(recoveryModel)

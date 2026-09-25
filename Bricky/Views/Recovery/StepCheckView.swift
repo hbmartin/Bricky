@@ -5,6 +5,7 @@ import SwiftUI
 struct StepCheckView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
     let model: StoredInstructionModel
@@ -286,9 +287,9 @@ struct StepCheckView: View {
         } else {
             finalizeEvidence(groundTruth: .unlabeled)
         }
-        model.confirmedLastCompletedStepID = step.id
-        model.currentStepIndex = min(step.index, plan.steps.count)
-        model.lastOpenedAt = .now
+        // Progress first, through the shared session, so a milestone-image
+        // failure below never loses the advance.
+        session.confirm(step, source: .photoCheck)
         if let capturedImage {
             do {
                 _ = try RecoveryImageStore().save(
@@ -301,13 +302,11 @@ struct StepCheckView: View {
                 discardRawCapture()
             } catch {
                 // Keep the view up so the alert is visible; the step advance
-                // itself is still persisted below.
+                // itself was already persisted above.
                 self.error = error.localizedDescription
-                try? context.save()
                 return
             }
         }
-        try? context.save()
         dismiss()
     }
 

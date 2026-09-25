@@ -14,6 +14,7 @@
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
+		1C0634CD58489B3AFF5A450E /* BuildSessionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */; };
 		1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */; };
 		1DA8516D92390E39A14AB874 /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		24FC629139DC3A7503590BED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B846C324539715D80A41F6F3 /* ContentView.swift */; };
@@ -113,6 +114,7 @@
 		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
 		F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
+		FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */; };
 		FE3498AC20FF256FDE6C7B02 /* ARCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */; };
 		FFF449912475E9322656DDB1 /* GeometricRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */; };
 /* End PBXBuildFile section */
@@ -148,6 +150,8 @@
 		2748072D5C42BC9CAF299882 /* StepCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepCheckView.swift; sourceTree = "<group>"; };
 		31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryImageNormalization.swift; sourceTree = "<group>"; };
 		3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngineTests.swift; sourceTree = "<group>"; };
+		3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildSessionController.swift; sourceTree = "<group>"; };
+		3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildSessionControllerTests.swift; sourceTree = "<group>"; };
 		3DD7F68A23234CCB66B31C40 /* RegistrationFrameRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationFrameRelay.swift; sourceTree = "<group>"; };
 		42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSamplerTests.swift; sourceTree = "<group>"; };
 		42FF9EE0A3BFBCADA241890F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
@@ -264,6 +268,7 @@
 			isa = PBXGroup;
 			children = (
 				B64D5192D964260754B754E0 /* ARActivityClockTests.swift */,
+				3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */,
 				5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */,
 				EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */,
 				78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */,
@@ -338,6 +343,7 @@
 			children = (
 				0A7255416EAA67E75793A6A9 /* AppConfig.swift */,
 				E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */,
+				3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */,
 				B846C324539715D80A41F6F3 /* ContentView.swift */,
 				85778E2B3323B8DD913494D2 /* DeviceFloor.swift */,
 			);
@@ -684,6 +690,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D74FBAEC6E8BDA05044C8283 /* ARActivityClockTests.swift in Sources */,
+				1C0634CD58489B3AFF5A450E /* BuildSessionControllerTests.swift in Sources */,
 				C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */,
 				EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */,
 				436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */,
@@ -720,6 +727,7 @@
 				06020041E977D2A826879C9B /* ARGuideView.swift in Sources */,
 				930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */,
 				5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */,
+				FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */,
 				F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */,
 				E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */,
 				59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */,

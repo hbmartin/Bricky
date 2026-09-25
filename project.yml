@@ -127,6 +127,7 @@ targets:
       - BrickyTests/StepVerificationControllerTests.swift
       - BrickyTests/ARActivityClockTests.swift
       - BrickyTests/RecoveryModelManagerTests.swift
+      - BrickyTests/BuildSessionControllerTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

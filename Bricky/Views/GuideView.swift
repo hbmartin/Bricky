@@ -4,18 +4,20 @@ import SwiftUI
 
 struct GuideView: View {
     @Environment(\.modelContext) private var context
+    @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var library: InstructionLibraryController
     @EnvironmentObject private var partPack: LDrawPartPackManager
     let model: StoredInstructionModel
-    @State private var plan: InstructionPlan?
-    @State private var stepIndex = 0
     @State private var loadError: String?
-    @State private var loadedKey: GuideLoadKey?
+
+    /// The session's plan, once it holds this model.
+    private var plan: InstructionPlan? {
+        session.model?.persistentModelID == model.persistentModelID ? session.plan : nil
+    }
 
     var body: some View {
         Group {
-            if let plan, !plan.steps.isEmpty {
-                let step = plan.steps[stepIndex]
+            if let plan, !plan.steps.isEmpty, let step = session.cursorStep {
                 ScrollView {
                     VStack(spacing: 18) {
                         GuidePreviewView(plan: plan, step: step, partPackRoot: partPack.readyLibraryURL)
@@ -35,13 +37,18 @@ struct GuideView: View {
                         NewPartsCard(placements: Array(plan.addedPlacements(for: step)))
 
                         HStack {
-                            Button("Previous", systemImage: "chevron.left") { stepIndex = max(0, stepIndex - 1) }
-                                .disabled(stepIndex == 0)
+                            Button("Previous", systemImage: "chevron.left") { session.browse(by: -1) }
+                                .disabled(session.cursorIndex == 0)
                             Spacer()
-                            Button(stepIndex == plan.steps.count - 1 ? "Finish" : "Next", systemImage: "chevron.right") {
-                                confirmAndAdvance(step: step, plan: plan)
+                            Button(session.cursorIndex == plan.steps.count - 1 ? "Finish" : "Next", systemImage: "chevron.right") {
+                                session.confirm(step, source: .guide)
                             }
                             .buttonStyle(.borderedProminent)
+                        }
+
+                        if let persistenceError = session.lastPersistenceError {
+                            Label(persistenceError, systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.red)
                         }
 
                         // Geometric-first (ADR 0008): the AR overlay carries
@@ -73,7 +80,7 @@ struct GuideView: View {
                 } actions: {
                     Button("Retry") { load() }.buttonStyle(.borderedProminent)
                 }
-            } else if plan != nil {
+            } else if let plan, plan.steps.isEmpty {
                 ContentUnavailableView("No Authored Steps", systemImage: "square.stack.3d.up.slash", description: Text("This model contains no authored steps to guide."))
             } else {
                 ProgressView("Loading authored guide…")
@@ -81,48 +88,20 @@ struct GuideView: View {
         }
         .navigationTitle(model.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { loadIfNeeded() }
-    }
-
-    /// Loads once per (model, confirmed step) pair. Plain reappearance (for
-    /// example popping back from AR overlay or step check) keeps the user's
-    /// browsing position; a recovery confirmation or checked advance changes
-    /// `currentStepIndex` and re-lands the guide on the recovered step.
-    private func loadIfNeeded() {
-        let key = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
-        guard key != loadedKey else { return }
-        load()
+        // Opening is idempotent: reappearing (for example after AR or a
+        // photo check) keeps the browsing position, while a confirm made
+        // anywhere else already moved the shared cursor.
+        .task { load() }
     }
 
     private func load() {
         do {
-            let loaded = try library.loadPlan(for: model)
-            plan = loaded
-            stepIndex = min(max(0, model.currentStepIndex), max(0, loaded.steps.count - 1))
+            try session.open(model, loader: library, context: context)
             loadError = nil
-            loadedKey = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
         } catch {
-            plan = nil
             loadError = error.localizedDescription
-            loadedKey = nil
         }
     }
-
-    private func confirmAndAdvance(step: AuthoredStep, plan: InstructionPlan) {
-        model.confirmedLastCompletedStepID = step.id
-        model.currentStepIndex = min(plan.steps.count, step.index)
-        model.lastOpenedAt = .now
-        try? context.save()
-        if stepIndex < plan.steps.count - 1 { stepIndex += 1 }
-        // In-view advances already reflect the new position; keep the loaded
-        // key in sync so the next appearance does not reset browsing.
-        loadedKey = GuideLoadKey(modelID: model.persistentModelID, currentStep: model.currentStepIndex)
-    }
-}
-
-private struct GuideLoadKey: Equatable {
-    let modelID: PersistentIdentifier
-    let currentStep: Int
 }
 
 private struct NewPartsCard: View {

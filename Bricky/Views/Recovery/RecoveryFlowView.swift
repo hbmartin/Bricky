@@ -5,6 +5,7 @@ import SwiftUI
 
 struct RecoveryFlowView: View {
     @Environment(\.modelContext) private var context
+    @Environment(BuildSessionController.self) private var buildSession
     @EnvironmentObject private var library: InstructionLibraryController
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
@@ -266,7 +267,8 @@ struct RecoveryFlowView: View {
     @MainActor
     private func load() async {
         do {
-            let loaded = try library.loadPlan(for: model)
+            try buildSession.open(model, loader: library, context: context)
+            guard let loaded = buildSession.plan else { return }
             plan = loaded
             selectedCompletedCount = model.currentStepIndex
             if let pack = partPack.readyLibraryURL {
@@ -431,16 +433,15 @@ struct RecoveryFlowView: View {
             return
         }
 
-        model.confirmedLastCompletedStepID = completedStep?.id
-        model.currentStepIndex = completedCount
-        model.lastOpenedAt = .now
-        let session = RecoverySessionRecord(modelID: model.id)
-        session.confirmedLastCompletedStepID = completedStep?.id
-        session.nextTargetStepID = completedCount < plan.steps.count ? plan.steps[completedCount].id : nil
-        session.modelRevision = estimate?.modelRevision
-        session.certaintyRawValue = estimate?.certainty.rawValue
-        context.insert(session)
-        try? context.save()
+        let record = RecoverySessionRecord(modelID: model.id)
+        record.confirmedLastCompletedStepID = completedStep?.id
+        record.nextTargetStepID = completedCount < plan.steps.count ? plan.steps[completedCount].id : nil
+        record.modelRevision = estimate?.modelRevision
+        record.certaintyRawValue = estimate?.certainty.rawValue
+        context.insert(record)
+        // Saves the record with the progress, and moves the shared cursor
+        // so the Guide lands on the recovered step.
+        buildSession.setCompletedCount(completedCount, source: .recovery)
         finalizeEvidence(plan: plan, confirmedCount: completedCount)
         captures.removeAll()
         centerDepthFrame = nil
