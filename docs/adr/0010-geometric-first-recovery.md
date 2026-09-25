@@ -64,3 +64,22 @@ drops 3 sampled tokens per rank call. These are the opening quotes of the
 `status` and `ranking` keys and the sampled token before a forced enum
 tail. The slot letters themselves do reach the cache.
 
+## Amendment (2026-09-25): geometric recovery is not gated on VLM admission
+
+The recovery flow used to wait for VLM admission before anything, so the
+primary path (geometric recovery) was unavailable whenever the VLM
+fallback was: model not downloaded, rejected, or still warming. The part
+pack is now the only hard requirement:
+
+- **The flow runs in every admission state.** A banner states what is
+  missing, and warm-up proceeds in the background once the camera runs.
+- **`CompositeRecoveryEstimator` takes an optional fallback.** With no
+  admitted VLM, an inconclusive depth fit returns `insufficient`, with
+  cause `geometric_inconclusive_without_fallback` and method `geometric`,
+  and the manual step picker takes over. With neither leg possible (no
+  depth frame and no model), the estimator says so instead of inventing an
+  estimate.
+
+CONTEXT.md's "Geometric features are never admission-gated" is now true of
+recovery as well as verification.
+

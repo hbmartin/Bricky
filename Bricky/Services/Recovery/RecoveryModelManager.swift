@@ -95,6 +95,18 @@ final class RecoveryModelManager: ObservableObject {
         return false
     }
 
+    /// The hierarchical VLM estimator, or nil unless the model is admitted:
+    /// geometric recovery runs either way (ADR 0010 amendment).
+    func makeVLMEstimator(partPackRoot: URL, recorder: RecoveryEvidenceRecorder?) -> HierarchicalRecoveryEstimator? {
+        guard isVLMAdmitted, let modelDirectory else { return nil }
+        return HierarchicalRecoveryEstimator(
+            runtime: runtime,
+            modelDirectory: modelDirectory,
+            partPackRoot: partPackRoot,
+            recorder: recorder
+        )
+    }
+
     /// Bytes the pinned revision occupies on disk, partial downloads included.
     var onDiskBytes: Int64 {
         guard let directory = modelDirectory,

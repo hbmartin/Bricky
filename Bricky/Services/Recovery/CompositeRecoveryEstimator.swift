@@ -4,11 +4,15 @@ import Foundation
 /// fallback (ADR 0010). The geometric path concludes or steps aside — any
 /// error or inconclusive fit falls through to the hierarchical estimator
 /// unchanged, so recovery is never worse than the VLM baseline.
+///
+/// The fallback is optional: geometric recovery is never gated on VLM
+/// admission. Without a fallback, a pass that cannot conclude returns an
+/// insufficient estimate and the user picks the step manually.
 actor CompositeRecoveryEstimator: RecoveryEstimating {
     private let geometric: GeometricRecoveryEstimator?
-    private let fallback: any RecoveryEstimating
+    private let fallback: (any RecoveryEstimating)?
 
-    init(geometric: GeometricRecoveryEstimator?, fallback: any RecoveryEstimating) {
+    init(geometric: GeometricRecoveryEstimator?, fallback: (any RecoveryEstimating)?) {
         self.geometric = geometric
         self.fallback = fallback
     }
@@ -41,6 +45,22 @@ actor CompositeRecoveryEstimator: RecoveryEstimating {
             } catch {
                 // Any other geometric failure steps aside per ADR 0010.
             }
+        }
+        guard let fallback else {
+            guard geometricAttempted else {
+                throw RecoveryError.invalidCaptureSet(
+                    reason: "No depth observation was captured and the on-device model is not available. Pick your step manually."
+                )
+            }
+            return RecoveryEstimate(
+                rankedStepIDs: [],
+                certainty: .insufficient,
+                modelRevision: "depth-icp-geometric-v1",
+                latencyMilliseconds: Self.milliseconds(started.duration(to: .now)),
+                captureIDs: captures.map(\.id),
+                insufficiencyCause: .geometricInconclusiveWithoutFallback,
+                method: .geometric
+            )
         }
         let estimate = try await fallback.estimate(captures: captures, model: model, alignment: alignment)
         // `.composite` means "the geometric pass ran and did not conclude";

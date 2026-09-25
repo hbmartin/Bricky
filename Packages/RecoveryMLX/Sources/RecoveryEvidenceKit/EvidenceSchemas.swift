@@ -242,7 +242,9 @@ public enum RecoveryCertainty: String, Codable, Hashable, Sendable {
 /// the fit *and* the inference it did not avoid. Collapsing the last two would
 /// make the composite latency gate unmeasurable.
 public enum RecoveryMethod: String, Codable, Hashable, Sendable {
-    /// The geometric pass concluded; no VLM weights were loaded.
+    /// The geometric pass produced the estimate and no VLM weights were
+    /// loaded: a conclusive fit, or `insufficient` when no VLM was admitted
+    /// to fall back to (ADR 0010 amendment).
     case geometric
     /// The geometric pass ran, stepped aside, and the VLM estimator concluded.
     /// Latency covers both legs.

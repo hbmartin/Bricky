@@ -274,6 +274,9 @@ enum RecoveryInsufficiencyCause: String, Codable, Sendable {
     case narrowingPassUnmatched = "narrowing_pass_unmatched"
     case finalPassUnmatched = "final_pass_unmatched"
     case finalistQuorumNotReached = "finalist_quorum_not_reached"
+    /// The geometric pass could not conclude and no VLM was admitted to fall
+    /// back to; the user picks the step manually.
+    case geometricInconclusiveWithoutFallback = "geometric_inconclusive_without_fallback"
 }
 
 struct RecoveryEstimate: Codable, Hashable, Sendable {
