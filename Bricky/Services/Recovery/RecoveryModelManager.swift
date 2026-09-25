@@ -1,6 +1,7 @@
 import ARKit
 import Foundation
 import Network
+import OSLog
 import RecoveryMLX
 import UIKit
 
@@ -48,6 +49,8 @@ final class RecoveryModelManager: ObservableObject {
     /// What admission measured for the loaded model; evidence sessions carry
     /// it so the ADR 0003 floor can be set from device rows.
     @Published private(set) var admissionSnapshot: AdmissionSnapshot?
+    /// What the last critical-pressure unload freed.
+    @Published private(set) var lastPressureRelief: PressureRelief?
 
     let runtime = MLXRecoveryRuntime()
     private let downloader = VerifiedAssetDownloader()
@@ -55,25 +58,47 @@ final class RecoveryModelManager: ObservableObject {
     private let defaults: UserDefaults
     private let storageRoot: URL?
     private let deviceFloor: @MainActor () -> DeviceFloor.Verdict
+    private let governor: MemoryGovernor
+    private let memoryBudget: @MainActor () -> MemoryBudget
+    private let pressure: any MemoryPressureSignaling
+    private let idleUnloadInterval: Duration
+    private let logger = Logger(subsystem: AppConfig.bundleID, category: "RecoveryModel")
 
-    /// `storageRoot` and `deviceFloor` exist for tests; the app uses the
-    /// Application Support root and the real device gate.
+    static let defaultIdleUnloadInterval: Duration = .seconds(300)
+
+    /// Everything past `delivery` exists for tests; the app uses the
+    /// Application Support root, the real device gate, the kernel's memory
+    /// accounting, and the system's pressure notifications.
     init(
         delivery: any ModelDelivery = ForegroundVerifiedDelivery(),
         defaults: UserDefaults = .standard,
         storageRoot: URL? = nil,
-        deviceFloor: @escaping @MainActor () -> DeviceFloor.Verdict = { DeviceFloor.current }
+        deviceFloor: @escaping @MainActor () -> DeviceFloor.Verdict = { DeviceFloor.current },
+        governor: MemoryGovernor = .standard,
+        memoryBudget: @escaping @MainActor () -> MemoryBudget = { MemoryBudget.current() },
+        pressure: (any MemoryPressureSignaling)? = nil,
+        idleUnloadInterval: Duration = RecoveryModelManager.defaultIdleUnloadInterval
     ) {
         self.delivery = delivery
         self.defaults = defaults
         self.storageRoot = storageRoot
         self.deviceFloor = deviceFloor
+        self.governor = governor
+        self.memoryBudget = memoryBudget
+        self.pressure = pressure ?? DispatchMemoryPressureSignal()
+        self.idleUnloadInterval = idleUnloadInterval
         allowsCellularDownloads = defaults.bool(forKey: AppConfig.Defaults.allowsCellularModelDownload)
+        self.pressure.start { [weak self] level in self?.handleMemoryPressure(level) }
     }
     private enum WorkKind { case download, warmUp }
     private var workTask: Task<Void, Never>?
     private var workKind: WorkKind?
     private var trackedInference: [UUID: Task<Void, Never>] = [:]
+    /// What the loaded model holds: the footprint after warm-up less the
+    /// footprint before load. Zero while unloaded.
+    private var modelResidentBytes: UInt64 = 0
+    private var pressureTask: Task<Void, Never>?
+    private var idleTask: Task<Void, Never>?
 
     static let modelFolderName = "Qwen3-VL-4B-Instruct-4bit"
 
@@ -162,14 +187,14 @@ final class RecoveryModelManager: ObservableObject {
     }
 
     func check() async {
+        let wasAdmitted = isVLMAdmitted
         state = .checking
         pruneStaleRevisions()
         guard deviceFloor() == .supported else {
             reject(reason: "Recovery needs iPhone 17 Pro or iPhone 17 Pro Max. Guides remain available.", retryable: false)
             return
         }
-        let memory = os_proc_available_memory()
-        guard memory >= Self.minimumAvailableMemory else {
+        guard governor.evaluate(memoryBudget(), modelResidentBytes: modelResidentBytes, currentlyAdmitted: wasAdmitted) == .admit else {
             reject(reason: "This device does not have enough live memory for private on-device recovery right now. Close other apps and retry, or continue with guides.", retryable: true)
             return
         }
@@ -232,9 +257,12 @@ final class RecoveryModelManager: ObservableObject {
     func trackInference(_ task: Task<Void, Never>) {
         let id = UUID()
         trackedInference[id] = task
+        idleTask?.cancel()
         Task { [weak self] in
             await task.value
-            self?.trackedInference[id] = nil
+            guard let self else { return }
+            self.trackedInference[id] = nil
+            if self.trackedInference.isEmpty { self.scheduleIdleUnload() }
         }
     }
 
@@ -244,8 +272,7 @@ final class RecoveryModelManager: ObservableObject {
         workTask = nil
         workKind = nil
         await drainTrackedInference()
-        await runtime.unload()
-        if case .admitted = state { state = .warming }
+        await unloadRuntime()
     }
 
     /// Drains only model work during `.inactive`; an in-progress multi-GB
@@ -258,8 +285,64 @@ final class RecoveryModelManager: ObservableObject {
             workKind = nil
         }
         await drainTrackedInference()
+        await unloadRuntime()
+    }
+
+    private func unloadRuntime() async {
+        idleTask?.cancel()
         await runtime.unload()
+        modelResidentBytes = 0
         if case .admitted = state { state = .warming }
+    }
+
+    /// Critical memory pressure cancels inference and releases the model
+    /// before iOS terminates the process for it (ADR 0003 amendment); a
+    /// warning does the same only if the loaded model's headroom has fallen
+    /// below the floor less the hysteresis margin. The budget is re-read
+    /// 500 ms after the release, once the kernel has reclaimed the pages;
+    /// if even the released model would not fit, admission is withdrawn
+    /// until the user retries. Downloads are left running: they hold no
+    /// model memory.
+    func handleMemoryPressure(_ level: MemoryPressureLevel) {
+        logger.notice("Memory pressure \(level == .critical ? "critical" : "warning", privacy: .public)")
+        guard pressureTask == nil else { return }
+        if level == .warning {
+            guard isVLMAdmitted,
+                  case .refuse = governor.evaluate(memoryBudget(), modelResidentBytes: modelResidentBytes, currentlyAdmitted: true)
+            else { return }
+        }
+        pressureTask = Task { [weak self] in
+            await self?.relieveMemoryPressure()
+            self?.pressureTask = nil
+        }
+    }
+
+    private func relieveMemoryPressure() async {
+        let wasLive = isVLMAdmitted || state == .warming
+        let before = memoryBudget()
+        await suspendInferenceAndAwait()
+        try? await Task.sleep(for: .milliseconds(500))
+        let after = memoryBudget()
+        let relief = PressureRelief(before: before, after: after)
+        lastPressureRelief = relief
+        logger.notice("Pressure unload freed \(relief.freedBytes, privacy: .public) bytes")
+        if wasLive, case .refuse = governor.evaluate(after, modelResidentBytes: 0, currentlyAdmitted: false) {
+            reject(reason: "iOS is short of memory, so on-device recovery was paused. Close other apps and retry, or continue with guides.", retryable: true)
+        }
+    }
+
+    /// Developer setting, off by default: release an idle model after
+    /// `idleUnloadInterval`, trading a reload for memory.
+    private func scheduleIdleUnload() {
+        idleTask?.cancel()
+        guard defaults.bool(forKey: AppConfig.Defaults.idleUnloadEnabled), isVLMAdmitted else { return }
+        let interval = idleUnloadInterval
+        idleTask = Task { [weak self] in
+            do { try await Task.sleep(for: interval) } catch { return }
+            guard let self, self.trackedInference.isEmpty, self.isVLMAdmitted else { return }
+            self.logger.notice("Idle unload of the recovery model")
+            await self.suspendInferenceAndAwait()
+        }
     }
 
     private func performDownload() async {
@@ -285,18 +368,20 @@ final class RecoveryModelManager: ObservableObject {
 
     private func performWarmUp() async {
         do {
-            guard os_proc_available_memory() >= Self.minimumAvailableMemory else {
+            let budget = memoryBudget()
+            guard governor.evaluate(budget, modelResidentBytes: modelResidentBytes, currentlyAdmitted: false) == .admit else {
                 throw RecoveryError.insufficientMemory(
-                    requiredBytes: Int64(Self.minimumAvailableMemory),
-                    availableBytes: Int64(os_proc_available_memory())
+                    requiredBytes: Int64(governor.floorBytes),
+                    availableBytes: Int64(governor.headroom(budget, modelResidentBytes: modelResidentBytes))
                 )
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
             let board = try Self.makeWarmUpBoard(in: directory)
+            let footprintBeforeLoad = ProcessMemorySnapshot.current()?.footprintBytes
             var snapshot = AdmissionSnapshot(
-                floorBytes: Int64(Self.minimumAvailableMemory),
-                availableBytesAtCheck: Int64(os_proc_available_memory()),
-                footprintBeforeLoadBytes: ProcessMemorySnapshot.current()?.footprintBytes
+                floorBytes: Int64(governor.floorBytes),
+                availableBytesAtCheck: Int64(budget.availableBytes),
+                footprintBeforeLoadBytes: footprintBeforeLoad
             )
             let loadStarted = ContinuousClock.now
             try await runtime.load(modelDirectory: directory)
@@ -306,9 +391,14 @@ final class RecoveryModelManager: ObservableObject {
             let warmUpStarted = ContinuousClock.now
             try await runtime.warmUp(imageURL: board, modelDirectory: directory)
             snapshot.warmUpMilliseconds = Self.milliseconds(since: warmUpStarted)
-            snapshot.warmUpPeakBytes = ProcessMemorySnapshot.current()?.lifetimePeakBytes
+            let afterWarmUp = ProcessMemorySnapshot.current()
+            snapshot.warmUpPeakBytes = afterWarmUp?.lifetimePeakBytes
+            if let before = footprintBeforeLoad, let after = afterWarmUp?.footprintBytes, after > before {
+                modelResidentBytes = UInt64(after - before)
+            }
             admissionSnapshot = snapshot
             state = .admitted
+            scheduleIdleUnload()
         } catch is CancellationError {
             state = .warming
         } catch {

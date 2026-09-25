@@ -113,7 +113,8 @@ Mutable over the session's life:
 - `estimate` — nullable summary: `ranked_step_ids`, `certainty`,
   `insufficiency_cause` (nullable: `broad_pass_unmatched`,
   `narrowing_pass_unmatched`, `final_pass_unmatched`,
-  `finalist_quorum_not_reached`), `latency_ms`, `method`
+  `finalist_quorum_not_reached`, `geometric_inconclusive_without_fallback`,
+  `thermal_deferred`), `latency_ms`, `method`
   (`geometric` / `composite` / `vlm`), and `model_revision`. The last two are
   the estimate's own, not the session header's — see `benchmark.ndjson`.
 - `analysis_error` — nullable string when the run threw.

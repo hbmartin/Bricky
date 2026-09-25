@@ -14,6 +14,15 @@ final class RecoveryModelManagerTests: XCTestCase {
         }
     }
 
+    private final class FakePressure: MemoryPressureSignaling {
+        private var handler: (@MainActor @Sendable (MemoryPressureLevel) -> Void)?
+        func start(_ handler: @escaping @MainActor @Sendable (MemoryPressureLevel) -> Void) { self.handler = handler }
+        func stop() { handler = nil }
+        func fire(_ level: MemoryPressureLevel) { handler?(level) }
+    }
+
+    private let gib: UInt64 = 1_024 * 1_024 * 1_024
+
     private var root: URL!
     private var defaults: UserDefaults!
     private let suiteName = "RecoveryModelManagerTests"
@@ -33,6 +42,55 @@ final class RecoveryModelManagerTests: XCTestCase {
 
     private func manager(delivery: any ModelDelivery = RecordingDelivery()) -> RecoveryModelManager {
         RecoveryModelManager(delivery: delivery, defaults: defaults, storageRoot: root, deviceFloor: { .noLiDAR })
+    }
+
+    func testCriticalPressureCancelsInferenceAndMeasuresWhatWasFreed() async throws {
+        let pressure = FakePressure()
+        var readings = [
+            MemoryBudget(availableBytes: 1 * gib, footprintBytes: 5 * gib),
+            MemoryBudget(availableBytes: 4 * gib, footprintBytes: 2 * gib)
+        ]
+        let subject = RecoveryModelManager(
+            delivery: RecordingDelivery(), defaults: defaults, storageRoot: root, deviceFloor: { .noLiDAR },
+            memoryBudget: { readings.count > 1 ? readings.removeFirst() : readings[0] },
+            pressure: pressure
+        )
+        let inference = Task { _ = try? await Task.sleep(for: .seconds(30)) }
+        subject.trackInference(inference)
+
+        pressure.fire(.critical)
+        await inference.value
+        XCTAssertTrue(inference.isCancelled, "critical pressure cancels in-flight inference")
+        for _ in 0..<300 where subject.lastPressureRelief == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(subject.lastPressureRelief?.freedBytes, Int64(3 * gib), "re-read after the release, not before")
+    }
+
+    func testAWarningLeavesAnUnadmittedManagerAlone() async throws {
+        let pressure = FakePressure()
+        let subject = RecoveryModelManager(
+            delivery: RecordingDelivery(), defaults: defaults, storageRoot: root, deviceFloor: { .noLiDAR },
+            memoryBudget: { MemoryBudget(availableBytes: 0, footprintBytes: 0) },
+            pressure: pressure
+        )
+        pressure.fire(.warning)
+        try await Task.sleep(for: .milliseconds(700))
+        XCTAssertNil(subject.lastPressureRelief)
+    }
+
+    func testAdmissionReadsTheBudgetThroughTheGovernor() async {
+        let subject = RecoveryModelManager(
+            delivery: RecordingDelivery(), defaults: defaults, storageRoot: root, deviceFloor: { .supported },
+            memoryBudget: { MemoryBudget(availableBytes: 2 * self.gib, footprintBytes: 1 * self.gib) },
+            pressure: FakePressure()
+        )
+        await subject.check()
+        guard case .rejected(let reason) = subject.state else {
+            return XCTFail("a budget under the floor must refuse admission, got \(subject.state)")
+        }
+        XCTAssertTrue(reason.contains("memory"))
+        XCTAssertTrue(subject.rejectionIsRetryable)
     }
 
     func testCellularPreferenceSurvivesARelaunch() {

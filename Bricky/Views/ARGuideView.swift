@@ -181,7 +181,7 @@ struct ARGuideView: View {
             .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(.bottom, 4)
         case .failed(let message):
             VStack(spacing: 8) {
-                Label("Photo check failed", systemImage: "exclamationmark.triangle").font(.headline)
+                Label("Photo check unavailable", systemImage: "exclamationmark.triangle").font(.headline)
                 Text(message).font(.caption).multilineTextAlignment(.center)
                 Button("Done") { endPhotoCheck(confirmed: false) }
             }
@@ -199,6 +199,10 @@ struct ARGuideView: View {
 
     private func startPhotoCheck() {
         guard let pack = partPack.readyLibraryURL, let modelDirectory = recoveryModel.modelDirectory else { return }
+        guard InferencePolicy.decide(.check, thermal: ProcessInfo.processInfo.thermalState) != .deferred else {
+            photoCheck.refuse(InferencePolicy.deferredCheckMessage)
+            return
+        }
         let staged = evidenceCaptureEnabled && corpusCollectionEnabled ? stagedDeclaration : nil
         let recorder = makePhotoCheckRecorder(staged: staged)
         let checkedStep = step

@@ -6,6 +6,7 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
+    @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
@@ -98,6 +99,13 @@ struct StorageAndAttributionView: View {
                 Toggle("Corpus collection mode", isOn: $corpusCollectionEnabled)
                     .disabled(!evidenceCaptureEnabled)
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
+                Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
+                if let relief = recoveryModel.lastPressureRelief {
+                    LabeledContent(
+                        "Last memory-pressure unload",
+                        value: ByteCountFormatter.string(fromByteCount: relief.freedBytes, countStyle: .memory) + " freed"
+                    )
+                }
                 if evidenceCaptureEnabled {
                     Picker("Inference arms", selection: $armPlan.mode) {
                         Text("Baseline only").tag(InferenceArmScheduler.Mode.off)

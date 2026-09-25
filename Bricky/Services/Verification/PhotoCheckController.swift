@@ -60,6 +60,12 @@ final class PhotoCheckController: ObservableObject {
         return task
     }
 
+    /// Shows why a check cannot start, without suspending anything.
+    func refuse(_ message: String) {
+        guard state != .checking else { return }
+        state = .failed(message)
+    }
+
     /// Abandons a running check and resumes verification at once.
     func cancel() {
         task?.cancel()

@@ -224,7 +224,9 @@ struct RecoveryFlowView: View {
                 if let estimate {
                     LabeledContent("Certainty", value: estimate.certainty.rawValue.capitalized)
                     LabeledContent("On-device time", value: String(format: "%.1f s", Double(estimate.latencyMilliseconds) / 1000))
-                    if estimate.rankedStepIDs.isEmpty {
+                    if estimate.insufficiencyCause == .thermalDeferred {
+                        Text("Your iPhone is too warm to run the on-device model right now. Choose the last completed authored step yourself, or retry once it cools.")
+                    } else if estimate.rankedStepIDs.isEmpty {
                         Text("The views were insufficient. Choose the last completed authored step yourself.")
                     } else if let plan {
                         ForEach(estimate.rankedStepIDs, id: \.self) { id in

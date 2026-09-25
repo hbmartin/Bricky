@@ -7,14 +7,22 @@ import Foundation
 ///
 /// The fallback is optional: geometric recovery is never gated on VLM
 /// admission. Without a fallback, a pass that cannot conclude returns an
-/// insufficient estimate and the user picks the step manually.
+/// insufficient estimate and the user picks the step manually. The same
+/// happens when the device is too hot to start VLM recovery
+/// (`InferencePolicy`, ADR 0003 amendment): the geometric pass still runs.
 actor CompositeRecoveryEstimator: RecoveryEstimating {
     private let geometric: GeometricRecoveryEstimator?
     private let fallback: (any RecoveryEstimating)?
+    private let thermalState: @Sendable () -> ProcessInfo.ThermalState
 
-    init(geometric: GeometricRecoveryEstimator?, fallback: (any RecoveryEstimating)?) {
+    init(
+        geometric: GeometricRecoveryEstimator?,
+        fallback: (any RecoveryEstimating)?,
+        thermalState: @escaping @Sendable () -> ProcessInfo.ThermalState = { ProcessInfo.processInfo.thermalState }
+    ) {
         self.geometric = geometric
         self.fallback = fallback
+        self.thermalState = thermalState
     }
 
     func estimate(
@@ -60,6 +68,22 @@ actor CompositeRecoveryEstimator: RecoveryEstimating {
                 captureIDs: captures.map(\.id),
                 insufficiencyCause: .geometricInconclusiveWithoutFallback,
                 method: .geometric
+            )
+        }
+        // Read when the fallback would start, not when the estimate began:
+        // the geometric pass may have run while the device heated.
+        guard InferencePolicy.decide(.recovery, thermal: thermalState()) == .allowed else {
+            return RecoveryEstimate(
+                rankedStepIDs: [],
+                certainty: .insufficient,
+                modelRevision: RecoveryModelManager.revision,
+                latencyMilliseconds: Self.milliseconds(started.duration(to: .now)),
+                captureIDs: captures.map(\.id),
+                insufficiencyCause: .thermalDeferred,
+                // The VLM pipeline produced this outcome by declining, after
+                // the geometric pass when there was one — the same
+                // accounting as a fallback that ran.
+                method: geometricAttempted ? .composite : .vlm
             )
         }
         let estimate = try await fallback.estimate(captures: captures, model: model, alignment: alignment)

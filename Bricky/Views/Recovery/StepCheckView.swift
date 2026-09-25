@@ -207,6 +207,10 @@ struct StepCheckView: View {
             error = "Step checks need the verified LDraw part pack and the on-device recovery model. Install both in Storage."
             return
         }
+        guard InferencePolicy.decide(.check, thermal: ProcessInfo.processInfo.thermalState) != .deferred else {
+            error = InferencePolicy.deferredCheckMessage
+            return
+        }
         isChecking = true
         let previous = checkTask
         previous?.cancel()

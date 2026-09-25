@@ -20,5 +20,8 @@ enum AppConfig {
         /// Developer A/B arms for the VLM path (ADR 0010 amendment).
         static let inferenceArmPlan = "developer.inferenceArmPlan"
         static let inferenceArmCounter = "developer.inferenceArmCounter"
+        /// Unload the VLM after `RecoveryModelManager.idleUnloadInterval`
+        /// without inference. Off by default: re-warming costs a load.
+        static let idleUnloadEnabled = "developer.idleUnloadEnabled"
     }
 }
