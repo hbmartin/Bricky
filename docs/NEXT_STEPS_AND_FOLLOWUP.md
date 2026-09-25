@@ -102,22 +102,26 @@ What it needs, in order:
 
 ## 3. Corpus goals
 
-- **Release gate (VLM recovery):** ≥150 physical cases from ≥10 legally
-  usable authored models, adjacent-step candidates present, lighting/angle/
-  occlusion each with ≥2 distinct labels, scored without
-  `--allow-small-corpus`. Gates: top-3 ≥ 0.95, top-1 ≥ 0.80, composite
-  median ≤ 20 s. Currently: **zero rows**.
-- **Sample sizes are being reconciled (2026-09-25).** This section says
-  150 cases / 10 models while the scorer enforces 40 / 6. Release gates are
-  moving to one-sided 95% confidence bounds, which set the effective
-  minimum per gate (e.g. ≥149 negatives for false-complete ≤2%); see
-  [IOS27_ROADMAP.md](IOS27_ROADMAP.md). The authored-model **diversity
-  floor is pending an owner decision**; until then the scorer constant
-  stays at 6.
-- **Triad physical corpus (CONTEXT gap):** ≥40 staged fixtures across ≥6
-  models for the registration/verification gates — a distinct corpus with
-  its own producer (geometric rows carry `estimator_method: geometric`),
-  but the same staged-fixture declarations and scorer.
+- **Release gate (VLM recovery):** device rows from legally usable
+  authored models, adjacent-step candidates present, lighting and
+  occlusion each with ≥2 distinct labels and ≥2 measured elevation bands,
+  scored in release mode. Gates: top-3 ≥ 0.95, top-1 ≥ 0.80, composite
+  median ≤ 20 s, each judged on its one-sided 95% bound. Currently:
+  **zero rows**.
+- **Sample sizes follow from the gates (settled 2026-09-25).** The old
+  fixed minimums (150 cases / 10 models here, 40 / 6 in the scorer)
+  conflicted and are gone. `score_results.py --explain-minimums` prints the
+  zero-miss size of each gate: for example ≥59 rows for top-3 ≥ 0.95, ≥149
+  negatives for false-complete ≤ 2%, and ≥5 rows for any median-latency
+  gate. A required gate with no rows fails release mode. The authored-model
+  **diversity floor is pending an owner decision** (6 or 10); until then
+  the scorer constant stays at 6.
+- **Triad physical corpus (CONTEXT gap):** staged fixtures across the same
+  authored-model floor for the registration and verification gates, sized
+  by the same bounds. It is a distinct corpus with its own producer
+  (geometric rows carry `estimator_method: geometric`) but the same
+  staged-fixture declarations and scorer. Verification and registration
+  rows need `provenance: device`, and no device producer emits them yet.
 - **Failure library:** unlabeled sessions are kept on purpose; a growing set
   of reproducible-on-Mac failure bundles is the raw material for the A/B
   table above. Purge caps (40 sessions / 2 GB) mean interesting sessions
@@ -153,6 +157,19 @@ What it needs, in order:
   the same photos. Still owed: a device-side `vlm_check` row writer, so
   check false-complete can become a release gate rather than a replay
   number.
+- **Cloud assist on a hot device.** When the thermal policy withholds the
+  VLM (`thermal_deferred`), the user gets the manual picker only. Offering
+  cloud assist there needs an ADR 0011 amendment first: today ADR 0011
+  offers cloud assist only after a local check returned uncertain, and
+  recovery has no cloud path at all.
+- **Background model delivery needs device QA.** Since 2026-09-25 the model
+  downloads through a background `URLSession` and is verified in the
+  foreground (ADR 0003 amendment). The Simulator cannot exercise real
+  background launches. Before release, on a device: background the app for
+  10 minutes mid-download; force-quit and relaunch (the transfer should be
+  re-attached, not restarted); pause for 2 hours and resume (does the
+  signed Hugging Face CDN URL in the resume data expire?); and confirm that
+  `RecoveryModels/` is excluded from backup.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
   fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes

@@ -17,20 +17,24 @@ game, subscription, or set-identification product.
    (registration, ADR 0009).
 4. Build with cumulative 3D instructions and AR overlays. While registration
    is locked, each step is verified geometrically against its authored delta,
-   with the local VLM as advisory second opinion (ADR 0008). The user
-   confirms every step; nothing auto-advances.
+   and the user may ask the local VLM for an advisory photo check at the
+   locked pose (ADR 0008). The user confirms every step; nothing
+   auto-advances.
 5. When lost, recover: geometric multi-hypothesis fit first, the hierarchical
-   VLM estimator as automatic fallback (ADR 0010). Estimates are advisory;
-   the user confirms any step, including step zero.
+   VLM estimator as automatic fallback when it is admitted and the device is
+   cool enough (ADR 0010, ADR 0003). Estimates are advisory; the user
+   confirms any step, including step zero.
 6. When the local pipeline is uncertain, an opt-in cloud assist with a
    user-supplied API key may give a second opinion on one explicitly
    consented frame (ADR 0011).
 
 PDF input, inferred/synthesized steps, automatic set identification, and
-teardown diagnosis are outside the product boundary. Steps 3–6 describe the
-triad program (ADRs 0008–0013): registration, verification, geometric
-recovery, and cloud assist land milestone by milestone; the shipping behavior
-until then is manual alignment plus VLM recovery and step checking.
+teardown diagnosis are outside the product boundary. Steps 3–6 are built
+(the triad program, ADRs 0008–0013), but none of their release gates has
+device evidence yet: every rate and latency below is unmeasured on an
+iPhone 17 Pro until the Phase 1 corpus exists ([IOS27_ROADMAP.md](docs/IOS27_ROADMAP.md)).
+The VLM path changes only through recorded inference variants, and a
+default flips only on a paired A/B (ADR 0010 amendment).
 
 ## Glossary
 
@@ -66,7 +70,39 @@ until then is manual alignment plus VLM recovery and step checking.
   depth-only verification); it is counted as `xfail` until the capability
   lands.
 - **Admission** — the runtime resource gate for the on-device VLM only
-  (ADR 0003). Geometric features are never admission-gated.
+  (ADR 0003). It reads the process budget (available plus footprint), with
+  hysteresis, and releases the model under critical memory pressure.
+  Geometric features are never admission-gated.
+- **Thermal policy** — `InferencePolicy`: at `serious` no VLM recovery
+  starts (one check still may); at `critical` no VLM work starts at all.
+  Geometric recovery always runs; an inconclusive fit with the VLM withheld
+  is insufficient with cause `thermal_deferred`.
+- **Build session** — `BuildSessionController`, the single owner of a
+  model's build progress. Every confirm (guide, AR, photo check, recovery)
+  goes through it with its source, so views never keep private copies of
+  the current step.
+- **Photo check** — one VLM call judging a photo against the current step's
+  cumulative target: complete, incomplete, or uncertain, always advisory.
+  From Check Step it compares against the guide camera; in the AR guide it
+  runs only under a locked registration and pauses live verification while
+  it holds the GPU.
+- **Check target** — which render a photo check compares against:
+  `guide_camera` (the fixed three-quarter view, the baseline) or
+  `registered` (the photo's own camera under the locked pose). A recorded
+  variant axis.
+- **Inference variant** — `RecoveryInferenceVariant`: every axis that
+  changes what the VLM sees or how its output is decoded (decoder, vote,
+  slot uniqueness, scoring, slot order, board, labels, prompt, image side,
+  check target). Recorded on every trace; its `id` names only the
+  non-default axes, so the baseline is `baseline`.
+- **Arm** — one side of an A/B: a variant plus a label (`arm_id`). Device
+  arms come from the developer arm picker (single, or interleaved with the
+  control); paired comparison happens on Mac replay (`compare_arms.py`).
+- **Readout** — the model's masked probability distribution at a decision
+  with a small legal set (a slot letter, a status), recorded beside the
+  token it chose, so thresholds can be re-derived offline.
+- **Unmeasured gate** — a release gate with no rows to judge it. In release
+  mode a required unmeasured gate fails; it is never read as zero.
 
 ## Source of truth
 
@@ -98,12 +134,19 @@ until then is manual alignment plus VLM recovery and step checking.
   persistence, and benchmarks.
 - `Bricky/Services/Instructions` owns parsing, planning, atomic import, immutable
   geometry buffers, RealityKit adaptation, and the verified part-pack install.
+- `Bricky/App` owns the device floor (`DeviceFloor`), document opening, and
+  `BuildSessionController`, the single owner of build progress.
 - `Bricky/Services/Recovery` owns transient alignment, guided capture, bounded
-  comparison boards, admission, hierarchical estimation, and opt-in evidence
-  recording (ADR 0007).
+  comparison boards, model delivery (a background `URLSession`, verified in
+  the foreground), admission and the memory governor, the thermal policy,
+  hierarchical and composite estimation, the shared VLM step check, the
+  inference-arm scheduler, and opt-in evidence recording (ADR 0007).
 - `Bricky/Services/Registration` (triad) owns the depth-ICP tracker, surface
-  sampling, and the shared expected-depth raster pass.
-- `Bricky/Services/Verification` (triad) owns the geometric step verifier.
+  sampling, and the one process-wide expected-depth renderer, which batches
+  a caller's passes into one command buffer (ADR 0006).
+- `Bricky/Services/Verification` (triad) owns the geometric step verifier,
+  the controller that runs it beside tracking (latest frame only, never
+  inside the ICP loop), and the AR photo-check controller.
 - `Packages/RecoveryMLX` is the narrow MLX dependency boundary. It maintains one
   shared load task and `ModelContainer`, serializes inference through an actor,
   and creates a fresh grammar matcher for each stateless call.
@@ -144,7 +187,13 @@ tracking loss.
   by `bricky-harness` and Python tooling.
 - **Staged Fixture** — a corpus-collection session whose expected step and
   conditions (lighting, occlusion, physical case, legal use) were declared
-  before capture. Produces a fully-populated `RecoveryBenchmarkV1` row.
+  before capture. Produces a fully-populated `RecoveryBenchmarkV1` row. A
+  staged photo check declares the true step the same way; a build declared
+  short of the checked step is a check negative, the only source of them.
+- **Provenance** — where a benchmark row came from: `device`, `synthetic`,
+  or a `replay:` device model. Release corpora take device rows only, from
+  an `iPhone<≥18>` identifier; synthetic, replay, challenge, and
+  expected-failure rows never count toward a release gate.
 - **Ground truth kinds** — `staged` (declared up front), `confirmed` (labeled
   by the user's Confirm action after a real recovery), `unlabeled` (failures
   and abandoned sessions, kept deliberately).
@@ -177,6 +226,21 @@ python3 score_results.py synthetic.ndjson --allow-small-corpus
 # guard that stopped being measured unless it is named with --drop.
 python3 check_regression.py synthetic.ndjson \
   --baseline ../SyntheticScenes/fixtures/real-tower/baseline.json
+
+# Release mode judges each gate on a one-sided 95% bound; this prints how
+# many zero-miss rows each gate needs. --informational scores a small
+# corpus on point estimates without failing unmeasured gates.
+python3 score_results.py --explain-minimums
+
+# Mac replay of a device evidence bundle, one arm per variant, then a paired
+# comparison (exact McNemar with Holm; refuses fewer than 20 pairs):
+swift run --package-path ../../Packages/RecoveryMLX bricky-harness replay \
+  --bundle bundle --model-dir /path/to/Qwen3-VL --model-revision <rev> \
+  --out control.ndjson --arm control --checks
+swift run --package-path ../../Packages/RecoveryMLX bricky-harness replay \
+  --bundle bundle --model-dir /path/to/Qwen3-VL --model-revision <rev> \
+  --out variant.ndjson --arm B --decode feed_all --checks
+python3 compare_arms.py --control control.ndjson --variant variant.ndjson
 
 # The challenge suite: mistake classes the regression taxonomy lacks, scored
 # per class and never gated. Its baseline records today's known false
@@ -211,5 +275,10 @@ python3 check_regression.py challenge.ndjson \
   follows from the gates (`score_results.py --explain-minimums`: e.g. ≥149
   negatives for false-complete ≤2%) rather than from a fixed row count.
 - 🔴 GAP — profile the production-sized warm-up while AR, scene mesh, and the
-  ICP tracker are active on candidate devices, set the memory floor to
-  worst-case peak plus 25%, and record the admitted hardware set.
+  ICP tracker are active on an iPhone 17 Pro, set the memory floor to the
+  measured peak (lifetime `phys_footprint` peak less the pre-load
+  footprint, which every admission records) plus 25%, and confirm the
+  device floor's memory threshold (ADR 0003 and ADR 0012 amendments).
+- 🔴 GAP — step-check false-complete is measurable only on Mac replay of
+  staged check sessions today; a device-side `vlm_check` row writer is owed
+  before it can become a release gate.

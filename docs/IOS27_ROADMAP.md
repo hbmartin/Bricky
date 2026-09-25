@@ -1,7 +1,12 @@
 # Using Apple's iOS 27 on-device AI for mid-flight build and repair in Bricky
 
 Status: accepted as the program plan on 2026-09-25. Phase 0 (no device
-needed) is being implemented on `feat/ios27-phase0`.
+needed) is implemented on `feat/ios27-phase0`, one commit per plan item.
+Phase 1 is device work: measuring on an iPhone 17 Pro with the tools Phase 0
+built. The remaining Phase 0 debts are listed in
+[NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md): a device-side
+`vlm_check` row writer, background-download QA on a device, and a cloud
+offer on `thermal_deferred`, which needs an ADR 0011 amendment first.
 
 Owner decisions (answers to §7):
 1. Floor: iPhone 17 Pro / Pro Max only (ADR 0012 amendment).
