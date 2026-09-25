@@ -267,11 +267,14 @@ public struct InferenceTelemetry: Codable, Sendable, Equatable {
     public var secondsSinceLoad: Double?
     /// How long the load that served this call took.
     public var loadMilliseconds: Int?
+    /// generate or probe; with probe, `decode` describes the prefill only.
+    public var scoring: ScoringMode?
 
     public init(
         decode: DecodeTelemetry? = nil, memoryBefore: ProcessMemorySnapshot? = nil,
         memoryAfter: ProcessMemorySnapshot? = nil, thermalBefore: String? = nil, thermalAfter: String? = nil,
-        callsSinceLoad: Int? = nil, secondsSinceLoad: Double? = nil, loadMilliseconds: Int? = nil
+        callsSinceLoad: Int? = nil, secondsSinceLoad: Double? = nil, loadMilliseconds: Int? = nil,
+        scoring: ScoringMode? = nil
     ) {
         self.decode = decode
         self.memoryBefore = memoryBefore
@@ -281,6 +284,7 @@ public struct InferenceTelemetry: Codable, Sendable, Equatable {
         self.callsSinceLoad = callsSinceLoad
         self.secondsSinceLoad = secondsSinceLoad
         self.loadMilliseconds = loadMilliseconds
+        self.scoring = scoring
     }
 
     enum CodingKeys: String, CodingKey {
@@ -292,6 +296,7 @@ public struct InferenceTelemetry: Codable, Sendable, Equatable {
         case callsSinceLoad = "calls_since_load"
         case secondsSinceLoad = "seconds_since_load"
         case loadMilliseconds = "load_ms"
+        case scoring
     }
 }
 
@@ -359,13 +364,18 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
     /// Mask slot letters already emitted, so a ranking cannot repeat one
     /// (the rank schema's `uniqueItems` is ignored by the pinned xgrammar).
     public var uniqueSlots: Bool
+    public var scoring: ScoringMode
     /// A/B arm label when the developer arm picker scheduled this call.
     public var armID: String?
 
-    public init(decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, uniqueSlots: Bool = false, armID: String? = nil) {
+    public init(
+        decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, uniqueSlots: Bool = false,
+        scoring: ScoringMode = .generate, armID: String? = nil
+    ) {
         self.decode = decode
         self.vote = vote
         self.uniqueSlots = uniqueSlots
+        self.scoring = scoring
         self.armID = armID
     }
 
@@ -374,6 +384,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         decode = try container.decodeIfPresent(DecodeMode.self, forKey: .decode) ?? .legacy
         vote = try container.decodeIfPresent(RecoveryVoteRule.self, forKey: .vote) ?? .bordaDedup
         uniqueSlots = try container.decodeIfPresent(Bool.self, forKey: .uniqueSlots) ?? false
+        scoring = try container.decodeIfPresent(ScoringMode.self, forKey: .scoring) ?? .generate
         armID = try container.decodeIfPresent(String.self, forKey: .armID)
     }
 
@@ -384,6 +395,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         if decode != .legacy { parts.append("decode=\(decode.rawValue)") }
         if vote != .bordaDedup { parts.append("vote=\(vote.rawValue)") }
         if uniqueSlots { parts.append("unique_slots") }
+        if scoring != .generate { parts.append("scoring=\(scoring.rawValue)") }
         return parts.isEmpty ? "baseline" : parts.joined(separator: ",")
     }
 
@@ -391,6 +403,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         case decode
         case vote
         case uniqueSlots = "unique_slots"
+        case scoring
         case armID = "arm_id"
     }
 }
@@ -452,5 +465,68 @@ public extension DeviceIdentity {
         var buffer = [CChar](repeating: 0, count: size)
         guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else { return nil }
         return String(cString: buffer)
+    }
+}
+
+/// How a VLM call reaches its decision (ADR 0010 amendment).
+public enum ScoringMode: String, Codable, CaseIterable, Sendable {
+    /// Greedy grammar-constrained generation of the full JSON answer.
+    case generate
+    /// One prefill over the prompt plus a canonical answer prefix, reading
+    /// the masked distributions at the decision positions. No tokens are
+    /// generated, so neither the duplicate-letter nor the cache-feeding
+    /// defect can touch it, and the answer comes with probabilities.
+    case probe
+}
+
+/// The probabilities a probe call read. `options` holds the decision's
+/// values — slot letters for a rank, verdicts for a check — each the summed
+/// masked-softmax mass of the legal tokens that begin it.
+public struct ProbeReadout: Codable, Sendable, Equatable {
+    /// Mass on `insufficient` at the status value (rank calls only).
+    public let pInsufficient: Double?
+    public let options: [String: Double]
+
+    public init(pInsufficient: Double?, options: [String: Double]) {
+        self.pInsufficient = pInsufficient
+        self.options = options
+    }
+
+    /// Options, most probable first; ties in name order.
+    public var ranked: [String] {
+        options.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.map(\.key)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case pInsufficient = "p_insufficient"
+        case options
+    }
+}
+
+public enum ProbeScoring {
+    /// Default decision threshold on P(insufficient). 0.5 reproduces what a
+    /// greedy decoder would choose; the recorded distributions let offline
+    /// analysis pick a better one without re-running inference.
+    public static let insufficientThreshold = 0.5
+
+    /// Sums candidate-token probability into the options each token can
+    /// begin. A token matches an option when either is a prefix of the other
+    /// (a sub-word start like "in", or the whole value); a token that could
+    /// begin several options splits its mass evenly among them, and one that
+    /// begins none is ignored. The result is renormalized over the options.
+    public static func group(_ candidates: [(text: String, probability: Double)], options: [String]) -> [String: Double] {
+        var mass = Dictionary(uniqueKeysWithValues: options.map { ($0, 0.0) })
+        for candidate in candidates {
+            let text = candidate.text.trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { continue }
+            let matches = options.filter { $0.hasPrefix(text) || text.hasPrefix($0) }
+            guard !matches.isEmpty else { continue }
+            for option in matches {
+                mass[option, default: 0] += candidate.probability / Double(matches.count)
+            }
+        }
+        let total = mass.values.reduce(0, +)
+        guard total > 0 else { return mass }
+        return mass.mapValues { $0 / total }
     }
 }

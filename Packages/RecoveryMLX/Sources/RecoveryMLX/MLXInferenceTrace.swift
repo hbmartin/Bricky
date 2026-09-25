@@ -14,6 +14,9 @@ public struct MLXGenerationTrace: Codable, Sendable {
         /// `maxTokens` was exhausted before the grammar accepted; `rawOutput`
         /// holds the truncated prefix.
         case maxTokensExhausted = "max_tokens_exhausted"
+        /// A probe-scored call: the answer was read from distributions, not
+        /// generated.
+        case readoutComplete = "readout_complete"
         /// Declared for old traces only: the pinned loop never throws its
         /// `prematureEOS` (an EOS the grammar allows is acceptance), so no
         /// call produces this.
@@ -34,6 +37,8 @@ public struct MLXGenerationTrace: Codable, Sendable {
     public let inference: InferenceTelemetry?
     /// The model's distribution at each small-legal-set decision.
     public let readouts: [DecisionReadout]?
+    /// Probe-scored calls: the decision's option probabilities.
+    public let probe: ProbeReadout?
 
     public var telemetry: DecodeTelemetry? { inference?.decode }
 
@@ -46,7 +51,8 @@ public struct MLXGenerationTrace: Codable, Sendable {
         maxTokens: Int,
         schemaJSON: String,
         inference: InferenceTelemetry? = nil,
-        readouts: [DecisionReadout]? = nil
+        readouts: [DecisionReadout]? = nil,
+        probe: ProbeReadout? = nil
     ) {
         self.rawOutput = rawOutput
         self.decodeErrorDescription = decodeErrorDescription
@@ -57,6 +63,7 @@ public struct MLXGenerationTrace: Codable, Sendable {
         self.schemaJSON = schemaJSON
         self.inference = inference
         self.readouts = readouts
+        self.probe = probe
     }
 }
 

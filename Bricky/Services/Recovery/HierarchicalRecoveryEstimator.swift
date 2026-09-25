@@ -16,6 +16,8 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
     /// The VLM-path variant this estimate runs (ADR 0010 amendment): vote
     /// rule, decoder feeding, slot uniqueness. Recorded on every trace.
     private let variant: RecoveryInferenceVariant
+    /// The most recent probe readout, for the log-probability vote.
+    private var lastProbe: ProbeReadout?
 
     init(
         runtime: MLXRecoveryRuntime,
@@ -82,13 +84,18 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             .sorted()
         let slotMap = Dictionary(uniqueKeysWithValues: zip(RecoveryIndexing.slotLetters, finalists))
         var views: [RecoveryVoteView<Int>] = []
+        lastProbe = nil
         for (viewIndex, capture) in captures.sorted(by: { $0.angle.rawValue < $1.angle.rawValue }).enumerated() {
             try Task.checkCancellation()
             let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
             // Views the model marked insufficient must not vote in scoring
             // or certainty.
             guard result.status == "matched" else { continue }
-            views.append(RecoveryVoteView(ranking: result.ranking.map { $0.uppercased() }, candidateForSlot: slotMap))
+            views.append(RecoveryVoteView(
+                ranking: result.ranking.map { $0.uppercased() },
+                candidateForSlot: slotMap,
+                slotProbabilities: lastProbe?.options
+            ))
         }
         guard let vote = RecoveryVote.aggregate(views: views, finalists: finalists, rule: variant.vote) else {
             return insufficient(captures: captures, started: started, cause: .finalistQuorumNotReached)
@@ -134,8 +141,10 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             candidateCount: candidates.count,
             modelDirectory: modelDirectory,
             decode: variant.decode,
-            uniqueSlots: variant.uniqueSlots
+            uniqueSlots: variant.uniqueSlots,
+            scoring: variant.scoring
         )
+        lastProbe = response.trace.probe
         if let recorder {
             // Runs before the defer removes the board, so the recorder can
             // copy the exact image the model saw.

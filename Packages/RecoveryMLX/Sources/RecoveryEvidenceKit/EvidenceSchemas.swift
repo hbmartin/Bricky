@@ -290,6 +290,8 @@ public struct EvidenceTraceRow: Codable, Sendable {
     public let conditions: DeviceConditions?
     /// The model's distribution at each small-legal-set decision.
     public let readouts: [DecisionReadout]?
+    /// Probe-scored calls: the decision's option probabilities.
+    public let probe: ProbeReadout?
 
     public init(
         traceVersion: Int, traceID: UUID, sessionID: UUID, pass: RecoveryPassKind, passIndex: Int,
@@ -299,7 +301,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         rawOutput: String, decodeError: String?, termination: String, generatedTokens: Int?,
         latencyMilliseconds: Int, memoryFootprintBytes: Int64?, modelRevision: String, createdAt: Date,
         variant: RecoveryInferenceVariant? = nil, inference: InferenceTelemetry? = nil,
-        conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil
+        conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil, probe: ProbeReadout? = nil
     ) {
         self.traceVersion = traceVersion
         self.traceID = traceID
@@ -327,6 +329,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         self.inference = inference
         self.conditions = conditions
         self.readouts = readouts
+        self.probe = probe
     }
 
     enum CodingKeys: String, CodingKey {
@@ -356,6 +359,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         case inference
         case conditions
         case readouts
+        case probe
     }
 }
 

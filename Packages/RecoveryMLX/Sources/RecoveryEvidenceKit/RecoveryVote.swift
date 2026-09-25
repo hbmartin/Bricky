@@ -13,6 +13,10 @@ public enum RecoveryVoteRule: String, Codable, CaseIterable, Sendable {
     /// Borda over each view's ranking with repeated slots removed: the first
     /// occurrence keeps its place and later slots move up. The default.
     case bordaDedup = "borda_dedup"
+    /// Sum of each view's log probability per candidate (probe scoring):
+    /// how much each view believed, not only its order. Views without
+    /// probabilities do not vote.
+    case logprob
 }
 
 /// One voting view: the slot letters it emitted, in order, and which
@@ -20,10 +24,13 @@ public enum RecoveryVoteRule: String, Codable, CaseIterable, Sendable {
 public struct RecoveryVoteView<Candidate: Hashable & Sendable>: Sendable {
     public let ranking: [String]
     public let candidateForSlot: [String: Candidate]
+    /// Slot letter → probability, when the view was probe-scored.
+    public let slotProbabilities: [String: Double]?
 
-    public init(ranking: [String], candidateForSlot: [String: Candidate]) {
+    public init(ranking: [String], candidateForSlot: [String: Candidate], slotProbabilities: [String: Double]? = nil) {
         self.ranking = ranking
         self.candidateForSlot = candidateForSlot
+        self.slotProbabilities = slotProbabilities
     }
 }
 
@@ -51,6 +58,9 @@ public enum RecoveryVote {
         finalists: [Candidate],
         rule: RecoveryVoteRule
     ) -> RecoveryVoteOutcome<Candidate>? {
+        if rule == .logprob {
+            return aggregateLogProbabilities(views: views, finalists: finalists)
+        }
         var ballots: [[(position: Int, candidate: Candidate)]] = []
         for view in views {
             let slots = rule == .bordaDedup ? deduplicated(view.ranking) : view.ranking
@@ -78,6 +88,51 @@ public enum RecoveryVote {
         let agreement = Dictionary(grouping: leaders, by: { $0 }).values.map(\.count).max() ?? 0
         let certainty: RecoveryCertainty = agreement >= 3 ? .high : (agreement == 2 ? .medium : .low)
         return RecoveryVoteOutcome(ordered: ordered, scores: scores, certainty: certainty, votingViews: ballots.count)
+    }
+
+    /// Floor on a view's probability so one confident zero cannot veto.
+    static let probabilityFloor = 1e-4
+
+    /// Log-probability pooling across probe-scored views. Scores are
+    /// integer-scaled (×1000) log sums so the outcome keeps the Borda type;
+    /// certainty comes from the pooled posterior: ≥ 0.8 high, ≥ 0.5 medium.
+    /// Those cut points are RECONSTRUCTED; recorded distributions allow
+    /// re-deriving them from device evidence.
+    static func aggregateLogProbabilities<Candidate: Hashable & Sendable>(
+        views: [RecoveryVoteView<Candidate>],
+        finalists: [Candidate]
+    ) -> RecoveryVoteOutcome<Candidate>? {
+        let voting = views.compactMap { view -> [Candidate: Double]? in
+            guard let probabilities = view.slotProbabilities else { return nil }
+            var byCandidate: [Candidate: Double] = [:]
+            for (slot, candidate) in view.candidateForSlot {
+                byCandidate[candidate] = probabilities[slot] ?? 0
+            }
+            return byCandidate
+        }
+        guard voting.count >= quorum else { return nil }
+        var logSums = Dictionary(uniqueKeysWithValues: finalists.map { ($0, 0.0) })
+        for view in voting {
+            for candidate in finalists {
+                logSums[candidate, default: 0] += log(max(view[candidate] ?? 0, probabilityFloor))
+            }
+        }
+        let finalistOrder = Dictionary(finalists.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        let ordered = finalists.sorted {
+            let lhs = logSums[$0, default: 0], rhs = logSums[$1, default: 0]
+            return lhs == rhs ? finalistOrder[$0, default: 0] < finalistOrder[$1, default: 0] : lhs > rhs
+        }
+        let peak = logSums.values.max() ?? 0
+        let unnormalized = logSums.mapValues { exp($0 - peak) }
+        let total = unnormalized.values.reduce(0, +)
+        let top = ordered.first.map { (unnormalized[$0] ?? 0) / max(total, .leastNonzeroMagnitude) } ?? 0
+        let certainty: RecoveryCertainty = top >= 0.8 ? .high : (top >= 0.5 ? .medium : .low)
+        return RecoveryVoteOutcome(
+            ordered: ordered,
+            scores: logSums.mapValues { Int(($0 * 1_000).rounded()) },
+            certainty: certainty,
+            votingViews: voting.count
+        )
     }
 
     static func deduplicated(_ ranking: [String]) -> [String] {

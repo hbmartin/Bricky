@@ -67,6 +67,9 @@ struct Replay: AsyncParsableCommand {
     @Flag(name: .customLong("unique-slots"), help: "Mask slot letters already in the ranking (the unique_slots variant).")
     var uniqueSlots = false
 
+    @Option(help: "generate (the app's default) or probe: read the decision's probabilities from one prefill instead of generating JSON.")
+    var scoring: ScoringMode = .generate
+
     @Option(help: "A/B arm label recorded on every row (e.g. control, B).")
     var arm: String?
 
@@ -75,7 +78,7 @@ struct Replay: AsyncParsableCommand {
 
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
-        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, uniqueSlots: uniqueSlots, armID: arm)
+        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, uniqueSlots: uniqueSlots, scoring: scoring, armID: arm)
         if let variant {
             resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
             if resolved.armID == nil { resolved.armID = arm }
@@ -110,7 +113,7 @@ struct Replay: AsyncParsableCommand {
             let rankRows = session.traceRows
                 .filter { $0.pass != .check }
                 .filter { allPasses || $0.pass == .finalist }
-            var finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)] = []
+            var finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?, probe: ProbeReadout?)] = []
             // Every replayed call counts: with --all-passes this is the whole
             // hierarchy's inference cost, as the device's wall clock is.
             var replayLatency = 0
@@ -123,11 +126,12 @@ struct Replay: AsyncParsableCommand {
                     modelDirectory: modelURL,
                     maxTokens: maxTokens,
                     decode: variant.decode,
-                    uniqueSlots: variant.uniqueSlots
+                    uniqueSlots: variant.uniqueSlots,
+                    scoring: variant.scoring
                 )
                 replayLatency += response.trace.latencyMilliseconds
                 if row.pass == .finalist {
-                    finalistReplays.append((row, response.output))
+                    finalistReplays.append((row, response.output, response.trace.probe))
                 }
                 let decision = ReplayDecision(rawOutput: response.trace.rawOutput)
                 traceLines.append(try encoder.encode(ReplayTraceResult(
@@ -143,7 +147,8 @@ struct Replay: AsyncParsableCommand {
                         imageURL: try boardURL(for: row, in: session),
                         prompt: row.prompt,
                         modelDirectory: modelURL,
-                        decode: variant.decode
+                        decode: variant.decode,
+                        scoring: variant.scoring
                     )
                     guard let expected = ReplayAggregation.expectedCheckVerdict(
                         row: row, expectedCompletedCount: session.file.groundTruth.expectedCompletedCount
@@ -196,7 +201,7 @@ struct Replay: AsyncParsableCommand {
     /// the app's estimator uses, so replay and device cannot drift apart.
     private func benchmarkRow(
         session: EvidenceBundleReader.Session,
-        finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)],
+        finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?, probe: ProbeReadout?)],
         replayLatency: Int,
         replayModelRevision: String,
         variant: RecoveryInferenceVariant
@@ -211,9 +216,9 @@ struct Replay: AsyncParsableCommand {
         let finalists = slotSource.candidateStepIDs.values.sorted {
             (Self.stepNumber(from: $0) ?? 0) < (Self.stepNumber(from: $1) ?? 0)
         }
-        let views = finalistReplays.compactMap { row, output -> RecoveryVoteView<String>? in
+        let views = finalistReplays.compactMap { row, output, probe -> RecoveryVoteView<String>? in
             guard let output, output.status == "matched" else { return nil }
-            return RecoveryVoteView(ranking: output.ranking, candidateForSlot: row.candidateStepIDs)
+            return RecoveryVoteView(ranking: output.ranking, candidateForSlot: row.candidateStepIDs, slotProbabilities: probe?.options)
         }
         let outcome = RecoveryVote.aggregate(views: views, finalists: finalists, rule: variant.vote)
         let ranked = outcome.map { Array($0.ordered.prefix(3)) } ?? []
@@ -456,3 +461,4 @@ struct ReplayCheckRow: Encodable {
 
 extension RecoveryVoteRule: ExpressibleByArgument {}
 extension DecodeMode: ExpressibleByArgument {}
+extension ScoringMode: ExpressibleByArgument {}

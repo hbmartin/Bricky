@@ -109,6 +109,9 @@ struct StorageAndAttributionView: View {
                             ForEach(DecodeMode.allCases.filter { $0 != .upstream }, id: \.self) { Text($0.rawValue).tag($0) }
                         }
                         Toggle("Variant: unique slots", isOn: $armPlan.variant.uniqueSlots)
+                        Picker("Variant scoring", selection: $armPlan.variant.scoring) {
+                            ForEach(ScoringMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
                         Picker("Variant vote", selection: $armPlan.variant.vote) {
                             ForEach(RecoveryVoteRule.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }

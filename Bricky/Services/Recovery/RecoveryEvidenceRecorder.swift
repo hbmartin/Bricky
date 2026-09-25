@@ -147,7 +147,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 variant: variant,
                 inference: trace.inference,
                 conditions: conditions,
-                readouts: trace.readouts
+                readouts: trace.readouts,
+                probe: trace.probe
             )
             try appendTraceRow(row)
         }
