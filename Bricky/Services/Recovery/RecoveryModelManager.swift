@@ -70,7 +70,7 @@ final class RecoveryModelManager: ObservableObject {
     /// Application Support root, the real device gate, the kernel's memory
     /// accounting, and the system's pressure notifications.
     init(
-        delivery: any ModelDelivery = ForegroundVerifiedDelivery(),
+        delivery: any ModelDelivery = BackgroundURLSessionDelivery(),
         defaults: UserDefaults = .standard,
         storageRoot: URL? = nil,
         deviceFloor: @escaping @MainActor () -> DeviceFloor.Verdict = { DeviceFloor.current },
@@ -203,6 +203,10 @@ final class RecoveryModelManager: ObservableObject {
             return
         }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // Publishes what a background transfer finished while the app was
+        // away, after hashing it here in the foreground.
+        var deliveryStatus = DeliveryStatus.idle
+        if let manifest { deliveryStatus = await delivery.reconcile(manifest) }
         var missingBytes: Int64 = 0
         for asset in Self.assets {
             let url = directory.appendingPathComponent(asset.path)
@@ -227,6 +231,12 @@ final class RecoveryModelManager: ObservableObject {
         }
         if missingBytes == 0 {
             state = .warming
+        } else if deliveryStatus == .transferring {
+            // A download the user started before the app was suspended or
+            // terminated is still running: follow it rather than offer a
+            // second one.
+            state = .downloading(progress: 0)
+            download(reattaching: true)
         } else {
             let available = (try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
                 .volumeAvailableCapacityForImportantUsage ?? 0
@@ -238,10 +248,13 @@ final class RecoveryModelManager: ObservableObject {
         }
     }
 
-    func download() {
+    /// Starts the download from the foreground button, or re-attaches to
+    /// transfers already running (`reattaching`), which were started under
+    /// the cellular preference in force then.
+    func download(reattaching: Bool = false) {
         workTask?.cancel()
         workKind = .download
-        workTask = Task { [weak self] in await self?.performDownload() }
+        workTask = Task { [weak self] in await self?.performDownload(reattaching: reattaching) }
     }
 
     func warmUpWhileARIsActive() {
@@ -345,15 +358,17 @@ final class RecoveryModelManager: ObservableObject {
         }
     }
 
-    private func performDownload() async {
+    private func performDownload(reattaching: Bool) async {
         do {
-            let path = await NetworkPathProbe.current()
-            if path.usesInterfaceType(.cellular), !allowsCellularDownloads {
-                reject(reason: "The recovery model is about 3.1 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
-                return
+            if !reattaching {
+                let path = await NetworkPathProbe.current()
+                if path.usesInterfaceType(.cellular), !allowsCellularDownloads {
+                    reject(reason: "The recovery model is about 3.1 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
+                    return
+                }
             }
             guard let manifest else { throw CocoaError(.fileNoSuchFile) }
-            try await delivery.deliver(manifest) { progress in
+            try await delivery.deliver(manifest, allowsCellular: allowsCellularDownloads) { progress in
                 await self.updateDownloadProgress(progress)
             }
             state = .warming

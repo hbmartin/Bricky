@@ -81,3 +81,28 @@ plus 25%. Every admission records the inputs (`AdmissionSnapshot`:
 footprint before load, warm-up lifetime peak) on evidence sessions. Until
 Phase 1 measures it on an iPhone 17 Pro, the 5.5 GB floor stays
 🟡 RECONSTRUCTED.
+
+## Amendment (2026-09-25): background delivery
+
+The model now downloads through a background `URLSession`
+(`BackgroundURLSessionDelivery`), so a 3 GB download survives backgrounding
+and termination. Leaving the app stops model work only, never the download.
+Three rules keep the original guarantees:
+
+- **Transfers start only from the foreground button.** The session is not
+  discretionary. A relaunch re-attaches to transfers already running; it
+  never starts new ones. Each task is described as `<revision>/<asset>`, so
+  a transfer that an older app version started for a superseded pin has no
+  destination and is dropped.
+- **Nothing is published unverified.** The session delegate only moves a
+  finished file aside as `<asset>.downloaded`, because hashing 3 GB would
+  outlast a background launch. The next foreground `reconcile` (run by
+  every admission check) hashes it, publishes it, or deletes it.
+- **Retries are bounded.** Resume data is kept as `<asset>.resume`. After a
+  failure, a fresh request replaces it, because an expired signed CDN URL
+  would fail again. An asset that fails three attempts surfaces an error
+  instead of looping.
+
+The part pack stays on the foreground downloader. Device QA is Phase 1
+step 2: background the app for 10 minutes, force-quit and relaunch, and
+resume after 2 hours to see whether the signed URL expired.

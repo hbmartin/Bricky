@@ -30,6 +30,12 @@ struct AppEntry: App {
             }
         }
         .modelContainer(modelContainer)
+        // iOS relaunches the app, possibly in the background, to deliver the
+        // model download's session events. The delegate only moves finished
+        // files aside; hashing and publishing wait for the foreground.
+        .backgroundTask(.urlSession(BackgroundModelTransfer.identifier)) {
+            await BackgroundModelTransfer.shared.handleBackgroundEvents()
+        }
     }
 
     /// The floor is the iPhone 17 Pro class for the whole app (ADR 0012):
@@ -73,11 +79,12 @@ struct AppEntry: App {
                         // Begin draining Metal work before iOS suspends the
                         // process, but only after a grace period so Control
                         // Center, the app switcher, and system alerts do not
-                        // tear down warm inference. Downloads are left
-                        // running until a real background transition arrives.
-                        scheduleLifecycleTeardown(cancelDownloads: false, gracePeriod: .seconds(2))
+                        // tear down warm inference.
+                        scheduleLifecycleTeardown(gracePeriod: .seconds(2))
                     case .background:
-                        scheduleLifecycleTeardown(cancelDownloads: true)
+                        // The model download belongs to the background
+                        // session and keeps going; only model work stops.
+                        scheduleLifecycleTeardown()
                     default:
                         break
                     }
@@ -113,14 +120,12 @@ struct AppEntry: App {
     /// iOS cannot suspend the process in the window before the teardown task
     /// first runs. Cancellation only aborts the grace period: past it, the
     /// drain ignores cancellation and runs to completion.
-    private func scheduleLifecycleTeardown(cancelDownloads: Bool, gracePeriod: Duration? = nil) {
+    private func scheduleLifecycleTeardown(gracePeriod: Duration? = nil) {
         let previous = lifecycleTeardownTask
         // A superseding teardown collapses a pending grace period instead of
         // waiting it out; a drain already past its grace sleep is unaffected.
         previous?.cancel()
-        let assertion = LifecycleAssertion(
-            name: cancelDownloads ? "Bricky background teardown" : "Bricky inference teardown"
-        )
+        let assertion = LifecycleAssertion(name: "Bricky inference teardown")
         lifecycleTeardownTask = Task {
             defer { assertion.end() }
             if let gracePeriod {
@@ -133,11 +138,7 @@ struct AppEntry: App {
                 }
             }
             await previous?.value
-            if cancelDownloads {
-                await recoveryModel.cancelAndAwait()
-            } else {
-                await recoveryModel.suspendInferenceAndAwait()
-            }
+            await recoveryModel.suspendInferenceAndAwait()
         }
     }
 }

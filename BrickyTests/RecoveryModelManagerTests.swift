@@ -7,7 +7,8 @@ import XCTest
 final class RecoveryModelManagerTests: XCTestCase {
     private actor RecordingDelivery: ModelDelivery {
         private(set) var removed: [ModelManifest] = []
-        func deliver(_ manifest: ModelManifest, progress: @escaping @Sendable (Double) async -> Void) async throws {}
+        func deliver(_ manifest: ModelManifest, allowsCellular: Bool, progress: @escaping @Sendable (Double) async -> Void) async throws {}
+        func reconcile(_ manifest: ModelManifest) async -> DeliveryStatus { .idle }
         func remove(_ manifest: ModelManifest) async throws {
             removed.append(manifest)
             try? FileManager.default.removeItem(at: manifest.directory)

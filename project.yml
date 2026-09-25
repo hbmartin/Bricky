@@ -134,6 +134,7 @@ targets:
       - BrickyTests/PhotoCheckControllerTests.swift
       - BrickyTests/VLMStepCheckServiceTests.swift
       - BrickyTests/MemoryGovernorTests.swift
+      - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX
