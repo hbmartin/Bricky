@@ -160,5 +160,8 @@ row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
 the scorer requires at least two distinct lighting and occlusion labels and
 at least 6 distinct authored model IDs. `capture_angle` is the comma-joined
 set of views the session captured (normally `left,center,right`) and must
-include `center` plus a side view. `top_step_index` may be omitted or
-null only when `certainty` is `insufficient`.
+include `center` plus a side view. Viewing variety comes from
+`capture_elevation_degrees` instead — the center capture's measured angle
+below the horizon — and the corpus must span at least two of the bands
+below 35°, 35–60°, and above 60° (RECONSTRUCTED edges). `top_step_index`
+may be omitted or null only when `certainty` is `insufficient`.

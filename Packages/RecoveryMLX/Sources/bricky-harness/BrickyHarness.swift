@@ -216,7 +216,8 @@ struct Replay: AsyncParsableCommand {
             legalUseConfirmed: session.file.staged?.legalUseConfirmed,
             lightingCondition: session.file.staged?.lighting.rawValue,
             captureAngle: session.file.captures.map(\.angle).joined(separator: ","),
-            occlusionCondition: session.file.staged?.occlusion.rawValue
+            occlusionCondition: session.file.staged?.occlusion.rawValue,
+            captureElevationDegrees: session.file.captures.benchmarkElevationDegrees
         )
         return try EvidenceSchema.encoder().encode(row)
     }

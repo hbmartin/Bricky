@@ -163,6 +163,7 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
                 capture_angle="left,center,right",
                 occlusion_condition="none" if index % 2 else "partial",
                 device_model="iPhone18,1",
+                capture_elevation_degrees=25.0 if index % 3 == 0 else 50.0,
             )
             rows.append(row)
         return rows
@@ -220,6 +221,28 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
     def test_release_row_requires_explicit_provenance(self) -> None:
         rows = [benchmark_row() for _ in range(RELEASE_ROWS)]
         with self.assertRaisesRegex(SystemExit, "missing fields"):
+            validate_release_corpus(rows)
+
+
+class ElevationVarietyTests(unittest.TestCase):
+    def test_one_elevation_band_fails_release(self) -> None:
+        rows = ReleaseCorpusValidationTests.release_rows()
+        for row in rows:
+            row["capture_elevation_degrees"] = 45.0
+        with self.assertRaisesRegex(SystemExit, "two viewing-elevation bands"):
+            validate_release_corpus(rows)
+
+    def test_elevation_must_be_a_measured_angle(self) -> None:
+        for bad in (None, float("nan"), 120.0, "steep"):
+            rows = ReleaseCorpusValidationTests.release_rows()
+            rows[5]["capture_elevation_degrees"] = bad
+            with self.assertRaisesRegex(SystemExit, "capture_elevation_degrees"):
+                validate_release_corpus(rows)
+
+    def test_missing_elevation_is_a_missing_release_field(self) -> None:
+        rows = ReleaseCorpusValidationTests.release_rows()
+        del rows[0]["capture_elevation_degrees"]
+        with self.assertRaisesRegex(SystemExit, "missing fields: capture_elevation_degrees"):
             validate_release_corpus(rows)
 
 

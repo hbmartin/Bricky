@@ -15,7 +15,8 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
     /// Mirrors RELEASE_FIELDS in score_results.py.
     private static let scorerReleaseFields: Set<String> = [
         "physical_case", "authored_model_id", "legal_use_confirmed",
-        "lighting_condition", "capture_angle", "occlusion_condition"
+        "lighting_condition", "capture_angle", "occlusion_condition",
+        "capture_elevation_degrees"
     ]
 
     private var root: URL!
@@ -99,6 +100,8 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         XCTAssertEqual(row["occlusion_condition"] as? String, "partial")
         XCTAssertEqual(row["legal_use_confirmed"] as? Bool, true)
         XCTAssertEqual(row["capture_angle"] as? String, "center")
+        // The fixture camera looks 45° below the horizon.
+        XCTAssertEqual(try XCTUnwrap(row["capture_elevation_degrees"] as? Double), 45, accuracy: 0.01)
         let camera = try XCTUnwrap((row["camera_metadata"] as? [[String: Double]])?.first)
         XCTAssertEqual(camera["fx"], 1200)
         XCTAssertEqual(camera["cx"], 640)
@@ -152,6 +155,17 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
 
     // MARK: - Fixtures
 
+    /// Column-major camera-to-world transform pitched 45° down about X.
+    private static let lookingDown45Degrees: [Float] = {
+        let half = Float(0.5).squareRoot()
+        return [
+            1, 0, 0, 0,
+            0, half, -half, 0,
+            0, half, half, 0,
+            0, 0.3, 0.3, 1
+        ]
+    }()
+
     private func makeRecorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder {
         RecoveryEvidenceRecorder(
             root: root,
@@ -171,7 +185,7 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         return RecoveryCapture(
             id: id,
             imageRelativePath: "RecoveryCaptures/\(id.uuidString).jpg",
-            cameraTransform: Array(repeating: 0, count: 16),
+            cameraTransform: Self.lookingDown45Degrees,
             cameraIntrinsics: [1200, 0, 0, 0, 1200, 0, 640, 360, 1],
             cameraImageResolution: [1920, 1440],
             alignmentID: UUID(),

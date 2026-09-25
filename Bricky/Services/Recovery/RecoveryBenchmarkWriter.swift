@@ -70,7 +70,8 @@ extension RecoveryEvidenceRecorder {
                 legalUseConfirmed: session.staged?.legalUseConfirmed,
                 lightingCondition: session.staged?.lighting.rawValue,
                 captureAngle: session.captures.map(\.angle).joined(separator: ","),
-                occlusionCondition: session.staged?.occlusion.rawValue
+                occlusionCondition: session.staged?.occlusion.rawValue,
+                captureElevationDegrees: session.captures.benchmarkElevationDegrees
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]

@@ -378,6 +378,31 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
     }
 }
 
+public extension EvidenceCaptureRecord {
+    /// How far the camera's optical axis points below the horizon, in
+    /// degrees: 0 looks level, 90 looks straight down. Measured from the
+    /// column-major ARKit camera-to-world transform (gravity-aligned world,
+    /// camera looking down −Z), so it is the viewing elevation the release
+    /// corpus must vary — unlike the `left/center/right` label, which every
+    /// full session repeats. Nil for a malformed transform.
+    var elevationDegrees: Double? {
+        guard cameraTransform.count == 16 else { return nil }
+        // Forward is −column 2, so its downward component is +column2.y,
+        // element 9 in column-major order.
+        let downward = Double(cameraTransform[9])
+        guard downward.isFinite else { return nil }
+        return asin(min(1, max(-1, downward))) * 180 / .pi
+    }
+}
+
+public extension Array where Element == EvidenceCaptureRecord {
+    /// The viewing elevation a benchmark row reports: the center capture's,
+    /// which every hierarchical pass but the finalists sees alone.
+    var benchmarkElevationDegrees: Double? {
+        (first(where: { $0.angle == "center" }) ?? first)?.elevationDegrees
+    }
+}
+
 /// Conditions declared up front in corpus-collection mode, matching the
 /// release-corpus fields of `RecoveryBenchmarkV1`.
 public struct StagedFixtureDeclaration: Codable, Hashable, Sendable {
@@ -624,6 +649,10 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     public let lightingCondition: String?
     public let captureAngle: String?
     public let occlusionCondition: String?
+    /// The center capture's measured viewing elevation (see
+    /// `EvidenceCaptureRecord.elevationDegrees`). Release corpora must span
+    /// at least two elevation bands.
+    public let captureElevationDegrees: Double?
 
     public init(
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
@@ -634,7 +663,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         operatingSystem: String, latencyMilliseconds: Int, memoryPeakBytes: Int64,
         topStepIndex: Int?, physicalCase: Bool?, authoredModelID: String?,
         legalUseConfirmed: Bool?, lightingCondition: String?, captureAngle: String?,
-        occlusionCondition: String?
+        occlusionCondition: String?, captureElevationDegrees: Double? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.fixtureID = fixtureID
@@ -661,6 +690,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.lightingCondition = lightingCondition
         self.captureAngle = captureAngle
         self.occlusionCondition = occlusionCondition
+        self.captureElevationDegrees = captureElevationDegrees
     }
 
     enum CodingKeys: String, CodingKey {
@@ -689,6 +719,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case lightingCondition = "lighting_condition"
         case captureAngle = "capture_angle"
         case occlusionCondition = "occlusion_condition"
+        case captureElevationDegrees = "capture_elevation_degrees"
     }
 }
 

@@ -285,6 +285,70 @@ final class EvidenceKitTests: XCTestCase {
         }
     }
 
+    // MARK: - Capture elevation
+
+    /// A column-major camera-to-world transform whose optical axis (−Z)
+    /// points `degrees` below the horizon.
+    private func pitchedDown(_ degrees: Double) -> [Float] {
+        let radians = degrees * .pi / 180
+        let (sine, cosine) = (Float(sin(radians)), Float(cos(radians)))
+        return [
+            1, 0, 0, 0,
+            0, cosine, -sine, 0,
+            0, sine, cosine, 0,
+            0, 0, 0, 1
+        ]
+    }
+
+    private func capture(angle: String, transform: [Float]) -> EvidenceCaptureRecord {
+        EvidenceCaptureRecord(
+            captureID: UUID(), imageRelativePath: "captures/x.jpg", cameraTransform: transform,
+            cameraIntrinsics: Array(repeating: 0, count: 9), cameraImageResolution: [1920, 1440],
+            alignmentID: UUID(), angle: angle, capturedAt: .now
+        )
+    }
+
+    func testElevationIsTheOpticalAxisAngleBelowTheHorizon() throws {
+        for degrees in [0.0, 30.0, 45.0, 90.0] {
+            let elevation = try XCTUnwrap(capture(angle: "center", transform: pitchedDown(degrees)).elevationDegrees)
+            XCTAssertEqual(elevation, degrees, accuracy: 0.01)
+        }
+        // Looking up reads negative, not folded back into the downward range.
+        let upward = try XCTUnwrap(capture(angle: "center", transform: pitchedDown(-20)).elevationDegrees)
+        XCTAssertEqual(upward, -20, accuracy: 0.01)
+    }
+
+    func testMalformedTransformHasNoElevation() {
+        XCTAssertNil(capture(angle: "center", transform: [1, 0, 0]).elevationDegrees)
+        var poisoned = pitchedDown(45)
+        poisoned[9] = .nan
+        XCTAssertNil(capture(angle: "center", transform: poisoned).elevationDegrees)
+    }
+
+    func testBenchmarkElevationPrefersTheCenterCapture() throws {
+        let captures = [
+            capture(angle: "left", transform: pitchedDown(20)),
+            capture(angle: "center", transform: pitchedDown(55)),
+            capture(angle: "right", transform: pitchedDown(20))
+        ]
+        XCTAssertEqual(try XCTUnwrap(captures.benchmarkElevationDegrees), 55, accuracy: 0.01)
+        XCTAssertNil([EvidenceCaptureRecord]().benchmarkElevationDegrees)
+    }
+
+    func testBenchmarkElevationKeyIsSnakeCase() throws {
+        let row = RecoveryBenchmarkV1(
+            schemaVersion: 1, fixtureID: "f", instructionSHA256: "0", pyldraw3Version: "1.5.0",
+            partPackVersion: "2026-07", expectedStepID: "m#1", candidateSlots: [:],
+            boardRelativePaths: [], cameraMetadata: [], expectedStepIndex: 1, rankedStepIDs: [],
+            certainty: .insufficient, estimatorMethod: .vlm, modelRevision: nil, deviceModel: "iPhone18,1",
+            operatingSystem: "iOS", latencyMilliseconds: 0, memoryPeakBytes: 0, topStepIndex: nil,
+            physicalCase: nil, authoredModelID: nil, legalUseConfirmed: nil, lightingCondition: nil,
+            captureAngle: nil, occlusionCondition: nil, captureElevationDegrees: 42.5
+        )
+        let raw = String(decoding: try EvidenceSchema.encoder().encode(row), as: UTF8.self)
+        XCTAssertTrue(raw.contains("\"capture_elevation_degrees\":42.5"), raw)
+    }
+
     // MARK: - Fixtures
 
     private func solidImage(width: Int, height: Int) throws -> CGImage {

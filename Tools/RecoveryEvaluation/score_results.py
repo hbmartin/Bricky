@@ -80,7 +80,13 @@ RELEASE_FIELDS = {
     "lighting_condition",
     "capture_angle",
     "occlusion_condition",
+    "capture_elevation_degrees",
 }
+
+# Viewing-elevation bands a release corpus must span at least two of. The
+# edges are RECONSTRUCTED (a judgment about "low", "typical tabletop", and
+# "overhead" views), not measured; revisit with the first physical corpus.
+ELEVATION_BAND_EDGES = (35.0, 60.0)
 
 VERIFICATION_REQUIRED_FIELDS = {
     "schema_version",
@@ -390,6 +396,13 @@ def validate_capture_angles(value: object, label: str) -> None:
         raise SystemExit(f"{label} capture_angle needs the center view and at least one side view")
 
 
+def elevation_band(value: object, label: str) -> str:
+    if not is_number(value) or not -90 <= float(value) <= 90:
+        raise SystemExit(f"{label} capture_elevation_degrees must be a finite angle in [-90, 90]")
+    low, high = ELEVATION_BAND_EDGES
+    return "low" if float(value) < low else ("mid" if float(value) <= high else "high")
+
+
 def validate_release_corpus(rows: list[dict[str, object]]) -> None:
     """Provenance preflight for release mode. It checks what the rows are,
     not how many there are: sample size is judged per gate by its bound."""
@@ -397,11 +410,13 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
     models: set[str] = set()
     # Corpus-level variety. Capture angle is not here: every session captures
     # the same three views, so a per-corpus "two distinct values" rule on it
-    # could never pass on real data. It is validated per row instead.
+    # could never pass on real data. Viewing variety is the measured
+    # elevation instead, banded.
     variation: dict[str, set[str]] = {
         "lighting_condition": set(),
         "occlusion_condition": set(),
     }
+    elevation_bands: set[str] = set()
     for index, row in enumerate(rows, start=1):
         label = f"release row {index}"
         missing = sorted(RELEASE_FIELDS - row.keys())
@@ -410,6 +425,7 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
         unique_fixture(row, fixtures, label)
         validate_release_device(row, label)
         validate_capture_angles(row["capture_angle"], label)
+        elevation_bands.add(elevation_band(row["capture_elevation_degrees"], label))
         if row["physical_case"] is not True:
             raise SystemExit(f"release row {index} is not explicitly marked as a physical case")
         if row["legal_use_confirmed"] is not True:
@@ -438,6 +454,12 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
     for field, values in variation.items():
         if len(values) < 2:
             raise SystemExit(f"release corpus needs at least two explicit {field} values")
+    if len(elevation_bands) < 2:
+        raise SystemExit(
+            "release corpus needs captures in at least two viewing-elevation bands "
+            f"(edges {ELEVATION_BAND_EDGES[0]:g}° and {ELEVATION_BAND_EDGES[1]:g}°); "
+            f"found {', '.join(sorted(elevation_bands))}"
+        )
 
 
 def median_latency(rows: list[dict[str, object]]) -> float | None:

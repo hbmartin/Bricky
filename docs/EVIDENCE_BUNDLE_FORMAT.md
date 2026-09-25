@@ -211,9 +211,11 @@ weights or solver produced the ranking; never parsed to infer the method),
 `top_step_index` (null only when
 `certainty` is `insufficient`), `physical_case`, `authored_model_id`,
 `legal_use_confirmed`, `lighting_condition`, `capture_angle`,
-`occlusion_condition`. Release rows must populate all of them (see the
-scorer README for corpus-level requirements: ≥150 cases, ≥10 models,
-variation coverage).
+`occlusion_condition`, `capture_elevation_degrees` (the center capture's
+measured viewing elevation below the horizon, from its camera transform).
+Release rows must populate all of them. Corpus-level requirements
+(provenance, variation coverage including two elevation bands, and the
+bound-based sample sizes) are in the scorer README.
 
 ## Step numbering: the three coordinate systems
 
