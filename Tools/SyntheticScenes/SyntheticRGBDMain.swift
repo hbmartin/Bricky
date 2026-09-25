@@ -113,6 +113,9 @@ struct SyntheticRGBDMain {
         let renderer = try ExpectedDepthRenderer()
         var rng = SplitMix64(seed: options.seed)
         var rows: [String] = []
+        var registrationRows = 0
+        var verificationRows = 0
+        var droppedByDetectability: [String: Int] = [:]
 
         let stepIndices = HierarchicalIndices.evenly(
             count: min(options.sampledSteps, plan.steps.count),
@@ -140,6 +143,7 @@ struct SyntheticRGBDMain {
                     ambiguityExpected: perturbation.ambiguityExpected,
                     outcome: outcome
                 ))
+                registrationRows += 1
             }
 
             // Verification scenarios: the physical scene carries the injected
@@ -157,8 +161,13 @@ struct SyntheticRGBDMain {
                 // rates below strong is not a fair recall target: the honest
                 // response to a weakly visible delta is abstention (ADR 0008),
                 // so such rows would punish correct behavior. Every other
-                // scenario keeps its row regardless of detectability.
+                // scenario keeps its row regardless of detectability. Drops
+                // are counted into the summary row, where the regression
+                // baseline guards them: a verifier change that downgrades
+                // detectability would otherwise delete its own recall
+                // failures and read as an improvement.
                 if scenario.expectedVerdict == "complete", verdict.detectability != .strong {
+                    droppedByDetectability[verdict.detectability.rawValue, default: 0] += 1
                     continue
                 }
                 rows.append(try Row.verification(
@@ -167,12 +176,25 @@ struct SyntheticRGBDMain {
                     verification: verdict,
                     latencyMilliseconds: started.duration(to: .now).milliseconds
                 ))
+                verificationRows += 1
             }
         }
 
         guard !rows.isEmpty else {
             throw CLIError("no benchmark rows were generated from \(options.modelPath)")
         }
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "regression",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "steps_sampled": stepIndices.count,
+            "generated_registration_rows": registrationRows,
+            "generated_verification_rows": verificationRows,
+            "dropped_expected_complete_below_strong": droppedByDetectability.values.reduce(0, +),
+            "dropped_by_detectability": droppedByDetectability,
+        ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
         print("wrote \(rows.count) rows to \(options.outPath)")

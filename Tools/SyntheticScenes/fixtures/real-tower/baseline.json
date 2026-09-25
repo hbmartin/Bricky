@@ -16,21 +16,81 @@
     "",
     "Tolerances absorb small floating-point differences in the Metal raster",
     "pass across runner GPUs. They are not headroom for regressions.",
-    "Regenerate with --update and explain the movement in the commit message."
+    "Regenerate with --update and explain the movement in the commit message.",
+    "",
+    "Count metrics (2026-09-25) guard the corpus shape under the rates:",
+    "`exact` for how many cases each metric covers, `lower_is_better` for",
+    "failure counts and for expected-complete rows the generator dropped",
+    "below strong detectability. A rate that improves because its cases",
+    "vanished is a regression, not a win."
   ],
   "fixture": "fixtures/real-tower/tower.ldr",
-  "seed": 7,
-  "generated": "2026-08-07",
+  "generated": "2026-09-25",
   "metrics": {
+    "registration.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 25.0
+    },
     "registration.convergence_rate": {
       "direction": "higher_is_better",
       "tolerance": 0.05,
+      "value": 0.0
+    },
+    "synthetic_summary.regression.dropped_expected_complete_below_strong": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 2.0
+    },
+    "synthetic_summary.regression.generated_registration_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 25.0
+    },
+    "synthetic_summary.regression.generated_verification_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    },
+    "synthetic_summary.regression.steps_sampled": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 5.0
+    },
+    "verification.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    },
+    "verification.discriminable_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 13.0
+    },
+    "verification.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
       "value": 0.0
     },
     "verification.false_complete_rate": {
       "direction": "lower_is_better",
       "tolerance": 0.0,
       "value": 0.0
+    },
+    "verification.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 10.0
+    },
+    "verification.per_detectability.marginal.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 4.0
+    },
+    "verification.per_detectability.strong.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 9.0
     },
     "verification.per_detectability.strong.complete_precision": {
       "direction": "higher_is_better",
@@ -51,6 +111,17 @@
       "direction": "higher_is_better",
       "tolerance": 0.05,
       "value": 1.0
+    },
+    "verification.undetectable_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 5.0
+    },
+    "verification.undetectable_false_completes": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
     }
-  }
+  },
+  "seed": 7
 }

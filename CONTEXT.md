@@ -161,6 +161,9 @@ SyntheticRGBD ../SyntheticScenes/fixtures/synthetic-tower/tower.ldr \
 python3 score_results.py synthetic.ndjson --allow-small-corpus
 
 # Did this change make the solver worse? (blocking in CI; needs no calibration)
+# Row counts are guarded alongside the rates, so a rate cannot improve by
+# losing cases. --update adds new count metrics and refuses to retire a
+# guard that stopped being measured unless it is named with --drop.
 python3 check_regression.py synthetic.ndjson \
   --baseline ../SyntheticScenes/fixtures/real-tower/baseline.json
 ```

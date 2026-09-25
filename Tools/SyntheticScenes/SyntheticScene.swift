@@ -425,6 +425,7 @@ enum Row {
     ) throws -> String {
         try encode([
             "kind": "registration",
+            "provenance": "synthetic",
             "schema_version": 1,
             "fixture_id": fixture,
             "converged": outcome.converged,
@@ -451,6 +452,7 @@ enum Row {
         }
         return try encode([
             "kind": "verification",
+            "provenance": "synthetic",
             "schema_version": 1,
             "fixture_id": fixture,
             "expected_verdict": expected,

@@ -274,6 +274,16 @@ class PartitionTests(unittest.TestCase):
         self.assertEqual(len(kinds["verification"]), 1)
         self.assertEqual(len(kinds["registration"]), 1)
 
+    def test_synthetic_summary_passes_through_but_is_not_release_evidence(self) -> None:
+        summary = {"kind": "synthetic_summary", "schema_version": 1, "suite": "regression", "steps_sampled": 3}
+        self.assertEqual(partition([summary])["synthetic_summary"], [summary])
+        code, output = MainTests.run_main([benchmark_row(), summary])
+        self.assertEqual(code, 0)
+        self.assertEqual(MainTests.report_json(output)["synthetic_summary"], [summary])
+        code, output = MainTests.run_main([benchmark_row(), summary], informational=False)
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
+
     def test_unknown_kind_is_rejected(self) -> None:
         with self.assertRaisesRegex(SystemExit, "unknown kind"):
             partition([{"kind": "telemetry"}])

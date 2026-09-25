@@ -46,6 +46,10 @@ CONFIDENCE = 0.95
 # Below this many converged fits an RMSE is an anecdote, not a measurement.
 MINIMUM_RMSE_SAMPLES = 20
 KINDS = ("recovery", "verification", "registration")
+# Row kinds that describe how a corpus was generated rather than measuring
+# anything. They pass through to the report (and to check_regression, which
+# guards their counts) but are never scored and never release evidence.
+SUMMARY_KINDS = ("synthetic_summary",)
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -305,9 +309,9 @@ def rmse_gate(name: str, errors: list[float], ceiling: float) -> Gate:
     return Gate(name, "max", ceiling, value, bound, len(errors))
 
 
-def count_gate(name: str, count: int, ceiling: int) -> Gate:
-    """A hard count limit, judged identically in both modes."""
-    return Gate(name, "max", ceiling, count, count, count, count)
+def count_gate(name: str, count: int, ceiling: int, *, trials: int) -> Gate:
+    """A hard count limit over `trials` rows, judged identically in both modes."""
+    return Gate(name, "max", ceiling, count, count, trials, count)
 
 
 def evaluate(gates: list[Gate], *, release: bool) -> bool:
@@ -635,7 +639,12 @@ def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object]
     }
     gates += [
         # A "complete" on a delta depth cannot see is never earned evidence.
-        count_gate("verification.undetectable_false_completes", undetectable_false_completes, 0),
+        count_gate(
+            "verification.undetectable_false_completes",
+            undetectable_false_completes,
+            0,
+            trials=len(undetectable),
+        ),
         rate_gate(
             "verification.undetectable_abstention_rate",
             abstained,
@@ -716,7 +725,7 @@ def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object]
 
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
-    kinds: dict[str, list[dict[str, object]]] = {"recovery": [], "verification": [], "registration": []}
+    kinds: dict[str, list[dict[str, object]]] = {kind: [] for kind in KINDS + SUMMARY_KINDS}
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
         if kind not in kinds:
@@ -800,6 +809,9 @@ def main(
         require_kinds = set(KINDS) if release else set()
     kinds = partition(rows)
     if release:
+        for kind in SUMMARY_KINDS:
+            if kinds[kind]:
+                raise SystemExit(f"{kind} rows describe a synthetic corpus and are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -813,6 +825,9 @@ def main(
     for kind in ("verification", "registration", "recovery"):
         if kinds[kind]:
             report[kind], gates_by_kind[kind] = scorers[kind](kinds[kind])
+    for kind in SUMMARY_KINDS:
+        if kinds[kind]:
+            report[kind] = kinds[kind]
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -824,7 +839,7 @@ def main(
 
     failed = False
     for kind in KINDS:
-        if kind not in report:
+        if not kinds[kind]:
             required = kind in require_kinds
             failed = failed or required
             print(f"KIND {kind} {UNMEASURED}{' (required: FAIL)' if required else ''}")
