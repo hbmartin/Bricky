@@ -11,7 +11,9 @@ public struct MLXGenerationTrace: Codable, Sendable {
         /// `maxTokens` was exhausted before the grammar accepted; `rawOutput`
         /// holds the truncated prefix.
         case maxTokensExhausted = "max_tokens_exhausted"
-        /// The model emitted EOS before the grammar accepted.
+        /// Declared for old traces only: the pinned loop never throws its
+        /// `prematureEOS` (an EOS the grammar allows is acceptance), so no
+        /// call produces this.
         case prematureEOS = "premature_eos"
     }
 
@@ -24,6 +26,11 @@ public struct MLXGenerationTrace: Codable, Sendable {
     public let latencyMilliseconds: Int
     public let maxTokens: Int
     public let schemaJSON: String
+    /// Cost and cache-feeding counts; nil for the `upstream` engine, which
+    /// exposes none.
+    public let telemetry: DecodeTelemetry?
+    /// The model's distribution at each small-legal-set decision.
+    public let readouts: [DecisionReadout]?
 
     public init(
         rawOutput: String,
@@ -32,7 +39,9 @@ public struct MLXGenerationTrace: Codable, Sendable {
         termination: Termination,
         latencyMilliseconds: Int,
         maxTokens: Int,
-        schemaJSON: String
+        schemaJSON: String,
+        telemetry: DecodeTelemetry? = nil,
+        readouts: [DecisionReadout]? = nil
     ) {
         self.rawOutput = rawOutput
         self.decodeErrorDescription = decodeErrorDescription
@@ -41,6 +50,8 @@ public struct MLXGenerationTrace: Codable, Sendable {
         self.latencyMilliseconds = latencyMilliseconds
         self.maxTokens = maxTokens
         self.schemaJSON = schemaJSON
+        self.telemetry = telemetry
+        self.readouts = readouts
     }
 }
 

@@ -49,6 +49,9 @@ struct Replay: AsyncParsableCommand {
     @Option(help: "Finalist vote rule: borda_dedup (the app's default) or borda_legacy (duplicates counted, as shipped before 2026-09).")
     var vote: RecoveryVoteRule = .bordaDedup
 
+    @Option(help: "Decoder: legacy (the app's default, byte-identical to upstream), upstream (the pinned loop itself), or feed_all (feeds every sampled token to the KV cache).")
+    var decode: DecodeMode = .legacy
+
     @Flag(help: "Recompose boards from captures + tiles instead of replaying the stored board images.")
     var recompose = false
 
@@ -91,7 +94,8 @@ struct Replay: AsyncParsableCommand {
                     prompt: promptOverride ?? row.prompt,
                     candidateCount: row.candidateStepIDs.count,
                     modelDirectory: modelURL,
-                    maxTokens: maxTokens
+                    maxTokens: maxTokens,
+                    decode: decode
                 )
                 if row.pass == .finalist {
                     finalistReplays.append((row, response.output))
@@ -99,7 +103,7 @@ struct Replay: AsyncParsableCommand {
                 }
                 traceLines.append(try encoder.encode(ReplayTraceResult(row: row, response: response,
                                                                        promptOverridden: promptOverride != nil,
-                                                                       recomposed: recompose)))
+                                                                       recomposed: recompose, decode: decode)))
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
             if let rowData = try benchmarkRow(session: session, finalistReplays: finalistReplays,
@@ -271,8 +275,11 @@ struct ReplayTraceResult: Codable {
     let latencyMilliseconds: Int
     let deviceRawOutput: String
     let matchesDevice: Bool
+    let decode: DecodeMode
+    let telemetry: DecodeTelemetry?
+    let readouts: [DecisionReadout]?
 
-    init(row: EvidenceTraceRow, response: MLXRankResponse, promptOverridden: Bool, recomposed: Bool) {
+    init(row: EvidenceTraceRow, response: MLXRankResponse, promptOverridden: Bool, recomposed: Bool, decode: DecodeMode) {
         traceID = row.traceID
         sessionID = row.sessionID
         pass = row.pass
@@ -284,6 +291,9 @@ struct ReplayTraceResult: Codable {
         latencyMilliseconds = response.trace.latencyMilliseconds
         deviceRawOutput = row.rawOutput
         matchesDevice = response.trace.rawOutput == row.rawOutput
+        self.decode = decode
+        telemetry = response.trace.telemetry
+        readouts = response.trace.readouts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -298,7 +308,11 @@ struct ReplayTraceResult: Codable {
         case latencyMilliseconds = "latency_ms"
         case deviceRawOutput = "device_raw_output"
         case matchesDevice = "matches_device"
+        case decode
+        case telemetry
+        case readouts
     }
 }
 
 extension RecoveryVoteRule: ExpressibleByArgument {}
+extension DecodeMode: ExpressibleByArgument {}

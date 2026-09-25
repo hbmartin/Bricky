@@ -87,6 +87,7 @@ a device failure reproduces at all.
 | `--recompose` | Rebuild each board from the raw capture + tiles through `RecoveryBoardLayoutV1` instead of replaying the stored board image (layout experiments) |
 | `--all-passes` | Replay the full hierarchy, not only finalists |
 | `--vote borda_dedup\|borda_legacy` | Finalist vote rule (`RecoveryVote`, shared with the app). `borda_dedup` is the app default; `borda_legacy` counts repeated slots as the app did before 2026-09 |
+| `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`
 

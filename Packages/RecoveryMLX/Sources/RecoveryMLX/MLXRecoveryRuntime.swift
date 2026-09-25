@@ -3,6 +3,7 @@ import MLX
 import MLXGuidedGeneration
 import MLXLMCommon
 import MLXVLM
+import os
 import Tokenizers
 
 public struct MLXRankOutput: Codable, Sendable {
@@ -16,9 +17,17 @@ public struct MLXStepCheckOutput: Codable, Sendable {
 
 public enum MLXRecoveryError: LocalizedError {
     case invalidStructuredOutput
+    /// The processor returned no image, so the model would have answered
+    /// from the prompt alone. The pinned Qwen3-VL silently falls back to
+    /// text-only when its image list is empty; a comparison board the model
+    /// never saw must fail loudly instead.
+    case imageInputDropped
 
     public var errorDescription: String? {
-        "The on-device model did not produce a valid guided result."
+        switch self {
+        case .invalidStructuredOutput: "The on-device model did not produce a valid guided result."
+        case .imageInputDropped: "The on-device model received no image for this comparison."
+        }
     }
 }
 
@@ -36,6 +45,8 @@ public actor MLXRecoveryRuntime {
         return #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":[\#(letters)]},"minItems":1,"maxItems":\#(count),"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
     }
     private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
+
+    private static let signposter = OSSignposter(subsystem: "com.bricky.app", category: "Inference")
 
     /// Bounded Metal buffer cache for iOS. MLX otherwise defaults the cache
     /// limit to the memory limit, which is far too large next to 3 GB of
@@ -61,11 +72,11 @@ public actor MLXRecoveryRuntime {
         _ = try await modelContainer(modelDirectory: modelDirectory)
     }
 
-    /// GuidedGenerationLoop reserves 64 tokens for its closing bias. The
-    /// worst-case 8-slot ranking JSON is ~64 tokens under grammar masking, so
-    /// the previous 96 put the bias mid-array; 192 keeps the whole object out
-    /// of the soft zone. Generation still halts at grammar acceptance, so the
-    /// common case pays nothing.
+    /// Headroom over the worst-case 8-slot ranking (~64 tokens under the
+    /// grammar). Bricky passes no closing bias, so no soft zone exists; with
+    /// the shim's `any_whitespace = true`, only a whitespace run can exhaust
+    /// the budget. Generation halts at grammar acceptance, so the common case
+    /// pays nothing.
     static let rankMaxTokens = 192
     static let checkMaxTokens = 48
 
@@ -80,15 +91,23 @@ public actor MLXRecoveryRuntime {
         return output
     }
 
-    /// `maxTokens` overrides the default rank budget — an A/B knob for the
-    /// Mac harness; the app always passes nil.
-    public func rankWithTrace(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL, maxTokens: Int? = nil) async throws -> MLXRankResponse {
+    /// `maxTokens` and `decode` are A/B knobs for the Mac harness; the app
+    /// passes the defaults.
+    public func rankWithTrace(
+        imageURL: URL,
+        prompt: String,
+        candidateCount: Int,
+        modelDirectory: URL,
+        maxTokens: Int? = nil,
+        decode: DecodeMode = .legacy
+    ) async throws -> MLXRankResponse {
         let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
-            maxTokens: maxTokens ?? Self.rankMaxTokens
+            maxTokens: maxTokens ?? Self.rankMaxTokens,
+            decode: decode
         )
         var output: MLXRankOutput?
         var decodeError: String?
@@ -109,13 +128,19 @@ public actor MLXRecoveryRuntime {
         return output
     }
 
-    public func checkStepWithTrace(imageURL: URL, prompt: String, modelDirectory: URL) async throws -> MLXCheckResponse {
+    public func checkStepWithTrace(
+        imageURL: URL,
+        prompt: String,
+        modelDirectory: URL,
+        decode: DecodeMode = .legacy
+    ) async throws -> MLXCheckResponse {
         let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .check,
             modelDirectory: modelDirectory,
-            maxTokens: Self.checkMaxTokens
+            maxTokens: Self.checkMaxTokens,
+            decode: decode
         )
         var output: MLXStepCheckOutput?
         var decodeError: String?
@@ -184,6 +209,8 @@ public actor MLXRecoveryRuntime {
         let termination: MLXGenerationTrace.Termination
         let latencyMilliseconds: Int
         let maxTokens: Int
+        let telemetry: DecodeTelemetry?
+        let readouts: [DecisionReadout]?
 
         func trace(decodeError: String?, schemaJSON: String) -> MLXGenerationTrace {
             MLXGenerationTrace(
@@ -193,7 +220,9 @@ public actor MLXRecoveryRuntime {
                 termination: termination,
                 latencyMilliseconds: latencyMilliseconds,
                 maxTokens: maxTokens,
-                schemaJSON: schemaJSON
+                schemaJSON: schemaJSON,
+                telemetry: telemetry,
+                readouts: readouts
             )
         }
     }
@@ -203,7 +232,8 @@ public actor MLXRecoveryRuntime {
         prompt: String,
         kind: GrammarKind,
         modelDirectory: URL,
-        maxTokens: Int
+        maxTokens: Int,
+        decode: DecodeMode
     ) async throws -> GeneratedText {
         try Task.checkCancellation()
         let container = try await modelContainer(modelDirectory: modelDirectory)
@@ -214,11 +244,17 @@ public actor MLXRecoveryRuntime {
             prompt: prompt,
             kind: kind,
             maxTokens: maxTokens,
+            decode: decode,
             cache: cache
         )) { context, values in
+            let signpost = Self.signposter.beginInterval("Generate", id: Self.signposter.makeSignpostID(), "\(values.decode.rawValue)")
+            defer { Self.signposter.endInterval("Generate", signpost) }
             var userInput = UserInput(prompt: values.prompt, images: [.url(values.imageURL)])
             userInput.processing = .init(resize: CGSize(width: 1024, height: 1024))
+            let preprocessStarted = ContinuousClock.now
             let input = try await context.processor.prepare(input: userInput)
+            let preprocessElapsed = preprocessStarted.duration(to: .now).components
+            guard input.image != nil else { throw MLXRecoveryError.imageInputDropped }
             // A matcher is stateful, so every stateless call gets a fresh
             // one. It is compiled rather than cloned: the pinned bridge's
             // clone() always throws ("Fork() not available in xgrammar
@@ -228,23 +264,50 @@ public actor MLXRecoveryRuntime {
             var output = ""
             var generatedTokens: Int?
             var termination = MLXGenerationTrace.Termination.accepted
-            do {
-                generatedTokens = try GuidedGenerationLoop.run(
+            var telemetry: DecodeTelemetry?
+            var readouts: [DecisionReadout]?
+            let emit: (String) -> Bool = { delta in
+                output += delta
+                return !Task.isCancelled
+            }
+            if let feeding = values.decode.feeding {
+                let result = try RecoveryGuidedDecoder.run(
                     input: input,
                     context: context,
                     constraint: constraint,
                     maxTokens: values.maxTokens,
-                    vocabSize: values.cache.tokenizer.vocabSize
-                ) { delta in
-                    output += delta
-                    return !Task.isCancelled
+                    vocabSize: values.cache.tokenizer.vocabSize,
+                    feeding: feeding,
+                    emit: emit
+                )
+                // Same trace semantics as the upstream path below: an
+                // exhausted budget reports no token count.
+                if result.grammarAccepted {
+                    generatedTokens = result.tokenCount
+                } else {
+                    termination = .maxTokensExhausted
                 }
-            } catch GuidedGenerationError.incompleteOutput {
-                // The partial text is evidence; before this catch it was
-                // destroyed and truncation was unobservable.
-                termination = .maxTokensExhausted
-            } catch GuidedGenerationError.prematureEOS {
-                termination = .prematureEOS
+                var measured = result.telemetry
+                measured.preprocessMilliseconds = Int(
+                    preprocessElapsed.seconds * 1_000 + preprocessElapsed.attoseconds / 1_000_000_000_000_000
+                )
+                telemetry = measured
+                readouts = result.readouts
+            } else {
+                do {
+                    generatedTokens = try GuidedGenerationLoop.run(
+                        input: input,
+                        context: context,
+                        constraint: constraint,
+                        maxTokens: values.maxTokens,
+                        vocabSize: values.cache.tokenizer.vocabSize,
+                        emit: emit
+                    )
+                } catch GuidedGenerationError.incompleteOutput {
+                    // The partial text is evidence; before this catch it was
+                    // destroyed and truncation was unobservable.
+                    termination = .maxTokensExhausted
+                }
             }
             try Task.checkCancellation()
             let elapsed = started.duration(to: .now).components
@@ -253,7 +316,9 @@ public actor MLXRecoveryRuntime {
                 generatedTokens: generatedTokens,
                 termination: termination,
                 latencyMilliseconds: Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000),
-                maxTokens: values.maxTokens
+                maxTokens: values.maxTokens,
+                telemetry: telemetry,
+                readouts: readouts
             )
         }
     }
@@ -338,6 +403,7 @@ private struct GenerationValues: @unchecked Sendable {
     let prompt: String
     let kind: MLXRecoveryRuntime.GrammarKind
     let maxTokens: Int
+    let decode: DecodeMode
     let cache: GrammarCache
 }
 
