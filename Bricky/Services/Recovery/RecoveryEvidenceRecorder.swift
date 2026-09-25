@@ -9,7 +9,7 @@ import RecoveryMLX
 ///
 /// Recording must never break a recovery, so the write methods swallow their
 /// errors after logging them; evidence is best-effort by design.
-actor RecoveryEvidenceRecorder {
+actor RecoveryEvidenceRecorder: GeometricFitRecording {
     struct RecordedCandidate: Sendable {
         let slot: String
         let stepIndex: Int

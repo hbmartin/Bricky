@@ -123,14 +123,14 @@ What it needs, in order:
   Sessions also retain the recovery depth frame (ADR 0007 amendment), which
   is what makes a future geometric replay possible without re-collecting the
   physical corpus.
-- **Geometric replay on Mac.** Now unblocked by the retained depth frames,
-  but blocked on a refactor: `GeometricRecoveryEstimator` calls
-  `HierarchicalRecoveryEstimator.evenlySampledIndices` / `.stepID`, and that
-  file imports `RecoveryMLX` and `UIKit`, so the geometric stack cannot
-  compile into a macOS tool. `Tools/SyntheticScenes/SyntheticRGBDMain.swift`
-  already hand-duplicates `HierarchicalIndices.evenly` because of it — the
-  same constant drift the board-layout kit was created to kill. Extract both
-  helpers into a UIKit-free home first.
+- **Geometric replay on Mac.** Unblocked by the retained depth frames and,
+  since 2026-09-25, by the refactor it waited on: the index schedule and
+  step identities live in the Foundation-only `RecoveryIndexing`, and
+  `GeometricRecoveryEstimator` records through a `GeometricFitRecording`
+  protocol, so the estimator compiles into the macOS SyntheticRGBD tool
+  (its hand-copied `HierarchicalIndices` is gone). What remains is the
+  replay entry point itself: reading a bundle's `depth/` planes into
+  `RegistrationFrameInput` and emitting geometric benchmark rows.
 - **Check-trace replay.** `bricky-harness replay` skips `check` traces
   entirely; a `--checks` mode replaying them against `checkStepWithTrace`
   would make check false-complete measurable offline once staged check

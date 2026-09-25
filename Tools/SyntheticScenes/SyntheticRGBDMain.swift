@@ -117,7 +117,7 @@ struct SyntheticRGBDMain {
         var verificationRows = 0
         var droppedByDetectability: [String: Int] = [:]
 
-        let stepIndices = HierarchicalIndices.evenly(
+        let stepIndices = RecoveryIndexing.evenlySampledIndices(
             count: min(options.sampledSteps, plan.steps.count),
             range: 0..<plan.steps.count
         )
@@ -224,15 +224,5 @@ struct SplitMix64: RandomNumberGenerator {
         let u1 = max(Float(next() >> 11) * (1.0 / 9007199254740992.0), 1e-9)
         let u2 = Float(next() >> 11) * (1.0 / 9007199254740992.0)
         return sqrt(-2 * log(u1)) * cos(2 * .pi * u2)
-    }
-}
-
-enum HierarchicalIndices {
-    static func evenly(count: Int, range: Range<Int>) -> [Int] {
-        guard count > 0, !range.isEmpty else { return [] }
-        if count == 1 { return [range.lowerBound] }
-        return (0..<count).map { offset in
-            range.lowerBound + Int((Double(range.count - 1) * Double(offset) / Double(count - 1)).rounded())
-        }
     }
 }

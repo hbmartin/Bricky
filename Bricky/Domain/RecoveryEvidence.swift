@@ -2,7 +2,17 @@
 // manifest, benchmark rows, board layout) lives in RecoveryEvidenceKit so the
 // app and the bricky-harness CLI share one definition. Re-exported so the
 // rest of the app uses the types unqualified.
+import Foundation
 @_exported import RecoveryEvidenceKit
+
+/// What `GeometricRecoveryEstimator` needs from an evidence recorder. A
+/// protocol rather than `RecoveryEvidenceRecorder` itself, because the
+/// recorder imports MLX and the geometric stack must also compile into the
+/// macOS SyntheticRGBD tool.
+protocol GeometricFitRecording: Actor {
+    nonisolated var sessionID: UUID { get }
+    func recordFits(_ records: [GeometricFitRecord])
+}
 
 extension EvidenceCaptureRecord {
     /// Bridges the app's domain capture into the interchange record. The

@@ -75,6 +75,7 @@ targets:
         excludes:
           - "fixtures/**"
       - Bricky/Domain/RecoveryEvidence.swift
+      - Bricky/Domain/RecoveryIndexing.swift
       - Bricky/Domain/InstructionDomain.swift
       - Bricky/Domain/RegistrationDomain.swift
       - Bricky/Domain/VerificationDomain.swift
@@ -86,6 +87,9 @@ targets:
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
+      # Compiles here so geometric recovery can be replayed on a Mac from
+      # retained depth frames; it must stay free of UIKit and MLX.
+      - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
     dependencies:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
@@ -114,6 +118,7 @@ targets:
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift
+      - BrickyTests/RecoveryIndexingTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

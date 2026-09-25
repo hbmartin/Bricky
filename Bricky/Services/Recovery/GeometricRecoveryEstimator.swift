@@ -59,15 +59,16 @@ actor GeometricRecoveryEstimator {
     private let renderer: ExpectedDepthRenderer
     /// Optional observer, exactly as `HierarchicalRecoveryEstimator` takes
     /// one: the disabled path costs nothing and recording can never change an
-    /// estimate (ADR 0007).
-    private let recorder: RecoveryEvidenceRecorder?
+    /// estimate (ADR 0007). Typed as the protocol so this file compiles into
+    /// the macOS SyntheticRGBD tool, which cannot link the MLX-backed recorder.
+    private let recorder: (any GeometricFitRecording)?
 
     init(
         frame: RegistrationFrameInput,
         sourceRoot: URL,
         partPackRoot: URL,
         configuration: Configuration = Configuration(),
-        recorder: RecoveryEvidenceRecorder? = nil
+        recorder: (any GeometricFitRecording)? = nil
     ) throws {
         self.frame = frame
         self.sourceRoot = sourceRoot
@@ -94,7 +95,7 @@ actor GeometricRecoveryEstimator {
         var passIndexByCandidate: [Int: Int] = [:]
         var interval = 0..<plan.steps.count
         for passIndex in 0..<configuration.refinementPasses {
-            let indices = HierarchicalRecoveryEstimator.evenlySampledIndices(
+            let indices = RecoveryIndexing.evenlySampledIndices(
                 count: min(configuration.candidatesPerPass, interval.count),
                 range: interval
             )
@@ -139,7 +140,7 @@ actor GeometricRecoveryEstimator {
         let latency = Int(duration.components.seconds) * 1_000
             + Int(duration.components.attoseconds / 1_000_000_000_000_000)
         return RecoveryEstimate(
-            rankedStepIDs: ranked.prefix(3).map { HierarchicalRecoveryEstimator.stepID(forIndex: $0.index, plan: plan) },
+            rankedStepIDs: ranked.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0.index, plan: plan) },
             certainty: margin >= configuration.highCertaintyMargin ? .high : .medium,
             modelRevision: "depth-icp-geometric-v1",
             latencyMilliseconds: latency,
@@ -167,7 +168,7 @@ actor GeometricRecoveryEstimator {
                 sessionID: recorder.sessionID,
                 passIndex: passIndices[index] ?? 0,
                 candidateIndex: index,
-                stepID: HierarchicalRecoveryEstimator.stepID(forIndex: index, plan: plan),
+                stepID: RecoveryIndexing.stepID(forIndex: index, plan: plan),
                 score: candidate.score,
                 inlierFraction: candidate.quality.inlierFraction,
                 visibleFraction: candidate.visibleFraction,
