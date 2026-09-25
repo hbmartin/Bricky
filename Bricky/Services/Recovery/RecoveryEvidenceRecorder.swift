@@ -257,6 +257,7 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
 
     private func ensureStarted() throws {
         guard !started else { return }
+        _ = try StorageLayout.directory(.evidence, root: root)
         try Self.purgeIfNeeded(root: root, logger: logger)
         for subdirectory in ["captures", "boards", "tiles", "depth"] {
             try FileManager.default.createDirectory(

@@ -65,8 +65,7 @@ actor InstructionModelImporter: InstructionModelImporting {
 
         // Build the complete import in a sibling staging directory, then publish
         // with one rename. A failed parse or copy is never visible to the library.
-        let stagingRoot = storageRoot.appendingPathComponent("Staging", isDirectory: true)
-        try fileManager.createDirectory(at: stagingRoot, withIntermediateDirectories: true)
+        let stagingRoot = try StorageLayout.directory(.staging, root: storageRoot, fileManager: fileManager)
         let stage = stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fileManager.createDirectory(at: stage, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: stage) }
@@ -238,14 +237,13 @@ actor InstructionModelImporter: InstructionModelImporting {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The namespace root. Backup inclusion is decided per area by
+    /// `StorageLayout`, never here: this used to re-mark the whole root as
+    /// backed up on every call, which swept the recovery model into backups.
     static func applicationSupportRoot(fileManager: FileManager = .default) throws -> URL {
         let root = try fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent(namespace, isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        var resourceValues = URLResourceValues()
-        resourceValues.isExcludedFromBackup = false
-        var mutableRoot = root
-        try mutableRoot.setResourceValues(resourceValues)
         return root
     }
 }

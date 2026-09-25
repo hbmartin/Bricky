@@ -121,6 +121,7 @@ targets:
       - BrickyTests/SwiftParityTests.swift
       - BrickyTests/RecoveryIndexingTests.swift
       - BrickyTests/DeviceFloorTests.swift
+      - BrickyTests/StorageLayoutTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

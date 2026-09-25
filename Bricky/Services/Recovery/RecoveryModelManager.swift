@@ -50,8 +50,9 @@ final class RecoveryModelManager: ObservableObject {
     private var trackedInference: [UUID: Task<Void, Never>] = [:]
 
     var modelDirectory: URL? {
-        try? InstructionModelImporter.applicationSupportRoot()
-            .appendingPathComponent("RecoveryModels/Qwen3-VL-4B-Instruct-4bit/\(Self.revision)", isDirectory: true)
+        guard let root = try? InstructionModelImporter.applicationSupportRoot(),
+              let models = try? StorageLayout.directory(.recoveryModels, root: root) else { return nil }
+        return models.appendingPathComponent("Qwen3-VL-4B-Instruct-4bit/\(Self.revision)", isDirectory: true)
     }
 
     func check() async {

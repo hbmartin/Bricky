@@ -73,7 +73,8 @@ final class LDrawPartPackManager: ObservableObject {
         defer { isInstalling = false }
         do {
             let root = try InstructionModelImporter.applicationSupportRoot()
-            let packRoot = root.appendingPathComponent("PartPacks/\(Self.version)", isDirectory: true)
+            let packRoot = try StorageLayout.directory(.partPacks, root: root)
+                .appendingPathComponent(Self.version, isDirectory: true)
             try FileManager.default.createDirectory(at: packRoot, withIntermediateDirectories: true)
             let archiveURL = packRoot.appendingPathComponent("complete.zip")
             state = .downloading(0)

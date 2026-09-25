@@ -171,8 +171,7 @@ enum RecoveryBoardComposer {
         }
         let board = try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: kitCandidates)
         let root = try InstructionModelImporter.applicationSupportRoot()
-        let boards = root.appendingPathComponent("InferenceBoards", isDirectory: true)
-        try FileManager.default.createDirectory(at: boards, withIntermediateDirectories: true)
+        let boards = try StorageLayout.directory(.inferenceBoards, root: root)
         let output = boards.appendingPathComponent("\(UUID().uuidString).jpg")
         try RecoveryBoardLayoutV1.writeJPEG(board, to: output)
         return output

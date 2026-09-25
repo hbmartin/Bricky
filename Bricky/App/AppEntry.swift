@@ -41,6 +41,11 @@ struct AppEntry: App {
                 .environmentObject(partPack)
                 .environmentObject(recoveryModel)
                 .task {
+                    // Before anything downloads: exclude re-downloadable and
+                    // developer data from device backups (StorageLayout).
+                    if let root = try? InstructionModelImporter.applicationSupportRoot() {
+                        try? StorageLayout.applyBackupPolicy(root: root)
+                    }
                     // The sweep only touches capture/board folders, which are
                     // written strictly after model admission, so it can run
                     // concurrently without delaying the part-pack and model
