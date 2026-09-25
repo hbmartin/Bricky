@@ -112,6 +112,21 @@ struct StorageAndAttributionView: View {
                         Picker("Variant scoring", selection: $armPlan.variant.scoring) {
                             ForEach(ScoringMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }
+                        Picker("Variant slot order", selection: $armPlan.variant.slotOrder) {
+                            ForEach(SlotOrder.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant board", selection: $armPlan.variant.boardLayout) {
+                            ForEach(BoardLayoutVersion.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant labels", selection: $armPlan.variant.labels) {
+                            ForEach(TileLabelStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant prompt", selection: $armPlan.variant.promptStyle) {
+                            ForEach(PromptStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant image side", selection: $armPlan.variant.imageSide) {
+                            ForEach([768, 1024, 1280], id: \.self) { Text("\($0) px").tag($0) }
+                        }
                         Picker("Variant vote", selection: $armPlan.variant.vote) {
                             ForEach(RecoveryVoteRule.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }

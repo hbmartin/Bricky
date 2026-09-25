@@ -365,17 +365,33 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
     /// (the rank schema's `uniqueItems` is ignored by the pinned xgrammar).
     public var uniqueSlots: Bool
     public var scoring: ScoringMode
+    public var slotOrder: SlotOrder
+    public var boardLayout: BoardLayoutVersion
+    public var labels: TileLabelStyle
+    public var promptStyle: PromptStyle
+    /// The side the board is resized to before the vision encoder; 1024 is
+    /// one image token per 32×32 block, 1,024 tokens.
+    public var imageSide: Int
     /// A/B arm label when the developer arm picker scheduled this call.
     public var armID: String?
 
+    public static let baselineImageSide = 1_024
+
     public init(
         decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, uniqueSlots: Bool = false,
-        scoring: ScoringMode = .generate, armID: String? = nil
+        scoring: ScoringMode = .generate, slotOrder: SlotOrder = .sorted, boardLayout: BoardLayoutVersion = .v1,
+        labels: TileLabelStyle = .slotAndStep, promptStyle: PromptStyle = .baseline,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide, armID: String? = nil
     ) {
         self.decode = decode
         self.vote = vote
         self.uniqueSlots = uniqueSlots
         self.scoring = scoring
+        self.slotOrder = slotOrder
+        self.boardLayout = boardLayout
+        self.labels = labels
+        self.promptStyle = promptStyle
+        self.imageSide = imageSide
         self.armID = armID
     }
 
@@ -385,6 +401,11 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         vote = try container.decodeIfPresent(RecoveryVoteRule.self, forKey: .vote) ?? .bordaDedup
         uniqueSlots = try container.decodeIfPresent(Bool.self, forKey: .uniqueSlots) ?? false
         scoring = try container.decodeIfPresent(ScoringMode.self, forKey: .scoring) ?? .generate
+        slotOrder = try container.decodeIfPresent(SlotOrder.self, forKey: .slotOrder) ?? .sorted
+        boardLayout = try container.decodeIfPresent(BoardLayoutVersion.self, forKey: .boardLayout) ?? .v1
+        labels = try container.decodeIfPresent(TileLabelStyle.self, forKey: .labels) ?? .slotAndStep
+        promptStyle = try container.decodeIfPresent(PromptStyle.self, forKey: .promptStyle) ?? .baseline
+        imageSide = try container.decodeIfPresent(Int.self, forKey: .imageSide) ?? Self.baselineImageSide
         armID = try container.decodeIfPresent(String.self, forKey: .armID)
     }
 
@@ -396,6 +417,11 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         if vote != .bordaDedup { parts.append("vote=\(vote.rawValue)") }
         if uniqueSlots { parts.append("unique_slots") }
         if scoring != .generate { parts.append("scoring=\(scoring.rawValue)") }
+        if slotOrder != .sorted { parts.append("slot_order=\(slotOrder.rawValue)") }
+        if boardLayout != .v1 { parts.append("board=\(boardLayout.rawValue)") }
+        if labels != .slotAndStep { parts.append("labels=\(labels.rawValue)") }
+        if promptStyle != .baseline { parts.append("prompt=\(promptStyle.rawValue)") }
+        if imageSide != Self.baselineImageSide { parts.append("image_side=\(imageSide)") }
         return parts.isEmpty ? "baseline" : parts.joined(separator: ",")
     }
 
@@ -404,6 +430,11 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         case vote
         case uniqueSlots = "unique_slots"
         case scoring
+        case slotOrder = "slot_order"
+        case boardLayout = "board_layout"
+        case labels
+        case promptStyle = "prompt_style"
+        case imageSide = "image_side"
         case armID = "arm_id"
     }
 }

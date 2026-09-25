@@ -125,13 +125,13 @@ public enum RecoveryBoardLayoutV1 {
 
     // MARK: - Drawing helpers (top-left coordinate space)
 
-    private static func gray(_ white: CGFloat) -> CGColor {
+    static func gray(_ white: CGFloat) -> CGColor {
         CGColor(srgbRed: white, green: white, blue: white, alpha: 1)
     }
 
     /// Draws an image into a rect in the flipped (top-left) context by
     /// locally unflipping, so the image itself renders upright.
-    private static func drawUpright(_ image: CGImage, in rect: CGRect, context: CGContext) {
+    static func drawUpright(_ image: CGImage, in rect: CGRect, context: CGContext) {
         context.saveGState()
         context.translateBy(x: rect.minX, y: rect.maxY)
         context.scaleBy(x: 1, y: -1)
@@ -139,7 +139,7 @@ public enum RecoveryBoardLayoutV1 {
         context.restoreGState()
     }
 
-    private static func drawAspectFill(_ image: CGImage, in rect: CGRect, cornerRadius: CGFloat, context: CGContext) {
+    static func drawAspectFill(_ image: CGImage, in rect: CGRect, cornerRadius: CGFloat, context: CGContext) {
         let size = CGSize(width: image.width, height: image.height)
         let scale = max(rect.width / size.width, rect.height / size.height)
         let target = CGSize(width: size.width * scale, height: size.height * scale)
@@ -156,7 +156,7 @@ public enum RecoveryBoardLayoutV1 {
         context.restoreGState()
     }
 
-    private static func drawAspectFit(_ image: CGImage, in rect: CGRect, context: CGContext) {
+    static func drawAspectFit(_ image: CGImage, in rect: CGRect, context: CGContext) {
         let size = CGSize(width: max(1, image.width), height: max(1, image.height))
         let scale = min(rect.width / size.width, rect.height / size.height)
         let target = CGSize(width: size.width * scale, height: size.height * scale)
@@ -172,7 +172,7 @@ public enum RecoveryBoardLayoutV1 {
         )
     }
 
-    private static func drawLabel(_ text: String, topLeft: CGPoint, font: CTFont, context: CGContext) {
+    static func drawLabel(_ text: String, topLeft: CGPoint, font: CTFont, context: CGContext) {
         let attributed = NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)

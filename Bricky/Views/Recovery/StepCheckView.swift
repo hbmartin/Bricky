@@ -232,7 +232,7 @@ struct StepCheckView: View {
                 // Retained so cloud assist can show and send the identical
                 // board the local model judged (ADR 0011).
                 boardJPEG = try Data(contentsOf: board)
-                let prompt = "The top image is the physical build. Candidate A is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts."
+                let prompt = RecoveryPrompts.baselineCheck
                 let response = try await recoveryModel.runtime.checkStepWithTrace(
                     imageURL: board,
                     prompt: prompt,

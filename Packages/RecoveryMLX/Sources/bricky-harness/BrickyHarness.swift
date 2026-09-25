@@ -70,6 +70,21 @@ struct Replay: AsyncParsableCommand {
     @Option(help: "generate (the app's default) or probe: read the decision's probabilities from one prefill instead of generating JSON.")
     var scoring: ScoringMode = .generate
 
+    @Option(name: .customLong("slot-order"), help: "sorted (baseline) or rotated: rotate finalist tiles across views. Requires --recompose.")
+    var slotOrder: SlotOrder = .sorted
+
+    @Option(help: "Board layout v1 (baseline) or v2 (tall finalist tiles, side-by-side check). v2 requires --recompose.")
+    var board: BoardLayoutVersion = .v1
+
+    @Option(help: "Tile labels slot_step (baseline) or slot. slot requires --recompose.")
+    var labels: TileLabelStyle = .slotAndStep
+
+    @Option(name: .customLong("prompt-style"), help: "Replace recorded prompts with baseline or dynamic_range wording.")
+    var promptStyle: PromptStyle?
+
+    @Option(name: .customLong("image-side"), help: "Resize boards to this side before the vision encoder (baseline 1024).")
+    var imageSide: Int = RecoveryInferenceVariant.baselineImageSide
+
     @Option(help: "A/B arm label recorded on every row (e.g. control, B).")
     var arm: String?
 
@@ -78,7 +93,10 @@ struct Replay: AsyncParsableCommand {
 
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
-        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, uniqueSlots: uniqueSlots, scoring: scoring, armID: arm)
+        var resolved = RecoveryInferenceVariant(
+            decode: decode, vote: vote, uniqueSlots: uniqueSlots, scoring: scoring, slotOrder: slotOrder,
+            boardLayout: board, labels: labels, promptStyle: promptStyle ?? .baseline, imageSide: imageSide, armID: arm
+        )
         if let variant {
             resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
             if resolved.armID == nil { resolved.armID = arm }
@@ -104,6 +122,10 @@ struct Replay: AsyncParsableCommand {
         let runtime = MLXRecoveryRuntime()
         let encoder = EvidenceSchema.encoder()
         let variant = try resolvedVariant()
+        // These change pixels: only a board rebuilt from tiles can show them.
+        if !recompose, variant.slotOrder != .sorted || variant.boardLayout != .v1 || variant.labels != .slotAndStep {
+            throw ValidationError("--slot-order rotated, --board v2, and --labels slot need --recompose to rebuild the boards.")
+        }
         var benchmarkLines: [Data] = []
         var traceLines: [Data] = []
         var checkLines: [Data] = []
@@ -117,17 +139,26 @@ struct Replay: AsyncParsableCommand {
             // Every replayed call counts: with --all-passes this is the whole
             // hierarchy's inference cost, as the device's wall clock is.
             var replayLatency = 0
-            for row in rankRows {
-                let board = try boardURL(for: row, in: session)
+            for recordedRow in rankRows {
+                // Rotation reassigns the recorded tiles to new slots; the
+                // remapped row is what the model sees and what is scored.
+                let row = recordedRow.pass == .finalist && variant.slotOrder == .rotated
+                    ? recordedRow.withSlotsRotated(viewIndex: recordedRow.passIndex)
+                    : recordedRow
+                let board = try boardURL(for: row, in: session, variant: variant)
+                let prompt = promptStyle == nil
+                    ? (promptOverride ?? row.prompt)
+                    : RecoveryPrompts.rank(slotCount: row.candidateStepIDs.count, style: variant.promptStyle)
                 let response = try await runtime.rankWithTrace(
                     imageURL: board,
-                    prompt: promptOverride ?? row.prompt,
+                    prompt: prompt,
                     candidateCount: row.candidateStepIDs.count,
                     modelDirectory: modelURL,
                     maxTokens: maxTokens,
                     decode: variant.decode,
                     uniqueSlots: variant.uniqueSlots,
-                    scoring: variant.scoring
+                    scoring: variant.scoring,
+                    imageSide: variant.imageSide
                 )
                 replayLatency += response.trace.latencyMilliseconds
                 if row.pass == .finalist {
@@ -144,11 +175,14 @@ struct Replay: AsyncParsableCommand {
             if checks {
                 for row in session.traceRows where row.pass == .check {
                     let response = try await runtime.checkStepWithTrace(
-                        imageURL: try boardURL(for: row, in: session),
-                        prompt: row.prompt,
+                        imageURL: try boardURL(for: row, in: session, variant: variant),
+                        prompt: promptStyle == nil && variant.boardLayout == .v1
+                            ? row.prompt
+                            : RecoveryPrompts.check(style: variant.promptStyle, layout: variant.boardLayout),
                         modelDirectory: modelURL,
                         decode: variant.decode,
-                        scoring: variant.scoring
+                        scoring: variant.scoring,
+                        imageSide: variant.imageSide
                     )
                     guard let expected = ReplayAggregation.expectedCheckVerdict(
                         row: row, expectedCompletedCount: session.file.groundTruth.expectedCompletedCount
@@ -186,11 +220,11 @@ struct Replay: AsyncParsableCommand {
         print("wrote \(benchmarkLines.count) benchmark rows to \(out)")
     }
 
-    private func boardURL(for row: EvidenceTraceRow, in session: EvidenceBundleReader.Session) throws -> URL {
+    private func boardURL(for row: EvidenceTraceRow, in session: EvidenceBundleReader.Session, variant: RecoveryInferenceVariant) throws -> URL {
         guard recompose else {
             return session.directory.appendingPathComponent(row.boardRelativePath)
         }
-        let recomposed = try BoardRecomposer.recompose(row: row, in: session)
+        let recomposed = try BoardRecomposer.recompose(row: row, in: session, layout: variant.boardLayout, labels: variant.labels)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("bricky-harness-\(row.traceID.uuidString).jpg")
         try RecoveryBoardLayoutV1.writeJPEG(recomposed, to: url)
@@ -313,7 +347,12 @@ struct Recompose: AsyncParsableCommand {
 }
 
 enum BoardRecomposer {
-    static func recompose(row: EvidenceTraceRow, in session: EvidenceBundleReader.Session) throws -> CGImage {
+    static func recompose(
+        row: EvidenceTraceRow,
+        in session: EvidenceBundleReader.Session,
+        layout: BoardLayoutVersion = .v1,
+        labels: TileLabelStyle = .slotAndStep
+    ) throws -> CGImage {
         guard let captureID = row.captureID else {
             throw ValidationError("trace \(row.traceID) has no capture reference")
         }
@@ -327,7 +366,40 @@ enum BoardRecomposer {
                 stepNumber: (row.candidateStepIndices[slot] ?? -1) + 1
             )
         }
-        return try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: candidates)
+        switch layout {
+        case .v1 where labels == .slotAndStep:
+            return try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: candidates)
+        case .v2 where row.pass == .check:
+            guard let target = candidates.first else { throw ValidationError("check trace \(row.traceID) has no tile") }
+            return try RecoveryBoardLayoutV2.composeCheckBoard(physical: physical, target: target, labels: labels)
+        default:
+            // V2's grid fallback draws V1 geometry with the chosen labels.
+            return try RecoveryBoardLayoutV2.composeBoard(physical: physical, candidates: candidates, labels: labels)
+        }
+    }
+}
+
+extension EvidenceTraceRow {
+    /// The same trace with its candidates moved to rotated slots, as the app
+    /// would have placed them for view `viewIndex`.
+    func withSlotsRotated(viewIndex: Int) -> EvidenceTraceRow {
+        let slots = candidateStepIDs.keys.sorted()
+        let rotated = SlotAssignment.rotated(slots, viewIndex: viewIndex)
+        var ids: [String: String] = [:], indices: [String: Int] = [:], tiles: [String: String] = [:]
+        for (newSlot, oldSlot) in zip(slots, rotated) {
+            ids[newSlot] = candidateStepIDs[oldSlot]
+            indices[newSlot] = candidateStepIndices[oldSlot]
+            tiles[newSlot] = tileRelativePaths[oldSlot]
+        }
+        return EvidenceTraceRow(
+            traceVersion: traceVersion, traceID: traceID, sessionID: sessionID, pass: pass, passIndex: passIndex,
+            captureID: captureID, captureAngle: captureAngle, boardRelativePath: boardRelativePath,
+            tileRelativePaths: tiles, candidateStepIndices: indices, candidateStepIDs: ids, prompt: prompt,
+            schemaJSON: schemaJSON, maxTokens: maxTokens, rawOutput: rawOutput, decodeError: decodeError,
+            termination: termination, generatedTokens: generatedTokens, latencyMilliseconds: latencyMilliseconds,
+            memoryFootprintBytes: memoryFootprintBytes, modelRevision: modelRevision, createdAt: createdAt,
+            variant: variant, inference: inference, conditions: conditions, readouts: readouts, probe: probe
+        )
     }
 }
 
@@ -462,3 +534,7 @@ struct ReplayCheckRow: Encodable {
 extension RecoveryVoteRule: ExpressibleByArgument {}
 extension DecodeMode: ExpressibleByArgument {}
 extension ScoringMode: ExpressibleByArgument {}
+extension SlotOrder: ExpressibleByArgument {}
+extension BoardLayoutVersion: ExpressibleByArgument {}
+extension TileLabelStyle: ExpressibleByArgument {}
+extension PromptStyle: ExpressibleByArgument {}

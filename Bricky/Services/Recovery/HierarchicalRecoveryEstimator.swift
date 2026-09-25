@@ -82,12 +82,15 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         let finalists = Array(Set([narrowLeader - 1, narrowLeader, narrowLeader + 1]))
             .filter { $0 >= -1 && $0 < model.steps.count }
             .sorted()
-        let slotMap = Dictionary(uniqueKeysWithValues: zip(RecoveryIndexing.slotLetters, finalists))
         var views: [RecoveryVoteView<Int>] = []
         lastProbe = nil
         for (viewIndex, capture) in captures.sorted(by: { $0.angle.rawValue < $1.angle.rawValue }).enumerated() {
             try Task.checkCancellation()
-            let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
+            // Rotated slot order moves each finalist through every slot
+            // across the three views; the vote maps slots per view.
+            let viewOrder = SlotAssignment.order(finalists, viewIndex: viewIndex, order: variant.slotOrder)
+            let slotMap = Dictionary(uniqueKeysWithValues: zip(RecoveryIndexing.slotLetters, viewOrder))
+            let result = try await rank(capture: capture, indices: viewOrder, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
             // Views the model marked insufficient must not vote in scoring
             // or certainty.
             guard result.status == "matched" else { continue }
@@ -132,9 +135,14 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         }
         let root = try InstructionModelImporter.applicationSupportRoot()
         let captureURL = root.appendingPathComponent(capture.imageRelativePath)
-        let board = try await RecoveryBoardComposer.compose(physicalViewURL: captureURL, candidates: candidates)
+        let board = try await RecoveryBoardComposer.compose(
+            physicalViewURL: captureURL,
+            candidates: candidates,
+            layout: variant.boardLayout,
+            labels: variant.labels
+        )
         defer { try? FileManager.default.removeItem(at: board) }
-        let prompt = "The large top image is a physical brick build. The labeled renders A–H are cumulative authored instruction steps in one fixed model frame. Rank the closest labels from best to worst. Return insufficient when angle, occlusion, or evidence cannot support a comparison."
+        let prompt = RecoveryPrompts.rank(slotCount: candidates.count, style: variant.promptStyle)
         let response = try await runtime.rankWithTrace(
             imageURL: board,
             prompt: prompt,
@@ -142,7 +150,8 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             modelDirectory: modelDirectory,
             decode: variant.decode,
             uniqueSlots: variant.uniqueSlots,
-            scoring: variant.scoring
+            scoring: variant.scoring,
+            imageSide: variant.imageSide
         )
         lastProbe = response.trace.probe
         if let recorder {

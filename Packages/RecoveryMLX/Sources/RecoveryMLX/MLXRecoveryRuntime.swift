@@ -108,7 +108,8 @@ public actor MLXRecoveryRuntime {
         maxTokens: Int? = nil,
         decode: DecodeMode = .legacy,
         uniqueSlots: Bool = false,
-        scoring: ScoringMode = .generate
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
     ) async throws -> MLXRankResponse {
         let generated = try await generate(
             imageURL: imageURL,
@@ -118,7 +119,8 @@ public actor MLXRecoveryRuntime {
             maxTokens: maxTokens ?? Self.rankMaxTokens,
             decode: decode,
             uniqueSlots: uniqueSlots,
-            scoring: scoring
+            scoring: scoring,
+            imageSide: imageSide
         )
         var output: MLXRankOutput?
         var decodeError: String?
@@ -144,7 +146,8 @@ public actor MLXRecoveryRuntime {
         prompt: String,
         modelDirectory: URL,
         decode: DecodeMode = .legacy,
-        scoring: ScoringMode = .generate
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
     ) async throws -> MLXCheckResponse {
         let generated = try await generate(
             imageURL: imageURL,
@@ -154,7 +157,8 @@ public actor MLXRecoveryRuntime {
             maxTokens: Self.checkMaxTokens,
             decode: decode,
             uniqueSlots: false,
-            scoring: scoring
+            scoring: scoring,
+            imageSide: imageSide
         )
         var output: MLXStepCheckOutput?
         var decodeError: String?
@@ -259,7 +263,8 @@ public actor MLXRecoveryRuntime {
         maxTokens: Int,
         decode: DecodeMode,
         uniqueSlots: Bool,
-        scoring: ScoringMode = .generate
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
     ) async throws -> GeneratedText {
         // Unique slots needs the forked decoder's mask; the upstream loop
         // cannot apply it.
@@ -286,6 +291,7 @@ public actor MLXRecoveryRuntime {
             maxTokens: maxTokens,
             decode: decode,
             scoring: scoring,
+            imageSide: imageSide,
             uniqueSlotLetters: {
                 guard uniqueSlots, case .rank(let slotCount) = kind else { return nil }
                 return Set(Self.rankSlotLetters.prefix(min(max(slotCount, 1), Self.rankSlotLetters.count)).compactMap(\.first))
@@ -295,7 +301,7 @@ public actor MLXRecoveryRuntime {
             let signpost = Self.signposter.beginInterval("Generate", id: Self.signposter.makeSignpostID(), "\(values.decode.rawValue)")
             defer { Self.signposter.endInterval("Generate", signpost) }
             var userInput = UserInput(prompt: values.prompt, images: [.url(values.imageURL)])
-            userInput.processing = .init(resize: CGSize(width: 1024, height: 1024))
+            userInput.processing = .init(resize: CGSize(width: values.imageSide, height: values.imageSide))
             let preprocessStarted = ContinuousClock.now
             let input = try await context.processor.prepare(input: userInput)
             let preprocessElapsed = preprocessStarted.duration(to: .now).components
@@ -502,6 +508,7 @@ private struct GenerationValues: @unchecked Sendable {
     let maxTokens: Int
     let decode: DecodeMode
     let scoring: ScoringMode
+    let imageSide: Int
     let uniqueSlotLetters: Set<Character>?
     let cache: GrammarCache
 }

@@ -154,7 +154,9 @@ final class InstructionSnapshotRenderer {
 enum RecoveryBoardComposer {
     static func compose(
         physicalViewURL: URL,
-        candidates: [(slot: String, image: UIImage, stepNumber: Int)]
+        candidates: [(slot: String, image: UIImage, stepNumber: Int)],
+        layout: BoardLayoutVersion = .v1,
+        labels: TileLabelStyle = .slotAndStep
     ) throws -> URL {
         guard let physical = try? RecoveryBoardLayoutV1.loadImage(at: physicalViewURL) else {
             throw RecoveryError.captureImageMissing
@@ -169,7 +171,11 @@ enum RecoveryBoardComposer {
                 stepNumber: candidate.stepNumber
             )
         }
-        let board = try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: kitCandidates)
+        // V1 with its own labels is the baseline, byte for byte; every other
+        // combination is drawn by V2 (ADR 0010 amendment variants).
+        let board = layout == .v1 && labels == .slotAndStep
+            ? try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: kitCandidates)
+            : try RecoveryBoardLayoutV2.composeBoard(physical: physical, candidates: kitCandidates, labels: labels)
         let root = try InstructionModelImporter.applicationSupportRoot()
         let boards = try StorageLayout.directory(.inferenceBoards, root: root)
         let output = boards.appendingPathComponent("\(UUID().uuidString).jpg")
