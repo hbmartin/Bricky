@@ -110,6 +110,23 @@ those kinds fail release mode honestly until one exists.
 
 ### A/B experiments
 
+Replay each arm to its own output file, then compare them paired:
+
+```sh
+python3 compare_arms.py --control control.ndjson --variant feed_all.ndjson
+```
+
+`compare_arms.py` pairs passes by trace and sessions and checks by fixture.
+- **Accuracy:** it runs an exact McNemar test, Holm-corrected across
+  variants. With no losses it takes at least 6 wins to reach p < 0.05.
+- **Latency:** it reports the paired latency ratio; differences under 5%
+  count as none.
+- **Slot bias:** it shows the slot-letter histogram, chosen versus truth.
+- **Verdict:** it names a variant a Mac-replay flip candidate only when the
+  insufficient and check false-complete rates do not rise. Device rows are
+  still required before a default changes (ADR 0010 amendment).
+
+
 Replay is a Mac-vs-Mac instrument (greedy guided decoding is deterministic per
 platform, but iOS↔macOS Metal kernels can flip near-tie argmax). Compare a
 baseline replay against a variant replay of the same bundle:

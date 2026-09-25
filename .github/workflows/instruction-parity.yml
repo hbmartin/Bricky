@@ -42,7 +42,7 @@ jobs:
         working-directory: Tools/RecoveryEvaluation
         run: |
           uv sync --frozen
-          uv run python -m unittest test_score_results.py test_check_regression.py
+          uv run python -m unittest test_score_results.py test_check_regression.py test_compare_arms.py
       - name: Test sensor-model fitting
         working-directory: Tools/SensorCalibration
         run: python3 -m unittest test_fit_sensor_model.py
