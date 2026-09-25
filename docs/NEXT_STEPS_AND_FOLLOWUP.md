@@ -1,7 +1,10 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-08-04. Companion to
-[EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md).
+Last revised 2026-09-25. Companion to
+[EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
+program that supersedes much of the sequencing below — honest gates first,
+then device measurement, then the placement-level build diff — is
+[IOS27_ROADMAP.md](IOS27_ROADMAP.md).
 
 The harness shipped with a deliberate sequencing decision: **instrumentation
 plus two provably-safe fixes only** (dynamic rank grammar, rank token
@@ -24,9 +27,14 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
 2. **Device benchmark row for the shipped fixes.** CONTRIBUTING requires
    physical-device benchmark rows for MLX changes; the dynamic-grammar and
    `rankMaxTokens: 96 → 192` changes shipped on the strength of static
-   analysis (closing bias previously began mid-array at token 32). Confirm
-   on device: `termination` should be `accepted` on effectively all rank
-   traces, and `max_tokens_exhausted` rows should disappear.
+   analysis. **Retracted 2026-09-25:** that analysis assumed a closing bias
+   that began mid-array at token 32, but Bricky never passes a
+   `closingBias` to `GuidedGenerationLoop.run`, so no soft zone exists.
+   With the pinned shim's `any_whitespace=true`, the only way to exhaust
+   the budget is a whitespace run; `WhitespaceTokenBias` is the variant to
+   try if telemetry shows it. Confirm on device: `termination` should be
+   `accepted` on effectively all rank traces, and `max_tokens_exhausted`
+   rows should stay absent.
 3. **Board-parity A/B for the composer change.** `RecoveryBoardLayoutV1`
    changed what the model sees in two ways: boards are now exactly
    1024×1024 (the old UIKit composer rendered at screen scale, 2–3× larger
@@ -54,9 +62,12 @@ scores better.
 | --- | --- | --- |
 | Portrait aspect-fill crop | The 992×420 physical strip center-crops portrait captures, cutting off the top/bottom of the build ("decapitation") | Layout variant in `RecoveryBoardLayoutV1` + `--recompose` A/B |
 | Prompt rewrites | Rank prompt hardcodes "A–H" even when fewer slots exist (the grammar is now dynamic but the wording is not); per-pass prompts may beat one generic prompt | `--prompt-file` A/B per variant |
-| Check token budget | `checkMaxTokens: 48` puts the whole check generation inside the 64-token closing-bias soft zone from token 0 | Needs a check-replay path first (see §4), then `--max-tokens` A/B |
 | Finalist selection | The ±1-neighbor finalist set and center-capture funnel may structurally exclude the true step when the narrow pass is off by more than one | `--all-passes` traces quantify how often the truth was outside the finalist set before any redesign |
 | Recompose vs stored boards | JPEG re-encode of tiles through the kit should be visually irrelevant | Same-bundle stored-vs-recomposed replay (doubles as item 1.3) |
+
+A former "check token budget" row was withdrawn on 2026-09-25: its premise
+(a 64-token closing-bias soft zone) does not exist, because the bias is never
+passed (§1 item 2).
 
 ## 2a. The RGB support term (owed, ADR 0008)
 
@@ -87,6 +98,13 @@ What it needs, in order:
   occlusion each with ≥2 distinct labels, scored without
   `--allow-small-corpus`. Gates: top-3 ≥ 0.95, top-1 ≥ 0.80, composite
   median ≤ 20 s. Currently: **zero rows**.
+- **Sample sizes are being reconciled (2026-09-25).** This section says
+  150 cases / 10 models while the scorer enforces 40 / 6. Release gates are
+  moving to one-sided 95% confidence bounds, which set the effective
+  minimum per gate (e.g. ≥149 negatives for false-complete ≤2%); see
+  [IOS27_ROADMAP.md](IOS27_ROADMAP.md). The authored-model **diversity
+  floor is pending an owner decision**; until then the scorer constant
+  stays at 6.
 - **Triad physical corpus (CONTEXT gap):** ≥40 staged fixtures across ≥6
   models for the registration/verification gates — a distinct corpus with
   its own producer (geometric rows carry `estimator_method: geometric`),
@@ -115,7 +133,8 @@ What it needs, in order:
   helpers into a UIKit-free home first.
 - **Check-trace replay.** `bricky-harness replay` skips `check` traces
   entirely; a `--checks` mode replaying them against `checkStepWithTrace`
-  would unlock the check-token-budget A/B in §2.
+  would make check false-complete measurable offline once staged check
+  sessions supply negatives.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
   fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes
@@ -161,7 +180,7 @@ the harness.
   when there are none. `estimator_method` was added as *required* on
   2026-08-07 for exactly that reason — an optional field with a silent
   default is what made the geometric latency gate unreachable in the first
-  place, and `validate_recovery_rows` names a missing field more usefully
+  place, and `validate_rows` names a missing field more usefully
   than a schema-version mismatch would. Once real rows exist, the rule binds
   again.
 - Semantic changes: bump the specific version stamp
