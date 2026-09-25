@@ -56,8 +56,8 @@ final class RecoveryModelManager: ObservableObject {
 
     func check() async {
         state = .checking
-        guard ARCameraManager.isSupported else {
-            reject(reason: "Recovery needs a LiDAR-equipped iPhone. Guides remain available.", retryable: false)
+        guard DeviceFloor.current == .supported else {
+            reject(reason: "Recovery needs iPhone 17 Pro or iPhone 17 Pro Max. Guides remain available.", retryable: false)
             return
         }
         let memory = os_proc_available_memory()

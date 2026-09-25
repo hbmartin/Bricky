@@ -1,8 +1,9 @@
 # Bricky engineering context
 
 Bricky is an iOS 27 instruction guide for user-authored LDraw instruction
-models on LiDAR-equipped iPhones, with AR step guidance, geometric step
-verification, and build recovery. It is not a catalog, inventory, social,
+models on iPhone 17 Pro and iPhone 17 Pro Max (or a later Pro-class iPhone;
+ADR 0012), with AR step guidance, geometric step verification, and build
+recovery. It is not a catalog, inventory, social,
 game, subscription, or set-identification product.
 
 ## Product loop
@@ -54,6 +55,10 @@ until then is manual alignment plus VLM recovery and step checking.
 - **Detectability** — the per-step, pre-computed answer to "can LiDAR depth
   even see this delta?" (strong / marginal / undetectable). Undetectable
   deltas abstain and route to the VLM or cloud assist.
+- **Device floor** — `DeviceFloor`, the single runtime gate for the whole
+  app: LiDAR-class AR, an `iPhone<≥18>,<n>` identifier, and 12 GB-class
+  memory (ADR 0012). Below it the app shows an explanation, not a degraded
+  mode.
 - **Admission** — the runtime resource gate for the on-device VLM only
   (ADR 0003). Geometric features are never admission-gated.
 

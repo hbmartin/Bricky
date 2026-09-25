@@ -15,7 +15,8 @@ settings:
   base:
     DEVELOPMENT_TEAM: 6UN3X7Q6SP
     SWIFT_VERSION: 5.9
-    TARGETED_DEVICE_FAMILY: "1,2"
+    # iPhone only (ADR 0012): the floor is the iPhone 17 Pro class.
+    TARGETED_DEVICE_FAMILY: "1"
     IPHONEOS_DEPLOYMENT_TARGET: 27.0
     MARKETING_VERSION: 2.0.0
     CURRENT_PROJECT_VERSION: 6
@@ -119,6 +120,7 @@ targets:
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift
       - BrickyTests/RecoveryIndexingTests.swift
+      - BrickyTests/DeviceFloorTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

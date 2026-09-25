@@ -21,18 +21,20 @@ struct AppEntry: App {
 
     var body: some Scene {
         WindowGroup {
-            if ARCameraManager.isSupported {
+            let floor = DeviceFloor.current
+            if floor == .supported {
                 supportedRoot
             } else {
-                UnsupportedDeviceView()
+                UnsupportedDeviceView(verdict: floor)
             }
         }
         .modelContainer(modelContainer)
     }
 
-    /// The floor is LiDAR-class AR for the whole app (ADR 0012): registration,
-    /// verification, and occlusion all assume scene depth, so no degraded
-    /// non-LiDAR experience is offered.
+    /// The floor is the iPhone 17 Pro class for the whole app (ADR 0012):
+    /// registration, verification, and occlusion all assume scene depth, and
+    /// on-device inference assumes its memory, so no degraded experience is
+    /// offered below it.
     private var supportedRoot: some View {
             ContentView()
                 .environmentObject(library)
@@ -128,15 +130,43 @@ struct AppEntry: App {
     }
 }
 
-/// Shown instead of the app on devices without LiDAR-class AR. Registration,
-/// verification, and occlusion all assume scene depth, so there is no
-/// degraded non-LiDAR mode to fall back to.
+/// Shown instead of the app below the device floor. There is no degraded
+/// mode to fall back to, so the screen explains the requirement instead.
 private struct UnsupportedDeviceView: View {
+    let verdict: DeviceFloor.Verdict
+
     var body: some View {
         ContentUnavailableView {
-            Label("LiDAR Required", systemImage: "arkit")
+            Label(title, systemImage: symbol)
         } description: {
-            Text("Bricky aligns and checks your build using the LiDAR scanner and requires an iPhone model that includes one.")
+            Text(message)
+        }
+    }
+
+    private var title: String {
+        switch verdict {
+        case .macNotSupported: "iPhone Required"
+        case .noLiDAR: "LiDAR Required"
+        case .supported, .unsupportedModel, .insufficientMemory: "iPhone 17 Pro Required"
+        }
+    }
+
+    private var symbol: String {
+        switch verdict {
+        case .macNotSupported: "iphone"
+        case .noLiDAR: "arkit"
+        case .supported, .unsupportedModel, .insufficientMemory: "iphone.gen3"
+        }
+    }
+
+    private var message: String {
+        switch verdict {
+        case .macNotSupported:
+            "Bricky aligns and checks your build with an iPhone's LiDAR scanner, so it runs on iPhone 17 Pro and iPhone 17 Pro Max rather than on a Mac."
+        case .noLiDAR:
+            "Bricky aligns and checks your build using the LiDAR scanner, and requires iPhone 17 Pro or iPhone 17 Pro Max."
+        case .supported, .unsupportedModel, .insufficientMemory:
+            "Bricky needs the LiDAR scanner and memory of iPhone 17 Pro or iPhone 17 Pro Max, or a later Pro model. This device is not supported."
         }
     }
 }

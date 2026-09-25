@@ -115,12 +115,16 @@ jobs:
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate
-      - name: Build and run native parity tests
+      # UI tests run too: they force a device-floor verdict with a Debug-only
+      # launch argument, because the Simulator has no LiDAR and would
+      # otherwise only ever show the unsupported screen.
+      - name: Build and run native parity and UI tests
         run: |
           xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
-            -parallel-testing-enabled NO test -only-testing:BrickyTests
+            -parallel-testing-enabled NO test \
+            -only-testing:BrickyTests -only-testing:BrickyUITests
 
   harness-macos:
     runs-on: macos-15

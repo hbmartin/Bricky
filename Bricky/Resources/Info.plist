@@ -18,5 +18,5 @@
 <key>NSCameraUsageDescription</key><string>Bricky uses the camera to align authored 3D instructions and privately compare your physical build with its steps.</string>
 <key>UILaunchScreen</key><dict><key>UIColorName</key><string>AccentColor</string><key>UIImageName</key><string>AppIcon</string></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
-<key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>UIRequiredDeviceCapabilities</key><array><string>arkit</string></array>
 </dict></plist>

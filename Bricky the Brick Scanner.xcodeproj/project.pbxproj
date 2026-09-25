@@ -46,7 +46,9 @@
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
+		74656C2296FF82B28D491C39 /* DeviceFloor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85778E2B3323B8DD913494D2 /* DeviceFloor.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
+		774B4BD9A80DB583D7A1E64B /* DeviceFloorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D25C4E2F7834B4E2A538F9 /* DeviceFloorTests.swift */; };
 		77C14865E8DB92B4A4DEC669 /* RecoveryEvidenceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */; };
 		7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
@@ -157,6 +159,7 @@
 		776DE075F6358E0E28C47B06 /* RecoveryIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryIndexingTests.swift; sourceTree = "<group>"; };
 		78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthICPTrackerTests.swift; sourceTree = "<group>"; };
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
+		85778E2B3323B8DD913494D2 /* DeviceFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloor.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
 		8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraPreview.swift; sourceTree = "<group>"; };
@@ -173,6 +176,7 @@
 		BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudVisionProvider.swift; sourceTree = "<group>"; };
 		C54A9BE39C13EBC727ADF2B5 /* CloudAssistKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAssistKeyStore.swift; sourceTree = "<group>"; };
 		C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionImporterTests.swift; sourceTree = "<group>"; };
+		C9D25C4E2F7834B4E2A538F9 /* DeviceFloorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloorTests.swift; sourceTree = "<group>"; };
 		CC93BCDD23376398FE7249B4 /* InstructionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPersistence.swift; sourceTree = "<group>"; };
 		CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifierTests.swift; sourceTree = "<group>"; };
 		D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngine.swift; sourceTree = "<group>"; };
@@ -241,6 +245,7 @@
 				5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */,
 				EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */,
 				78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */,
+				C9D25C4E2F7834B4E2A538F9 /* DeviceFloorTests.swift */,
 				A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */,
 				91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */,
 				CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */,
@@ -308,6 +313,7 @@
 				0A7255416EAA67E75793A6A9 /* AppConfig.swift */,
 				E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */,
 				B846C324539715D80A41F6F3 /* ContentView.swift */,
+				85778E2B3323B8DD913494D2 /* DeviceFloor.swift */,
 			);
 			name = App;
 			path = Bricky/App;
@@ -647,6 +653,7 @@
 				C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */,
 				EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */,
 				436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */,
+				774B4BD9A80DB583D7A1E64B /* DeviceFloorTests.swift in Sources */,
 				BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */,
 				47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */,
 				9CEDE71693F4003CA5856302 /* GeometricStepVerifierTests.swift in Sources */,
@@ -681,6 +688,7 @@
 				A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */,
 				24FC629139DC3A7503590BED /* ContentView.swift in Sources */,
 				F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */,
+				74656C2296FF82B28D491C39 /* DeviceFloor.swift in Sources */,
 				8A88BBC7A5943699EAB11DD7 /* EvidenceExporter.swift in Sources */,
 				887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */,
 				B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */,
@@ -860,7 +868,7 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -958,7 +966,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
