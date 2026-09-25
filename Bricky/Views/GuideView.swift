@@ -34,7 +34,10 @@ struct GuideView: View {
                                 .padding().background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
                         }
 
-                        NewPartsCard(placements: Array(plan.addedPlacements(for: step)))
+                        NewPartsCard(
+                            placements: Array(plan.addedPlacements(for: step)),
+                            descriptions: descriptionIndex(for: plan)
+                        )
 
                         HStack {
                             Button("Previous", systemImage: "chevron.left") { session.browse(by: -1) }
@@ -94,6 +97,22 @@ struct GuideView: View {
         .task { load() }
     }
 
+    /// One index per model and pack, so descriptions stay cached across
+    /// steps.
+    private func descriptionIndex(for plan: InstructionPlan) -> PartDescriptionIndex? {
+        guard let pack = partPack.readyLibraryURL, let root = try? InstructionModelImporter.applicationSupportRoot() else {
+            return nil
+        }
+        let key = "\(plan.sourceSHA256)|\(pack.path)"
+        if let existing = PartDescriptionIndexCache.shared[key] { return existing }
+        let index = PartDescriptionIndex(
+            modelSourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
+            partPackRoot: pack
+        )
+        PartDescriptionIndexCache.shared[key] = index
+        return index
+    }
+
     private func load() {
         do {
             try session.open(model, loader: library, context: context)
@@ -104,8 +123,15 @@ struct GuideView: View {
     }
 }
 
+@MainActor
+private enum PartDescriptionIndexCache {
+    static var shared: [String: PartDescriptionIndex] = [:]
+}
+
 private struct NewPartsCard: View {
     let placements: [PartPlacement]
+    let descriptions: PartDescriptionIndex?
+    @State private var titles: [String: PartDescription] = [:]
 
     private var groups: [(part: String, color: Int, count: Int)] {
         Dictionary(grouping: placements, by: { "\($0.partReference)|\($0.colorCode)" })
@@ -124,7 +150,11 @@ private struct NewPartsCard: View {
                     HStack {
                         Circle().fill(Color(uiColor: LDrawPalette.color(group.color))).frame(width: 18, height: 18)
                             .overlay(Circle().stroke(.secondary.opacity(0.3)))
-                        Text(group.part).font(.body.monospaced())
+                        VStack(alignment: .leading, spacing: 2) {
+                            let colour = PartNaming.colourName(code: group.color, definitionName: LDrawPalette.definition(group.color)?.name)
+                            Text(titles[group.part].map { PartNaming.label(colour: colour, part: $0) } ?? colour)
+                            Text(group.part).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
                         Spacer()
                         Text("×\(group.count)").font(.headline)
                     }
@@ -133,6 +163,12 @@ private struct NewPartsCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding().background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .task(id: groups.map(\.part)) {
+            guard let descriptions else { return }
+            for group in groups where titles[group.part] == nil {
+                titles[group.part] = await descriptions.description(for: group.part)
+            }
+        }
     }
 }
 

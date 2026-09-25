@@ -11,6 +11,7 @@
 		053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
 		05A6361B5E4D445697B297C6 /* ModelSurfaceSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */; };
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
+		07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
@@ -83,6 +84,7 @@
 		A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */; };
 		A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
 		A4EBB827338FCD646B4D3D78 /* ARCameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0FFD114870AE94A0E160D6 /* ARCameraPreview.swift */; };
+		A832B4952A1D12BC79C0636F /* PartDescriptionIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61283C0C4E15D404920ED28 /* PartDescriptionIndex.swift */; };
 		B32CAE22F89C14FA415846FD /* DeviceConditionsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C237B2E908EC68999D4995F /* DeviceConditionsProbe.swift */; };
 		B49CC48F89DA0262835F243D /* RecoveryIndexingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776DE075F6358E0E28C47B06 /* RecoveryIndexingTests.swift */; };
 		B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
@@ -225,10 +227,12 @@
 		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F55F8DA3400964CC35D8EB2A /* SyntheticRGBD */ = {isa = PBXFileReference; includeInIndex = 0; path = SyntheticRGBD; sourceTree = BUILT_PRODUCTS_DIR; };
+		F61283C0C4E15D404920ED28 /* PartDescriptionIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartDescriptionIndex.swift; sourceTree = "<group>"; };
 		F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriterTests.swift; sourceTree = "<group>"; };
 		F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBoardRenderer.swift; sourceTree = "<group>"; };
 		F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimator.swift; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
+		FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartDescriptionIndexTests.swift; sourceTree = "<group>"; };
 		FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideView.swift; sourceTree = "<group>"; };
 		FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -282,6 +286,7 @@
 				EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */,
 				3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */,
 				42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */,
+				FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */,
 				F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */,
 				5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */,
 				F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */,
@@ -397,6 +402,7 @@
 				D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */,
 				6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */,
 				53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */,
+				F61283C0C4E15D404920ED28 /* PartDescriptionIndex.swift */,
 				61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */,
 				965B74AF30C0F6D89D5B8D12 /* StorageLayout.swift */,
 				7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */,
@@ -704,6 +710,7 @@
 				308A21E669DBA3515C7AEFCA /* LDConfigPaletteTests.swift in Sources */,
 				37149ED157A21C292750DA64 /* LDrawGeometryEngineTests.swift in Sources */,
 				05A6361B5E4D445697B297C6 /* ModelSurfaceSamplerTests.swift in Sources */,
+				07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */,
 				2BB4AA35878E03284F3FB503 /* RecoveryBenchmarkWriterTests.swift in Sources */,
 				271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */,
 				3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */,
@@ -756,6 +763,7 @@
 				928AE5089033880C101A5680 /* LibraryView.swift in Sources */,
 				35F42195554DFE4534FEA1C3 /* ModelDelivery.swift in Sources */,
 				DB38ECB9C7360E5DF5DC30DF /* ModelSurfaceSampler.swift in Sources */,
+				A832B4952A1D12BC79C0636F /* PartDescriptionIndex.swift in Sources */,
 				8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */,
 				609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */,
 				8A3A4A8FD92C1A5390843FDE /* RecoveryBoardRenderer.swift in Sources */,
