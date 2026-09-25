@@ -9,6 +9,8 @@ struct StorageAndAttributionView: View {
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
+    @State private var confirmModelRemoval = false
+    @State private var modelRemovalError: String?
 
     var body: some View {
         List {
@@ -30,6 +32,27 @@ struct StorageAndAttributionView: View {
                 }
                 if case .rejected = recoveryModel.state, recoveryModel.rejectionIsRetryable {
                     Button("Retry Recovery Check") { Task { await recoveryModel.check() } }
+                }
+                let onDisk = recoveryModel.onDiskBytes
+                if onDisk > 0 {
+                    LabeledContent("On this device", value: ByteCountFormatter.string(fromByteCount: onDisk, countStyle: .file))
+                    Button("Remove On-Device Model", role: .destructive) { confirmModelRemoval = true }
+                        .confirmationDialog(
+                            "Remove the on-device recovery model?",
+                            isPresented: $confirmModelRemoval,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Remove Model", role: .destructive) {
+                                Task {
+                                    do { try await recoveryModel.removeModel() } catch { modelRemovalError = error.localizedDescription }
+                                }
+                            }
+                        } message: {
+                            Text("Frees \(ByteCountFormatter.string(fromByteCount: onDisk, countStyle: .file)). Guides and depth-based checks keep working; photo-based recovery needs the model downloaded again.")
+                        }
+                }
+                if let modelRemovalError {
+                    Text(modelRemovalError).font(.caption).foregroundStyle(.red)
                 }
                 Text("Qwen3-VL-4B-Instruct 4-bit · pinned revision \(RecoveryModelManager.revision.prefix(12))…")
                     .font(.caption).foregroundStyle(.secondary)

@@ -176,6 +176,10 @@ public actor MLXRecoveryRuntime {
         }
         isUnloading = true
         loadGeneration += 1
+        // Nothing loaded means nothing allocated: skip touching the Metal
+        // allocator at all (it is also unavailable in the Simulator, where
+        // an unconditional clear aborted the process).
+        let heldResources = container != nil || loadTask != nil
         var inFlight = loadTask
         // Clear state before suspending so reentrant callers observe the
         // unloading barrier immediately and cannot start replacement loads.
@@ -198,7 +202,9 @@ public actor MLXRecoveryRuntime {
         while activeLoadWaiters > 0 {
             await withCheckedContinuation { loadDrainWaiters.append($0) }
         }
-        MLX.Memory.clearCache()
+        if heldResources {
+            MLX.Memory.clearCache()
+        }
         isUnloading = false
         let parked = unloadWaiters
         unloadWaiters = []

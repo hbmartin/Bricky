@@ -12,7 +12,7 @@ final class RecoveryModelManager: ObservableObject {
     // release floor with measured worst-case peak + 25% before App Store release.
     nonisolated static let minimumAvailableMemory: UInt64 = 5_500_000_000
 
-    struct Asset: Sendable {
+    struct Asset: Sendable, Hashable {
         let path: String
         let bytes: Int64
         let sha256: String
@@ -40,27 +40,114 @@ final class RecoveryModelManager: ObservableObject {
     /// re-run of `check()` can recover from (dropped connection, cellular
     /// refusal, warm-up hiccup) as opposed to unsupported hardware.
     @Published private(set) var rejectionIsRetryable = false
-    @Published var allowsCellularDownloads = false
+    @Published var allowsCellularDownloads: Bool {
+        didSet { defaults.set(allowsCellularDownloads, forKey: AppConfig.Defaults.allowsCellularModelDownload) }
+    }
+    /// Bytes the last prune reclaimed from superseded revisions.
+    @Published private(set) var lastPrunedBytes: Int64 = 0
     /// What admission measured for the loaded model; evidence sessions carry
     /// it so the ADR 0003 floor can be set from device rows.
     @Published private(set) var admissionSnapshot: AdmissionSnapshot?
 
     let runtime = MLXRecoveryRuntime()
     private let downloader = VerifiedAssetDownloader()
+    private let delivery: any ModelDelivery
+    private let defaults: UserDefaults
+    private let storageRoot: URL?
+    private let deviceFloor: @MainActor () -> DeviceFloor.Verdict
+
+    /// `storageRoot` and `deviceFloor` exist for tests; the app uses the
+    /// Application Support root and the real device gate.
+    init(
+        delivery: any ModelDelivery = ForegroundVerifiedDelivery(),
+        defaults: UserDefaults = .standard,
+        storageRoot: URL? = nil,
+        deviceFloor: @escaping @MainActor () -> DeviceFloor.Verdict = { DeviceFloor.current }
+    ) {
+        self.delivery = delivery
+        self.defaults = defaults
+        self.storageRoot = storageRoot
+        self.deviceFloor = deviceFloor
+        allowsCellularDownloads = defaults.bool(forKey: AppConfig.Defaults.allowsCellularModelDownload)
+    }
     private enum WorkKind { case download, warmUp }
     private var workTask: Task<Void, Never>?
     private var workKind: WorkKind?
     private var trackedInference: [UUID: Task<Void, Never>] = [:]
 
+    static let modelFolderName = "Qwen3-VL-4B-Instruct-4bit"
+
+    private var recoveryModelsDirectory: URL? {
+        guard let root = storageRoot ?? (try? InstructionModelImporter.applicationSupportRoot()) else { return nil }
+        return try? StorageLayout.directory(.recoveryModels, root: root)
+    }
+
     var modelDirectory: URL? {
-        guard let root = try? InstructionModelImporter.applicationSupportRoot(),
-              let models = try? StorageLayout.directory(.recoveryModels, root: root) else { return nil }
-        return models.appendingPathComponent("Qwen3-VL-4B-Instruct-4bit/\(Self.revision)", isDirectory: true)
+        recoveryModelsDirectory?.appendingPathComponent("\(Self.modelFolderName)/\(Self.revision)", isDirectory: true)
+    }
+
+    var manifest: ModelManifest? {
+        modelDirectory.map { ModelManifest(modelID: Self.modelID, revision: Self.revision, assets: Self.assets, directory: $0) }
+    }
+
+    var isVLMAdmitted: Bool {
+        if case .admitted = state { return true }
+        return false
+    }
+
+    /// Bytes the pinned revision occupies on disk, partial downloads included.
+    var onDiskBytes: Int64 {
+        guard let directory = modelDirectory,
+              let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey])
+        else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in files {
+            total += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
+        }
+        return total
+    }
+
+    /// Deletes every model revision except the pinned one — superseded pins
+    /// would otherwise sit on disk forever at ~3 GB each.
+    func pruneStaleRevisions() {
+        guard let models = recoveryModelsDirectory else { return }
+        let fileManager = FileManager.default
+        var reclaimed: Int64 = 0
+        func remove(_ url: URL) {
+            if let files = fileManager.enumerator(at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) {
+                for case let file as URL in files {
+                    reclaimed += Int64((try? file.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
+                }
+            }
+            try? fileManager.removeItem(at: url)
+        }
+        for model in (try? fileManager.contentsOfDirectory(at: models, includingPropertiesForKeys: nil)) ?? [] {
+            guard model.lastPathComponent == Self.modelFolderName else {
+                remove(model)
+                continue
+            }
+            for revision in (try? fileManager.contentsOfDirectory(at: model, includingPropertiesForKeys: nil)) ?? []
+            where revision.lastPathComponent != Self.revision {
+                remove(revision)
+            }
+        }
+        lastPrunedBytes = reclaimed
+    }
+
+    /// Unloads, deletes the pinned revision, and re-checks, which lands on
+    /// "needs download". Guides and geometric features are unaffected.
+    func removeModel() async throws {
+        guard let manifest else { return }
+        await cancelAndAwait()
+        try await delivery.remove(manifest)
+        admissionSnapshot = nil
+        await check()
     }
 
     func check() async {
         state = .checking
-        guard DeviceFloor.current == .supported else {
+        pruneStaleRevisions()
+        guard deviceFloor() == .supported else {
             reject(reason: "Recovery needs iPhone 17 Pro or iPhone 17 Pro Max. Guides remain available.", retryable: false)
             return
         }
@@ -165,29 +252,9 @@ final class RecoveryModelManager: ObservableObject {
                 reject(reason: "The recovery model is about 3.1 GB. Connect to Wi‑Fi or allow cellular download, then retry.", retryable: true)
                 return
             }
-            guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let total = Double(Self.assets.reduce(Int64(0)) { $0 + $1.bytes })
-            var completed: Int64 = 0
-            for asset in Self.assets {
-                try Task.checkCancellation()
-                let completedBeforeAsset = completed
-                let encodedPath = asset.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? asset.path
-                let remote = URL(string: "https://huggingface.co/\(Self.modelID)/resolve/\(Self.revision)/\(encodedPath)?download=true")!
-                try await downloader.download(
-                    from: remote,
-                    to: directory.appendingPathComponent(asset.path),
-                    expectedBytes: asset.bytes,
-                    expectedSHA256: asset.sha256
-                ) { fileProgress in
-                    await self.updateDownloadProgress(
-                        completedBytes: completedBeforeAsset,
-                        currentAssetBytes: asset.bytes,
-                        fileProgress: fileProgress,
-                        totalBytes: total
-                    )
-                }
-                completed += asset.bytes
+            guard let manifest else { throw CocoaError(.fileNoSuchFile) }
+            try await delivery.deliver(manifest) { progress in
+                await self.updateDownloadProgress(progress)
             }
             state = .warming
         } catch is CancellationError {
@@ -279,15 +346,8 @@ final class RecoveryModelManager: ObservableObject {
         return max(0, expectedBytes - partialBytes)
     }
 
-    private func updateDownloadProgress(
-        completedBytes: Int64,
-        currentAssetBytes: Int64,
-        fileProgress: Double,
-        totalBytes: Double
-    ) {
-        state = .downloading(
-            progress: min(1, (Double(completedBytes) + fileProgress * Double(currentAssetBytes)) / totalBytes)
-        )
+    private func updateDownloadProgress(_ progress: Double) {
+        state = .downloading(progress: progress)
     }
 
     private static func makeWarmUpBoard(in directory: URL) throws -> URL {
