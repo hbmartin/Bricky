@@ -43,6 +43,7 @@
 		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
 		61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
 		644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
+		644FC9E3C196DDE3F54F4C17 /* GeometrySignposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25E09395EE9E36968E58955 /* GeometrySignposts.swift */; };
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
@@ -84,6 +85,7 @@
 		BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */; };
 		C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */; };
 		C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
+		C818D89620DE449A172F8EE0 /* GeometrySignposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25E09395EE9E36968E58955 /* GeometrySignposts.swift */; };
 		C9ED90E2B917AB752C9A6CB5 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
 		CADB2E8758CA0F30AAB71B50 /* StorageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965B74AF30C0F6D89D5B8D12 /* StorageLayout.swift */; };
 		CD2A2B2EA9C3F3476947C77E /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
@@ -174,6 +176,7 @@
 		A377413BF2084446EFA7A660 /* InstructionDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionDomain.swift; sourceTree = "<group>"; };
 		A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpectedDepthRendererTests.swift; sourceTree = "<group>"; };
 		A963BA826F108C2D675FAF21 /* RecoveryError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryError.swift; sourceTree = "<group>"; };
+		B25E09395EE9E36968E58955 /* GeometrySignposts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometrySignposts.swift; sourceTree = "<group>"; };
 		B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifier.swift; sourceTree = "<group>"; };
 		B846C324539715D80A41F6F3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9875749055872E5C5260701 /* BrickyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -435,6 +438,7 @@
 			children = (
 				D274255AB95722CBD03B8747 /* DepthICPTracker.swift */,
 				1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */,
+				B25E09395EE9E36968E58955 /* GeometrySignposts.swift */,
 				18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */,
 				9891FC28298A60A802423EF9 /* RegistrationController.swift */,
 			);
@@ -637,6 +641,7 @@
 				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
 				574A0E1C907C0846D18ECD46 /* GeometricRecoveryEstimator.swift in Sources */,
 				F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */,
+				C818D89620DE449A172F8EE0 /* GeometrySignposts.swift in Sources */,
 				CD2A2B2EA9C3F3476947C77E /* InstructionDomain.swift in Sources */,
 				1DA8516D92390E39A14AB874 /* InstructionPlanBuilder.swift in Sources */,
 				966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */,
@@ -701,6 +706,7 @@
 				B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */,
 				FFF449912475E9322656DDB1 /* GeometricRecoveryEstimator.swift in Sources */,
 				EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */,
+				644FC9E3C196DDE3F54F4C17 /* GeometrySignposts.swift in Sources */,
 				493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */,
 				D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */,
 				644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */,

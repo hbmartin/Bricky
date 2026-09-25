@@ -86,6 +86,7 @@ targets:
       - Bricky/Services/Instructions/LDConfigPalette.swift
       - Bricky/Services/Registration/ModelSurfaceSampler.swift
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
+      - Bricky/Services/Registration/GeometrySignposts.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
       # Compiles here so geometric recovery can be replayed on a Mac from

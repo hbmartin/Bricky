@@ -41,8 +41,14 @@ actor GeometricStepVerifier {
     private let renderer: ExpectedDepthRenderer
 
     private var stepID = ""
-    private var completedSnapshot: InstructionGeometrySnapshot?
-    private var deltaSnapshot: InstructionGeometrySnapshot?
+    /// Uploaded once per step: every frame renders the same geometry.
+    private var completedGeometry: DepthGeometry?
+    private var deltaGeometry: DepthGeometry?
+    /// Bumped whenever accumulated evidence is discarded. `ingest` suspends
+    /// while the GPU renders, and actor reentrancy lets `begin` run in that
+    /// window; a frame rendered for the previous step must not vote on the
+    /// new one.
+    private var evidenceGeneration = 0
 
     private static let latticeOffsets: [SIMD2<Int>] = [
         SIMD2(1, 0), SIMD2(-1, 0), SIMD2(0, 1), SIMD2(0, -1)
@@ -62,9 +68,10 @@ actor GeometricStepVerifier {
     private var lastDetectability: DeltaDetectability = .undetectable
     private var lastDeltaPixels = 0
 
-    init(configuration: Configuration = Configuration()) throws {
+    /// Uses the process-wide renderer unless one is injected.
+    init(configuration: Configuration = Configuration(), renderer: ExpectedDepthRenderer? = nil) throws {
         self.configuration = configuration
-        renderer = try ExpectedDepthRenderer()
+        self.renderer = try renderer ?? ExpectedDepthRenderer.shared()
     }
 
     /// Installs the step under verification and clears accumulated evidence.
@@ -74,12 +81,13 @@ actor GeometricStepVerifier {
         deltaSnapshot: InstructionGeometrySnapshot
     ) {
         self.stepID = stepID
-        self.completedSnapshot = completedSnapshot
-        self.deltaSnapshot = deltaSnapshot
+        completedGeometry = renderer.prepare(completedSnapshot)
+        deltaGeometry = renderer.prepare(deltaSnapshot)
         resetEvidence()
     }
 
     func resetEvidence() {
+        evidenceGeneration += 1
         framesUsed = 0
         completeVotes = 0
         incompleteVotes = 0
@@ -95,14 +103,16 @@ actor GeometricStepVerifier {
     func ingest(
         frame: RegistrationFrameInput,
         registration: ModelRegistration
-    ) throws -> StepVerification {
+    ) async throws -> StepVerification {
+        let signpost = GeometrySignposts.signposter.beginInterval("VerifierIngest")
+        defer { GeometrySignposts.signposter.endInterval("VerifierIngest", signpost) }
         guard registration.allowsVerification else {
             let reason: UncertainReason = registration.state == .ambiguous
                 ? .poseAmbiguous
                 : .registrationNotLocked
             return assessment(verdict: .uncertain(reason), registration: registration, timestamp: frame.timestamp)
         }
-        guard let completedSnapshot, let deltaSnapshot else {
+        guard let completedGeometry, let deltaGeometry else {
             return assessment(
                 verdict: .uncertain(.insufficientEvidence),
                 registration: registration,
@@ -116,33 +126,28 @@ actor GeometricStepVerifier {
         let observedConfidence = frame.rawConfidence ?? frame.confidence
 
         let viewFromModel = frame.worldFromCamera.inverse * registration.worldFromModel
-        let completedMap = try renderer.render(
-            snapshot: completedSnapshot,
-            viewFromModel: viewFromModel,
-            intrinsics: frame.depthIntrinsics,
-            width: frame.width,
-            height: frame.height
-        )
-        let deltaMap = try renderer.render(
-            snapshot: deltaSnapshot,
-            viewFromModel: viewFromModel,
-            intrinsics: frame.depthIntrinsics,
-            width: frame.width,
-            height: frame.height
-        )
-
-        // Farthest delta surface: where nothing completed sits behind the
+        let generation = evidenceGeneration
+        // One batch for the three maps every frame needs. The last is the
+        // farthest delta surface: where nothing completed sits behind the
         // brick, the honest expected depth change is the ray span through
         // the delta itself, not a fixed optimistic constant that would
         // inflate thin overhanging deltas to strong detectability.
-        let deltaBackMap = try renderer.render(
-            snapshot: deltaSnapshot,
-            viewFromModel: viewFromModel,
+        let baseMaps = try await renderer.render(
+            [
+                DepthRenderRequest(geometry: completedGeometry, viewFromModel: viewFromModel),
+                DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel),
+                DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel, surface: .farthest)
+            ],
             intrinsics: frame.depthIntrinsics,
             width: frame.width,
-            height: frame.height,
-            surface: .farthest
+            height: frame.height
         )
+        guard generation == evidenceGeneration else {
+            return assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp)
+        }
+        let completedMap = baseMaps[0]
+        let deltaMap = baseMaps[1]
+        let deltaBackMap = baseMaps[2]
 
         // Visible footprint: pixels where the delta is the nearest expected
         // surface (in front of any completed geometry behind it).
@@ -208,21 +213,31 @@ actor GeometricStepVerifier {
         // them on a cadence — the exclusive-evidence votes accumulate across
         // frames either way.
         let runLatticePass = framesUsed.isMultiple(of: max(1, configuration.latticeFrameStride))
-        for (slot, offset) in Self.latticeOffsets.enumerated() where runLatticePass {
-            var shift = matrix_identity_float4x4
-            shift.columns.3 = SIMD4(
-                Float(offset.x) * configuration.studPitch,
-                0,
-                Float(offset.y) * configuration.studPitch,
-                1
-            )
-            let alternativeMap = try renderer.render(
-                snapshot: deltaSnapshot,
-                viewFromModel: viewFromModel * shift,
+        let alternativeMaps = runLatticePass
+            ? try await renderer.render(
+                Self.latticeOffsets.map { offset in
+                    var shift = matrix_identity_float4x4
+                    shift.columns.3 = SIMD4(
+                        Float(offset.x) * configuration.studPitch,
+                        0,
+                        Float(offset.y) * configuration.studPitch,
+                        1
+                    )
+                    return DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel * shift)
+                },
                 intrinsics: frame.depthIntrinsics,
                 width: frame.width,
                 height: frame.height
             )
+            : []
+        // The per-pixel votes above were counted into this step's tallies
+        // before the lattice batch suspended; if the step changed meanwhile,
+        // `begin` already discarded them, so only the lattice votes need
+        // guarding here.
+        guard generation == evidenceGeneration else {
+            return assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp)
+        }
+        for (slot, alternativeMap) in alternativeMaps.enumerated() {
             for index in deltaMap.depth.indices
             where deltaMap.depth[index] > 0 || alternativeMap.depth[index] > 0 {
                 guard observedConfidence[index] >= configuration.minimumConfidence else { continue }

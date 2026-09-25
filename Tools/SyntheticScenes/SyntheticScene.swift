@@ -386,7 +386,7 @@ struct SyntheticScene {
         sensor: SensorModel
     ) async throws -> StepVerification {
         var sensor = sensor
-        let verifier = try GeometricStepVerifier()
+        let verifier = try GeometricStepVerifier(renderer: renderer)
         await verifier.begin(stepID: "synthetic", completedSnapshot: completed, deltaSnapshot: delta)
         let registration = ModelRegistration(
             alignmentID: UUID(),

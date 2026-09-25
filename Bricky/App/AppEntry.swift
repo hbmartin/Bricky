@@ -46,6 +46,11 @@ struct AppEntry: App {
                     if let root = try? InstructionModelImporter.applicationSupportRoot() {
                         try? StorageLayout.applyBackupPolicy(root: root)
                     }
+                    // Compile the expected-depth shader once, off the main
+                    // thread, before the first AR verification needs it.
+                    Task.detached(priority: .utility) {
+                        _ = try? ExpectedDepthRenderer.shared()
+                    }
                     // The sweep only touches capture/board folders, which are
                     // written strictly after model admission, so it can run
                     // concurrently without delaying the part-pack and model

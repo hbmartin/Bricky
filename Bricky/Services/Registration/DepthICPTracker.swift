@@ -180,6 +180,8 @@ actor DepthICPTracker {
         initialWorldFromModel: simd_float4x4,
         configuration: Configuration = Configuration()
     ) -> SolveResult {
+        let signpost = GeometrySignposts.signposter.beginInterval("ICPSolve")
+        defer { GeometrySignposts.signposter.endInterval("ICPSolve", signpost) }
         var pose = initialWorldFromModel
         let iterations = max(1, configuration.maxIterations)
         // One world-space scratch buffer, reused across every iteration.
