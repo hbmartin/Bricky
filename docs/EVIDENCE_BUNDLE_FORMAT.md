@@ -230,7 +230,8 @@ interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift
 | session | `physical_memory_bytes` | `ProcessInfo.physicalMemory` (the device-floor input) |
 | session | `admission` | floor, available bytes at check, footprint before load, load and warm-up ms, warm-up lifetime peak |
 | session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
-| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `arm_id` |
+| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`. Absent axes decode to the baseline |
+| trace (checks) | `alternate_tile_relative_paths` | the target rendered from the check target the call did not use (`guide_camera` or `registered` → tile path). Written only with evidence on, and only when that target could be rendered: `registered` needs the AR guide's locked pose |
 | trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |
 | trace | `conditions` | `DeviceConditions` at the call |
 | trace | `readouts` | per small-legal-set decision: position, chosen token, legal candidates with masked-softmax probabilities |

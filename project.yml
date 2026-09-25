@@ -131,6 +131,8 @@ targets:
       - BrickyTests/PartDescriptionIndexTests.swift
       - BrickyTests/DocumentOpenRouterTests.swift
       - BrickyTests/InferenceArmSchedulerTests.swift
+      - BrickyTests/PhotoCheckControllerTests.swift
+      - BrickyTests/VLMStepCheckServiceTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

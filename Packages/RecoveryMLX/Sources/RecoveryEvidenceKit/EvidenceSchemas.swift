@@ -292,6 +292,10 @@ public struct EvidenceTraceRow: Codable, Sendable {
     public let readouts: [DecisionReadout]?
     /// Probe-scored calls: the decision's option probabilities.
     public let probe: ProbeReadout?
+    /// Step checks only: the same target rendered from the check target
+    /// the call did not use (`CheckTarget` raw value → tile path), so a
+    /// replay can A/B the target on identical photos.
+    public let alternateTileRelativePaths: [String: String]?
 
     public init(
         traceVersion: Int, traceID: UUID, sessionID: UUID, pass: RecoveryPassKind, passIndex: Int,
@@ -301,7 +305,8 @@ public struct EvidenceTraceRow: Codable, Sendable {
         rawOutput: String, decodeError: String?, termination: String, generatedTokens: Int?,
         latencyMilliseconds: Int, memoryFootprintBytes: Int64?, modelRevision: String, createdAt: Date,
         variant: RecoveryInferenceVariant? = nil, inference: InferenceTelemetry? = nil,
-        conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil, probe: ProbeReadout? = nil
+        conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil, probe: ProbeReadout? = nil,
+        alternateTileRelativePaths: [String: String]? = nil
     ) {
         self.traceVersion = traceVersion
         self.traceID = traceID
@@ -330,6 +335,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         self.conditions = conditions
         self.readouts = readouts
         self.probe = probe
+        self.alternateTileRelativePaths = alternateTileRelativePaths
     }
 
     enum CodingKeys: String, CodingKey {
@@ -360,6 +366,35 @@ public struct EvidenceTraceRow: Codable, Sendable {
         case conditions
         case readouts
         case probe
+        case alternateTileRelativePaths = "alternate_tile_relative_paths"
+    }
+
+    /// The target this call's board was drawn from; rows written before the
+    /// axis existed were all guide-camera checks.
+    public var checkTarget: CheckTarget { variant?.checkTarget ?? .guideCamera }
+
+    /// A step check's row as it would read had it been drawn from `target`:
+    /// slot A's tile swapped for the recorded alternate. Nil when that
+    /// target was never rendered for this call.
+    public func retargeted(to target: CheckTarget) -> EvidenceTraceRow? {
+        guard pass == .check else { return nil }
+        guard target != checkTarget else { return self }
+        guard let alternate = alternateTileRelativePaths?[target.rawValue] else { return nil }
+        var tiles = tileRelativePaths
+        tiles["A"] = alternate
+        var retargetedVariant = variant ?? .baseline
+        retargetedVariant.checkTarget = target
+        return EvidenceTraceRow(
+            traceVersion: traceVersion, traceID: traceID, sessionID: sessionID, pass: pass, passIndex: passIndex,
+            captureID: captureID, captureAngle: captureAngle, boardRelativePath: boardRelativePath,
+            tileRelativePaths: tiles, candidateStepIndices: candidateStepIndices, candidateStepIDs: candidateStepIDs,
+            prompt: prompt, schemaJSON: schemaJSON, maxTokens: maxTokens, rawOutput: rawOutput,
+            decodeError: decodeError, termination: termination, generatedTokens: generatedTokens,
+            latencyMilliseconds: latencyMilliseconds, memoryFootprintBytes: memoryFootprintBytes,
+            modelRevision: modelRevision, createdAt: createdAt, variant: retargetedVariant, inference: inference,
+            conditions: conditions, readouts: readouts, probe: probe,
+            alternateTileRelativePaths: [checkTarget.rawValue: tileRelativePaths["A"]].compactMapValues { $0 }
+        )
     }
 }
 

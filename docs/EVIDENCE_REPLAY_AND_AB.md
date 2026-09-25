@@ -98,7 +98,8 @@ The traces sidecar (`ReplayTraceResult`) carries, per call:
 | `--recompose` | Rebuild each board from the raw capture + tiles through `RecoveryBoardLayoutV1` instead of replaying the stored board image (layout experiments) |
 | `--all-passes` | Replay the full hierarchy, not only finalists |
 | `--vote borda_dedup\|borda_legacy` | Finalist vote rule (`RecoveryVote`, shared with the app). `borda_dedup` is the app default; `borda_legacy` counts repeated slots as the app did before 2026-09 |
-| `--checks` | Also replay step-check traces into `<out>.checks.ndjson` as `vlm_check` rows. The scorer prints their false-complete rate; the expected verdict comes from the session's labeled step count |
+| `--checks` | Also replay step-check traces into `<out>.checks.ndjson` as `vlm_check` rows. The scorer prints their false-complete rate; the expected verdict comes from the session's labeled step count. Staged check sessions (corpus collection, declared short of the checked step) are the negatives |
+| `--check-target guide_camera\|registered` | Replay checks against that target. A check recorded at the other target uses its `alternate_tile_relative_paths` tile and needs `--recompose`; a check with no tile for the target (every check outside the AR guide, for `registered`) has no row in that arm |
 | `--arm NAME`, `--variant JSON` | Record an arm label; `--variant` sets the whole `RecoveryInferenceVariant` at once (overriding `--decode`/`--vote`). Rows carry `variant_id` |
 | `--slot-order rotated`, `--board v2`, `--labels slot` | Rebuild boards (needs `--recompose`) with finalists rotated across views, the V2 layout (≤ 4 tall finalist tiles; side-by-side check), or slot-only labels (hides step numbers from the model) |
 | `--prompt-style baseline\|dynamic_range`, `--image-side N` | Replace recorded prompts (`dynamic_range` names only the slots on the board); resize boards to N px before the vision encoder |

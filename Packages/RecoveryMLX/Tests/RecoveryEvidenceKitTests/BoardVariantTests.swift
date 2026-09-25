@@ -59,5 +59,9 @@ final class BoardVariantTests: XCTestCase {
         )
         let old = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data("{}".utf8))
         XCTAssertEqual(old, .baseline)
+        XCTAssertEqual(old.checkTarget, .guideCamera)
+        XCTAssertEqual(RecoveryInferenceVariant(checkTarget: .registered).id, "check_target=registered")
+        let encoded = try JSONEncoder().encode(RecoveryInferenceVariant(checkTarget: .registered))
+        XCTAssertTrue(String(decoding: encoded, as: UTF8.self).contains(#""check_target":"registered""#))
     }
 }

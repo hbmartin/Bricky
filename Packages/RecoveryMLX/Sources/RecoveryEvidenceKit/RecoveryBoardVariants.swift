@@ -45,6 +45,17 @@ public enum PromptStyle: String, Codable, CaseIterable, Sendable {
     case dynamicRange = "dynamic_range"
 }
 
+/// Where a step check's target render is drawn from. Each changes what the
+/// model sees, so it is a recorded variant axis; the baseline is the guide
+/// camera, the only target the app has ever sent.
+public enum CheckTarget: String, Codable, CaseIterable, Sendable {
+    /// The fixed three-quarter guide camera, independent of the photo.
+    case guideCamera = "guide_camera"
+    /// The photo's own camera pose under the locked registration, so the
+    /// target shares the photo's viewpoint. Available only in AR.
+    case registered
+}
+
 public enum SlotAssignment {
     /// View `v` gets the finalists rotated left by `v`.
     public static func rotated<Candidate>(_ finalists: [Candidate], viewIndex: Int) -> [Candidate] {

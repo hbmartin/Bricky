@@ -176,6 +176,33 @@ enum RecoveryBoardComposer {
         let board = layout == .v1 && labels == .slotAndStep
             ? try RecoveryBoardLayoutV1.composeBoard(physical: physical, candidates: kitCandidates)
             : try RecoveryBoardLayoutV2.composeBoard(physical: physical, candidates: kitCandidates, labels: labels)
+        return try write(board)
+    }
+
+    /// A step check's board: V1 with its own labels is the baseline; V2
+    /// draws the photo and target side by side. The harness recomposer maps
+    /// layouts the same way, so a replayed board is the one the app drew.
+    static func composeCheck(
+        physicalViewURL: URL,
+        target: (slot: String, image: UIImage, stepNumber: Int),
+        layout: BoardLayoutVersion = .v1,
+        labels: TileLabelStyle = .slotAndStep
+    ) throws -> URL {
+        guard layout == .v2 else {
+            return try compose(physicalViewURL: physicalViewURL, candidates: [target], layout: layout, labels: labels)
+        }
+        guard let physical = try? RecoveryBoardLayoutV1.loadImage(at: physicalViewURL),
+              let cgImage = target.image.cgImage else {
+            throw RecoveryError.captureImageMissing
+        }
+        return try write(RecoveryBoardLayoutV2.composeCheckBoard(
+            physical: physical,
+            target: .init(slot: target.slot, image: cgImage, stepNumber: target.stepNumber),
+            labels: labels
+        ))
+    }
+
+    private static func write(_ board: CGImage) throws -> URL {
         let root = try InstructionModelImporter.applicationSupportRoot()
         let boards = try StorageLayout.directory(.inferenceBoards, root: root)
         let output = boards.appendingPathComponent("\(UUID().uuidString).jpg")

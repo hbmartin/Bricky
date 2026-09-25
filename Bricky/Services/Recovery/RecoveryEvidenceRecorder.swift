@@ -99,7 +99,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         boardURL: URL,
         prompt: String,
         trace: MLXGenerationTrace,
-        variant: RecoveryInferenceVariant = .baseline
+        variant: RecoveryInferenceVariant = .baseline,
+        alternateTiles: [CheckTarget: Data] = [:]
     ) async {
         let conditions = await DeviceConditionsProbe.snapshot()
         perform("record \(pass.rawValue) pass") {
@@ -120,6 +121,14 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 let relative = "tiles/\(traceID.uuidString)/\(candidate.slot).jpg"
                 try data.write(to: sessionDirectory.appendingPathComponent(relative), options: .atomic)
                 tilePaths[candidate.slot] = relative
+            }
+            // A check's target from the other viewpoint, never shown to the
+            // model: it lets a replay A/B the check target on this photo.
+            var alternatePaths: [String: String] = [:]
+            for (target, data) in alternateTiles {
+                let relative = "tiles/\(traceID.uuidString)/A.\(target.rawValue).jpg"
+                try data.write(to: sessionDirectory.appendingPathComponent(relative), options: .atomic)
+                alternatePaths[target.rawValue] = relative
             }
             let row = EvidenceTraceRow(
                 traceVersion: EvidenceSchema.traceVersion,
@@ -148,7 +157,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 inference: trace.inference,
                 conditions: conditions,
                 readouts: trace.readouts,
-                probe: trace.probe
+                probe: trace.probe,
+                alternateTileRelativePaths: alternatePaths.isEmpty ? nil : alternatePaths
             )
             try appendTraceRow(row)
         }

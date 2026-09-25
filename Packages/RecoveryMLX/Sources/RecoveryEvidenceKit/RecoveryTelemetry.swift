@@ -372,6 +372,8 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
     /// The side the board is resized to before the vision encoder; 1024 is
     /// one image token per 32×32 block, 1,024 tokens.
     public var imageSide: Int
+    /// Step checks only: which render the photo is compared against.
+    public var checkTarget: CheckTarget
     /// A/B arm label when the developer arm picker scheduled this call.
     public var armID: String?
 
@@ -381,7 +383,8 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, uniqueSlots: Bool = false,
         scoring: ScoringMode = .generate, slotOrder: SlotOrder = .sorted, boardLayout: BoardLayoutVersion = .v1,
         labels: TileLabelStyle = .slotAndStep, promptStyle: PromptStyle = .baseline,
-        imageSide: Int = RecoveryInferenceVariant.baselineImageSide, armID: String? = nil
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide, checkTarget: CheckTarget = .guideCamera,
+        armID: String? = nil
     ) {
         self.decode = decode
         self.vote = vote
@@ -392,6 +395,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         self.labels = labels
         self.promptStyle = promptStyle
         self.imageSide = imageSide
+        self.checkTarget = checkTarget
         self.armID = armID
     }
 
@@ -406,6 +410,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         labels = try container.decodeIfPresent(TileLabelStyle.self, forKey: .labels) ?? .slotAndStep
         promptStyle = try container.decodeIfPresent(PromptStyle.self, forKey: .promptStyle) ?? .baseline
         imageSide = try container.decodeIfPresent(Int.self, forKey: .imageSide) ?? Self.baselineImageSide
+        checkTarget = try container.decodeIfPresent(CheckTarget.self, forKey: .checkTarget) ?? .guideCamera
         armID = try container.decodeIfPresent(String.self, forKey: .armID)
     }
 
@@ -422,6 +427,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         if labels != .slotAndStep { parts.append("labels=\(labels.rawValue)") }
         if promptStyle != .baseline { parts.append("prompt=\(promptStyle.rawValue)") }
         if imageSide != Self.baselineImageSide { parts.append("image_side=\(imageSide)") }
+        if checkTarget != .guideCamera { parts.append("check_target=\(checkTarget.rawValue)") }
         return parts.isEmpty ? "baseline" : parts.joined(separator: ",")
     }
 
@@ -435,6 +441,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         case labels
         case promptStyle = "prompt_style"
         case imageSide = "image_side"
+        case checkTarget = "check_target"
         case armID = "arm_id"
     }
 }

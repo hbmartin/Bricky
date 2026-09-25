@@ -68,3 +68,23 @@ struct StagedFixtureSetupView: View {
         }
     }
 }
+
+/// Opens the staged declaration sheet and shows what is declared, so a
+/// corpus session is never collected against a stale or missing label.
+struct StagedDeclarationButton: View {
+    let declaration: StagedFixtureDeclaration?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(
+                declaration.map { "Staged fixture: Step \($0.expectedCompletedCount)" }
+                    ?? "Staged fixture: not declared",
+                systemImage: declaration == nil ? "flag.slash" : "flag.checkered"
+            )
+            .font(.caption.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
+        .tint(declaration == nil ? .orange : .green)
+    }
+}

@@ -190,19 +190,8 @@ struct RecoveryFlowView: View {
                 }
                 .frame(maxWidth: .infinity).padding().background(.ultraThinMaterial)
                 if evidenceCaptureEnabled, corpusCollectionEnabled, plan != nil {
-                    Button {
-                        showStagedSetup = true
-                    } label: {
-                        Label(
-                            stagedDeclaration.map { "Staged fixture: Step \($0.expectedCompletedCount)" }
-                                ?? "Staged fixture: not declared",
-                            systemImage: stagedDeclaration == nil ? "flag.slash" : "flag.checkered"
-                        )
-                        .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(stagedDeclaration == nil ? .orange : .green)
-                    .padding(.top, 6)
+                    StagedDeclarationButton(declaration: stagedDeclaration) { showStagedSetup = true }
+                        .padding(.top, 6)
                 }
                 Spacer()
                 HStack(spacing: 10) {

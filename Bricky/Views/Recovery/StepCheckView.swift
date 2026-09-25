@@ -21,7 +21,14 @@ struct StepCheckView: View {
     @State private var checkTask: Task<Void, Never>?
     @State private var checkGeneration = UUID()
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
+    @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @State private var recorder: RecoveryEvidenceRecorder?
+    /// Declared before the photo in corpus collection, so the check is
+    /// labeled even when the build is deliberately short of this step.
+    @State private var stagedDeclaration: StagedFixtureDeclaration?
+    @State private var showStagedSetup = false
+    /// The declaration the in-flight check's session was opened with.
+    @State private var recordedStaged: StagedFixtureDeclaration?
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
     @State private var boardJPEG: Data?
     @State private var cloudOpinion: CloudAssistOpinion?
@@ -38,6 +45,10 @@ struct StepCheckView: View {
                     VStack {
                         Text("Frame the full build at authored step \(step.index)")
                             .font(.headline).frame(maxWidth: .infinity).padding().background(.ultraThinMaterial)
+                        if evidenceCaptureEnabled, corpusCollectionEnabled, result == nil {
+                            StagedDeclarationButton(declaration: stagedDeclaration) { showStagedSetup = true }
+                                .padding(.top, 6)
+                        }
                         Spacer()
                         if let result {
                             resultCard(result)
@@ -64,6 +75,9 @@ struct StepCheckView: View {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
         .sheet(isPresented: $showCloudConsent) { cloudConsentSheet }
+        .sheet(isPresented: $showStagedSetup) {
+            StagedFixtureSetupView(plan: plan, declaration: $stagedDeclaration)
+        }
     }
 
     private func resultCard(_ value: StepCheckResult) -> some View {
@@ -76,7 +90,7 @@ struct StepCheckView: View {
             }
             HStack {
                 Button("Retake") {
-                    finalizeEvidence(groundTruth: .unlabeled)
+                    finalizeEvidence(confirmed: false)
                     cancelCloudRequest()
                     discardRawCapture()
                     result = nil
@@ -206,8 +220,17 @@ struct StepCheckView: View {
         cloudOpinion = nil
         let generation = UUID()
         checkGeneration = generation
-        let sessionRecorder = makeRecorderIfEnabled()
+        let staged = evidenceCaptureEnabled && corpusCollectionEnabled ? stagedDeclaration : nil
+        recordedStaged = staged
+        let sessionRecorder = makeRecorderIfEnabled(staged: staged)
         recorder = sessionRecorder
+        let service = VLMStepCheckService(
+            runtime: recoveryModel.runtime,
+            modelDirectory: modelDirectory,
+            partPackRoot: pack,
+            variant: InferenceArmScheduler().next(evidenceEnabled: evidenceCaptureEnabled),
+            recorder: sessionRecorder
+        )
         let task = Task {
             await previous?.value
             RecoveryWorkFileCleanup.remove(urls: [previousCaptureURL].compactMap { $0 })
@@ -221,47 +244,19 @@ struct StepCheckView: View {
                 let physical = root.appendingPathComponent(capture.imageRelativePath)
                 capturedURL = physical
                 capturedImage = UIImage(contentsOfFile: physical.path)
-                await sessionRecorder?.recordCaptures([capture])
-                let renderer = try InstructionSnapshotRenderer(plan: plan, partPackRoot: pack)
-                let candidate = try await renderer.image(forStepIndex: step.index - 1)
-                let board = try RecoveryBoardComposer.compose(
-                    physicalViewURL: physical,
-                    candidates: [(slot: "A", image: candidate, stepNumber: step.index)]
-                )
-                defer { try? FileManager.default.removeItem(at: board) }
-                // Retained so cloud assist can show and send the identical
-                // board the local model judged (ADR 0011).
-                boardJPEG = try Data(contentsOf: board)
-                let prompt = RecoveryPrompts.baselineCheck
-                let response = try await recoveryModel.runtime.checkStepWithTrace(
-                    imageURL: board,
-                    prompt: prompt,
-                    modelDirectory: modelDirectory
-                )
-                await sessionRecorder?.recordPass(
-                    pass: .check,
-                    passIndex: 0,
-                    capture: capture,
-                    candidates: [.init(
-                        slot: "A",
-                        stepIndex: step.index - 1,
-                        stepID: step.id,
-                        jpegData: candidate.jpegData(compressionQuality: 0.9)
-                    )],
-                    boardURL: board,
-                    prompt: prompt,
-                    trace: response.trace
-                )
-                guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
+                // No registration exists on this screen, so the check runs
+                // at the guide camera whatever the variant asks.
+                let outcome = try await service.check(capture: capture, plan: plan, step: step, registered: nil)
                 guard generation == checkGeneration, !Task.isCancelled else { return }
-                result = StepCheckResult(rawValue: output.result) ?? .uncertain
+                boardJPEG = outcome.boardJPEG
+                result = outcome.result
             } catch is CancellationError {
                 // Navigation or suspension cancelled the check.
             } catch {
                 await sessionRecorder?.finalize(
                     estimate: nil,
                     analysisError: String(describing: error),
-                    groundTruth: .unlabeled
+                    groundTruth: VLMStepCheckService.groundTruth(staged: staged, plan: plan, step: step, confirmed: false)
                 )
                 guard generation == checkGeneration else { return }
                 self.error = error.localizedDescription
@@ -276,17 +271,7 @@ struct StepCheckView: View {
     private func advance() {
         // "Confirm & Advance" after a complete verdict is a human label that
         // the build matches this step; "Advance Anyway" is not.
-        if result == .complete {
-            finalizeEvidence(groundTruth: EvidenceGroundTruth(
-                kind: .confirmed,
-                expectedCompletedCount: step.index,
-                expectedStepID: step.id,
-                confirmedCompletedCount: step.index,
-                confirmedAt: .now
-            ))
-        } else {
-            finalizeEvidence(groundTruth: .unlabeled)
-        }
+        finalizeEvidence(confirmed: result == .complete)
         // Progress first, through the shared session, so a milestone-image
         // failure below never loses the advance.
         session.confirm(step, source: .photoCheck)
@@ -333,14 +318,15 @@ struct StepCheckView: View {
         showCloudConsent = false
         let sessionRecorder = recorder
         recorder = nil
+        let groundTruth = VLMStepCheckService.groundTruth(staged: recordedStaged, plan: plan, step: step, confirmed: false)
         Task.detached(priority: .utility) {
             await task?.value
-            await sessionRecorder?.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+            await sessionRecorder?.finalize(estimate: nil, analysisError: nil, groundTruth: groundTruth)
             RecoveryWorkFileCleanup.remove(urls: [url].compactMap { $0 })
         }
     }
 
-    private func makeRecorderIfEnabled() -> RecoveryEvidenceRecorder? {
+    private func makeRecorderIfEnabled(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder? {
         guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
         return RecoveryEvidenceRecorder(
             root: root,
@@ -348,15 +334,18 @@ struct StepCheckView: View {
             authoredModelID: model.id,
             modelTitle: model.title,
             stepCount: plan.steps.count,
-            staged: nil,
+            staged: staged,
             admission: recoveryModel.admissionSnapshot,
             conditions: DeviceConditionsProbe.snapshot()
         )
     }
 
-    private func finalizeEvidence(groundTruth: EvidenceGroundTruth) {
+    /// A staged declaration labels the check whether or not the user
+    /// confirms (`VLMStepCheckService.groundTruth`).
+    private func finalizeEvidence(confirmed: Bool) {
         guard let sessionRecorder = recorder else { return }
         recorder = nil
+        let groundTruth = VLMStepCheckService.groundTruth(staged: recordedStaged, plan: plan, step: step, confirmed: confirmed)
         Task.detached(priority: .utility) {
             await sessionRecorder.finalize(estimate: nil, analysisError: nil, groundTruth: groundTruth)
         }

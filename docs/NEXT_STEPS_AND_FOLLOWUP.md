@@ -143,6 +143,16 @@ What it needs, in order:
 - ✅ **Check-trace replay.** Done 2026-09-25: `bricky-harness replay
   --checks` writes `vlm_check` rows that the scorer reports (false-complete
   first). Negatives still require staged check sessions.
+- ✅ **Staged check sessions and the check-target A/B.** Done 2026-09-25:
+  with corpus collection on, Check Step and the AR guide's Photo Check take
+  a staged declaration, which labels the check whatever the user taps, so a
+  build declared short of the checked step is a negative. Photo Check runs
+  at the locked registration; with evidence on, each check also records the
+  target it did not use (`alternate_tile_relative_paths`), and `replay
+  --checks --check-target registered --recompose` pairs the two targets on
+  the same photos. Still owed: a device-side `vlm_check` row writer, so
+  check false-complete can become a release gate rather than a replay
+  number.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
   fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes

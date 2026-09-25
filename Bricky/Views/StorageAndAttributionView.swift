@@ -130,6 +130,9 @@ struct StorageAndAttributionView: View {
                         Picker("Variant vote", selection: $armPlan.variant.vote) {
                             ForEach(RecoveryVoteRule.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }
+                        Picker("Variant check target", selection: $armPlan.variant.checkTarget) {
+                            ForEach(CheckTarget.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
                         LabeledContent("Variant ID", value: armPlan.variant.id)
                     }
                 }

@@ -135,6 +135,32 @@ final class StepVerificationControllerTests: XCTestCase {
         XCTAssertEqual(begins, 2)
     }
 
+    func testSuspensionRefusesFramesAndDropsTheResultInFlight() async {
+        let verifier = GatedVerifier()
+        let controller = await makeController(verifier)
+
+        controller.submit(frame: frame(at: 1.0), registration: registration)
+        await verifier.waitForHeldIngest()
+        controller.suspend()
+        controller.submit(frame: frame(at: 1.5), registration: registration)
+        await verifier.release()
+        for _ in 0..<50 { await Task.yield() }
+
+        var ingested = await verifier.ingested
+        XCTAssertEqual(ingested, [1.0], "no frame reaches the verifier during a photo check")
+        XCTAssertNil(controller.verification, "a verdict finished during the check must not publish")
+        XCTAssertFalse(controller.isStablyComplete)
+
+        controller.resume()
+        controller.submit(frame: frame(at: 2.0), registration: registration)
+        await waitForIngests(verifier, count: 2)
+        for _ in 0..<50 { await Task.yield() }
+        ingested = await verifier.ingested
+        XCTAssertEqual(ingested, [1.0, 2.0])
+        XCTAssertEqual(controller.verification?.timestamp, 2.0)
+        XCTAssertFalse(controller.isStablyComplete, "stability is re-earned after a resume")
+    }
+
     func testStopRefusesFurtherFrames() async {
         let verifier = GatedVerifier()
         await verifier.release()

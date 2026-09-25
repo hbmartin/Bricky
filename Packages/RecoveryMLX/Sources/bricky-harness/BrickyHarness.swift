@@ -85,6 +85,9 @@ struct Replay: AsyncParsableCommand {
     @Option(name: .customLong("image-side"), help: "Resize boards to this side before the vision encoder (baseline 1024).")
     var imageSide: Int = RecoveryInferenceVariant.baselineImageSide
 
+    @Option(name: .customLong("check-target"), help: "Step checks: guide_camera (baseline) or registered. A target other than the recorded one uses the check's alternate tile and needs --recompose.")
+    var checkTarget: CheckTarget = .guideCamera
+
     @Option(help: "A/B arm label recorded on every row (e.g. control, B).")
     var arm: String?
 
@@ -95,7 +98,8 @@ struct Replay: AsyncParsableCommand {
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
         var resolved = RecoveryInferenceVariant(
             decode: decode, vote: vote, uniqueSlots: uniqueSlots, scoring: scoring, slotOrder: slotOrder,
-            boardLayout: board, labels: labels, promptStyle: promptStyle ?? .baseline, imageSide: imageSide, armID: arm
+            boardLayout: board, labels: labels, promptStyle: promptStyle ?? .baseline, imageSide: imageSide,
+            checkTarget: checkTarget, armID: arm
         )
         if let variant {
             resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
@@ -173,7 +177,18 @@ struct Replay: AsyncParsableCommand {
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
             if checks {
-                for row in session.traceRows where row.pass == .check {
+                for recordedRow in session.traceRows where recordedRow.pass == .check {
+                    // Every row replays at the variant's target, so the
+                    // variant_id stays honest; a check never rendered at
+                    // that target has no row in this arm.
+                    guard let row = recordedRow.retargeted(to: variant.checkTarget) else {
+                        print("check \(recordedRow.traceID.uuidString.prefix(8)) has no \(variant.checkTarget.rawValue) tile — no vlm_check row")
+                        continue
+                    }
+                    if row.checkTarget != recordedRow.checkTarget, !recompose {
+                        print("check \(recordedRow.traceID.uuidString.prefix(8)) was recorded at \(recordedRow.checkTarget.rawValue); replaying it at \(row.checkTarget.rawValue) needs --recompose — no vlm_check row")
+                        continue
+                    }
                     let response = try await runtime.checkStepWithTrace(
                         imageURL: try boardURL(for: row, in: session, variant: variant),
                         prompt: promptStyle == nil && variant.boardLayout == .v1
@@ -398,7 +413,8 @@ extension EvidenceTraceRow {
             schemaJSON: schemaJSON, maxTokens: maxTokens, rawOutput: rawOutput, decodeError: decodeError,
             termination: termination, generatedTokens: generatedTokens, latencyMilliseconds: latencyMilliseconds,
             memoryFootprintBytes: memoryFootprintBytes, modelRevision: modelRevision, createdAt: createdAt,
-            variant: variant, inference: inference, conditions: conditions, readouts: readouts, probe: probe
+            variant: variant, inference: inference, conditions: conditions, readouts: readouts, probe: probe,
+            alternateTileRelativePaths: alternateTileRelativePaths
         )
     }
 }
@@ -538,3 +554,4 @@ extension SlotOrder: ExpressibleByArgument {}
 extension BoardLayoutVersion: ExpressibleByArgument {}
 extension TileLabelStyle: ExpressibleByArgument {}
 extension PromptStyle: ExpressibleByArgument {}
+extension CheckTarget: ExpressibleByArgument {}

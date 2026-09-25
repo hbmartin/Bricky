@@ -37,6 +37,14 @@ final class RegistrationController: ObservableObject {
         }
     }
 
+    /// The locked pose as an alignment, for rendering a check target from
+    /// the photo's own camera. Nil unless locked: a refining or ambiguous
+    /// pose would put the target in the wrong place.
+    var lockedAlignment: ARAlignment? {
+        guard let registration, registration.state == .locked else { return nil }
+        return ARAlignment(id: registration.alignmentID, transform: registration.worldFromModel, isTracking: true)
+    }
+
     var statusLabel: String? {
         guard let registration else { return nil }
         switch registration.state {

@@ -31,6 +31,9 @@ final class StepVerificationController: ObservableObject {
     /// Set when the geometric verifier cannot be constructed (no Metal);
     /// surfaced so the guide can explain the missing check.
     @Published private(set) var unavailableReason: String?
+    /// True while a photo check runs the VLM: the verifier's renders would
+    /// share the GPU with inference, so it pauses instead (ADR 0003).
+    @Published private(set) var isSuspended = false
 
     private let makeVerifier: () throws -> any StepVerifying
     private var verifier: (any StepVerifying)?
@@ -119,7 +122,7 @@ final class StepVerificationController: ObservableObject {
     /// immediately: the frame replaces any frame still waiting, and the
     /// worker judges it when the verifier is free.
     func submit(frame: RegistrationFrameInput, registration: ModelRegistration) {
-        guard verifier != nil, acceptingFrames else { return }
+        guard verifier != nil, acceptingFrames, !isSuspended else { return }
         guard frame.timestamp - lastIngestTimestamp >= minimumInterval else { return }
         lastIngestTimestamp = frame.timestamp
         pending = (frame, registration)
@@ -129,13 +132,14 @@ final class StepVerificationController: ObservableObject {
     }
 
     private func drain() async {
-        while let next = pending, let verifier, acceptingFrames {
+        while let next = pending, let verifier, acceptingFrames, !isSuspended {
             pending = nil
             let ingestGeneration = generation
             let result = try? await verifier.ingest(frame: next.frame, registration: next.registration)
             // A begin() or stop() while this ingest was in flight makes the
-            // result stale.
-            guard let result, ingestGeneration == generation else { continue }
+            // result stale; a suspension means the user is looking at a
+            // photo check, and stability must be re-earned after it.
+            guard let result, ingestGeneration == generation, !isSuspended else { continue }
             publish(result, at: next.frame.timestamp)
         }
         worker = nil
@@ -151,6 +155,23 @@ final class StepVerificationController: ObservableObject {
             completeSince = nil
             isStablyComplete = false
         }
+    }
+
+    /// Pauses verification for the length of a photo check. The current
+    /// verdict stays on screen, but the one-tap confirm does not: it needs
+    /// a fresh stable-complete interval after `resume()`. Independent of
+    /// `begin`/`stop`, so a step change during the check stays paused.
+    func suspend() {
+        isSuspended = true
+        pending = nil
+        isStablyComplete = false
+        completeSince = nil
+    }
+
+    func resume() {
+        guard isSuspended else { return }
+        isSuspended = false
+        lastIngestTimestamp = -.infinity
     }
 
     func stop() {

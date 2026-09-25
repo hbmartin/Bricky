@@ -12,6 +12,36 @@ final class ReplayAggregationTests: XCTestCase {
         )
     }
 
+    private func checkRow(variant: RecoveryInferenceVariant?, alternates: [String: String]?) -> EvidenceTraceRow {
+        EvidenceTraceRow(
+            traceVersion: 1, traceID: UUID(), sessionID: UUID(), pass: .check, passIndex: 0, captureID: UUID(),
+            captureAngle: "center", boardRelativePath: "b.jpg", tileRelativePaths: ["A": "tiles/t/A.jpg"],
+            candidateStepIndices: ["A": 4], candidateStepIDs: ["A": "m#5"], prompt: "p", schemaJSON: "{}",
+            maxTokens: 24, rawOutput: #"{"result":"complete"}"#, decodeError: nil, termination: "accepted",
+            generatedTokens: 1, latencyMilliseconds: 1, memoryFootprintBytes: nil, modelRevision: "r",
+            createdAt: .now, variant: variant, alternateTileRelativePaths: alternates
+        )
+    }
+
+    func testCheckRowsRetargetOnlyToARecordedTarget() throws {
+        // Rows from before the axis existed were guide-camera checks.
+        let legacy = checkRow(variant: nil, alternates: nil)
+        XCTAssertEqual(legacy.checkTarget, .guideCamera)
+        XCTAssertEqual(legacy.retargeted(to: .guideCamera)?.tileRelativePaths, legacy.tileRelativePaths)
+        XCTAssertNil(legacy.retargeted(to: .registered), "no registered render was recorded")
+
+        let dual = checkRow(variant: nil, alternates: ["registered": "tiles/t/A.registered.jpg"])
+        let registered = try XCTUnwrap(dual.retargeted(to: .registered))
+        XCTAssertEqual(registered.checkTarget, .registered)
+        XCTAssertEqual(registered.tileRelativePaths["A"], "tiles/t/A.registered.jpg")
+        XCTAssertEqual(registered.alternateTileRelativePaths, ["guide_camera": "tiles/t/A.jpg"])
+        XCTAssertEqual(registered.candidateStepIndices, dual.candidateStepIndices, "the target step never changes")
+        // Round trip: back to the recorded tile.
+        XCTAssertEqual(registered.retargeted(to: .guideCamera)?.tileRelativePaths["A"], "tiles/t/A.jpg")
+
+        XCTAssertNil(row(slots: ["A": "m#1"]).retargeted(to: .guideCamera), "rank rows have no check target")
+    }
+
     func testDecisionsCompareIgnoringWhitespace() throws {
         let legacy = try XCTUnwrap(ReplayDecision(rawOutput: #"{ "status": "matched", "ranking": ["B", "A"]}"#))
         let feedAll = try XCTUnwrap(ReplayDecision(rawOutput: #"{ "status": "matched" , "ranking": [ "B", "A" ] }"#))
