@@ -71,6 +71,15 @@ passed (§1 item 2).
 
 ## 2a. The RGB support term (owed, ADR 0008)
 
+The challenge suite (2026-09-25) now measures the blind spots this term
+and the placement-level diff are meant to close. On `challenge.ldr` at
+seed 7, a colour swap reads complete on 3 of 3 strong steps (the expected
+failure). More urgently, **a brick one plate (3.2 mm) too high also reads
+complete on 3 of 3 strong steps**: the 6 mm depth tolerance swallows the
+offset. That is a false-complete class inside today's product boundary,
+and it is guarded in `fixtures/challenge/baseline.json` so a fix reads as
+an improvement.
+
 `GeometricStepVerifier` refuses a `complete` verdict under marginal
 detectability because ADR 0008 requires depth **and RGB** agreement there and
 the RGB half was never built. Measured on the real-tower fixture: 6 marginal

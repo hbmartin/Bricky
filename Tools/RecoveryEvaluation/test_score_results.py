@@ -27,6 +27,7 @@ from score_results import (
     validate_release_corpus,
     validate_rows,
     validate_triad_release,
+    score_challenge,
 )
 
 RELEASE_ROWS = 60
@@ -244,6 +245,61 @@ class ElevationVarietyTests(unittest.TestCase):
         del rows[0]["capture_elevation_degrees"]
         with self.assertRaisesRegex(SystemExit, "missing fields: capture_elevation_degrees"):
             validate_release_corpus(rows)
+
+
+def challenge_row(challenge_class: str, expected: str, produced: str, *, expected_failure: bool = False) -> dict[str, object]:
+    return {
+        "kind": "verification_challenge",
+        "schema_version": 1,
+        "provenance": "synthetic",
+        "fixture_id": f"challenge-{challenge_class}",
+        "challenge_class": challenge_class,
+        "expected_verdict": expected,
+        "produced_verdict": produced,
+        "expected_failure": expected_failure,
+        "detectability": "strong",
+        "latency_ms": 900,
+    }
+
+
+class ChallengeScoringTests(unittest.TestCase):
+    ROWS = [
+        challenge_row("plate_up1", "misplaced", "complete"),
+        challenge_row("plate_up1", "misplaced", "uncertain"),
+        challenge_row("shift1z", "misplaced", "misplaced"),
+        challenge_row("rot180_symmetric", "complete", "complete"),
+        challenge_row("rot180_symmetric", "complete", "misplaced"),
+        challenge_row("colour_swap", "misplaced", "complete", expected_failure=True),
+        challenge_row("colour_swap", "misplaced", "uncertain", expected_failure=True),
+    ]
+
+    def test_per_class_accounting(self) -> None:
+        report = score_challenge(self.ROWS)
+        plate = report["by_class"]["plate_up1"]
+        self.assertEqual((plate["cases"], plate["false_complete_cases"], plate["abstained"]), (2, 1, 1))
+        self.assertEqual(report["by_class"]["shift1z"]["caught"], 1)
+        symmetric = report["by_class"]["rot180_symmetric"]
+        self.assertEqual((symmetric["correct_complete"], symmetric["false_alarms"]), (1, 1))
+
+    def test_expected_failures_are_counted_apart(self) -> None:
+        report = score_challenge(self.ROWS)
+        colour = report["by_class"]["colour_swap"]
+        self.assertEqual((colour["xfail"], colour["xpass"]), (1, 1))
+        self.assertEqual(report["false_complete_cases"], 1, "only plate_up1's false complete is unexpected")
+        self.assertEqual(report["expected_failure_false_complete_cases"], 1)
+
+    def test_challenge_lines_print_after_the_headline_and_never_gate(self) -> None:
+        code, output = MainTests.run_main(self.ROWS)
+        self.assertEqual(code, 0)
+        lines = output.splitlines()
+        self.assertTrue(lines[0].startswith("FALSE_COMPLETE_RATE"))
+        self.assertIn("CHALLENGE_FALSE_COMPLETE plate_up1 1/2", lines)
+        self.assertIn("CHALLENGE_FALSE_COMPLETE colour_swap 1/2 XFAIL", lines)
+
+    def test_challenge_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main(self.ROWS, informational=False)
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
 
 
 class TriadReleaseProvenanceTests(unittest.TestCase):

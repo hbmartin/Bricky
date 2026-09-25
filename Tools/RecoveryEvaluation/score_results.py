@@ -50,6 +50,10 @@ KINDS = ("recovery", "verification", "registration")
 # anything. They pass through to the report (and to check_regression, which
 # guards their counts) but are never scored and never release evidence.
 SUMMARY_KINDS = ("synthetic_summary",)
+# Challenge-set rows: mistake classes the regression taxonomy lacks, some of
+# them unsolvable by depth alone. Reported per class, never gated, never
+# release evidence.
+CHALLENGE_KIND = "verification_challenge"
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -721,11 +725,88 @@ def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object]
     return report, gates
 
 
+# --- Challenge set (kind == "verification_challenge") -----------------------
+
+
+def validate_challenge_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows, start=1):
+        label = f"challenge row {index}"
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"{label} has unsupported schema")
+        missing = sorted({"fixture_id", "challenge_class", "expected_verdict", "produced_verdict",
+                          "detectability", "expected_failure", "latency_ms"} - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if not isinstance(row["challenge_class"], str) or not row["challenge_class"]:
+            raise SystemExit(f"{label} challenge_class must be a non-empty string")
+        if row["expected_verdict"] not in VERDICTS or row["produced_verdict"] not in VERDICTS:
+            raise SystemExit(f"{label} has an invalid verdict")
+        if row["detectability"] not in DETECTABILITY:
+            raise SystemExit(f"{label} has invalid detectability")
+        if not isinstance(row["expected_failure"], bool):
+            raise SystemExit(f"{label} expected_failure must be a boolean")
+        require_valid_latency(row, label)
+
+
+def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
+    """Per-class accounting. A false complete — "complete" where the build is
+    wrong — is the number that matters. In an expected-failure class it is
+    counted as `xfail` (the known blind spot, e.g. a colour swap depth cannot
+    see); a class that stops failing reports `xpass`."""
+    validate_challenge_rows(rows)
+    by_class: dict[str, dict[str, object]] = {}
+    for row in rows:
+        entry = by_class.setdefault(row["challenge_class"], {
+            "cases": 0,
+            "expected_failure": row["expected_failure"],
+            "produced": {verdict: 0 for verdict in sorted(VERDICTS)},
+            "false_complete_cases": 0,
+            "caught": 0,
+            "abstained": 0,
+            "correct_complete": 0,
+            "false_alarms": 0,
+        })
+        entry["cases"] += 1
+        entry["produced"][row["produced_verdict"]] += 1
+        produced, expected = row["produced_verdict"], row["expected_verdict"]
+        if produced == "uncertain":
+            entry["abstained"] += 1
+        if expected == "complete":
+            entry["correct_complete"] += produced == "complete"
+            entry["false_alarms"] += produced in {"incomplete", "misplaced"}
+        else:
+            entry["false_complete_cases"] += produced == "complete"
+            entry["caught"] += produced in {"incomplete", "misplaced"}
+    for entry in by_class.values():
+        if entry["expected_failure"]:
+            entry["xfail"] = entry["false_complete_cases"]
+            entry["xpass"] = entry["cases"] - entry["false_complete_cases"]
+    return {
+        "cases": len(rows),
+        "false_complete_cases": sum(
+            entry["false_complete_cases"] for entry in by_class.values() if not entry["expected_failure"]
+        ),
+        "expected_failure_false_complete_cases": sum(
+            entry["false_complete_cases"] for entry in by_class.values() if entry["expected_failure"]
+        ),
+        "by_class": by_class,
+    }
+
+
+def challenge_lines(report: dict[str, object]) -> list[str]:
+    lines = []
+    for name, entry in sorted(report["by_class"].items()):
+        negatives = entry["cases"] - entry["correct_complete"] - entry["false_alarms"]
+        suffix = " XFAIL" if entry["expected_failure"] else ""
+        lines.append(f"CHALLENGE_FALSE_COMPLETE {name} {entry['false_complete_cases']}/{negatives}{suffix}")
+    return lines
+
+
 # --- Entry -------------------------------------------------------------------
 
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
-    kinds: dict[str, list[dict[str, object]]] = {kind: [] for kind in KINDS + SUMMARY_KINDS}
+    kinds: dict[str, list[dict[str, object]]] = {kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND,)}
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
         if kind not in kinds:
@@ -812,6 +893,8 @@ def main(
         for kind in SUMMARY_KINDS:
             if kinds[kind]:
                 raise SystemExit(f"{kind} rows describe a synthetic corpus and are not release evidence")
+        if kinds[CHALLENGE_KIND]:
+            raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -828,6 +911,8 @@ def main(
     for kind in SUMMARY_KINDS:
         if kinds[kind]:
             report[kind] = kinds[kind]
+    if kinds[CHALLENGE_KIND]:
+        report[CHALLENGE_KIND] = score_challenge(kinds[CHALLENGE_KIND])
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -836,6 +921,9 @@ def main(
         None,
     )
     print(headline(report.get("verification"), false_complete_gate, release=release))
+    if CHALLENGE_KIND in report:
+        for line in challenge_lines(report[CHALLENGE_KIND]):
+            print(line)
 
     failed = False
     for kind in KINDS:

@@ -33,7 +33,7 @@ import json
 import sys
 from pathlib import Path
 
-from score_results import partition, score_registration, score_verification
+from score_results import CHALLENGE_KIND, partition, score_challenge, score_registration, score_verification
 
 LOWER_IS_BETTER = "lower_is_better"
 HIGHER_IS_BETTER = "higher_is_better"
@@ -95,6 +95,8 @@ def measure(path: Path) -> dict[str, float]:
         report["verification"], _ = score_verification(kinds["verification"])
     if kinds["registration"]:
         report["registration"], _ = score_registration(kinds["registration"])
+    if kinds[CHALLENGE_KIND]:
+        report["challenge"] = score_challenge(kinds[CHALLENGE_KIND])
     return flatten(report)
 
 

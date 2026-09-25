@@ -56,6 +56,7 @@
 		7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */; };
 		7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */; };
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
+		80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
 		84F184173E6E02B3A9F5A693 /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */; };
 		860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
@@ -156,6 +157,7 @@
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
 		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
 		5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanBuilder.swift; sourceTree = "<group>"; };
+		60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeScenario.swift; sourceTree = "<group>"; };
 		61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealityKitInstructionAdapter.swift; sourceTree = "<group>"; };
 		62E1EF565595993B80170831 /* EvidenceExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceExporter.swift; sourceTree = "<group>"; };
 		6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawInstructionParser.swift; sourceTree = "<group>"; };
@@ -301,6 +303,7 @@
 		33AC7A23F6AE57327503A64F /* SyntheticScenes */ = {
 			isa = PBXGroup;
 			children = (
+				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
 				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
 			);
@@ -640,6 +643,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */,
 				C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */,
 				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
 				574A0E1C907C0846D18ECD46 /* GeometricRecoveryEstimator.swift in Sources */,

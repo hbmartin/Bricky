@@ -59,6 +59,12 @@ until then is manual alignment plus VLM recovery and step checking.
   app: LiDAR-class AR, an `iPhone<≥18>,<n>` identifier, and 12 GB-class
   memory (ADR 0012). Below it the app shows an explanation, not a degraded
   mode.
+- **Challenge set** — synthetic mistake classes beyond the regression
+  taxonomy (`SyntheticRGBD --suite challenge`), reported per class and never
+  gated or used as release evidence. An **expected failure** is a class
+  the current sensors cannot catch by construction (a colour swap under
+  depth-only verification); it is counted as `xfail` until the capability
+  lands.
 - **Admission** — the runtime resource gate for the on-device VLM only
   (ADR 0003). Geometric features are never admission-gated.
 
@@ -171,6 +177,14 @@ python3 score_results.py synthetic.ndjson --allow-small-corpus
 # guard that stopped being measured unless it is named with --drop.
 python3 check_regression.py synthetic.ndjson \
   --baseline ../SyntheticScenes/fixtures/real-tower/baseline.json
+
+# The challenge suite: mistake classes the regression taxonomy lacks, scored
+# per class and never gated. Its baseline records today's known false
+# completes (a brick one plate too high; colour swaps, an expected failure).
+SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+  --ldraw-root /path/to/ldraw --out challenge.ndjson --seed 7 --suite challenge
+python3 check_regression.py challenge.ndjson \
+  --baseline ../SyntheticScenes/fixtures/challenge/baseline.json
 ```
 
 ## Release gates still requiring physical assets or devices

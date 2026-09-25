@@ -1,0 +1,28 @@
+0 Challenge-set fixture: one part per step on the real-tower 8x10-stud base,
+0 so each injected mistake (Z shift, plate off by one, rotation, wrong part,
+0 colour swap) is unambiguous. Every part sits on the base's stud lattice.
+0 Name: challenge.ldr
+0 !LDRAW_ORG Model
+1 4 -40 0 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 4 40 0 -80 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 -40 0 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 40 0 -40 1 0 0 0 1 0 0 0 1 3001.dat
+1 14 -40 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 14 40 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 -40 0 40 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 40 0 40 1 0 0 0 1 0 0 0 1 3001.dat
+1 4 -40 0 80 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 40 0 80 1 0 0 0 1 0 0 0 1 3001.dat
+0 STEP
+1 4 -40 -24 -80 1 0 0 0 1 0 0 0 1 3001.dat
+0 STEP
+1 1 40 -24 -80 1 0 0 0 1 0 0 0 1 3003.dat
+0 STEP
+1 14 -40 -24 -20 1 0 0 0 1 0 0 0 1 3039.dat
+0 STEP
+1 2 40 -8 -20 1 0 0 0 1 0 0 0 1 3020.dat
+0 STEP
+1 4 -50 -24 60 1 0 0 0 1 0 0 0 1 3040b.dat
+0 STEP
+1 1 40 -24 70 1 0 0 0 1 0 0 0 1 3004.dat
+0 STEP

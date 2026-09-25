@@ -202,7 +202,11 @@ struct SyntheticScene {
     private let viewDistance: Float
     private let tableBuffer: LDrawGeometryBuffer
 
-    init(renderer: ExpectedDepthRenderer, model: InstructionGeometrySnapshot) {
+    /// `minimumExtent` floors the camera framing (the eye sits about 1.66×
+    /// this from the model). The regression corpus keeps 0.35 m (≈ 58 cm);
+    /// the challenge suite frames single parts at a handheld distance, since
+    /// one part at 58 cm covers too few depth pixels to be judged at all.
+    init(renderer: ExpectedDepthRenderer, model: InstructionGeometrySnapshot, minimumExtent: Float = 0.35) {
         self.renderer = renderer
         self.model = model
         var minimum = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
@@ -214,7 +218,7 @@ struct SyntheticScene {
             }
         }
         let center = (minimum + maximum) / 2
-        let extent = max(0.35, simd_length(maximum - minimum) / 2 * 3)
+        let extent = max(minimumExtent, simd_length(maximum - minimum) / 2 * 3)
         boundsCenter = center
         viewDistance = extent
         let up = SIMD3<Float>(0, 1, 0)
@@ -268,6 +272,40 @@ struct SyntheticScene {
                 target: center
             ),
         ]
+    }
+
+    /// Whether two snapshots are indistinguishable to depth: ideal renders
+    /// from both verification views and from overhead differ nowhere by more
+    /// than `tolerance`. The oracle for "symmetric" in the challenge suite —
+    /// a rotated part that renders identically is a correct build as far as
+    /// any depth verifier can know.
+    func depthEquivalent(
+        _ lhs: InstructionGeometrySnapshot,
+        _ rhs: InstructionGeometrySnapshot,
+        tolerance: Float = 0.0005
+    ) throws -> Bool {
+        let overhead = lookAt(
+            eye: SIMD3(boundsCenter.x, boundsCenter.y + viewDistance, boundsCenter.z + viewDistance * 0.01),
+            target: boundsCenter
+        )
+        for pose in viewPoses + [overhead] {
+            let maps = try [lhs, rhs].map { snapshot in
+                try renderer.render(
+                    snapshot: snapshot,
+                    viewFromModel: pose.inverse,
+                    intrinsics: intrinsics,
+                    width: width,
+                    height: height
+                )
+            }
+            for index in maps[0].depth.indices {
+                let (a, b) = (maps[0].depth[index], maps[1].depth[index])
+                if (a > 0) != (b > 0) || abs(a - b) > tolerance {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     func frame(
@@ -443,13 +481,7 @@ enum Row {
         verification: StepVerification,
         latencyMilliseconds: Int
     ) throws -> String {
-        let produced: String
-        switch verification.verdict {
-        case .complete: produced = "complete"
-        case .incomplete: produced = "incomplete"
-        case .misplaced: produced = "misplaced"
-        case .uncertain: produced = "uncertain"
-        }
+        let produced = producedVerdict(verification.verdict)
         return try encode([
             "kind": "verification",
             "provenance": "synthetic",
@@ -461,5 +493,37 @@ enum Row {
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
         ])
+    }
+
+    static func challenge(
+        fixture: String,
+        challengeClass: String,
+        expected: String,
+        expectedFailure: Bool,
+        verification: StepVerification,
+        latencyMilliseconds: Int
+    ) throws -> String {
+        try encode([
+            "kind": "verification_challenge",
+            "provenance": "synthetic",
+            "schema_version": 1,
+            "fixture_id": fixture,
+            "challenge_class": challengeClass,
+            "expected_verdict": expected,
+            "expected_failure": expectedFailure,
+            "produced_verdict": producedVerdict(verification.verdict),
+            "detectability": verification.detectability.rawValue,
+            "frames_used": verification.framesUsed,
+            "latency_ms": latencyMilliseconds,
+        ])
+    }
+
+    static func producedVerdict(_ verdict: StepVerdict) -> String {
+        switch verdict {
+        case .complete: "complete"
+        case .incomplete: "incomplete"
+        case .misplaced: "misplaced"
+        case .uncertain: "uncertain"
+        }
     }
 }

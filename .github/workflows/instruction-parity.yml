@@ -100,6 +100,30 @@ jobs:
         run: |
           python3 ../RecoveryEvaluation/score_results.py \
             "$RUNNER_TEMP/synthetic.ndjson" --allow-small-corpus
+      # The challenge suite: mistake classes the regression taxonomy lacks
+      # (Z shift, plate off by one, rotations, wrong part, colour swap), on
+      # their own RNG stream and baseline. Blocking on regression only: its
+      # baseline records today's known false completes, so a fix reads as
+      # an improvement and a new one fails.
+      - name: Run SyntheticRGBD challenge suite
+        working-directory: Tools/SyntheticScenes
+        run: |
+          "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+            fixtures/challenge/challenge.ldr \
+            --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+            --out "$RUNNER_TEMP/challenge.ndjson" --seed 7 --suite challenge
+      - name: Check challenge regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/challenge.ndjson" \
+            --baseline fixtures/challenge/baseline.json
+      - name: Score challenge suite (informational)
+        working-directory: Tools/SyntheticScenes
+        continue-on-error: true
+        run: |
+          python3 ../RecoveryEvaluation/score_results.py \
+            "$RUNNER_TEMP/challenge.ndjson" --informational
 
   swift-parity:
     # The Xcode 27 image carries the iOS 27 SDK required by the project's
