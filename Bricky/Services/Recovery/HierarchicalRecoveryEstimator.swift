@@ -13,20 +13,22 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
     /// Present only when the developer evidence toggle is on; recording is a
     /// pure observer and must never change the estimate.
     private let recorder: RecoveryEvidenceRecorder?
-    private let voteRule: RecoveryVoteRule
+    /// The VLM-path variant this estimate runs (ADR 0010 amendment): vote
+    /// rule, decoder feeding, slot uniqueness. Recorded on every trace.
+    private let variant: RecoveryInferenceVariant
 
     init(
         runtime: MLXRecoveryRuntime,
         modelDirectory: URL,
         partPackRoot: URL,
         recorder: RecoveryEvidenceRecorder? = nil,
-        voteRule: RecoveryVoteRule = .bordaDedup
+        variant: RecoveryInferenceVariant = .baseline
     ) {
         self.runtime = runtime
         self.modelDirectory = modelDirectory
         self.partPackRoot = partPackRoot
         self.recorder = recorder
-        self.voteRule = voteRule
+        self.variant = variant
     }
 
     func estimate(captures: [RecoveryCapture], model: InstructionPlan, alignment: ARAlignment) async throws -> RecoveryEstimate {
@@ -88,7 +90,7 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             guard result.status == "matched" else { continue }
             views.append(RecoveryVoteView(ranking: result.ranking.map { $0.uppercased() }, candidateForSlot: slotMap))
         }
-        guard let vote = RecoveryVote.aggregate(views: views, finalists: finalists, rule: voteRule) else {
+        guard let vote = RecoveryVote.aggregate(views: views, finalists: finalists, rule: variant.vote) else {
             return insufficient(captures: captures, started: started, cause: .finalistQuorumNotReached)
         }
         let duration = started.duration(to: .now)
@@ -126,7 +128,14 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         let board = try await RecoveryBoardComposer.compose(physicalViewURL: captureURL, candidates: candidates)
         defer { try? FileManager.default.removeItem(at: board) }
         let prompt = "The large top image is a physical brick build. The labeled renders A–H are cumulative authored instruction steps in one fixed model frame. Rank the closest labels from best to worst. Return insufficient when angle, occlusion, or evidence cannot support a comparison."
-        let response = try await runtime.rankWithTrace(imageURL: board, prompt: prompt, candidateCount: candidates.count, modelDirectory: modelDirectory)
+        let response = try await runtime.rankWithTrace(
+            imageURL: board,
+            prompt: prompt,
+            candidateCount: candidates.count,
+            modelDirectory: modelDirectory,
+            decode: variant.decode,
+            uniqueSlots: variant.uniqueSlots
+        )
         if let recorder {
             // Runs before the defer removes the board, so the recorder can
             // copy the exact image the model saw.
@@ -146,7 +155,7 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
                 boardURL: board,
                 prompt: prompt,
                 trace: response.trace,
-                variant: RecoveryInferenceVariant(vote: voteRule)
+                variant: variant
             )
         }
         guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }

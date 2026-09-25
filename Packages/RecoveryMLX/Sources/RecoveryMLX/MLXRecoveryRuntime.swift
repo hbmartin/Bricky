@@ -22,11 +22,13 @@ public enum MLXRecoveryError: LocalizedError {
     /// text-only when its image list is empty; a comparison board the model
     /// never saw must fail loudly instead.
     case imageInputDropped
+    case variantRequiresFork(String)
 
     public var errorDescription: String? {
         switch self {
         case .invalidStructuredOutput: "The on-device model did not produce a valid guided result."
         case .imageInputDropped: "The on-device model received no image for this comparison."
+        case .variantRequiresFork(let axis): "The \(axis) variant needs the forked decoder, not decode=upstream."
         }
     }
 }
@@ -104,7 +106,8 @@ public actor MLXRecoveryRuntime {
         candidateCount: Int,
         modelDirectory: URL,
         maxTokens: Int? = nil,
-        decode: DecodeMode = .legacy
+        decode: DecodeMode = .legacy,
+        uniqueSlots: Bool = false
     ) async throws -> MLXRankResponse {
         let generated = try await generate(
             imageURL: imageURL,
@@ -112,7 +115,8 @@ public actor MLXRecoveryRuntime {
             kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
             maxTokens: maxTokens ?? Self.rankMaxTokens,
-            decode: decode
+            decode: decode,
+            uniqueSlots: uniqueSlots
         )
         var output: MLXRankOutput?
         var decodeError: String?
@@ -145,7 +149,8 @@ public actor MLXRecoveryRuntime {
             kind: .check,
             modelDirectory: modelDirectory,
             maxTokens: Self.checkMaxTokens,
-            decode: decode
+            decode: decode,
+            uniqueSlots: false
         )
         var output: MLXStepCheckOutput?
         var decodeError: String?
@@ -246,8 +251,14 @@ public actor MLXRecoveryRuntime {
         kind: GrammarKind,
         modelDirectory: URL,
         maxTokens: Int,
-        decode: DecodeMode
+        decode: DecodeMode,
+        uniqueSlots: Bool
     ) async throws -> GeneratedText {
+        // Unique slots needs the forked decoder's mask; the upstream loop
+        // cannot apply it.
+        if uniqueSlots, decode == .upstream {
+            throw MLXRecoveryError.variantRequiresFork("unique_slots")
+        }
         try Task.checkCancellation()
         let container = try await modelContainer(modelDirectory: modelDirectory)
         let cache = try await grammarResources(container: container)
@@ -266,6 +277,10 @@ public actor MLXRecoveryRuntime {
             kind: kind,
             maxTokens: maxTokens,
             decode: decode,
+            uniqueSlotLetters: {
+                guard uniqueSlots, case .rank(let slotCount) = kind else { return nil }
+                return Set(Self.rankSlotLetters.prefix(min(max(slotCount, 1), Self.rankSlotLetters.count)).compactMap(\.first))
+            }(),
             cache: cache
         )) { context, values in
             let signpost = Self.signposter.beginInterval("Generate", id: Self.signposter.makeSignpostID(), "\(values.decode.rawValue)")
@@ -299,6 +314,7 @@ public actor MLXRecoveryRuntime {
                     maxTokens: values.maxTokens,
                     vocabSize: values.cache.tokenizer.vocabSize,
                     feeding: feeding,
+                    uniqueSlotLetters: values.uniqueSlotLetters,
                     emit: emit
                 )
                 // Same trace semantics as the upstream path below: an
@@ -446,6 +462,7 @@ private struct GenerationValues: @unchecked Sendable {
     let kind: MLXRecoveryRuntime.GrammarKind
     let maxTokens: Int
     let decode: DecodeMode
+    let uniqueSlotLetters: Set<Character>?
     let cache: GrammarCache
 }
 

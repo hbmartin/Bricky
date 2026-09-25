@@ -75,3 +75,31 @@ final class RecoveryDecoderParityTests: XCTestCase {
         XCTAssertLessThanOrEqual(telemetry.emittedTokens - telemetry.fedTokens, 1)
     }
 }
+
+final class RecoveryVariantModelTests: XCTestCase {
+    private static let runtime = MLXRecoveryRuntime()
+
+    func testUniqueSlotsNeverRepeatsALetterAndFeedAllKeepsTheCacheWhole() async throws {
+        let model = try TestBoards.modelDirectory()
+        let response = try await Self.runtime.rankWithTrace(
+            imageURL: try TestBoards.board(slots: 8, in: FileManager.default.temporaryDirectory),
+            prompt: TestBoards.rankPrompt, candidateCount: 8, modelDirectory: model,
+            decode: .feedAll, uniqueSlots: true
+        )
+        let output = try XCTUnwrap(response.output)
+        print("unique+feed_all rank 8: \(response.trace.rawOutput)")
+        XCTAssertEqual(Set(output.ranking).count, output.ranking.count, "no repeated slot")
+        let telemetry = try XCTUnwrap(response.trace.telemetry)
+        XCTAssertEqual(telemetry.cacheHeldEveryEmittedToken, true)
+        XCTAssertNotNil(telemetry.maskedRepeatSlots)
+    }
+
+    func testLegacyReportsTheBrokenCacheInvariant() async throws {
+        let model = try TestBoards.modelDirectory()
+        let response = try await Self.runtime.rankWithTrace(
+            imageURL: try TestBoards.board(slots: 3, in: FileManager.default.temporaryDirectory),
+            prompt: TestBoards.rankPrompt, candidateCount: 3, modelDirectory: model, decode: .legacy
+        )
+        XCTAssertEqual(response.trace.telemetry?.cacheHeldEveryEmittedToken, false)
+    }
+}

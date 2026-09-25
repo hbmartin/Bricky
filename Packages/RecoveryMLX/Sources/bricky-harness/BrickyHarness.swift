@@ -64,6 +64,9 @@ struct Replay: AsyncParsableCommand {
     @Flag(help: "Also replay step-check traces into <out>.checks.ndjson as vlm_check rows (false-complete first).")
     var checks = false
 
+    @Flag(name: .customLong("unique-slots"), help: "Mask slot letters already in the ranking (the unique_slots variant).")
+    var uniqueSlots = false
+
     @Option(help: "A/B arm label recorded on every row (e.g. control, B).")
     var arm: String?
 
@@ -72,7 +75,7 @@ struct Replay: AsyncParsableCommand {
 
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
-        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, armID: arm)
+        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, uniqueSlots: uniqueSlots, armID: arm)
         if let variant {
             resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
             if resolved.armID == nil { resolved.armID = arm }
@@ -119,7 +122,8 @@ struct Replay: AsyncParsableCommand {
                     candidateCount: row.candidateStepIDs.count,
                     modelDirectory: modelURL,
                     maxTokens: maxTokens,
-                    decode: variant.decode
+                    decode: variant.decode,
+                    uniqueSlots: variant.uniqueSlots
                 )
                 replayLatency += response.trace.latencyMilliseconds
                 if row.pass == .finalist {

@@ -11,6 +11,25 @@ import MLX
 import MLXGuidedGeneration
 import MLXLMCommon
 
+/// The unique-slots variant, as a pure decision: which legal tokens would
+/// repeat a slot letter already in the ranking. Letters are uppercase A–H,
+/// which appear nowhere else in the rank grammar (keys and enum values are
+/// lowercase), so a legal token carrying one is a slot choice.
+public enum SlotUniqueness {
+    public static func slotLetters(in text: String, allowed: Set<Character>) -> Set<Character> {
+        Set(text.filter { allowed.contains($0) })
+    }
+
+    /// Legal tokens to mask because their text names an already-emitted
+    /// letter. The grammar's `maxItems` equals the slot count, so once every
+    /// letter is used it requires `]`: a legal letter always remains while
+    /// one is needed.
+    public static func blockedTokens(legal: [Int], text: (Int) -> String, emitted: Set<Character>, allowed: Set<Character>) -> [Int] {
+        guard !emitted.isEmpty else { return [] }
+        return legal.filter { !slotLetters(in: text($0), allowed: allowed).isDisjoint(with: emitted) }
+    }
+}
+
 /// Grammar-constrained greedy decoding, forked from the pinned
 /// `GuidedGenerationLoop.run` so Bricky can choose how the cache is fed and
 /// see what each call cost. In `.legacy` it samples, emits, and feeds exactly
@@ -36,6 +55,7 @@ enum RecoveryGuidedDecoder {
         maxTokens: Int,
         vocabSize: Int,
         feeding: DecodeFeeding,
+        uniqueSlotLetters: Set<Character>? = nil,
         recordReadouts: Bool = true,
         emit: (String) -> Bool
     ) throws -> Result {
@@ -72,6 +92,9 @@ enum RecoveryGuidedDecoder {
         var droppedSampledTokens = 0
         var grammarStopped = false
         var readouts: [DecisionReadout] = []
+        var emittedSlots: Set<Character> = []
+        var maskedRepeatSlots = 0
+        var cacheHeldEveryEmittedToken = true
 
         let logitDim = logits.shape[logits.ndim - 1]
         var mask = try constraint.computeMask()
@@ -93,12 +116,33 @@ enum RecoveryGuidedDecoder {
                 break
             }
 
-            let legal = recordReadouts && mask.needsApply
+            // The invariant feed_all exists to keep: everything emitted so far
+            // is in the cache the model conditions on.
+            if cache.first?.offset != promptTokens + sampledTokens + forcedTokens {
+                cacheHeldEveryEmittedToken = false
+                assert(feeding != .feedAll, "feed_all left an emitted token out of the KV cache")
+            }
+            let legal = (recordReadouts || uniqueSlotLetters != nil) && mask.needsApply
                 ? DecisionReadout.legalTokens(mask: mask.mask, vocabSize: vocabSize, limit: readoutLegalLimit)
                 : nil
-            let token = applyMaskAndSample(logits: logits, maskArray: maskArray)
+            var sampleMask = maskArray
+            if let allowed = uniqueSlotLetters, let legal {
+                let blocked = SlotUniqueness.blockedTokens(
+                    legal: legal, text: { context.tokenizer.decode(tokenIds: [$0]) }, emitted: emittedSlots, allowed: allowed
+                )
+                if !blocked.isEmpty, let base = maskArray {
+                    var penalty = [Float](repeating: 0, count: logitDim)
+                    for id in blocked where id < logitDim { penalty[id] = -Float.infinity }
+                    sampleMask = base + MLXArray(penalty)
+                    maskedRepeatSlots += blocked.count
+                }
+            }
+            let token = applyMaskAndSample(logits: logits, maskArray: sampleMask)
             let tokenId = Int(token)
-            if let legal, legal.count > 1 {
+            if let allowed = uniqueSlotLetters {
+                emittedSlots.formUnion(SlotUniqueness.slotLetters(in: context.tokenizer.decode(tokenIds: [tokenId]), allowed: allowed))
+            }
+            if recordReadouts, let legal, legal.count > 1 {
                 readouts.append(readout(
                     logits: logits, legal: legal, chosen: tokenId, position: tokenCount, tokenizer: context.tokenizer
                 ))
@@ -171,7 +215,9 @@ enum RecoveryGuidedDecoder {
             fedTokens: fedTokens,
             droppedSampledTokens: droppedSampledTokens,
             cacheOffset: cache.first?.offset,
-            fastForwardDisagreements: constraint.fastForwardDisagreementCount
+            fastForwardDisagreements: constraint.fastForwardDisagreementCount,
+            cacheHeldEveryEmittedToken: cacheHeldEveryEmittedToken,
+            maskedRepeatSlots: uniqueSlotLetters == nil ? nil : maskedRepeatSlots
         )
         return Result(
             tokenCount: tokenCount,

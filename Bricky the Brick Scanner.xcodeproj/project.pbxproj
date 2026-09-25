@@ -14,6 +14,7 @@
 		07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
+		1A5FCBEABA863BC103FB9EB4 /* InferenceArmSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
 		1C0634CD58489B3AFF5A450E /* BuildSessionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */; };
 		1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */; };
@@ -52,6 +53,7 @@
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
+		742664211DBD1A5C9D568F80 /* InferenceArmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */; };
 		74656C2296FF82B28D491C39 /* DeviceFloor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85778E2B3323B8DD913494D2 /* DeviceFloor.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
 		773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A84BA4D548E212777156661 /* StorageLayoutTests.swift */; };
@@ -162,6 +164,7 @@
 		4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorder.swift; sourceTree = "<group>"; };
 		4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticScene.swift; sourceTree = "<group>"; };
 		4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAndAttributionView.swift; sourceTree = "<group>"; };
+		4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceArmScheduler.swift; sourceTree = "<group>"; };
 		4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidence.swift; sourceTree = "<group>"; };
 		53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawPartPackManager.swift; sourceTree = "<group>"; };
 		5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeVisionProviderTests.swift; sourceTree = "<group>"; };
@@ -170,6 +173,7 @@
 		571268454507EF3A2A480B47 /* LDConfigPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDConfigPalette.swift; sourceTree = "<group>"; };
 		57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticRGBDMain.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
+		5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceArmSchedulerTests.swift; sourceTree = "<group>"; };
 		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
 		5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionPlanBuilder.swift; sourceTree = "<group>"; };
 		60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeScenario.swift; sourceTree = "<group>"; };
@@ -285,6 +289,7 @@
 				A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */,
 				91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */,
 				CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */,
+				5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */,
 				C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */,
 				E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */,
 				D625F39686D2FB098AF88098 /* InstructionPlanTests.swift */,
@@ -491,6 +496,7 @@
 				62E1EF565595993B80170831 /* EvidenceExporter.swift */,
 				F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
+				4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */,
 				789BB736F6B7F975CF21E99B /* ModelDelivery.swift */,
 				FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */,
 				F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */,
@@ -711,6 +717,7 @@
 				BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */,
 				47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */,
 				9CEDE71693F4003CA5856302 /* GeometricStepVerifierTests.swift in Sources */,
+				1A5FCBEABA863BC103FB9EB4 /* InferenceArmSchedulerTests.swift in Sources */,
 				66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */,
 				7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */,
 				87AD3B1CAB457CD894B05631 /* InstructionPlanTests.swift in Sources */,
@@ -759,6 +766,7 @@
 				644FC9E3C196DDE3F54F4C17 /* GeometrySignposts.swift in Sources */,
 				493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */,
 				D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */,
+				742664211DBD1A5C9D568F80 /* InferenceArmScheduler.swift in Sources */,
 				644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */,
 				CD49D3725C0BF1E2B0080A84 /* InstructionLibraryController.swift in Sources */,
 				BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */,

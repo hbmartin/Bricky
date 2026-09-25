@@ -10,6 +10,7 @@ struct StorageAndAttributionView: View {
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
     @State private var confirmModelRemoval = false
+    @State private var armPlan = InferenceArmScheduler().plan
     @State private var modelRemovalError: String?
 
     var body: some View {
@@ -97,6 +98,23 @@ struct StorageAndAttributionView: View {
                 Toggle("Corpus collection mode", isOn: $corpusCollectionEnabled)
                     .disabled(!evidenceCaptureEnabled)
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
+                if evidenceCaptureEnabled {
+                    Picker("Inference arms", selection: $armPlan.mode) {
+                        Text("Baseline only").tag(InferenceArmScheduler.Mode.off)
+                        Text("Variant every time").tag(InferenceArmScheduler.Mode.single)
+                        Text("Interleave A/B").tag(InferenceArmScheduler.Mode.interleave)
+                    }
+                    if armPlan.mode != .off {
+                        Picker("Variant decoder", selection: $armPlan.variant.decode) {
+                            ForEach(DecodeMode.allCases.filter { $0 != .upstream }, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Toggle("Variant: unique slots", isOn: $armPlan.variant.uniqueSlots)
+                        Picker("Variant vote", selection: $armPlan.variant.vote) {
+                            ForEach(RecoveryVoteRule.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        LabeledContent("Variant ID", value: armPlan.variant.id)
+                    }
+                }
             } header: {
                 Text("Developer")
             } footer: {
@@ -104,6 +122,7 @@ struct StorageAndAttributionView: View {
             }
         }
         .navigationTitle("Storage")
+        .onChange(of: armPlan) { _, plan in InferenceArmScheduler().plan = plan }
         .alert("Keychain Error", isPresented: Binding(get: { keychainError != nil }, set: { if !$0 { keychainError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(keychainError ?? "") }

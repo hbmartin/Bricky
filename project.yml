@@ -130,6 +130,7 @@ targets:
       - BrickyTests/BuildSessionControllerTests.swift
       - BrickyTests/PartDescriptionIndexTests.swift
       - BrickyTests/DocumentOpenRouterTests.swift
+      - BrickyTests/InferenceArmSchedulerTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

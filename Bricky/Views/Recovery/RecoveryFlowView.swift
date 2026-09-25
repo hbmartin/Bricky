@@ -342,7 +342,11 @@ struct RecoveryFlowView: View {
                 // Nil unless the model is admitted: then an inconclusive
                 // depth fit returns insufficient and the manual picker takes
                 // over.
-                let vlmEstimator = recoveryModel.makeVLMEstimator(partPackRoot: partPackRoot, recorder: sessionRecorder)
+                let vlmEstimator = recoveryModel.makeVLMEstimator(
+                    partPackRoot: partPackRoot,
+                    recorder: sessionRecorder,
+                    variant: InferenceArmScheduler().next(evidenceEnabled: evidenceCaptureEnabled)
+                )
                 // Geometric-first (ADR 0010): a conclusive depth fit avoids
                 // loading the VLM at all; anything else falls through to the
                 // unchanged hierarchical estimator.

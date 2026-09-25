@@ -75,6 +75,12 @@ public struct DecodeTelemetry: Codable, Sendable, Equatable {
     /// Fast-forward strings the host tokenizer re-encoded differently from
     /// the grammar's own tokens (xgrammar bridge counter).
     public var fastForwardDisagreements: Int
+    /// Whether, at every sampling step, the KV cache held the prompt plus
+    /// every token emitted so far. `feed_all` keeps this; `legacy` breaks it
+    /// at the first forced span.
+    public var cacheHeldEveryEmittedToken: Bool?
+    /// Slot letters the unique-slots variant masked out (0 when off).
+    public var maskedRepeatSlots: Int?
 
     /// What the cache would hold had every emitted token been fed: the
     /// invariant `feedAll` keeps and `legacy` breaks.
@@ -83,7 +89,8 @@ public struct DecodeTelemetry: Codable, Sendable, Equatable {
     public init(
         mode: DecodeMode, promptTokens: Int, imageTokens: Int?, preprocessMilliseconds: Int? = nil,
         prefillMilliseconds: Int, decodeMilliseconds: Int, sampledTokens: Int, forcedTokens: Int,
-        fedTokens: Int, droppedSampledTokens: Int, cacheOffset: Int?, fastForwardDisagreements: Int
+        fedTokens: Int, droppedSampledTokens: Int, cacheOffset: Int?, fastForwardDisagreements: Int,
+        cacheHeldEveryEmittedToken: Bool? = nil, maskedRepeatSlots: Int? = nil
     ) {
         self.mode = mode
         self.promptTokens = promptTokens
@@ -97,6 +104,8 @@ public struct DecodeTelemetry: Codable, Sendable, Equatable {
         self.droppedSampledTokens = droppedSampledTokens
         self.cacheOffset = cacheOffset
         self.fastForwardDisagreements = fastForwardDisagreements
+        self.cacheHeldEveryEmittedToken = cacheHeldEveryEmittedToken
+        self.maskedRepeatSlots = maskedRepeatSlots
     }
 
     enum CodingKeys: String, CodingKey {
@@ -112,6 +121,8 @@ public struct DecodeTelemetry: Codable, Sendable, Equatable {
         case droppedSampledTokens = "dropped_sampled_tokens"
         case cacheOffset = "cache_offset"
         case fastForwardDisagreements = "fast_forward_disagreements"
+        case cacheHeldEveryEmittedToken = "cache_held_every_emitted_token"
+        case maskedRepeatSlots = "masked_repeat_slots"
     }
 }
 
@@ -345,13 +356,25 @@ public enum LatencyBucket: String, Codable, CaseIterable, Sendable {
 public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
     public var decode: DecodeMode
     public var vote: RecoveryVoteRule
+    /// Mask slot letters already emitted, so a ranking cannot repeat one
+    /// (the rank schema's `uniqueItems` is ignored by the pinned xgrammar).
+    public var uniqueSlots: Bool
     /// A/B arm label when the developer arm picker scheduled this call.
     public var armID: String?
 
-    public init(decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, armID: String? = nil) {
+    public init(decode: DecodeMode = .legacy, vote: RecoveryVoteRule = .bordaDedup, uniqueSlots: Bool = false, armID: String? = nil) {
         self.decode = decode
         self.vote = vote
+        self.uniqueSlots = uniqueSlots
         self.armID = armID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        decode = try container.decodeIfPresent(DecodeMode.self, forKey: .decode) ?? .legacy
+        vote = try container.decodeIfPresent(RecoveryVoteRule.self, forKey: .vote) ?? .bordaDedup
+        uniqueSlots = try container.decodeIfPresent(Bool.self, forKey: .uniqueSlots) ?? false
+        armID = try container.decodeIfPresent(String.self, forKey: .armID)
     }
 
     public static let baseline = RecoveryInferenceVariant()
@@ -360,12 +383,14 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         var parts: [String] = []
         if decode != .legacy { parts.append("decode=\(decode.rawValue)") }
         if vote != .bordaDedup { parts.append("vote=\(vote.rawValue)") }
+        if uniqueSlots { parts.append("unique_slots") }
         return parts.isEmpty ? "baseline" : parts.joined(separator: ",")
     }
 
     enum CodingKeys: String, CodingKey {
         case decode
         case vote
+        case uniqueSlots = "unique_slots"
         case armID = "arm_id"
     }
 }

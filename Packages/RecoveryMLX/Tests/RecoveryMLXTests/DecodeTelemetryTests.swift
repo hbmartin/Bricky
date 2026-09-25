@@ -44,3 +44,35 @@ final class DecodeTelemetryTests: XCTestCase {
         }
     }
 }
+
+final class SlotUniquenessTests: XCTestCase {
+    private let allowed: Set<Character> = ["A", "B", "C"]
+    private let texts = [10: "A", 11: "B", 12: "C", 13: "A\"", 14: "\"", 15: "]"]
+
+    func testNothingIsMaskedBeforeTheFirstLetter() {
+        XCTAssertEqual(SlotUniqueness.blockedTokens(legal: [10, 11, 12], text: { self.texts[$0]! }, emitted: [], allowed: allowed), [])
+    }
+
+    func testEmittedLettersAreMaskedWhereverTheyAppear() {
+        // Token 13 ("A\"") would repeat A just as token 10 would.
+        XCTAssertEqual(
+            SlotUniqueness.blockedTokens(legal: [10, 11, 12, 13], text: { self.texts[$0]! }, emitted: ["A"], allowed: allowed),
+            [10, 13]
+        )
+    }
+
+    func testStructuralTokensAndLowercaseAreNeverSlotLetters() {
+        XCTAssertEqual(SlotUniqueness.slotLetters(in: "matched", allowed: allowed), [])
+        XCTAssertEqual(
+            SlotUniqueness.blockedTokens(legal: [14, 15], text: { self.texts[$0]! }, emitted: ["A", "B"], allowed: allowed),
+            []
+        )
+    }
+
+    func testVariantIDNamesUniqueSlotsAndDecodesOldJSON() throws {
+        XCTAssertEqual(RecoveryInferenceVariant(uniqueSlots: true).id, "unique_slots")
+        let old = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(#"{"decode":"feed_all","vote":"borda_dedup"}"#.utf8))
+        XCTAssertFalse(old.uniqueSlots)
+        XCTAssertEqual(old.id, "decode=feed_all")
+    }
+}
