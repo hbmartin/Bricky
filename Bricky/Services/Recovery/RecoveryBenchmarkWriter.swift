@@ -48,7 +48,7 @@ extension RecoveryEvidenceRecorder {
                 expectedStepID: inputs.expectedStepID,
                 candidateSlots: slotSource?.candidateStepIDs ?? [:],
                 boardRelativePaths: voting.map(\.boardRelativePath),
-                cameraMetadata: session.captures.map(Self.cameraMetadata),
+                cameraMetadata: session.captures.map(\.benchmarkCameraMetadata),
                 expectedStepIndex: inputs.expectedCompletedCount,
                 rankedStepIDs: estimate.rankedStepIDs,
                 certainty: RecoveryCertainty(rawValue: estimate.certainty) ?? .insufficient,
@@ -79,21 +79,5 @@ extension RecoveryEvidenceRecorder {
             line.append(UInt8(ascii: "\n"))
             try line.write(to: sessionDirectory.appendingPathComponent("benchmark.ndjson"), options: .atomic)
         }
-    }
-
-    private static func cameraMetadata(for capture: EvidenceCaptureRecord) -> [String: Float] {
-        var metadata: [String: Float] = [:]
-        // Column-major 3×3 intrinsics: fx c0r0, fy c1r1, cx c2r0, cy c2r1.
-        if capture.cameraIntrinsics.count >= 9 {
-            metadata["fx"] = capture.cameraIntrinsics[0]
-            metadata["fy"] = capture.cameraIntrinsics[4]
-            metadata["cx"] = capture.cameraIntrinsics[6]
-            metadata["cy"] = capture.cameraIntrinsics[7]
-        }
-        if capture.cameraImageResolution.count >= 2 {
-            metadata["width"] = capture.cameraImageResolution[0]
-            metadata["height"] = capture.cameraImageResolution[1]
-        }
-        return metadata
     }
 }

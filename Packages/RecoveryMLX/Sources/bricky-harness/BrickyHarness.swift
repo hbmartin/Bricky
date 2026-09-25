@@ -46,6 +46,9 @@ struct Replay: AsyncParsableCommand {
     @Option(name: .customLong("max-tokens"), help: "Override rank maxTokens (A/B).")
     var maxTokens: Int?
 
+    @Option(help: "Finalist vote rule: borda_dedup (the app's default) or borda_legacy (duplicates counted, as shipped before 2026-09).")
+    var vote: RecoveryVoteRule = .bordaDedup
+
     @Flag(help: "Recompose boards from captures + tiles instead of replaying the stored board images.")
     var recompose = false
 
@@ -128,8 +131,8 @@ struct Replay: AsyncParsableCommand {
         return url
     }
 
-    /// Mirrors the estimator's Borda scoring and cross-view certainty so
-    /// replayed finalist passes aggregate exactly like the device does.
+    /// Aggregates replayed finalist passes through the same `RecoveryVote`
+    /// the app's estimator uses, so replay and device cannot drift apart.
     private func benchmarkRow(
         session: EvidenceBundleReader.Session,
         finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)],
@@ -146,35 +149,13 @@ struct Replay: AsyncParsableCommand {
         let finalists = slotSource.candidateStepIDs.values.sorted {
             (Self.stepNumber(from: $0) ?? 0) < (Self.stepNumber(from: $1) ?? 0)
         }
-        var rankings: [[(position: Int, stepID: String)]] = []
-        for (row, output) in finalistReplays {
-            guard let output, output.status == "matched" else { continue }
-            let mapped = output.ranking.enumerated().compactMap { position, slot in
-                row.candidateStepIDs[slot].map { (position: position, stepID: $0) }
-            }
-            guard !mapped.isEmpty else { continue }
-            rankings.append(mapped)
+        let views = finalistReplays.compactMap { row, output -> RecoveryVoteView<String>? in
+            guard let output, output.status == "matched" else { return nil }
+            return RecoveryVoteView(ranking: output.ranking, candidateForSlot: row.candidateStepIDs)
         }
-        var ranked: [String] = []
-        var certainty = RecoveryCertainty.insufficient
-        if rankings.count >= 2 {
-            var scores: [String: Int] = [:]
-            for ranking in rankings {
-                for entry in ranking {
-                    scores[entry.stepID, default: 0] += max(0, finalists.count - entry.position)
-                }
-            }
-            ranked = Array(finalists.sorted {
-                let lhs = scores[$0, default: 0], rhs = scores[$1, default: 0]
-                if lhs == rhs {
-                    return (Self.stepNumber(from: $0) ?? 0) < (Self.stepNumber(from: $1) ?? 0)
-                }
-                return lhs > rhs
-            }.prefix(3))
-            let leaders = rankings.compactMap { $0.first?.stepID }
-            let agreement = Dictionary(grouping: leaders, by: { $0 }).values.map(\.count).max() ?? 0
-            certainty = agreement >= 3 ? .high : (agreement == 2 ? .medium : .low)
-        }
+        let outcome = RecoveryVote.aggregate(views: views, finalists: finalists, rule: vote)
+        let ranked = outcome.map { Array($0.ordered.prefix(3)) } ?? []
+        let certainty = outcome?.certainty ?? .insufficient
         let row = RecoveryBenchmarkV1(
             schemaVersion: RecoveryBenchmarkV1.schemaVersion,
             fixtureID: session.file.sessionID.uuidString,
@@ -184,16 +165,7 @@ struct Replay: AsyncParsableCommand {
             expectedStepID: expectedStepID,
             candidateSlots: slotSource.candidateStepIDs,
             boardRelativePaths: finalistReplays.map(\.row.boardRelativePath),
-            cameraMetadata: session.file.captures.map { capture in
-                var metadata: [String: Float] = [:]
-                if capture.cameraIntrinsics.count >= 9 {
-                    metadata["fx"] = capture.cameraIntrinsics[0]
-                    metadata["fy"] = capture.cameraIntrinsics[4]
-                    metadata["cx"] = capture.cameraIntrinsics[6]
-                    metadata["cy"] = capture.cameraIntrinsics[7]
-                }
-                return metadata
-            },
+            cameraMetadata: session.file.captures.map(\.benchmarkCameraMetadata),
             expectedStepIndex: expectedCount,
             rankedStepIDs: ranked,
             certainty: certainty,
@@ -328,3 +300,5 @@ struct ReplayTraceResult: Codable {
         case matchesDevice = "matches_device"
     }
 }
+
+extension RecoveryVoteRule: ExpressibleByArgument {}

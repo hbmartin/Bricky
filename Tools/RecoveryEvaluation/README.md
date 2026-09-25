@@ -128,7 +128,9 @@ uv run python score_results.py variant.ndjson --allow-small-corpus
 
 `--recompose` rebuilds boards from raw captures + tiles through the shared
 layout (for layout experiments), `--max-tokens` overrides the rank budget, and
-`--all-passes` replays every hierarchical pass instead of only the finalists.
+`--all-passes` replays every hierarchical pass instead of only the finalists,
+and `--vote` picks the finalist vote rule (`borda_dedup`, the app default, or
+`borda_legacy`, which counts repeated slots as the app did before 2026-09).
 Per-call results (including `matches_device`) land beside the output as
 `<out>.traces.ndjson`. `--dry-run` validates a bundle without loading weights.
 

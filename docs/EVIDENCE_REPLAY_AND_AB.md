@@ -86,6 +86,7 @@ a device failure reproduces at all.
 | `--max-tokens N` | Override the rank token budget (device default is 192) |
 | `--recompose` | Rebuild each board from the raw capture + tiles through `RecoveryBoardLayoutV1` instead of replaying the stored board image (layout experiments) |
 | `--all-passes` | Replay the full hierarchy, not only finalists |
+| `--vote borda_dedup\|borda_legacy` | Finalist vote rule (`RecoveryVote`, shared with the app). `borda_dedup` is the app default; `borda_legacy` counts repeated slots as the app did before 2026-09 |
 
 ## `recompose`
 

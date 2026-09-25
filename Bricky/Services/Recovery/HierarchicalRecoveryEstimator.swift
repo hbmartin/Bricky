@@ -13,12 +13,20 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
     /// Present only when the developer evidence toggle is on; recording is a
     /// pure observer and must never change the estimate.
     private let recorder: RecoveryEvidenceRecorder?
+    private let voteRule: RecoveryVoteRule
 
-    init(runtime: MLXRecoveryRuntime, modelDirectory: URL, partPackRoot: URL, recorder: RecoveryEvidenceRecorder? = nil) {
+    init(
+        runtime: MLXRecoveryRuntime,
+        modelDirectory: URL,
+        partPackRoot: URL,
+        recorder: RecoveryEvidenceRecorder? = nil,
+        voteRule: RecoveryVoteRule = .bordaDedup
+    ) {
         self.runtime = runtime
         self.modelDirectory = modelDirectory
         self.partPackRoot = partPackRoot
         self.recorder = recorder
+        self.voteRule = voteRule
     }
 
     func estimate(captures: [RecoveryCapture], model: InstructionPlan, alignment: ARAlignment) async throws -> RecoveryEstimate {
@@ -70,43 +78,23 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         let finalists = Array(Set([narrowLeader - 1, narrowLeader, narrowLeader + 1]))
             .filter { $0 >= -1 && $0 < model.steps.count }
             .sorted()
-        var rankings: [[(position: Int, step: Int)]] = []
+        let slotMap = Dictionary(uniqueKeysWithValues: zip(RecoveryIndexing.slotLetters, finalists))
+        var views: [RecoveryVoteView<Int>] = []
         for (viewIndex, capture) in captures.sorted(by: { $0.angle.rawValue < $1.angle.rawValue }).enumerated() {
             try Task.checkCancellation()
             let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
             // Views the model marked insufficient must not vote in scoring
             // or certainty.
             guard result.status == "matched" else { continue }
-            // Enumerate before dropping out-of-range slots so later
-            // candidates keep their true rank positions.
-            let mapped = result.ranking.enumerated().compactMap { position, slot -> (position: Int, step: Int)? in
-                guard let step = RecoveryIndexing.candidateIndex(forSlot: slot, candidates: finalists) else { return nil }
-                return (position, step)
-            }
-            guard !mapped.isEmpty else { continue }
-            rankings.append(mapped)
+            views.append(RecoveryVoteView(ranking: result.ranking.map { $0.uppercased() }, candidateForSlot: slotMap))
         }
-        guard rankings.count >= 2 else {
+        guard let vote = RecoveryVote.aggregate(views: views, finalists: finalists, rule: voteRule) else {
             return insufficient(captures: captures, started: started, cause: .finalistQuorumNotReached)
         }
-
-        var scores: [Int: Int] = [:]
-        for ranking in rankings {
-            for entry in ranking {
-                scores[entry.step, default: 0] += max(0, finalists.count - entry.position)
-            }
-        }
-        let ordered = finalists.sorted {
-            let lhs = scores[$0, default: 0], rhs = scores[$1, default: 0]
-            return lhs == rhs ? $0 < $1 : lhs > rhs
-        }
-        let viewLeaders = rankings.compactMap { $0.first?.step }
-        let agreement = Dictionary(grouping: viewLeaders, by: { $0 }).values.map(\.count).max() ?? 0
-        let certainty: RecoveryCertainty = agreement >= 3 ? .high : (agreement == 2 ? .medium : .low)
         let duration = started.duration(to: .now)
         return RecoveryEstimate(
-            rankedStepIDs: ordered.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0, plan: model) },
-            certainty: certainty,
+            rankedStepIDs: vote.ordered.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0, plan: model) },
+            certainty: vote.certainty,
             modelRevision: RecoveryModelManager.revision,
             latencyMilliseconds: Self.milliseconds(duration),
             captureIDs: captures.map(\.id),
