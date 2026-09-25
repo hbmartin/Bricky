@@ -65,6 +65,11 @@ public actor MLXRecoveryRuntime {
     private var unloadWaiters: [CheckedContinuation<Void, Never>] = []
     /// The primary unload parked until every load waiter drops its result.
     private var loadDrainWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Where the loaded container is in its life, for the cold/warm bucket.
+    private var loadStartedAt: ContinuousClock.Instant?
+    private var loadedAt: ContinuousClock.Instant?
+    private var loadMilliseconds: Int?
+    private var callsSinceLoad = 0
 
     public init() {}
 
@@ -177,6 +182,8 @@ public actor MLXRecoveryRuntime {
         loadTask = nil
         grammarCache = nil
         container = nil
+        loadedAt = nil
+        loadStartedAt = nil
         if let inFlight {
             inFlight.cancel()
             // Drain the in-flight load so callers can rely on the weights
@@ -209,7 +216,7 @@ public actor MLXRecoveryRuntime {
         let termination: MLXGenerationTrace.Termination
         let latencyMilliseconds: Int
         let maxTokens: Int
-        let telemetry: DecodeTelemetry?
+        var inference: InferenceTelemetry?
         let readouts: [DecisionReadout]?
 
         func trace(decodeError: String?, schemaJSON: String) -> MLXGenerationTrace {
@@ -221,7 +228,7 @@ public actor MLXRecoveryRuntime {
                 latencyMilliseconds: latencyMilliseconds,
                 maxTokens: maxTokens,
                 schemaJSON: schemaJSON,
-                telemetry: telemetry,
+                inference: inference,
                 readouts: readouts
             )
         }
@@ -239,7 +246,15 @@ public actor MLXRecoveryRuntime {
         let container = try await modelContainer(modelDirectory: modelDirectory)
         let cache = try await grammarResources(container: container)
         let started = ContinuousClock.now
-        return try await container.perform(values: GenerationValues(
+        var inference = InferenceTelemetry(
+            memoryBefore: ProcessMemorySnapshot.current(),
+            thermalBefore: ThermalStateName.current,
+            callsSinceLoad: callsSinceLoad,
+            secondsSinceLoad: loadedAt.map { Self.seconds($0.duration(to: .now)) },
+            loadMilliseconds: loadMilliseconds
+        )
+        callsSinceLoad += 1
+        var generated = try await container.perform(values: GenerationValues(
             imageURL: imageURL,
             prompt: prompt,
             kind: kind,
@@ -264,7 +279,7 @@ public actor MLXRecoveryRuntime {
             var output = ""
             var generatedTokens: Int?
             var termination = MLXGenerationTrace.Termination.accepted
-            var telemetry: DecodeTelemetry?
+            var decodeTelemetry: DecodeTelemetry?
             var readouts: [DecisionReadout]?
             let emit: (String) -> Bool = { delta in
                 output += delta
@@ -291,7 +306,7 @@ public actor MLXRecoveryRuntime {
                 measured.preprocessMilliseconds = Int(
                     preprocessElapsed.seconds * 1_000 + preprocessElapsed.attoseconds / 1_000_000_000_000_000
                 )
-                telemetry = measured
+                decodeTelemetry = measured
                 readouts = result.readouts
             } else {
                 do {
@@ -317,10 +332,25 @@ public actor MLXRecoveryRuntime {
                 termination: termination,
                 latencyMilliseconds: Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000),
                 maxTokens: values.maxTokens,
-                telemetry: telemetry,
+                inference: InferenceTelemetry(decode: decodeTelemetry),
                 readouts: readouts
             )
         }
+        inference.decode = generated.inference?.decode
+        inference.memoryAfter = ProcessMemorySnapshot.current()
+        inference.thermalAfter = ThermalStateName.current
+        generated.inference = inference
+        return generated
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int {
+        let components = duration.components
+        return Int(components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    private static func seconds(_ duration: Duration) -> Double {
+        let components = duration.components
+        return Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 
     private func modelContainer(modelDirectory: URL) async throws -> ModelContainer {
@@ -332,6 +362,7 @@ public actor MLXRecoveryRuntime {
         // Bound the Metal buffer cache before any weights load.
         MLX.Memory.cacheLimit = Self.gpuCacheLimitBytes
         let generation = loadGeneration
+        loadStartedAt = .now
         let task = Task<ModelContainer, Error> {
             try await VLMModelFactory.shared.loadContainer(
                 from: try LoadableModelDirectory.resolve(modelDirectory),
@@ -365,6 +396,11 @@ public actor MLXRecoveryRuntime {
                 // resurrect a multi-gigabyte container.
                 loaded = nil
                 throw CancellationError()
+            }
+            if container == nil, let loadStartedAt {
+                loadMilliseconds = Self.milliseconds(loadStartedAt.duration(to: .now))
+                loadedAt = .now
+                callsSinceLoad = 0
             }
             container = loaded
             if loadTask == task { loadTask = nil }

@@ -349,6 +349,56 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertTrue(raw.contains("\"capture_elevation_degrees\":42.5"), raw)
     }
 
+    // MARK: - Telemetry
+
+    func testMemorySnapshotReadsTheKernelLedger() throws {
+        let snapshot = try XCTUnwrap(ProcessMemorySnapshot.current())
+        XCTAssertGreaterThan(snapshot.footprintBytes, 0)
+        let peak = try XCTUnwrap(snapshot.lifetimePeakBytes)
+        XCTAssertGreaterThanOrEqual(peak, snapshot.footprintBytes)
+    }
+
+    #if os(macOS)
+    func testMacIdentifierIsTheModelNotTheCPU() {
+        // uname reports "arm64" on a Mac; replay rows need "Mac14,12".
+        XCTAssertNotEqual(DeviceIdentity.modelIdentifier, "arm64")
+        XCTAssertTrue(DeviceIdentity.modelIdentifier.contains(","), DeviceIdentity.modelIdentifier)
+        XCTAssertNotNil(DeviceIdentity.osBuild)
+    }
+    #endif
+
+    func testLatencyBuckets() {
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 0, secondsSinceARStart: 60), .cold)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 4, secondsSinceARStart: 60), .warm)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 4, secondsSinceARStart: 1_800), .sustained)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: nil, secondsSinceARStart: nil), .warm)
+    }
+
+    func testVariantIDNamesOnlyTheAxesThatDiffer() {
+        XCTAssertEqual(RecoveryInferenceVariant.baseline.id, "baseline")
+        XCTAssertEqual(RecoveryInferenceVariant(decode: .feedAll).id, "decode=feed_all")
+        XCTAssertEqual(RecoveryInferenceVariant(decode: .feedAll, vote: .bordaLegacy).id, "decode=feed_all,vote=borda_legacy")
+        XCTAssertEqual(RecoveryInferenceVariant(armID: "B").id, "baseline", "the arm label is not an axis")
+    }
+
+    func testTelemetryFieldsAreOptionalAndSnakeCase() throws {
+        // A trace row written before any telemetry existed still decodes.
+        let legacy = #"{"trace_version":1,"trace_id":"00000000-0000-0000-0000-000000000001","session_id":"00000000-0000-0000-0000-000000000002","pass":"finalist","pass_index":0,"board_relative_path":"b.jpg","tile_relative_paths":{},"candidate_step_indices":{},"candidate_step_ids":{},"prompt":"p","schema_json":"{}","max_tokens":192,"raw_output":"{}","termination":"accepted","latency_ms":1,"model_revision":"r","created_at":"2026-09-25T00:00:00Z"}"#
+        let row = try EvidenceSchema.decoder().decode(EvidenceTraceRow.self, from: Data(legacy.utf8))
+        XCTAssertNil(row.inference)
+        XCTAssertNil(row.variant)
+
+        let conditions = DeviceConditions(thermalState: "nominal", lowPowerMode: false, secondsSinceARStart: 12)
+        let inference = InferenceTelemetry(thermalBefore: "fair", callsSinceLoad: 0, loadMilliseconds: 900)
+        let raw = String(decoding: try EvidenceSchema.encoder().encode(conditions), as: UTF8.self)
+            + String(decoding: try EvidenceSchema.encoder().encode(inference), as: UTF8.self)
+            + String(decoding: try EvidenceSchema.encoder().encode(AdmissionSnapshot(floorBytes: 1, warmUpPeakBytes: 2)), as: UTF8.self)
+        for key in ["thermal_state", "low_power_mode", "seconds_since_ar_start", "thermal_before",
+                    "calls_since_load", "load_ms", "floor_bytes", "warm_up_peak_bytes"] {
+            XCTAssertTrue(raw.contains("\"\(key)\""), key)
+        }
+    }
+
     // MARK: - Fixtures
 
     private func solidImage(width: Int, height: Int) throws -> CGImage {

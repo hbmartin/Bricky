@@ -185,7 +185,9 @@ struct Replay: AsyncParsableCommand {
             deviceModel: "replay:\(DeviceIdentity.modelIdentifier)",
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
             latencyMilliseconds: replayLatency,
-            memoryPeakBytes: ProcessFootprint.currentBytes() ?? 0,
+            // The kernel's lifetime peak, not whatever the footprint happens
+            // to be when the row is written.
+            memoryPeakBytes: ProcessMemorySnapshot.current()?.lifetimePeakBytes ?? ProcessFootprint.currentBytes() ?? 0,
             topStepIndex: ranked.first.flatMap(Self.stepNumber(from:)),
             physicalCase: session.file.staged?.physicalCase,
             authoredModelID: session.file.authoredModelID.uuidString,
@@ -193,7 +195,10 @@ struct Replay: AsyncParsableCommand {
             lightingCondition: session.file.staged?.lighting.rawValue,
             captureAngle: session.file.captures.map(\.angle).joined(separator: ","),
             occlusionCondition: session.file.staged?.occlusion.rawValue,
-            captureElevationDegrees: session.file.captures.benchmarkElevationDegrees
+            captureElevationDegrees: session.file.captures.benchmarkElevationDegrees,
+            variantID: RecoveryInferenceVariant(decode: decode, vote: vote).id,
+            osBuild: DeviceIdentity.osBuild,
+            gpuArchitecture: DeviceIdentity.gpuArchitecture
         )
         return try EvidenceSchema.encoder().encode(row)
     }

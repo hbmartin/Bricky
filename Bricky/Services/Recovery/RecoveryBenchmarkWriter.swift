@@ -38,6 +38,16 @@ extension RecoveryEvidenceRecorder {
             guard session.groundTruth.kind != .unlabeled, let estimate = session.estimate else { return }
             let rows = loadTraceRows()
             let voting = rows.filter { $0.pass == .finalist || $0.pass == .check }
+            let decode = rows.compactMap { $0.inference?.decode }
+            let start = session.conditionsStart ?? rows.first?.conditions
+            // The bucket of the estimate is the bucket of its first call:
+            // a recovery that began on a freshly loaded model paid the cold
+            // cost, however many warm calls followed.
+            let bucket = LatencyBucket.classify(
+                callsSinceLoad: rows.first?.inference?.callsSinceLoad,
+                secondsSinceARStart: start?.secondsSinceARStart
+            )
+            let peaks = rows.compactMap { $0.inference?.memoryAfter?.lifetimePeakBytes ?? $0.memoryFootprintBytes }
             let slotSource = voting.first(where: { $0.captureAngle == CaptureAngle.center.rawValue }) ?? voting.first
             let row = RecoveryBenchmarkV1(
                 schemaVersion: RecoveryBenchmarkV1.schemaVersion,
@@ -63,7 +73,7 @@ extension RecoveryEvidenceRecorder {
                 deviceModel: session.deviceModel,
                 operatingSystem: session.operatingSystem,
                 latencyMilliseconds: estimate.latencyMilliseconds,
-                memoryPeakBytes: rows.compactMap(\.memoryFootprintBytes).max() ?? 0,
+                memoryPeakBytes: peaks.max() ?? 0,
                 topStepIndex: estimate.rankedStepIDs.first.flatMap { inputs.stepNumbersByID[$0] },
                 physicalCase: session.staged?.physicalCase,
                 authoredModelID: session.authoredModelID.uuidString,
@@ -71,7 +81,20 @@ extension RecoveryEvidenceRecorder {
                 lightingCondition: session.staged?.lighting.rawValue,
                 captureAngle: session.captures.map(\.angle).joined(separator: ","),
                 occlusionCondition: session.staged?.occlusion.rawValue,
-                captureElevationDegrees: session.captures.benchmarkElevationDegrees
+                captureElevationDegrees: session.captures.benchmarkElevationDegrees,
+                variantID: (rows.first?.variant ?? .baseline).id,
+                osBuild: session.osBuild,
+                gpuArchitecture: session.gpuArchitecture,
+                thermalStateStart: start?.thermalState,
+                thermalStateEnd: session.conditionsEnd?.thermalState,
+                secondsSinceARStart: start?.secondsSinceARStart,
+                latencyBucket: bucket,
+                vlmCalls: rows.count,
+                prefillMillisecondsTotal: decode.isEmpty ? nil : decode.reduce(0) { $0 + $1.prefillMilliseconds },
+                decodeMillisecondsTotal: decode.isEmpty ? nil : decode.reduce(0) { $0 + $1.decodeMilliseconds },
+                batteryState: start?.batteryState,
+                lowPowerMode: start?.lowPowerMode,
+                latencyScope: "estimate_wall_clock"
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]

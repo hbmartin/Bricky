@@ -493,6 +493,11 @@ def score_recovery(rows: list[dict[str, object]], *, release: bool) -> tuple[dic
     }
     latencies = [float(row["latency_ms"]) for row in rows]
     memory = [int(row.get("memory_peak_bytes", 0)) for row in rows]
+    # The benchmark protocol's buckets (roadmap §4.5): gates move to the
+    # sustained bucket once device rows exist; until then they are reported.
+    by_bucket: dict[str, list[float]] = {}
+    for row in rows:
+        by_bucket.setdefault(str(row.get("latency_bucket") or "unbucketed"), []).append(float(row["latency_ms"]))
     report: dict[str, object] = {
         "cases": len(rows),
         # Insufficient cases are not silently removed from accuracy gates.
@@ -509,6 +514,14 @@ def score_recovery(rows: list[dict[str, object]], *, release: bool) -> tuple[dic
         "median_latency_ms": statistics.median(latencies),
         "p95_latency_ms": percentile(latencies, 0.95),
         "memory_peak_bytes": max(memory),
+        "latency_by_bucket": {
+            bucket: {
+                "cases": len(values),
+                "p50_ms": statistics.median(values),
+                "p95_ms": percentile(values, 0.95),
+            }
+            for bucket, values in sorted(by_bucket.items())
+        },
     }
     # Each method is judged against its own budget. Both fallback methods take
     # the composite budget: they pay for inference either way, and a composite
@@ -876,11 +889,24 @@ def headline(verification_report: dict[str, object] | None, gate: Gate | None, *
     )
 
 
+def require_single_arm(rows: list[dict[str, object]]) -> None:
+    """One file, one arm. Pooling a baseline and a variant would score a
+    blend that no build ships; comparisons belong to compare_arms.py."""
+    arms = sorted({str(row.get("variant_id") or "unrecorded") for row in rows})
+    if len(arms) > 1:
+        raise SystemExit(
+            f"rows come from {len(arms)} inference variants ({', '.join(arms)}); "
+            "score each arm separately or compare them with compare_arms.py "
+            "(--allow-mixed-arms overrides)"
+        )
+
+
 def main(
     path: Path,
     *,
     informational: bool = False,
     require_kinds: set[str] | None = None,
+    allow_mixed_arms: bool = False,
 ) -> None:
     release = not informational
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
@@ -889,6 +915,8 @@ def main(
     if require_kinds is None:
         require_kinds = set(KINDS) if release else set()
     kinds = partition(rows)
+    if not allow_mixed_arms:
+        require_single_arm(kinds["recovery"])
     if release:
         for kind in SUMMARY_KINDS:
             if kinds[kind]:
@@ -964,6 +992,11 @@ if __name__ == "__main__":
         "(default: all three in release mode, none in informational mode)",
     )
     parser.add_argument(
+        "--allow-mixed-arms",
+        action="store_true",
+        help="score recovery rows from several inference variants together",
+    )
+    parser.add_argument(
         "--explain-minimums",
         action="store_true",
         help="print the zero-miss sample size each release gate implies and exit",
@@ -980,4 +1013,9 @@ if __name__ == "__main__":
         unknown = required - set(KINDS)
         if unknown:
             parser.error(f"unknown kinds: {', '.join(sorted(unknown))}")
-    main(arguments.results, informational=arguments.informational, require_kinds=required)
+    main(
+        arguments.results,
+        informational=arguments.informational,
+        require_kinds=required,
+        allow_mixed_arms=arguments.allow_mixed_arms,
+    )

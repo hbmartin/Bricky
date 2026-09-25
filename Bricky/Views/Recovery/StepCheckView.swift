@@ -349,7 +349,9 @@ struct StepCheckView: View {
             authoredModelID: model.id,
             modelTitle: model.title,
             stepCount: plan.steps.count,
-            staged: nil
+            staged: nil,
+            admission: recoveryModel.admissionSnapshot,
+            conditions: DeviceConditionsProbe.snapshot()
         )
     }
 

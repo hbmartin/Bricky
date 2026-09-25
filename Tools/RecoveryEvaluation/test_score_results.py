@@ -575,6 +575,31 @@ class RecoveryScoringTests(unittest.TestCase):
             validate_rows([row])
 
 
+class BenchmarkProtocolTests(unittest.TestCase):
+    def test_latency_is_reported_per_bucket(self) -> None:
+        rows = []
+        for bucket, latency in (("cold", 18_000), ("warm", 9_000), ("warm", 11_000), ("sustained", 14_000)):
+            row = benchmark_row(latency=latency)
+            row["latency_bucket"] = bucket
+            rows.append(row)
+        rows.append(benchmark_row(latency=5_000))
+        report, _ = score_recovery(rows, release=False)
+        buckets = report["latency_by_bucket"]
+        self.assertEqual(buckets["warm"], {"cases": 2, "p50_ms": 10_000.0, "p95_ms": 10_900.0})
+        self.assertEqual(buckets["cold"]["cases"], 1)
+        self.assertEqual(buckets["unbucketed"]["cases"], 1)
+
+    def test_mixed_arms_are_refused_unless_allowed(self) -> None:
+        baseline, variant = benchmark_row(), benchmark_row()
+        baseline["variant_id"] = "baseline"
+        variant["variant_id"] = "decode=feed_all"
+        code, output = MainTests.run_main([baseline, variant])
+        self.assertEqual(code, 1)
+        self.assertIn("2 inference variants", output)
+        code, _ = MainTests.run_main([baseline, variant], allow_mixed_arms=True)
+        self.assertEqual(code, 0)
+
+
 class MainTests(unittest.TestCase):
     @staticmethod
     def mixed_kind_rows(*, ambiguity_reported: bool = True) -> list[dict[str, object]]:

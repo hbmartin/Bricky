@@ -39,6 +39,7 @@ let package = Package(
         .target(
             name: "RecoveryMLX",
             dependencies: [
+                "RecoveryEvidenceKit",
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXVLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),

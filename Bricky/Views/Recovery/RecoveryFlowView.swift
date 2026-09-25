@@ -297,7 +297,9 @@ struct RecoveryFlowView: View {
             authoredModelID: model.id,
             modelTitle: model.title,
             stepCount: plan.steps.count,
-            staged: corpusCollectionEnabled ? stagedDeclaration : nil
+            staged: corpusCollectionEnabled ? stagedDeclaration : nil,
+            admission: recoveryModel.admissionSnapshot,
+            conditions: DeviceConditionsProbe.snapshot()
         )
     }
 

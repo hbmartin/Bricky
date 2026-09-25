@@ -280,6 +280,14 @@ public struct EvidenceTraceRow: Codable, Sendable {
     public let memoryFootprintBytes: Int64?
     public let modelRevision: String
     public let createdAt: Date
+    /// Which VLM-path variant produced the call (ADR 0010 amendment).
+    public let variant: RecoveryInferenceVariant?
+    /// Decode telemetry plus memory and thermal state around the call.
+    public let inference: InferenceTelemetry?
+    /// Device conditions when the call was recorded.
+    public let conditions: DeviceConditions?
+    /// The model's distribution at each small-legal-set decision.
+    public let readouts: [DecisionReadout]?
 
     public init(
         traceVersion: Int, traceID: UUID, sessionID: UUID, pass: RecoveryPassKind, passIndex: Int,
@@ -287,7 +295,9 @@ public struct EvidenceTraceRow: Codable, Sendable {
         tileRelativePaths: [String: String], candidateStepIndices: [String: Int],
         candidateStepIDs: [String: String], prompt: String, schemaJSON: String, maxTokens: Int,
         rawOutput: String, decodeError: String?, termination: String, generatedTokens: Int?,
-        latencyMilliseconds: Int, memoryFootprintBytes: Int64?, modelRevision: String, createdAt: Date
+        latencyMilliseconds: Int, memoryFootprintBytes: Int64?, modelRevision: String, createdAt: Date,
+        variant: RecoveryInferenceVariant? = nil, inference: InferenceTelemetry? = nil,
+        conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil
     ) {
         self.traceVersion = traceVersion
         self.traceID = traceID
@@ -311,6 +321,10 @@ public struct EvidenceTraceRow: Codable, Sendable {
         self.memoryFootprintBytes = memoryFootprintBytes
         self.modelRevision = modelRevision
         self.createdAt = createdAt
+        self.variant = variant
+        self.inference = inference
+        self.conditions = conditions
+        self.readouts = readouts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -336,6 +350,10 @@ public struct EvidenceTraceRow: Codable, Sendable {
         case memoryFootprintBytes = "memory_footprint_bytes"
         case modelRevision = "model_revision"
         case createdAt = "created_at"
+        case variant
+        case inference
+        case conditions
+        case readouts
     }
 }
 
@@ -532,13 +550,24 @@ public struct EvidenceSessionFile: Codable, Sendable {
     public var groundTruth: EvidenceGroundTruth
     public var estimate: EstimateSummary?
     public var analysisError: String?
+    public var osBuild: String?
+    public var gpuArchitecture: String?
+    public var physicalMemoryBytes: UInt64?
+    /// Admission as it stood for the model this session could use.
+    public var admission: AdmissionSnapshot?
+    /// Conditions when the session opened and when it was finalized.
+    public var conditionsStart: DeviceConditions?
+    public var conditionsEnd: DeviceConditions?
 
     public init(
         sessionVersion: Int, sessionID: UUID, createdAt: Date, instructionSHA256: String,
         authoredModelID: UUID, modelTitle: String, stepCount: Int, modelRevision: String,
         deviceModel: String, operatingSystem: String, appVersion: String,
         captures: [EvidenceCaptureRecord], staged: StagedFixtureDeclaration?,
-        groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?
+        groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?,
+        osBuild: String? = nil, gpuArchitecture: String? = nil, physicalMemoryBytes: UInt64? = nil,
+        admission: AdmissionSnapshot? = nil, conditionsStart: DeviceConditions? = nil,
+        conditionsEnd: DeviceConditions? = nil
     ) {
         self.sessionVersion = sessionVersion
         self.sessionID = sessionID
@@ -556,6 +585,12 @@ public struct EvidenceSessionFile: Codable, Sendable {
         self.groundTruth = groundTruth
         self.estimate = estimate
         self.analysisError = analysisError
+        self.osBuild = osBuild
+        self.gpuArchitecture = gpuArchitecture
+        self.physicalMemoryBytes = physicalMemoryBytes
+        self.admission = admission
+        self.conditionsStart = conditionsStart
+        self.conditionsEnd = conditionsEnd
     }
 
     enum CodingKeys: String, CodingKey {
@@ -575,6 +610,12 @@ public struct EvidenceSessionFile: Codable, Sendable {
         case groundTruth = "ground_truth"
         case estimate
         case analysisError = "analysis_error"
+        case osBuild = "os_build"
+        case gpuArchitecture = "gpu_architecture"
+        case physicalMemoryBytes = "physical_memory_bytes"
+        case admission
+        case conditionsStart = "conditions_start"
+        case conditionsEnd = "conditions_end"
     }
 }
 
@@ -588,9 +629,12 @@ public struct EvidenceBundleManifest: Codable, Sendable {
     public let modelID: String
     public let modelRevision: String
     public let sessionIDs: [UUID]
+    public let osBuild: String?
+    public let gpuArchitecture: String?
 
     public init(bundleVersion: Int, createdAt: Date, appVersion: String, deviceModel: String,
-                operatingSystem: String, modelID: String, modelRevision: String, sessionIDs: [UUID]) {
+                operatingSystem: String, modelID: String, modelRevision: String, sessionIDs: [UUID],
+                osBuild: String? = nil, gpuArchitecture: String? = nil) {
         self.bundleVersion = bundleVersion
         self.createdAt = createdAt
         self.appVersion = appVersion
@@ -599,6 +643,8 @@ public struct EvidenceBundleManifest: Codable, Sendable {
         self.modelID = modelID
         self.modelRevision = modelRevision
         self.sessionIDs = sessionIDs
+        self.osBuild = osBuild
+        self.gpuArchitecture = gpuArchitecture
     }
 
     enum CodingKeys: String, CodingKey {
@@ -610,6 +656,8 @@ public struct EvidenceBundleManifest: Codable, Sendable {
         case modelID = "model_id"
         case modelRevision = "model_revision"
         case sessionIDs = "session_ids"
+        case osBuild = "os_build"
+        case gpuArchitecture = "gpu_architecture"
     }
 }
 
@@ -653,6 +701,23 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     /// `EvidenceCaptureRecord.elevationDegrees`). Release corpora must span
     /// at least two elevation bands.
     public let captureElevationDegrees: Double?
+    /// `RecoveryInferenceVariant.id` of the arm that produced the row.
+    public let variantID: String?
+    public let osBuild: String?
+    public let gpuArchitecture: String?
+    public let thermalStateStart: String?
+    public let thermalStateEnd: String?
+    public let secondsSinceARStart: Double?
+    public let latencyBucket: LatencyBucket?
+    /// VLM inference calls the estimate cost (0 for a concluded geometric pass).
+    public let vlmCalls: Int?
+    public let prefillMillisecondsTotal: Int?
+    public let decodeMillisecondsTotal: Int?
+    public let batteryState: String?
+    public let lowPowerMode: Bool?
+    /// What `latency_ms` measures: `estimate_wall_clock` on device; replay
+    /// rows say which replayed calls they sum.
+    public let latencyScope: String?
 
     public init(
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
@@ -663,7 +728,12 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         operatingSystem: String, latencyMilliseconds: Int, memoryPeakBytes: Int64,
         topStepIndex: Int?, physicalCase: Bool?, authoredModelID: String?,
         legalUseConfirmed: Bool?, lightingCondition: String?, captureAngle: String?,
-        occlusionCondition: String?, captureElevationDegrees: Double? = nil
+        occlusionCondition: String?, captureElevationDegrees: Double? = nil,
+        variantID: String? = nil, osBuild: String? = nil, gpuArchitecture: String? = nil,
+        thermalStateStart: String? = nil, thermalStateEnd: String? = nil, secondsSinceARStart: Double? = nil,
+        latencyBucket: LatencyBucket? = nil, vlmCalls: Int? = nil, prefillMillisecondsTotal: Int? = nil,
+        decodeMillisecondsTotal: Int? = nil, batteryState: String? = nil, lowPowerMode: Bool? = nil,
+        latencyScope: String? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.fixtureID = fixtureID
@@ -691,6 +761,19 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.captureAngle = captureAngle
         self.occlusionCondition = occlusionCondition
         self.captureElevationDegrees = captureElevationDegrees
+        self.variantID = variantID
+        self.osBuild = osBuild
+        self.gpuArchitecture = gpuArchitecture
+        self.thermalStateStart = thermalStateStart
+        self.thermalStateEnd = thermalStateEnd
+        self.secondsSinceARStart = secondsSinceARStart
+        self.latencyBucket = latencyBucket
+        self.vlmCalls = vlmCalls
+        self.prefillMillisecondsTotal = prefillMillisecondsTotal
+        self.decodeMillisecondsTotal = decodeMillisecondsTotal
+        self.batteryState = batteryState
+        self.lowPowerMode = lowPowerMode
+        self.latencyScope = latencyScope
     }
 
     enum CodingKeys: String, CodingKey {
@@ -720,13 +803,31 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case captureAngle = "capture_angle"
         case occlusionCondition = "occlusion_condition"
         case captureElevationDegrees = "capture_elevation_degrees"
+        case variantID = "variant_id"
+        case osBuild = "os_build"
+        case gpuArchitecture = "gpu_architecture"
+        case thermalStateStart = "thermal_state_start"
+        case thermalStateEnd = "thermal_state_end"
+        case secondsSinceARStart = "seconds_since_ar_start"
+        case latencyBucket = "latency_bucket"
+        case vlmCalls = "vlm_calls"
+        case prefillMillisecondsTotal = "prefill_ms_total"
+        case decodeMillisecondsTotal = "decode_ms_total"
+        case batteryState = "battery_state"
+        case lowPowerMode = "low_power_mode"
+        case latencyScope = "latency_scope"
     }
 }
 
 public enum DeviceIdentity {
-    /// Hardware identifier such as "iPhone17,1" or "Mac16,6" — distinct from
-    /// marketing names.
+    /// Hardware identifier such as "iPhone18,1" or "Mac14,12" — distinct from
+    /// marketing names. On macOS `uname` reports only the CPU ("arm64"), so
+    /// the model comes from `hw.model`; replay rows used to read
+    /// "replay:arm64" and could not say which Mac produced them.
     public static var modelIdentifier: String {
+        #if os(macOS)
+        if let model = sysctlString("hw.model") { return model }
+        #endif
         var systemInfo = utsname()
         uname(&systemInfo)
         return withUnsafeBytes(of: &systemInfo.machine) { bytes in

@@ -36,7 +36,9 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         authoredModelID: UUID,
         modelTitle: String,
         stepCount: Int,
-        staged: StagedFixtureDeclaration?
+        staged: StagedFixtureDeclaration?,
+        admission: AdmissionSnapshot? = nil,
+        conditions: DeviceConditions? = nil
     ) {
         let id = UUID()
         sessionID = id
@@ -62,7 +64,12 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 EvidenceGroundTruth(kind: .staged, expectedCompletedCount: $0.expectedCompletedCount)
             } ?? .unlabeled,
             estimate: nil,
-            analysisError: nil
+            analysisError: nil,
+            osBuild: DeviceIdentity.osBuild,
+            gpuArchitecture: DeviceIdentity.gpuArchitecture,
+            physicalMemoryBytes: DeviceIdentity.physicalMemoryBytes,
+            admission: admission,
+            conditionsStart: conditions
         )
     }
 
@@ -91,8 +98,10 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         candidates: [RecordedCandidate],
         boardURL: URL,
         prompt: String,
-        trace: MLXGenerationTrace
-    ) {
+        trace: MLXGenerationTrace,
+        variant: RecoveryInferenceVariant = .baseline
+    ) async {
+        let conditions = await DeviceConditionsProbe.snapshot()
         perform("record \(pass.rawValue) pass") {
             try ensureStarted()
             let traceID = UUID()
@@ -134,7 +143,11 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 latencyMilliseconds: trace.latencyMilliseconds,
                 memoryFootprintBytes: ProcessFootprint.currentBytes(),
                 modelRevision: session.modelRevision,
-                createdAt: .now
+                createdAt: .now,
+                variant: variant,
+                inference: trace.inference,
+                conditions: conditions,
+                readouts: trace.readouts
             )
             try appendTraceRow(row)
         }
@@ -224,7 +237,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             .compactMap { try? decoder.decode(GeometricFitRecord.self, from: Data($0)) }
     }
 
-    func finalize(estimate: RecoveryEstimate?, analysisError: String?, groundTruth: EvidenceGroundTruth) {
+    func finalize(estimate: RecoveryEstimate?, analysisError: String?, groundTruth: EvidenceGroundTruth) async {
+        let conditions = await DeviceConditionsProbe.snapshot()
         perform("finalize session") {
             try ensureStarted()
             guard !finalized else { return }
@@ -232,6 +246,7 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             session.estimate = estimate.map(EvidenceSessionFile.EstimateSummary.init)
             session.analysisError = analysisError
             session.groundTruth = groundTruth
+            session.conditionsEnd = conditions
             try writeSessionFile()
         }
     }

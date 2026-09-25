@@ -1,4 +1,7 @@
 import Foundation
+// Decode telemetry, readouts, and variants live in the evidence kit so rows
+// can carry them without MLX; RecoveryMLX clients get them through here.
+@_exported import RecoveryEvidenceKit
 
 /// Full-fidelity record of one guided generation call, produced on success
 /// and on structured-output failure alike. Before this existed, a decode
@@ -26,11 +29,13 @@ public struct MLXGenerationTrace: Codable, Sendable {
     public let latencyMilliseconds: Int
     public let maxTokens: Int
     public let schemaJSON: String
-    /// Cost and cache-feeding counts; nil for the `upstream` engine, which
-    /// exposes none.
-    public let telemetry: DecodeTelemetry?
+    /// Decode telemetry (nil for the `upstream` engine, which exposes
+    /// none) plus memory and thermal state around the call.
+    public let inference: InferenceTelemetry?
     /// The model's distribution at each small-legal-set decision.
     public let readouts: [DecisionReadout]?
+
+    public var telemetry: DecodeTelemetry? { inference?.decode }
 
     public init(
         rawOutput: String,
@@ -40,7 +45,7 @@ public struct MLXGenerationTrace: Codable, Sendable {
         latencyMilliseconds: Int,
         maxTokens: Int,
         schemaJSON: String,
-        telemetry: DecodeTelemetry? = nil,
+        inference: InferenceTelemetry? = nil,
         readouts: [DecisionReadout]? = nil
     ) {
         self.rawOutput = rawOutput
@@ -50,7 +55,7 @@ public struct MLXGenerationTrace: Codable, Sendable {
         self.latencyMilliseconds = latencyMilliseconds
         self.maxTokens = maxTokens
         self.schemaJSON = schemaJSON
-        self.telemetry = telemetry
+        self.inference = inference
         self.readouts = readouts
     }
 }

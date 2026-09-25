@@ -41,6 +41,9 @@ final class RecoveryModelManager: ObservableObject {
     /// refusal, warm-up hiccup) as opposed to unsupported hardware.
     @Published private(set) var rejectionIsRetryable = false
     @Published var allowsCellularDownloads = false
+    /// What admission measured for the loaded model; evidence sessions carry
+    /// it so the ADR 0003 floor can be set from device rows.
+    @Published private(set) var admissionSnapshot: AdmissionSnapshot?
 
     let runtime = MLXRecoveryRuntime()
     private let downloader = VerifiedAssetDownloader()
@@ -206,9 +209,21 @@ final class RecoveryModelManager: ObservableObject {
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
             let board = try Self.makeWarmUpBoard(in: directory)
+            var snapshot = AdmissionSnapshot(
+                floorBytes: Int64(Self.minimumAvailableMemory),
+                availableBytesAtCheck: Int64(os_proc_available_memory()),
+                footprintBeforeLoadBytes: ProcessMemorySnapshot.current()?.footprintBytes
+            )
+            let loadStarted = ContinuousClock.now
+            try await runtime.load(modelDirectory: directory)
+            snapshot.loadMilliseconds = Self.milliseconds(since: loadStarted)
             // ✅ VERIFIED: the first production-shaped inference, not weight
             // loading, is the admission fit test.
+            let warmUpStarted = ContinuousClock.now
             try await runtime.warmUp(imageURL: board, modelDirectory: directory)
+            snapshot.warmUpMilliseconds = Self.milliseconds(since: warmUpStarted)
+            snapshot.warmUpPeakBytes = ProcessMemorySnapshot.current()?.lifetimePeakBytes
+            admissionSnapshot = snapshot
             state = .admitted
         } catch is CancellationError {
             state = .warming
@@ -216,6 +231,11 @@ final class RecoveryModelManager: ObservableObject {
             await runtime.unload()
             reject(reason: "Recovery warm-up failed: \(error.localizedDescription)", retryable: true)
         }
+    }
+
+    private static func milliseconds(since start: ContinuousClock.Instant) -> Int {
+        let components = start.duration(to: .now).components
+        return Int(components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000)
     }
 
     private func reject(reason: String, retryable: Bool) {

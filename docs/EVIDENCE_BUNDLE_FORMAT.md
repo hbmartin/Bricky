@@ -217,6 +217,35 @@ Release rows must populate all of them. Corpus-level requirements
 (provenance, variation coverage including two elevation bands, and the
 bound-based sample sizes) are in the scorer README.
 
+## Benchmark-protocol telemetry (optional, added 2026-09-25)
+
+All of these fields are optional additions (no version bump). They exist so
+that device rows can be bucketed and controlled the way the benchmark
+protocol requires: Release builds, cold/warm/sustained buckets, and
+interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift`.
+
+| Where | Field | Meaning |
+| --- | --- | --- |
+| manifest, session | `os_build`, `gpu_architecture` | `kern.osversion`; Metal's architecture name |
+| session | `physical_memory_bytes` | `ProcessInfo.physicalMemory` (the device-floor input) |
+| session | `admission` | floor, available bytes at check, footprint before load, load and warm-up ms, warm-up lifetime peak |
+| session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
+| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `arm_id` |
+| trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |
+| trace | `conditions` | `DeviceConditions` at the call |
+| trace | `readouts` | per small-legal-set decision: position, chosen token, legal candidates with masked-softmax probabilities |
+| benchmark | `variant_id` | the arm; the scorer refuses files that mix arms unless `--allow-mixed-arms` is passed |
+| benchmark | `latency_bucket` | `cold` (first call after load), `warm`, or `sustained` (≥ 1800 s of continuous AR); the scorer reports p50/p95 per bucket |
+| benchmark | `thermal_state_start`/`_end`, `seconds_since_ar_start`, `battery_state`, `low_power_mode` | conditions at the session's start and end |
+| benchmark | `vlm_calls`, `prefill_ms_total`, `decode_ms_total` | what the estimate cost in inference |
+| benchmark | `latency_scope` | `estimate_wall_clock` on device |
+
+`memory_peak_bytes` is now the kernel's lifetime `phys_footprint` peak
+(`ledger_phys_footprint_peak`), where the device has it. Before, it was the
+largest of the footprints sampled after each call, which misses peaks that
+happen inside a call. On macOS, `device_model` now reports `hw.model`
+(for example `Mac14,12`); `uname` only gives `arm64`.
+
 ## Step numbering: the three coordinate systems
 
 This is the highest-risk area of the format; one shared helper exists per

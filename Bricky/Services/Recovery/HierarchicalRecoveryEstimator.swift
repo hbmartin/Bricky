@@ -145,7 +145,8 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
                 candidates: recorded,
                 boardURL: board,
                 prompt: prompt,
-                trace: response.trace
+                trace: response.trace,
+                variant: RecoveryInferenceVariant(vote: voteRule)
             )
         }
         guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }

@@ -30,6 +30,7 @@ targets:
       - Bricky/Camera/ARCameraManager.swift
       - Bricky/Camera/ARCameraPreview.swift
       - Bricky/Camera/RegistrationFrameRelay.swift
+      - Bricky/Camera/ARActivityClock.swift
       - Bricky/Extensions/UIImage+Orientation.swift
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery
@@ -124,6 +125,7 @@ targets:
       - BrickyTests/DeviceFloorTests.swift
       - BrickyTests/StorageLayoutTests.swift
       - BrickyTests/StepVerificationControllerTests.swift
+      - BrickyTests/ARActivityClockTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

@@ -100,6 +100,12 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         XCTAssertEqual(row["occlusion_condition"] as? String, "partial")
         XCTAssertEqual(row["legal_use_confirmed"] as? Bool, true)
         XCTAssertEqual(row["capture_angle"] as? String, "center")
+        // Benchmark-protocol telemetry (roadmap §4.5).
+        XCTAssertEqual(row["variant_id"] as? String, "baseline")
+        XCTAssertEqual(row["latency_bucket"] as? String, "warm", "no AR session and no load count: warm")
+        XCTAssertEqual(row["vlm_calls"] as? Int, 3)
+        XCTAssertEqual(row["latency_scope"] as? String, "estimate_wall_clock")
+        XCTAssertNotNil(row["thermal_state_start"] as? String)
         // The fixture camera looks 45° below the horizon.
         XCTAssertEqual(try XCTUnwrap(row["capture_elevation_degrees"] as? Double), 45, accuracy: 0.01)
         let camera = try XCTUnwrap((row["camera_metadata"] as? [[String: Double]])?.first)
