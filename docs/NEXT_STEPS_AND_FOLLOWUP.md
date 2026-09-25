@@ -140,10 +140,9 @@ What it needs, in order:
   (its hand-copied `HierarchicalIndices` is gone). What remains is the
   replay entry point itself: reading a bundle's `depth/` planes into
   `RegistrationFrameInput` and emitting geometric benchmark rows.
-- **Check-trace replay.** `bricky-harness replay` skips `check` traces
-  entirely; a `--checks` mode replaying them against `checkStepWithTrace`
-  would make check false-complete measurable offline once staged check
-  sessions supply negatives.
+- ✅ **Check-trace replay.** Done 2026-09-25: `bricky-harness replay
+  --checks` writes `vlm_check` rows that the scorer reports (false-complete
+  first). Negatives still require staged check sessions.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
   fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes

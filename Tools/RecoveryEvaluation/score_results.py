@@ -54,6 +54,10 @@ SUMMARY_KINDS = ("synthetic_summary",)
 # them unsolvable by depth alone. Reported per class, never gated, never
 # release evidence.
 CHALLENGE_KIND = "verification_challenge"
+# Replayed VLM step checks (bricky-harness replay --checks): the VLM check's
+# false-complete rate, reported beside the geometric verifier's. Mac replay
+# rows, so never release evidence.
+VLM_CHECK_KIND = "vlm_check"
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -806,6 +810,38 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
+    for index, row in enumerate(rows, start=1):
+        label = f"vlm_check row {index}"
+        missing = sorted({"fixture_id", "expected_verdict", "produced_verdict", "latency_ms"} - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if row["expected_verdict"] not in {"complete", "incomplete"}:
+            raise SystemExit(f"{label} expected_verdict must be complete or incomplete")
+        if row["produced_verdict"] not in VERDICTS:
+            raise SystemExit(f"{label} has an invalid produced_verdict")
+        require_valid_latency(row, label)
+    negatives = [row for row in rows if row["expected_verdict"] == "incomplete"]
+    positives = [row for row in rows if row["expected_verdict"] == "complete"]
+    false_completes = sum(row["produced_verdict"] == "complete" for row in negatives)
+    gate = rate_gate(
+        "vlm_check.false_complete_rate", false_completes, len(negatives),
+        ceiling=VERIFICATION_FALSE_COMPLETE_CEILING, required=False,
+    )
+    return {
+        "cases": len(rows),
+        "negatives": len(negatives),
+        "false_complete_cases": false_completes,
+        "false_complete_rate": gate.value,
+        "false_complete_upper_95": gate.bound,
+        "complete_recall": (
+            sum(row["produced_verdict"] == "complete" for row in positives) / len(positives) if positives else None
+        ),
+        "uncertain_rate": sum(row["produced_verdict"] == "uncertain" for row in rows) / len(rows),
+        "decode_failures": sum(bool(row.get("decode_failed")) for row in rows),
+    }
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -819,7 +855,9 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
-    kinds: dict[str, list[dict[str, object]]] = {kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND,)}
+    kinds: dict[str, list[dict[str, object]]] = {
+        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND)
+    }
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
         if kind not in kinds:
@@ -923,6 +961,8 @@ def main(
                 raise SystemExit(f"{kind} rows describe a synthetic corpus and are not release evidence")
         if kinds[CHALLENGE_KIND]:
             raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
+        if kinds[VLM_CHECK_KIND]:
+            raise SystemExit(f"{VLM_CHECK_KIND} rows are Mac replays and are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -941,6 +981,8 @@ def main(
             report[kind] = kinds[kind]
     if kinds[CHALLENGE_KIND]:
         report[CHALLENGE_KIND] = score_challenge(kinds[CHALLENGE_KIND])
+    if kinds[VLM_CHECK_KIND]:
+        report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -949,6 +991,13 @@ def main(
         None,
     )
     print(headline(report.get("verification"), false_complete_gate, release=release))
+    if VLM_CHECK_KIND in report:
+        check = report[VLM_CHECK_KIND]
+        shown = UNMEASURED if check["false_complete_rate"] is None else f"{check['false_complete_rate']:.4f}"
+        print(
+            f"VLM_CHECK_FALSE_COMPLETE {shown} ({check['false_complete_cases']}/{check['negatives']} negatives, "
+            f"upper95={format_number(check['false_complete_upper_95'])})"
+        )
     if CHALLENGE_KIND in report:
         for line in challenge_lines(report[CHALLENGE_KIND]):
             print(line)

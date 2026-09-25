@@ -61,6 +61,25 @@ struct Replay: AsyncParsableCommand {
     @Flag(name: .customLong("dry-run"), help: "Validate bundle structure and exit without loading weights.")
     var dryRun = false
 
+    @Flag(help: "Also replay step-check traces into <out>.checks.ndjson as vlm_check rows (false-complete first).")
+    var checks = false
+
+    @Option(help: "A/B arm label recorded on every row (e.g. control, B).")
+    var arm: String?
+
+    @Option(help: #"A full inference variant as JSON, e.g. {"decode":"feed_all","vote":"borda_dedup"}; overrides --decode and --vote."#)
+    var variant: String?
+
+    /// The variant this replay runs: the JSON if given, else the flags.
+    private func resolvedVariant() throws -> RecoveryInferenceVariant {
+        var resolved = RecoveryInferenceVariant(decode: decode, vote: vote, armID: arm)
+        if let variant {
+            resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
+            if resolved.armID == nil { resolved.armID = arm }
+        }
+        return resolved
+    }
+
     mutating func run() async throws {
         let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: bundle))
         let issues = reader.validate()
@@ -78,14 +97,19 @@ struct Replay: AsyncParsableCommand {
         let modelURL = URL(fileURLWithPath: modelDirectory)
         let runtime = MLXRecoveryRuntime()
         let encoder = EvidenceSchema.encoder()
+        let variant = try resolvedVariant()
         var benchmarkLines: [Data] = []
         var traceLines: [Data] = []
+        var checkLines: [Data] = []
 
         for session in sessions {
+            let expectedStepID = session.file.groundTruth.expectedStepID
             let rankRows = session.traceRows
                 .filter { $0.pass != .check }
                 .filter { allPasses || $0.pass == .finalist }
             var finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)] = []
+            // Every replayed call counts: with --all-passes this is the whole
+            // hierarchy's inference cost, as the device's wall clock is.
             var replayLatency = 0
             for row in rankRows {
                 let board = try boardURL(for: row, in: session)
@@ -95,19 +119,44 @@ struct Replay: AsyncParsableCommand {
                     candidateCount: row.candidateStepIDs.count,
                     modelDirectory: modelURL,
                     maxTokens: maxTokens,
-                    decode: decode
+                    decode: variant.decode
                 )
+                replayLatency += response.trace.latencyMilliseconds
                 if row.pass == .finalist {
                     finalistReplays.append((row, response.output))
-                    replayLatency += response.trace.latencyMilliseconds
                 }
-                traceLines.append(try encoder.encode(ReplayTraceResult(row: row, response: response,
-                                                                       promptOverridden: promptOverride != nil,
-                                                                       recomposed: recompose, decode: decode)))
+                let decision = ReplayDecision(rawOutput: response.trace.rawOutput)
+                traceLines.append(try encoder.encode(ReplayTraceResult(
+                    row: row, trace: response.trace, promptOverridden: promptOverride != nil, recomposed: recompose,
+                    variant: variant, decision: decision,
+                    outcome: ReplayAggregation.passOutcome(row: row, decision: decision, expectedStepID: expectedStepID)
+                )))
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
+            if checks {
+                for row in session.traceRows where row.pass == .check {
+                    let response = try await runtime.checkStepWithTrace(
+                        imageURL: try boardURL(for: row, in: session),
+                        prompt: row.prompt,
+                        modelDirectory: modelURL,
+                        decode: variant.decode
+                    )
+                    guard let expected = ReplayAggregation.expectedCheckVerdict(
+                        row: row, expectedCompletedCount: session.file.groundTruth.expectedCompletedCount
+                    ) else {
+                        print("check \(row.traceID.uuidString.prefix(8)) has no labeled step count — no vlm_check row")
+                        continue
+                    }
+                    checkLines.append(try encoder.encode(ReplayCheckRow(
+                        row: row, trace: response.trace, expectedVerdict: expected,
+                        variant: variant, modelRevision: modelRevision
+                    )))
+                    print("replayed check \(row.traceID.uuidString.prefix(8)) → \(response.output?.result ?? "undecodable") (expected \(expected))")
+                }
+            }
             if let rowData = try benchmarkRow(session: session, finalistReplays: finalistReplays,
-                                              replayLatency: replayLatency, replayModelRevision: modelRevision) {
+                                              replayLatency: replayLatency, replayModelRevision: modelRevision,
+                                              variant: variant) {
                 benchmarkLines.append(rowData)
             } else if session.file.groundTruth.kind == .unlabeled {
                 print("session \(session.file.sessionID.uuidString.prefix(8)) is unlabeled — no benchmark row")
@@ -121,6 +170,10 @@ struct Replay: AsyncParsableCommand {
 
         try write(lines: benchmarkLines, to: URL(fileURLWithPath: out))
         try write(lines: traceLines, to: URL(fileURLWithPath: out + ".traces.ndjson"))
+        if checks {
+            try write(lines: checkLines, to: URL(fileURLWithPath: out + ".checks.ndjson"))
+            print("wrote \(checkLines.count) vlm_check rows to \(out).checks.ndjson")
+        }
         print("wrote \(benchmarkLines.count) benchmark rows to \(out)")
     }
 
@@ -141,7 +194,8 @@ struct Replay: AsyncParsableCommand {
         session: EvidenceBundleReader.Session,
         finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?)],
         replayLatency: Int,
-        replayModelRevision: String
+        replayModelRevision: String,
+        variant: RecoveryInferenceVariant
     ) throws -> Data? {
         let truth = session.file.groundTruth
         guard truth.kind != .unlabeled,
@@ -157,7 +211,7 @@ struct Replay: AsyncParsableCommand {
             guard let output, output.status == "matched" else { return nil }
             return RecoveryVoteView(ranking: output.ranking, candidateForSlot: row.candidateStepIDs)
         }
-        let outcome = RecoveryVote.aggregate(views: views, finalists: finalists, rule: vote)
+        let outcome = RecoveryVote.aggregate(views: views, finalists: finalists, rule: variant.vote)
         let ranked = outcome.map { Array($0.ordered.prefix(3)) } ?? []
         let certainty = outcome?.certainty ?? .insufficient
         let row = RecoveryBenchmarkV1(
@@ -196,9 +250,11 @@ struct Replay: AsyncParsableCommand {
             captureAngle: session.file.captures.map(\.angle).joined(separator: ","),
             occlusionCondition: session.file.staged?.occlusion.rawValue,
             captureElevationDegrees: session.file.captures.benchmarkElevationDegrees,
-            variantID: RecoveryInferenceVariant(decode: decode, vote: vote).id,
+            variantID: variant.id,
             osBuild: DeviceIdentity.osBuild,
-            gpuArchitecture: DeviceIdentity.gpuArchitecture
+            gpuArchitecture: DeviceIdentity.gpuArchitecture,
+            vlmCalls: finalistReplays.count,
+            latencyScope: (allPasses ? ReplayAggregation.LatencyScope.allPasses : .finalistsOnly).rawValue
         )
         return try EvidenceSchema.encoder().encode(row)
     }
@@ -268,6 +324,9 @@ enum BoardRecomposer {
 
 /// One replayed inference call, written beside the benchmark output for
 /// device-vs-replay and A/B-vs-baseline comparison.
+/// One replayed rank call, beside what the device decided for it. Pass-level
+/// correctness and slot letters make these rows pairable by trace for an A/B
+/// (`compare_arms.py`), including the slot-bias histogram.
 struct ReplayTraceResult: Codable {
     let traceID: UUID
     let sessionID: UUID
@@ -279,26 +338,39 @@ struct ReplayTraceResult: Codable {
     let termination: String
     let latencyMilliseconds: Int
     let deviceRawOutput: String
+    /// Same decision as the device (status and ranking), ignoring spacing.
     let matchesDevice: Bool
-    let decode: DecodeMode
-    let telemetry: DecodeTelemetry?
+    /// Byte-identical output, the stricter check a decoder refactor needs.
+    let matchesDeviceRaw: Bool
+    let variant: RecoveryInferenceVariant
+    let variantID: String
+    let decision: ReplayDecision?
+    let outcome: ReplayAggregation.PassOutcome
+    let inference: InferenceTelemetry?
     let readouts: [DecisionReadout]?
 
-    init(row: EvidenceTraceRow, response: MLXRankResponse, promptOverridden: Bool, recomposed: Bool, decode: DecodeMode) {
+    init(
+        row: EvidenceTraceRow, trace: MLXGenerationTrace, promptOverridden: Bool, recomposed: Bool,
+        variant: RecoveryInferenceVariant, decision: ReplayDecision?, outcome: ReplayAggregation.PassOutcome
+    ) {
         traceID = row.traceID
         sessionID = row.sessionID
         pass = row.pass
         self.promptOverridden = promptOverridden
         self.recomposed = recomposed
-        rawOutput = response.trace.rawOutput
-        decodeError = response.trace.decodeErrorDescription
-        termination = response.trace.termination.rawValue
-        latencyMilliseconds = response.trace.latencyMilliseconds
+        rawOutput = trace.rawOutput
+        decodeError = trace.decodeErrorDescription
+        termination = trace.termination.rawValue
+        latencyMilliseconds = trace.latencyMilliseconds
         deviceRawOutput = row.rawOutput
-        matchesDevice = response.trace.rawOutput == row.rawOutput
-        self.decode = decode
-        telemetry = response.trace.telemetry
-        readouts = response.trace.readouts
+        matchesDevice = ReplayAggregation.decisionsMatch(decision, ReplayDecision(rawOutput: row.rawOutput))
+        matchesDeviceRaw = trace.rawOutput == row.rawOutput
+        self.variant = variant
+        variantID = variant.id
+        self.decision = decision
+        self.outcome = outcome
+        inference = trace.inference
+        readouts = trace.readouts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -313,9 +385,68 @@ struct ReplayTraceResult: Codable {
         case latencyMilliseconds = "latency_ms"
         case deviceRawOutput = "device_raw_output"
         case matchesDevice = "matches_device"
-        case decode
-        case telemetry
+        case matchesDeviceRaw = "matches_device_raw"
+        case variant
+        case variantID = "variant_id"
+        case decision
+        case outcome
+        case inference
         case readouts
+    }
+}
+
+/// A replayed step check, scored by `score_results.py` as kind `vlm_check`:
+/// the VLM check's false-complete rate, which ADR 0008's yes-bias concern
+/// makes the number to watch. Replay rows, so never release evidence.
+struct ReplayCheckRow: Encodable {
+    let kind = "vlm_check"
+    let schemaVersion = 1
+    let provenance = "replay"
+    let fixtureID: String
+    let sessionID: UUID
+    let expectedVerdict: String
+    let producedVerdict: String
+    let decodeFailed: Bool
+    let deviceVerdict: String?
+    let matchesDevice: Bool
+    let latencyMilliseconds: Int
+    let variantID: String
+    let modelRevision: String
+    let deviceModel: String
+
+    init(row: EvidenceTraceRow, trace: MLXGenerationTrace, expectedVerdict: String,
+         variant: RecoveryInferenceVariant, modelRevision: String) {
+        let decision = ReplayDecision(rawOutput: trace.rawOutput)
+        let device = ReplayDecision(rawOutput: row.rawOutput)
+        fixtureID = row.traceID.uuidString
+        sessionID = row.sessionID
+        self.expectedVerdict = expectedVerdict
+        // An undecodable answer is no verdict: scored as uncertain, flagged.
+        producedVerdict = decision?.result ?? "uncertain"
+        decodeFailed = decision?.result == nil
+        deviceVerdict = device?.result
+        matchesDevice = ReplayAggregation.decisionsMatch(decision, device)
+        latencyMilliseconds = trace.latencyMilliseconds
+        variantID = variant.id
+        self.modelRevision = modelRevision
+        deviceModel = "replay:\(DeviceIdentity.modelIdentifier)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case schemaVersion = "schema_version"
+        case provenance
+        case fixtureID = "fixture_id"
+        case sessionID = "session_id"
+        case expectedVerdict = "expected_verdict"
+        case producedVerdict = "produced_verdict"
+        case decodeFailed = "decode_failed"
+        case deviceVerdict = "device_verdict"
+        case matchesDevice = "matches_device"
+        case latencyMilliseconds = "latency_ms"
+        case variantID = "variant_id"
+        case modelRevision = "model_revision"
+        case deviceModel = "device_model"
     }
 }
 

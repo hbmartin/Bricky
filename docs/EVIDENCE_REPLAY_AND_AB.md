@@ -66,17 +66,28 @@ Behavior:
    `<out>.traces.ndjson`.
 
 Row provenance: replay rows carry `device_model: "replay:<mac-identifier>"`
-and `latency_ms` equal to the sum of the *replayed* finalist latencies. They
+and a `latency_ms` equal to the sum of every replayed call, with
+`latency_scope` saying which calls those were: `inference_all_passes` under
+`--all-passes`, otherwise `inference_finalists_only`. They
 copy the staged declaration's physical and legal-use flags verbatim, so the
 tag is what separates them from device rows, and `score_results.py` release
 mode enforces it: only admitted `iPhone<≥18>,<n>` identifiers are accepted,
 and a fixture may appear once. The device's own numbers are the
 `benchmark.ndjson` files already inside the bundle.
 
-The traces sidecar (`ReplayTraceResult`) carries per call: `raw_output`,
-`decode_error`, `termination`, `latency_ms`, the recorded
-`device_raw_output`, and `matches_device` — the quickest signal for whether
-a device failure reproduces at all.
+The traces sidecar (`ReplayTraceResult`) carries, per call:
+- `raw_output`, `decode_error`, `termination`, `latency_ms`;
+- the recorded `device_raw_output`;
+- `matches_device`: the same decision (status and ranking), ignoring
+  whitespace. It is the quickest signal for whether a device failure
+  reproduces at all;
+- `matches_device_raw`: byte identity;
+- `variant` / `variant_id`;
+- the decoded `decision`;
+- `outcome`: `truth_slot`, `chosen_slot`, `truth_in_candidates`,
+  `top1_correct`. These make rows pairable by trace for an A/B, and give
+  the slot-bias histogram;
+- the decoder's `inference` telemetry and `readouts`.
 
 ### A/B knobs
 
@@ -87,6 +98,8 @@ a device failure reproduces at all.
 | `--recompose` | Rebuild each board from the raw capture + tiles through `RecoveryBoardLayoutV1` instead of replaying the stored board image (layout experiments) |
 | `--all-passes` | Replay the full hierarchy, not only finalists |
 | `--vote borda_dedup\|borda_legacy` | Finalist vote rule (`RecoveryVote`, shared with the app). `borda_dedup` is the app default; `borda_legacy` counts repeated slots as the app did before 2026-09 |
+| `--checks` | Also replay step-check traces into `<out>.checks.ndjson` as `vlm_check` rows. The scorer prints their false-complete rate; the expected verdict comes from the session's labeled step count |
+| `--arm NAME`, `--variant JSON` | Record an arm label; `--variant` sets the whole `RecoveryInferenceVariant` at once (overriding `--decode`/`--vote`). Rows carry `variant_id` |
 | `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`

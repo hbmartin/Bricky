@@ -575,6 +575,28 @@ class RecoveryScoringTests(unittest.TestCase):
             validate_rows([row])
 
 
+class VLMCheckTests(unittest.TestCase):
+    @staticmethod
+    def check_row(expected: str, produced: str) -> dict[str, object]:
+        return {"kind": "vlm_check", "schema_version": 1, "fixture_id": "t", "expected_verdict": expected,
+                "produced_verdict": produced, "latency_ms": 6_000, "variant_id": "baseline"}
+
+    def test_vlm_check_false_complete_prints_and_never_gates(self) -> None:
+        rows = [self.check_row("incomplete", "complete"), self.check_row("incomplete", "incomplete"),
+                self.check_row("complete", "complete"), self.check_row("complete", "uncertain")]
+        code, output = MainTests.run_main(rows)
+        self.assertEqual(code, 0)
+        self.assertIn("VLM_CHECK_FALSE_COMPLETE 0.5000 (1/2 negatives", output)
+        report = MainTests.report_json(output)["vlm_check"]
+        self.assertEqual(report["complete_recall"], 0.5)
+        self.assertEqual(report["uncertain_rate"], 0.25)
+
+    def test_vlm_check_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main([self.check_row("incomplete", "incomplete")], informational=False)
+        self.assertEqual(code, 1)
+        self.assertIn("Mac replays", output)
+
+
 class BenchmarkProtocolTests(unittest.TestCase):
     def test_latency_is_reported_per_bucket(self) -> None:
         rows = []
