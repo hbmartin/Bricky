@@ -98,8 +98,15 @@ uv run python score_results.py results.ndjson --allow-small-corpus
 ```
 
 Device-recorded `benchmark.ndjson` rows inside the bundle are the *device*
-numbers; `bricky-harness replay` rows carry `device_model: "replay:<mac>"` so
-they can never masquerade as device rows in a release corpus.
+numbers; `bricky-harness replay` rows carry `device_model: "replay:<mac>"`.
+The tag alone protects nothing — replay copies the staged declaration's
+`physical_case` and `legal_use_confirmed` verbatim — so release mode
+enforces it: every release row's `device_model` must be an admitted
+`iPhone<≥18>,<n>` identifier, each `fixture_id` may appear once (a device row
+and its own replay share the session UUID), and challenge or
+expected-failure rows are refused. Verification and registration rows
+additionally need `provenance: "device"`, which no producer emits yet, so
+those kinds fail release mode honestly until one exists.
 
 ### A/B experiments
 
@@ -150,6 +157,8 @@ Every release row therefore also includes `physical_case: true`, a stable
 `authored_model_id`, `legal_use_confirmed: true`, and non-empty
 `lighting_condition`, `capture_angle`, and `occlusion_condition` labels. Each
 row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
-the scorer requires at least two distinct labels for each variation dimension
-and at least 6 distinct authored model IDs. `top_step_index` may be omitted or
+the scorer requires at least two distinct lighting and occlusion labels and
+at least 6 distinct authored model IDs. `capture_angle` is the comma-joined
+set of views the session captured (normally `left,center,right`) and must
+include `center` plus a side view. `top_step_index` may be omitted or
 null only when `certainty` is `insufficient`.

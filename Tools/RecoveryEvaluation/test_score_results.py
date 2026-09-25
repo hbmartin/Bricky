@@ -26,6 +26,7 @@ from score_results import (
     score_verification,
     validate_release_corpus,
     validate_rows,
+    validate_triad_release,
 )
 
 RELEASE_ROWS = 60
@@ -159,11 +160,51 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
                 authored_model_id=f"model-{index % MINIMUM_AUTHORED_MODELS}",
                 legal_use_confirmed=True,
                 lighting_condition="daylight" if index % 2 else "indoor",
-                capture_angle="left" if index % 2 else "right",
+                capture_angle="left,center,right",
                 occlusion_condition="none" if index % 2 else "partial",
+                device_model="iPhone18,1",
             )
             rows.append(row)
         return rows
+
+    def assert_rejected(self, pattern: str, **changes: object) -> None:
+        rows = self.release_rows()
+        rows[3].update(changes)
+        with self.assertRaisesRegex(SystemExit, pattern):
+            validate_release_corpus(rows)
+
+    def test_replay_rows_are_not_device_evidence(self) -> None:
+        # The harness copies physical_case and legal_use_confirmed from the
+        # staged declaration, so only device_model tells a replay apart.
+        self.assert_rejected("not a physical iPhone identifier", device_model="replay:Mac14,12")
+
+    def test_macs_ipads_and_simulators_are_rejected(self) -> None:
+        for identifier in ("Mac14,12", "iPad16,3", "arm64", "iPhone"):
+            self.assert_rejected("not a physical iPhone identifier", device_model=identifier)
+
+    def test_phones_below_the_floor_are_rejected(self) -> None:
+        self.assert_rejected("below the device floor", device_model="iPhone17,1")
+
+    def test_future_pro_identifiers_pass(self) -> None:
+        rows = self.release_rows()
+        rows[3]["device_model"] = "iPhone19,2"
+        validate_release_corpus(rows)
+
+    def test_challenge_and_expected_failure_rows_are_rejected(self) -> None:
+        self.assert_rejected("not release evidence", expected_failure=True)
+        self.assert_rejected("not release evidence", challenge_class="colour_swap")
+
+    def test_capture_angle_is_the_set_of_views_captured(self) -> None:
+        # Every full session writes "left,center,right". The old rule demanded
+        # two distinct values across the corpus, which real data never has.
+        for accepted in ("left,center,right", "center,left", "right, center"):
+            rows = self.release_rows()
+            rows[3]["capture_angle"] = accepted
+            validate_release_corpus(rows)
+        self.assert_rejected("needs the center view", capture_angle="left,right")
+        self.assert_rejected("needs the center view", capture_angle="center")
+        self.assert_rejected("unknown views", capture_angle="center,above")
+        self.assert_rejected("repeats a view", capture_angle="center,center")
 
     def test_complete_physical_corpus_passes_preflight(self) -> None:
         rows = self.release_rows()
@@ -180,6 +221,27 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
         rows = [benchmark_row() for _ in range(RELEASE_ROWS)]
         with self.assertRaisesRegex(SystemExit, "missing fields"):
             validate_release_corpus(rows)
+
+
+class TriadReleaseProvenanceTests(unittest.TestCase):
+    def test_synthetic_triad_rows_fail_release_mode(self) -> None:
+        rows = [verification_row(expected="incomplete", produced="incomplete") for _ in range(200)]
+        code, output = MainTests.run_main(rows, informational=False, require_kinds={"verification"})
+        self.assertEqual(code, 1)
+        self.assertIn("provenance None", output)
+
+    def test_device_triad_rows_need_an_admitted_device_and_model(self) -> None:
+        row = verification_row()
+        row.update(provenance="device", device_model="iPhone18,2", authored_model_id="model-1")
+        validate_triad_release([row], "verification")
+        for field, value, pattern in (
+            ("device_model", "replay:Mac14,12", "not a physical iPhone"),
+            ("authored_model_id", "", "authored_model_id"),
+        ):
+            broken = dict(row)
+            broken[field] = value
+            with self.assertRaisesRegex(SystemExit, pattern):
+                validate_triad_release([broken], "verification")
 
 
 class PartitionTests(unittest.TestCase):
@@ -444,6 +506,9 @@ class MainTests(unittest.TestCase):
                 try:
                     main(path, **options)
                 except SystemExit as caught:
+                    # A validation failure exits with its message as the code.
+                    if isinstance(caught.code, str):
+                        return 1, stdout.getvalue() + caught.code
                     return int(caught.code or 0), stdout.getvalue()
         raise AssertionError("main() must exit via SystemExit")
 

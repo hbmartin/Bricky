@@ -180,7 +180,9 @@ what keeps it from winning, and it cannot also carry the reason.
 
 Written once per **labeled** session by `RecoveryBenchmarkWriter` (device) or
 derived by `bricky-harness replay` (Mac; always tagged
-`device_model: "replay:<mac>"`). The consumer contract is
+`device_model: "replay:<mac>"`, which `score_results.py` release mode
+rejects — only `iPhone<≥18>,<n>` identifiers are device evidence). The
+consumer contract is
 `Tools/RecoveryEvaluation/score_results.py`; `BrickyTests/
 RecoveryBenchmarkWriterTests.swift` mirrors its `REQUIRED_FIELDS` and
 `RELEASE_FIELDS` sets so drift fails a test, not a release run.

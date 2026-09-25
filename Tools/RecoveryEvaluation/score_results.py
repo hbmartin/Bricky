@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,17 @@ from pathlib import Path
 # PENDING owner decision (2026-09-25): whether the recovery release corpus
 # must span 6 or 10 authored models. Kept at the historical value until then.
 MINIMUM_AUTHORED_MODELS = 6
+
+# The device floor (ADR 0012 amendment): iPhone 17 Pro / Pro Max, whose
+# identifiers are iPhone18,1 and iPhone18,2. Release rows must come from an
+# admitted device; `replay:<mac>` rows, Macs, iPads, and older phones are not
+# device evidence.
+MINIMUM_IPHONE_FAMILY = 18
+DEVICE_MODEL_PATTERN = re.compile(r"^iPhone(\d+),\d+$")
+CAPTURE_ANGLES = {"left", "center", "right"}
+# Fields that mark a row as deliberately not release evidence: challenge-set
+# rows and rows expected to fail by construction.
+NON_RELEASE_FIELDS = ("expected_failure", "challenge_class")
 
 CONFIDENCE = 0.95
 # Below this many converged fits an RMSE is an anecdote, not a measurement.
@@ -332,28 +344,72 @@ def step_index(step_id: object) -> int | None:
         return None
 
 
+def validate_release_device(row: dict[str, object], label: str) -> None:
+    """A release row must come from an admitted physical device. This is what
+    keeps `replay:<mac>` rows — which copy the staged declaration's physical
+    and legal-use flags verbatim — out of release evidence."""
+    device_model = row.get("device_model")
+    match = DEVICE_MODEL_PATTERN.match(device_model) if isinstance(device_model, str) else None
+    if match is None:
+        raise SystemExit(f"{label} device_model {device_model!r} is not a physical iPhone identifier")
+    if int(match.group(1)) < MINIMUM_IPHONE_FAMILY:
+        raise SystemExit(
+            f"{label} device_model {device_model!r} is below the device floor "
+            f"(iPhone{MINIMUM_IPHONE_FAMILY},x)"
+        )
+    for field in NON_RELEASE_FIELDS:
+        if field in row:
+            raise SystemExit(f"{label} carries {field!r} and is not release evidence")
+
+
+def unique_fixture(row: dict[str, object], fixtures: set[str], label: str) -> None:
+    fixture_id = row.get("fixture_id")
+    if not isinstance(fixture_id, str) or not fixture_id.strip():
+        raise SystemExit(f"{label} fixture_id must be a non-empty string")
+    # One row per fixture: a repeated capture — or a device row and its own
+    # Mac replay, which share the session UUID — would otherwise pad every
+    # bound's sample size with correlated evidence.
+    if fixture_id.strip() in fixtures:
+        raise SystemExit(f"{label} repeats fixture_id {fixture_id.strip()!r}")
+    fixtures.add(fixture_id.strip())
+
+
+def validate_capture_angles(value: object, label: str) -> None:
+    """`capture_angle` names the set of views a session captured, joined by
+    commas; every full session is "left,center,right". The recovery flow needs
+    the center view and at least one side view."""
+    if not isinstance(value, str) or not value.strip():
+        raise SystemExit(f"{label} capture_angle must be non-empty")
+    angles = [angle.strip().casefold() for angle in value.split(",") if angle.strip()]
+    unknown = sorted(set(angles) - CAPTURE_ANGLES)
+    if unknown:
+        raise SystemExit(f"{label} capture_angle has unknown views: {', '.join(unknown)}")
+    if len(set(angles)) != len(angles):
+        raise SystemExit(f"{label} capture_angle repeats a view")
+    if "center" not in angles or len(angles) < 2:
+        raise SystemExit(f"{label} capture_angle needs the center view and at least one side view")
+
+
 def validate_release_corpus(rows: list[dict[str, object]]) -> None:
     """Provenance preflight for release mode. It checks what the rows are,
     not how many there are: sample size is judged per gate by its bound."""
     fixtures: set[str] = set()
     models: set[str] = set()
+    # Corpus-level variety. Capture angle is not here: every session captures
+    # the same three views, so a per-corpus "two distinct values" rule on it
+    # could never pass on real data. It is validated per row instead.
     variation: dict[str, set[str]] = {
         "lighting_condition": set(),
-        "capture_angle": set(),
         "occlusion_condition": set(),
     }
     for index, row in enumerate(rows, start=1):
+        label = f"release row {index}"
         missing = sorted(RELEASE_FIELDS - row.keys())
         if missing:
-            raise SystemExit(f"release row {index} missing fields: {', '.join(missing)}")
-        fixture_id = row.get("fixture_id")
-        if not isinstance(fixture_id, str) or not fixture_id.strip():
-            raise SystemExit(f"release row {index} fixture_id must be a non-empty string")
-        # One row per fixture: a repeated capture would otherwise pad every
-        # bound's sample size with correlated evidence.
-        if fixture_id.strip() in fixtures:
-            raise SystemExit(f"release row {index} repeats fixture_id {fixture_id.strip()!r}")
-        fixtures.add(fixture_id.strip())
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        unique_fixture(row, fixtures, label)
+        validate_release_device(row, label)
+        validate_capture_angles(row["capture_angle"], label)
         if row["physical_case"] is not True:
             raise SystemExit(f"release row {index} is not explicitly marked as a physical case")
         if row["legal_use_confirmed"] is not True:
@@ -468,6 +524,22 @@ DORMANT_GATES = {
     "verification.marginal.complete_precision",
     "verification.marginal.complete_recall",
 }
+
+
+def validate_triad_release(rows: list[dict[str, object]], kind: str) -> None:
+    """Verification and registration rows enter a release corpus only from a
+    device producer. None exists yet — every such row today is synthetic — so
+    release mode fails these kinds honestly until one is built."""
+    fixtures: set[str] = set()
+    for index, row in enumerate(rows, start=1):
+        label = f"release {kind} row {index}"
+        if row.get("provenance") != "device":
+            raise SystemExit(f"{label} has provenance {row.get('provenance')!r}; release needs 'device'")
+        unique_fixture(row, fixtures, label)
+        validate_release_device(row, label)
+        model_id = row.get("authored_model_id")
+        if not isinstance(model_id, str) or not model_id.strip():
+            raise SystemExit(f"{label} authored_model_id must be non-empty")
 
 
 def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
@@ -705,6 +777,10 @@ def main(
     if require_kinds is None:
         require_kinds = set(KINDS) if release else set()
     kinds = partition(rows)
+    if release:
+        for kind in ("verification", "registration"):
+            if kinds[kind]:
+                validate_triad_release(kinds[kind], kind)
     scorers = {
         "verification": lambda kind_rows: score_verification(kind_rows),
         "registration": lambda kind_rows: score_registration(kind_rows),

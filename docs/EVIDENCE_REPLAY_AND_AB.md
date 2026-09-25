@@ -65,10 +65,12 @@ Behavior:
 5. Writes benchmark rows to `--out` and every per-call result to
    `<out>.traces.ndjson`.
 
-Row provenance is enforced structurally: replay rows carry
-`device_model: "replay:<mac-identifier>"` and `latency_ms` equal to the sum
-of the *replayed* finalist latencies, so Mac numbers can never masquerade as
-device rows in a release corpus. The device's own numbers are the
+Row provenance: replay rows carry `device_model: "replay:<mac-identifier>"`
+and `latency_ms` equal to the sum of the *replayed* finalist latencies. They
+copy the staged declaration's physical and legal-use flags verbatim, so the
+tag is what separates them from device rows, and `score_results.py` release
+mode enforces it: only admitted `iPhone<≥18>,<n>` identifiers are accepted,
+and a fixture may appear once. The device's own numbers are the
 `benchmark.ndjson` files already inside the bundle.
 
 The traces sidecar (`ReplayTraceResult`) carries per call: `raw_output`,
