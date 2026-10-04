@@ -40,18 +40,27 @@ struct SyntheticRGBDMain {
         }
     }
 
+    enum Suite: String {
+        /// The committed regression corpus: registration sweep plus the
+        /// verification taxonomy on sampled steps.
+        case regression
+        /// Mistake classes the taxonomy lacks, on every single-part step.
+        case challenge
+    }
+
     struct Options {
         var modelPath: String
         var ldrawRoot: String
         var outPath: String
         var seed: UInt64 = 42
         var sampledSteps = 6
+        var suite = Suite.regression
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -69,6 +78,9 @@ struct SyntheticRGBDMain {
             case "--steps":
                 guard let steps = Int(value) else { throw CLIError("invalid value for --steps: \(value)") }
                 options.sampledSteps = max(1, steps)
+            case "--suite":
+                guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
+                options.suite = suite
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
@@ -111,10 +123,19 @@ struct SyntheticRGBDMain {
             partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
         )
         let renderer = try ExpectedDepthRenderer()
+        if options.suite == .challenge {
+            try await runChallenge(
+                plan: plan, engine: engine, renderer: renderer, fixtureStem: fixtureStem, options: options
+            )
+            return
+        }
         var rng = SplitMix64(seed: options.seed)
         var rows: [String] = []
+        var registrationRows = 0
+        var verificationRows = 0
+        var droppedByDetectability: [String: Int] = [:]
 
-        let stepIndices = HierarchicalIndices.evenly(
+        let stepIndices = RecoveryIndexing.evenlySampledIndices(
             count: min(options.sampledSteps, plan.steps.count),
             range: 0..<plan.steps.count
         )
@@ -140,6 +161,7 @@ struct SyntheticRGBDMain {
                     ambiguityExpected: perturbation.ambiguityExpected,
                     outcome: outcome
                 ))
+                registrationRows += 1
             }
 
             // Verification scenarios: the physical scene carries the injected
@@ -157,8 +179,13 @@ struct SyntheticRGBDMain {
                 // rates below strong is not a fair recall target: the honest
                 // response to a weakly visible delta is abstention (ADR 0008),
                 // so such rows would punish correct behavior. Every other
-                // scenario keeps its row regardless of detectability.
+                // scenario keeps its row regardless of detectability. Drops
+                // are counted into the summary row, where the regression
+                // baseline guards them: a verifier change that downgrades
+                // detectability would otherwise delete its own recall
+                // failures and read as an improvement.
                 if scenario.expectedVerdict == "complete", verdict.detectability != .strong {
+                    droppedByDetectability[verdict.detectability.rawValue, default: 0] += 1
                     continue
                 }
                 rows.append(try Row.verification(
@@ -167,15 +194,128 @@ struct SyntheticRGBDMain {
                     verification: verdict,
                     latencyMilliseconds: started.duration(to: .now).milliseconds
                 ))
+                verificationRows += 1
             }
         }
 
         guard !rows.isEmpty else {
             throw CLIError("no benchmark rows were generated from \(options.modelPath)")
         }
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "regression",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "steps_sampled": stepIndices.count,
+            "generated_registration_rows": registrationRows,
+            "generated_verification_rows": verificationRows,
+            "dropped_expected_complete_below_strong": droppedByDetectability.values.reduce(0, +),
+            "dropped_by_detectability": droppedByDetectability,
+        ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
         print("wrote \(rows.count) rows to \(options.outPath)")
+    }
+}
+
+extension SyntheticRGBDMain {
+    /// The challenge suite. It draws from its own RNG stream, so adding it
+    /// cannot move a single regression row, and it skips the registration
+    /// sweep: every scenario judges a single-part step under a locked pose.
+    static func runChallenge(
+        plan: InstructionPlan,
+        engine: LDrawGeometryEngine,
+        renderer: ExpectedDepthRenderer,
+        fixtureStem: String,
+        options: Options
+    ) async throws {
+        var rng = SplitMix64(seed: options.seed ^ 0xC4A1_1E46_E5E7)
+        var rows: [String] = []
+        var stepsUsed = 0
+        var notApplicable: [String: Int] = [:]
+        var dropped: [String: Int] = [:]
+
+        for step in plan.steps {
+            let added = Array(plan.addedPlacements(for: step))
+            // One part per step is what makes an edit unambiguous; the base
+            // step (and any multi-part step) is outside the suite.
+            guard added.count == 1, let placement = added.first else { continue }
+            stepsUsed += 1
+            let completed = try await engine.snapshot(placements: Array(plan.completedPlacements(before: step)))
+            let delta = try await engine.snapshot(placements: added)
+            let full = try await engine.snapshot(placements: Array(plan.cumulativePlacements(through: step)))
+            // ≈ 33 cm from the eye: a handheld view of one part.
+            let scene = SyntheticScene(renderer: renderer, model: full, minimumExtent: 0.2)
+
+            for scenario in ChallengeScenario.all {
+                let physicalDelta: InstructionGeometrySnapshot
+                switch scenario.edit {
+                case .buffers(let offset):
+                    physicalDelta = InstructionGeometrySnapshot(
+                        buffers: delta.buffers.map { $0.translated(by: offset) }, bounds: nil
+                    )
+                case .placement(let edit):
+                    guard let edited = edit(placement) else {
+                        notApplicable[scenario.label, default: 0] += 1
+                        continue
+                    }
+                    physicalDelta = try await engine.snapshot(placements: [edited])
+                }
+                let challengeClass: String
+                let expected: String
+                switch scenario.expectation {
+                case .verdict(let verdict):
+                    (challengeClass, expected) = (scenario.label, verdict)
+                case .completeIfDepthEquivalent:
+                    let symmetric = try scene.depthEquivalent(delta, physicalDelta)
+                    challengeClass = scenario.label + (symmetric ? "_symmetric" : "_asymmetric")
+                    expected = symmetric ? "complete" : "misplaced"
+                }
+
+                let started = ContinuousClock.now
+                let verdict = try await scene.verify(
+                    completed: completed,
+                    delta: delta,
+                    physical: InstructionGeometrySnapshot(buffers: completed.buffers + physicalDelta.buffers, bounds: nil),
+                    sensor: SensorModel(rng: &rng)
+                )
+                // Same rule as the regression suite: an expected-complete
+                // row below strong detectability is not a fair recall target.
+                if expected == "complete", verdict.detectability != .strong {
+                    dropped[challengeClass, default: 0] += 1
+                    continue
+                }
+                rows.append(try Row.challenge(
+                    fixture: "\(fixtureStem)-s\(step.index)-\(scenario.label)-\(placement.partReference)",
+                    challengeClass: challengeClass,
+                    expected: expected,
+                    expectedFailure: scenario.expectedFailure,
+                    verification: verdict,
+                    latencyMilliseconds: started.duration(to: .now).milliseconds
+                ))
+            }
+        }
+
+        guard !rows.isEmpty else {
+            throw CLIError("no challenge rows were generated from \(options.modelPath): it needs single-part steps")
+        }
+        let generated = rows.count
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "challenge",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "steps_sampled": stepsUsed,
+            "generated_challenge_rows": generated,
+            "dropped_expected_complete_below_strong": dropped.values.reduce(0, +),
+            "dropped_by_class": dropped,
+            "not_applicable_by_class": notApplicable,
+        ]))
+        try rows.joined(separator: "\n").appending("\n")
+            .write(toFile: options.outPath, atomically: true, encoding: .utf8)
+        print("wrote \(generated) challenge rows to \(options.outPath)")
     }
 }
 
@@ -202,15 +342,5 @@ struct SplitMix64: RandomNumberGenerator {
         let u1 = max(Float(next() >> 11) * (1.0 / 9007199254740992.0), 1e-9)
         let u2 = Float(next() >> 11) * (1.0 / 9007199254740992.0)
         return sqrt(-2 * log(u1)) * cos(2 * .pi * u2)
-    }
-}
-
-enum HierarchicalIndices {
-    static func evenly(count: Int, range: Range<Int>) -> [Int] {
-        guard count > 0, !range.isEmpty else { return [] }
-        if count == 1 { return [range.lowerBound] }
-        return (0..<count).map { offset in
-            range.lowerBound + Int((Double(range.count - 1) * Double(offset) / Double(count - 1)).rounded())
-        }
     }
 }

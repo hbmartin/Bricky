@@ -30,3 +30,28 @@ the bricky-harness CLI before the app switches.
 Roughly 0.4 GB more weight against an already-tight budget, mitigated by
 geometric-first verification and recovery (ADR 0008, ADR 0010) making VLM
 residency on-demand rather than mandatory.
+
+## Amendment (2026-09-25): the pin had never run
+
+The first Mac run of the pinned weights, via the new weights-gated
+`RecoveryRuntimeSmokeTests`, found two defects that would each have made
+on-device admission reject every time. The warm-up is a real inference,
+and it could neither load the model nor complete a call:
+
+- **Stale shard index.** The pinned revision ships all weights in one
+  `model.safetensors`, but its `model.safetensors.index.json` (left over
+  from the unquantized upstream) names two shards that do not exist. The
+  pinned loader prefers an index whenever one is present, so loading
+  failed. `LoadableModelDirectory` now detects an index that names missing
+  files and loads through a symlink directory without it. User files are
+  not modified, and the asset list still mirrors the revision exactly.
+- **No matcher fork.** At the pinned mlx-swift-lm commit,
+  `GrammarConstraint.clone()` always throws ("Fork() not available in
+  xgrammar v0.1.30"). The runtime now compiles a fresh matcher per call
+  instead: about 7 ms per schema once the grammar tokenizer (about 0.7 s)
+  is cached. Every schema is compiled once during warm-up so a bad schema
+  fails admission, not recovery.
+
+Any future pin bump must pass `RecoveryRuntimeSmokeTests` with
+`BRICKY_MODEL_DIR` set before it ships.
+

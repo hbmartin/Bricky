@@ -123,9 +123,9 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         )
     }
 
-    private func rankedScores(physical: [LDrawGeometryBuffer]) throws -> [GeometricRecoveryEstimator.CandidateScore] {
+    private func rankedScores(physical: [LDrawGeometryBuffer]) async throws -> [GeometricRecoveryEstimator.CandidateScore] {
         let frame = try observedFrame(physical: physical)
-        let scores = try GeometricRecoveryEstimator.scoreCandidates(
+        let scores = try await GeometricRecoveryEstimator.scoreCandidates(
             candidates: candidates,
             frame: frame,
             coarseWorldFromModel: matrix_identity_float4x4,
@@ -134,8 +134,8 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         return scores.sorted { $0.score > $1.score }
     }
 
-    func testMiddleStepWinsWhenPhysicalBuildMatchesIt() throws {
-        let ranked = try rankedScores(physical: [base, brickA])
+    func testMiddleStepWinsWhenPhysicalBuildMatchesIt() async throws {
+        let ranked = try await rankedScores(physical: [base, brickA])
         XCTAssertEqual(ranked.first?.index, 1)
         XCTAssertTrue(GeometricRecoveryEstimator.isConclusive(
             best: ranked[0],
@@ -143,48 +143,49 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         ))
     }
 
-    func testSubsetCandidateLosesToFullMatch() throws {
+    func testSubsetCandidateLosesToFullMatch() async throws {
         // The physical build is the full ladder. Candidate 0 (just the base)
         // fits its own geometry perfectly inside it — only the unexplained
         // structure in front of it (the two bricks) tells them apart.
-        let ranked = try rankedScores(physical: [base, brickA, brickB])
+        let ranked = try await rankedScores(physical: [base, brickA, brickB])
         XCTAssertEqual(ranked.first?.index, 2)
         let subset = try XCTUnwrap(ranked.first { $0.index == 0 })
         XCTAssertGreaterThan(subset.unexplainedFraction, 0.05, "the base-only candidate must see unexplained bricks")
     }
 
-    func testOversizedCandidateLosesToExactMatch() throws {
+    func testOversizedCandidateLosesToExactMatch() async throws {
         // The physical build stopped at the base; candidates with phantom
         // bricks must score below it because their extra geometry finds only
         // free space.
-        let ranked = try rankedScores(physical: [base])
+        let ranked = try await rankedScores(physical: [base])
         XCTAssertEqual(ranked.first?.index, 0)
     }
 
-    func testPhantomAndUnexplainedLossesAreDistinguishable() throws {
+    func testPhantomAndUnexplainedLossesAreDistinguishable() async throws {
         // Both terms weigh into the score identically, so without retaining
         // them a losing candidate cannot be told from one that lost the other
         // way — which is exactly what a fit record has to explain.
-        let oversizedLosers = try rankedScores(physical: [base])
+        let oversizedLosers = try await rankedScores(physical: [base])
         let oversized = try XCTUnwrap(oversizedLosers.first { $0.index == 2 })
         XCTAssertGreaterThan(oversized.phantomFraction, 0.05, "predicted bricks that are not there")
         XCTAssertLessThan(oversized.unexplainedFraction, oversized.phantomFraction)
 
-        let subsetLosers = try rankedScores(physical: [base, brickA, brickB])
+        let subsetLosers = try await rankedScores(physical: [base, brickA, brickB])
         let subset = try XCTUnwrap(subsetLosers.first { $0.index == 0 })
         XCTAssertGreaterThan(subset.unexplainedFraction, 0.05, "observed bricks it cannot explain")
         XCTAssertLessThan(subset.phantomFraction, subset.unexplainedFraction)
     }
 
-    func testMatchingCandidatesAreNotDisqualified() throws {
+    func testMatchingCandidatesAreNotDisqualified() async throws {
         // The control for the test below: with the shipping ceilings, a good
         // fit records no disqualification at all. Unwrapped first, because on
         // an optional `.none` would resolve to nil rather than the case.
-        let winner = try XCTUnwrap(try rankedScores(physical: [base, brickA]).first)
+        let ranked = try await rankedScores(physical: [base, brickA])
+        let winner = try XCTUnwrap(ranked.first)
         XCTAssertEqual(winner.disqualification, .none)
     }
 
-    func testPoseSanityRecordsWhyACandidateWasDisqualified() throws {
+    func testPoseSanityRecordsWhyACandidateWasDisqualified() async throws {
         // Deviation is measured from the *coarse init*, not from truth, so
         // disqualification needs a solve that moves — an init far outside
         // ICP's basin produces no movement and no deviation. A small offset
@@ -195,7 +196,7 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         configuration.maxVerticalDeviation = 1
         var coarse = matrix_identity_float4x4
         coarse.columns.3 = SIMD4(0.01, 0, 0, 1)
-        let scores = try GeometricRecoveryEstimator.scoreCandidates(
+        let scores = try await GeometricRecoveryEstimator.scoreCandidates(
             candidates: candidates,
             frame: try observedFrame(physical: [base, brickA]),
             coarseWorldFromModel: coarse,
@@ -225,9 +226,9 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         XCTAssertEqual(flat[15], 1)
     }
 
-    func testUnrelatedSceneIsInconclusive() throws {
+    func testUnrelatedSceneIsInconclusive() async throws {
         // Nothing brick-like on the table: no candidate may conclude.
-        let ranked = try rankedScores(physical: [])
+        let ranked = try await rankedScores(physical: [])
         if let best = ranked.first {
             XCTAssertFalse(GeometricRecoveryEstimator.isConclusive(
                 best: best,

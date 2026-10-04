@@ -1,0 +1,145 @@
+{
+  "_comment": [
+    "Regression baseline for the challenge suite (SyntheticRGBD --suite",
+    "challenge, fixture challenge.ldr, seed 7), checked by",
+    "Tools/RecoveryEvaluation/check_regression.py. Kept apart from the",
+    "real-tower baseline so adding mistake classes never moves it.",
+    "",
+    "These counts record what the verifier gets wrong today, on purpose:",
+    "- plate_up1: a brick one plate (3.2 mm) too high reads COMPLETE on",
+    "  every strongly detectable step. The 6 mm depth tolerance swallows",
+    "  the offset. This is a real false-complete class, not an expected",
+    "  failure; the placement-level diff (roadmap Phase 2) must fix it.",
+    "- colour_swap: expected failure. Depth cannot see colour; the RGB",
+    "  support term (ADR 0008) is what flips it.",
+    "Per-class cases are guarded exactly and false completes as",
+    "lower_is_better, so a fix shows as an improvement and any change in",
+    "which rows exist fails loudly. Regenerate with --update and explain",
+    "the movement in the commit message."
+  ],
+  "fixture": "fixtures/challenge/challenge.ldr",
+  "generated": "2026-09-25",
+  "metrics": {
+    "challenge.by_class.colour_swap.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "challenge.by_class.colour_swap.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "challenge.by_class.plate_down1.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "challenge.by_class.plate_down1.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.plate_up1.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "challenge.by_class.plate_up1.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "challenge.by_class.rot180_asymmetric.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 2.0
+    },
+    "challenge.by_class.rot180_asymmetric.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.rot180_symmetric.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "challenge.by_class.rot180_symmetric.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.rot90_asymmetric.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 5.0
+    },
+    "challenge.by_class.rot90_asymmetric.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.rot90_symmetric.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "challenge.by_class.rot90_symmetric.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.shift1z.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "challenge.by_class.shift1z.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.wrong_part_same_footprint.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "challenge.by_class.wrong_part_same_footprint.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 38.0
+    },
+    "challenge.expected_failure_false_complete_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "challenge.false_complete_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "synthetic_summary.challenge.dropped_expected_complete_below_strong": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "synthetic_summary.challenge.generated_challenge_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 38.0
+    },
+    "synthetic_summary.challenge.steps_sampled": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    }
+  },
+  "seed": 7
+}

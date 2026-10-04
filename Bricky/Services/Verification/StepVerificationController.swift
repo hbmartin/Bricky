@@ -1,10 +1,26 @@
 import Foundation
 import SwiftUI
 
+/// What the controller needs from a step verifier; `GeometricStepVerifier`
+/// in the app, a fake in tests.
+protocol StepVerifying: Actor {
+    func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot)
+    func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification
+    func resetEvidence()
+}
+
+extension GeometricStepVerifier: StepVerifying {}
+
 /// Drives live geometric verification for the step being built. Frames and
 /// registrations arrive through `RegistrationController.frameObserver`; the
 /// verifier only ever judges under a locked registration, and its output is
 /// advisory (ADR 0008) — the user confirms every step.
+///
+/// Verification runs beside tracking, never inside it: `submit` keeps only
+/// the newest frame and returns at once, and a single worker drains it. A
+/// frame that arrives while the verifier is busy replaces the waiting one
+/// instead of queueing, so a slow render costs verification frames, not
+/// tracking frames.
 @MainActor
 final class StepVerificationController: ObservableObject {
     @Published private(set) var verification: StepVerification?
@@ -15,11 +31,20 @@ final class StepVerificationController: ObservableObject {
     /// Set when the geometric verifier cannot be constructed (no Metal);
     /// surfaced so the guide can explain the missing check.
     @Published private(set) var unavailableReason: String?
+    /// True while a photo check runs the VLM: the verifier's renders would
+    /// share the GPU with inference, so it pauses instead (ADR 0003).
+    @Published private(set) var isSuspended = false
 
-    private var verifier: GeometricStepVerifier?
-    /// Bumped on every `begin`: a frame in flight across the step boundary
-    /// must not publish into the new step's verification.
+    private let makeVerifier: () throws -> any StepVerifying
+    private var verifier: (any StepVerifying)?
+    /// Bumped on every `begin` and `stop`: a frame in flight across the step
+    /// boundary must not publish into the new step's verification.
     private var generation = 0
+    /// False while `begin` installs a step: a frame judged before the
+    /// verifier holds the new geometry would be judged against the old.
+    private var acceptingFrames = false
+    private var pending: (frame: RegistrationFrameInput, registration: ModelRegistration)?
+    private var worker: Task<Void, Never>?
     private var completeSince: TimeInterval?
     private let stableCompleteInterval: TimeInterval = 2.0
     private var lastIngestTimestamp: TimeInterval = -.infinity
@@ -27,6 +52,10 @@ final class StepVerificationController: ObservableObject {
     /// it slower than the relay rate loses nothing at a 20–40 frame
     /// evidence budget.
     private let minimumInterval: TimeInterval = 0.2
+
+    init(makeVerifier: @escaping () throws -> any StepVerifying = { try GeometricStepVerifier() }) {
+        self.makeVerifier = makeVerifier
+    }
 
     var statusLabel: String? {
         guard let verification else { return unavailableReason }
@@ -61,52 +90,96 @@ final class StepVerificationController: ObservableObject {
         deltaSnapshot: InstructionGeometrySnapshot
     ) async {
         generation += 1
+        let beginGeneration = generation
+        acceptingFrames = false
+        pending = nil
         verification = nil
         isStablyComplete = false
         completeSince = nil
         lastIngestTimestamp = -.infinity
         do {
-            let verifier = try verifier ?? GeometricStepVerifier()
+            let verifier = try verifier ?? makeVerifier()
             self.verifier = verifier
             unavailableReason = nil
-            // Awaited so no observe() can reach the verifier before it holds
-            // this step's snapshots — an unstructured Task here let a frame
-            // race the setup and judge the new step against the old geometry.
+            // Awaited, with frames refused until it returns, so no frame can
+            // reach the verifier before it holds this step's snapshots.
             await verifier.begin(
                 stepID: stepID,
                 completedSnapshot: completedSnapshot,
                 deltaSnapshot: deltaSnapshot
             )
+            // A later begin() or stop() owns the state now.
+            if beginGeneration == generation {
+                acceptingFrames = true
+            }
         } catch {
             verifier = nil
             unavailableReason = "Depth verification is unavailable: \(error.localizedDescription)"
         }
     }
 
-    /// Tap point for `RegistrationController.frameObserver`.
-    func observe(frame: RegistrationFrameInput, registration: ModelRegistration) async {
-        guard let verifier else { return }
+    /// Tap point for `RegistrationController.frameObserver`. Returns
+    /// immediately: the frame replaces any frame still waiting, and the
+    /// worker judges it when the verifier is free.
+    func submit(frame: RegistrationFrameInput, registration: ModelRegistration) {
+        guard verifier != nil, acceptingFrames, !isSuspended else { return }
         guard frame.timestamp - lastIngestTimestamp >= minimumInterval else { return }
         lastIngestTimestamp = frame.timestamp
-        let ingestGeneration = generation
-        guard let result = try? await verifier.ingest(frame: frame, registration: registration) else { return }
-        // A begin() while this ingest was in flight makes the result stale.
-        guard ingestGeneration == generation else { return }
+        pending = (frame, registration)
+        if worker == nil {
+            worker = Task { [weak self] in await self?.drain() }
+        }
+    }
+
+    private func drain() async {
+        while let next = pending, let verifier, acceptingFrames, !isSuspended {
+            pending = nil
+            let ingestGeneration = generation
+            let result = try? await verifier.ingest(frame: next.frame, registration: next.registration)
+            // A begin() or stop() while this ingest was in flight makes the
+            // result stale; a suspension means the user is looking at a
+            // photo check, and stability must be re-earned after it.
+            guard let result, ingestGeneration == generation, !isSuspended else { continue }
+            publish(result, at: next.frame.timestamp)
+        }
+        worker = nil
+    }
+
+    private func publish(_ result: StepVerification, at timestamp: TimeInterval) {
         verification = result
         if result.verdict.isComplete {
-            let since = completeSince ?? frame.timestamp
+            let since = completeSince ?? timestamp
             completeSince = since
-            isStablyComplete = frame.timestamp - since >= stableCompleteInterval
+            isStablyComplete = timestamp - since >= stableCompleteInterval
         } else {
             completeSince = nil
             isStablyComplete = false
         }
     }
 
+    /// Pauses verification for the length of a photo check. The current
+    /// verdict stays on screen, but the one-tap confirm does not: it needs
+    /// a fresh stable-complete interval after `resume()`. Independent of
+    /// `begin`/`stop`, so a step change during the check stays paused.
+    func suspend() {
+        isSuspended = true
+        pending = nil
+        isStablyComplete = false
+        completeSince = nil
+    }
+
+    func resume() {
+        guard isSuspended else { return }
+        isSuspended = false
+        lastIngestTimestamp = -.infinity
+    }
+
     func stop() {
-        // Invalidates any in-flight observe() first, so a result landing
-        // after this stop cannot repopulate the cleared verification.
+        // Invalidates any in-flight ingest first, so a result landing after
+        // this stop cannot repopulate the cleared verification.
         generation += 1
+        acceptingFrames = false
+        pending = nil
         verification = nil
         isStablyComplete = false
         completeSince = nil

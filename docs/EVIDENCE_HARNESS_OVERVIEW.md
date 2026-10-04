@@ -198,7 +198,7 @@ the device *automatically*").
 the *same* `MLXRecoveryRuntime`, grammar constraints, and board layout as the
 device — the whole point of putting the CLI inside `Packages/RecoveryMLX`.
 `replay` emits `RecoveryBenchmarkV1` rows (tagged
-`device_model: "replay:<mac>"` so they can never masquerade as device rows)
+`device_model: "replay:<mac>"`, which the scorer's release mode rejects)
 plus a per-call `<out>.traces.ndjson` sidecar with `matches_device`;
 `recompose` rebuilds any trace's board for layout debugging; `--dry-run`
 validates a bundle without loading weights (CI-safe). Full reference in
@@ -226,7 +226,7 @@ finalists.
 | On-device format **is** the export format | Dumb files (JPEG + JSON/NDJSON, snake_case) — no SwiftData schema, no migration, Python-readable |
 | One board-layout authority in the kit | Kills hand-duplicated constant drift between app, CLI, and `make_board.py`; fixes the screen-scale bug |
 | CLI inside the MLX package | Exact device semantics — same runtime actor, same compiled grammars, same input resize |
-| Replay rows tagged `replay:` | Mac numbers can never contaminate a device release corpus |
+| Replay rows tagged `replay:` | Release mode rejects any row not from an admitted iPhone, so Mac numbers cannot contaminate a device release corpus |
 
 ## Tests and CI
 

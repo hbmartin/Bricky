@@ -285,6 +285,120 @@ final class EvidenceKitTests: XCTestCase {
         }
     }
 
+    // MARK: - Capture elevation
+
+    /// A column-major camera-to-world transform whose optical axis (−Z)
+    /// points `degrees` below the horizon.
+    private func pitchedDown(_ degrees: Double) -> [Float] {
+        let radians = degrees * .pi / 180
+        let (sine, cosine) = (Float(sin(radians)), Float(cos(radians)))
+        return [
+            1, 0, 0, 0,
+            0, cosine, -sine, 0,
+            0, sine, cosine, 0,
+            0, 0, 0, 1
+        ]
+    }
+
+    private func capture(angle: String, transform: [Float]) -> EvidenceCaptureRecord {
+        EvidenceCaptureRecord(
+            captureID: UUID(), imageRelativePath: "captures/x.jpg", cameraTransform: transform,
+            cameraIntrinsics: Array(repeating: 0, count: 9), cameraImageResolution: [1920, 1440],
+            alignmentID: UUID(), angle: angle, capturedAt: .now
+        )
+    }
+
+    func testElevationIsTheOpticalAxisAngleBelowTheHorizon() throws {
+        for degrees in [0.0, 30.0, 45.0, 90.0] {
+            let elevation = try XCTUnwrap(capture(angle: "center", transform: pitchedDown(degrees)).elevationDegrees)
+            XCTAssertEqual(elevation, degrees, accuracy: 0.01)
+        }
+        // Looking up reads negative, not folded back into the downward range.
+        let upward = try XCTUnwrap(capture(angle: "center", transform: pitchedDown(-20)).elevationDegrees)
+        XCTAssertEqual(upward, -20, accuracy: 0.01)
+    }
+
+    func testMalformedTransformHasNoElevation() {
+        XCTAssertNil(capture(angle: "center", transform: [1, 0, 0]).elevationDegrees)
+        var poisoned = pitchedDown(45)
+        poisoned[9] = .nan
+        XCTAssertNil(capture(angle: "center", transform: poisoned).elevationDegrees)
+    }
+
+    func testBenchmarkElevationPrefersTheCenterCapture() throws {
+        let captures = [
+            capture(angle: "left", transform: pitchedDown(20)),
+            capture(angle: "center", transform: pitchedDown(55)),
+            capture(angle: "right", transform: pitchedDown(20))
+        ]
+        XCTAssertEqual(try XCTUnwrap(captures.benchmarkElevationDegrees), 55, accuracy: 0.01)
+        XCTAssertNil([EvidenceCaptureRecord]().benchmarkElevationDegrees)
+    }
+
+    func testBenchmarkElevationKeyIsSnakeCase() throws {
+        let row = RecoveryBenchmarkV1(
+            schemaVersion: 1, fixtureID: "f", instructionSHA256: "0", pyldraw3Version: "1.5.0",
+            partPackVersion: "2026-07", expectedStepID: "m#1", candidateSlots: [:],
+            boardRelativePaths: [], cameraMetadata: [], expectedStepIndex: 1, rankedStepIDs: [],
+            certainty: .insufficient, estimatorMethod: .vlm, modelRevision: nil, deviceModel: "iPhone18,1",
+            operatingSystem: "iOS", latencyMilliseconds: 0, memoryPeakBytes: 0, topStepIndex: nil,
+            physicalCase: nil, authoredModelID: nil, legalUseConfirmed: nil, lightingCondition: nil,
+            captureAngle: nil, occlusionCondition: nil, captureElevationDegrees: 42.5
+        )
+        let raw = String(decoding: try EvidenceSchema.encoder().encode(row), as: UTF8.self)
+        XCTAssertTrue(raw.contains("\"capture_elevation_degrees\":42.5"), raw)
+    }
+
+    // MARK: - Telemetry
+
+    func testMemorySnapshotReadsTheKernelLedger() throws {
+        let snapshot = try XCTUnwrap(ProcessMemorySnapshot.current())
+        XCTAssertGreaterThan(snapshot.footprintBytes, 0)
+        let peak = try XCTUnwrap(snapshot.lifetimePeakBytes)
+        XCTAssertGreaterThanOrEqual(peak, snapshot.footprintBytes)
+    }
+
+    #if os(macOS)
+    func testMacIdentifierIsTheModelNotTheCPU() {
+        // uname reports "arm64" on a Mac; replay rows need "Mac14,12".
+        XCTAssertNotEqual(DeviceIdentity.modelIdentifier, "arm64")
+        XCTAssertTrue(DeviceIdentity.modelIdentifier.contains(","), DeviceIdentity.modelIdentifier)
+        XCTAssertNotNil(DeviceIdentity.osBuild)
+    }
+    #endif
+
+    func testLatencyBuckets() {
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 0, secondsSinceARStart: 60), .cold)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 4, secondsSinceARStart: 60), .warm)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 4, secondsSinceARStart: 1_800), .sustained)
+        XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: nil, secondsSinceARStart: nil), .warm)
+    }
+
+    func testVariantIDNamesOnlyTheAxesThatDiffer() {
+        XCTAssertEqual(RecoveryInferenceVariant.baseline.id, "baseline")
+        XCTAssertEqual(RecoveryInferenceVariant(decode: .feedAll).id, "decode=feed_all")
+        XCTAssertEqual(RecoveryInferenceVariant(decode: .feedAll, vote: .bordaLegacy).id, "decode=feed_all,vote=borda_legacy")
+        XCTAssertEqual(RecoveryInferenceVariant(armID: "B").id, "baseline", "the arm label is not an axis")
+    }
+
+    func testTelemetryFieldsAreOptionalAndSnakeCase() throws {
+        // A trace row written before any telemetry existed still decodes.
+        let legacy = #"{"trace_version":1,"trace_id":"00000000-0000-0000-0000-000000000001","session_id":"00000000-0000-0000-0000-000000000002","pass":"finalist","pass_index":0,"board_relative_path":"b.jpg","tile_relative_paths":{},"candidate_step_indices":{},"candidate_step_ids":{},"prompt":"p","schema_json":"{}","max_tokens":192,"raw_output":"{}","termination":"accepted","latency_ms":1,"model_revision":"r","created_at":"2026-09-25T00:00:00Z"}"#
+        let row = try EvidenceSchema.decoder().decode(EvidenceTraceRow.self, from: Data(legacy.utf8))
+        XCTAssertNil(row.inference)
+        XCTAssertNil(row.variant)
+
+        let conditions = DeviceConditions(thermalState: "nominal", lowPowerMode: false, secondsSinceARStart: 12)
+        let inference = InferenceTelemetry(thermalBefore: "fair", callsSinceLoad: 0, loadMilliseconds: 900)
+        let raw = String(decoding: try EvidenceSchema.encoder().encode(conditions), as: UTF8.self)
+            + String(decoding: try EvidenceSchema.encoder().encode(inference), as: UTF8.self)
+            + String(decoding: try EvidenceSchema.encoder().encode(AdmissionSnapshot(floorBytes: 1, warmUpPeakBytes: 2)), as: UTF8.self)
+        for key in ["thermal_state", "low_power_mode", "seconds_since_ar_start", "thermal_before",
+                    "calls_since_load", "load_ms", "floor_bytes", "warm_up_peak_bytes"] {
+            XCTAssertTrue(raw.contains("\"\(key)\""), key)
+        }
+    }
+
     // MARK: - Fixtures
 
     private func solidImage(width: Int, height: Int) throws -> CGImage {

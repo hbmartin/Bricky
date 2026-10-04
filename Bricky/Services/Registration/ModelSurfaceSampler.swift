@@ -18,6 +18,8 @@ enum ModelSurfaceSampler {
         targetSpacing: Float = defaultSpacing,
         maxPoints: Int = defaultMaxPoints
     ) -> ModelSurfaceSample {
+        let signpost = GeometrySignposts.signposter.beginInterval("SurfaceSample")
+        defer { GeometrySignposts.signposter.endInterval("SurfaceSample", signpost) }
         var points: [SIMD3<Float>] = []
         var normals: [SIMD3<Float>] = []
         var colorCodes: [Int] = []

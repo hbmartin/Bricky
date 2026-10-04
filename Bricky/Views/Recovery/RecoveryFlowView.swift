@@ -5,6 +5,7 @@ import SwiftUI
 
 struct RecoveryFlowView: View {
     @Environment(\.modelContext) private var context
+    @Environment(BuildSessionController.self) private var buildSession
     @EnvironmentObject private var library: InstructionLibraryController
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
@@ -36,26 +37,25 @@ struct RecoveryFlowView: View {
 
     var body: some View {
         Group {
+            // The part pack is the only hard requirement: geometric recovery
+            // needs no model, so VLM admission never blocks the flow (ADR
+            // 0010 amendment). Without an admitted model, an inconclusive
+            // depth fit hands over to the manual picker.
             if partPack.state != .ready {
                 RecoveryBlockedView(title: "LDraw Parts Needed", message: "Install the verified 2026-07 part pack in Storage before recovery.")
             } else {
-                switch recoveryModel.state {
-                case .needsDownload:
-                    RecoveryBlockedView(title: "On-Device Model Needed", message: "Download the private recovery model in Storage to enable recovery.")
-                case .rejected(let reason):
-                    RecoveryBlockedView(
-                        title: "Recovery Unavailable",
-                        message: reason,
-                        actionTitle: recoveryModel.rejectionIsRetryable ? "Try Again" : nil,
-                        action: { Task { await recoveryModel.check() } }
-                    )
-                case .checking, .downloading:
-                    ProgressView("Checking recovery admission…")
-                case .warming:
-                    warmUpView
-                case .admitted:
-                    admittedFlow
-                }
+                admittedFlow
+                    .safeAreaInset(edge: .top) {
+                        if let notice = modelNotice {
+                            Label(notice, systemImage: "cube.transparent")
+                                .font(.caption)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .padding(.horizontal)
+                        }
+                    }
+                    .task(id: WarmUpKey(state: recoveryModel.state, attempt: warmUpAttempt)) { await warmUpInBackground() }
             }
         }
         .navigationTitle("Recover My Place")
@@ -90,35 +90,36 @@ struct RecoveryFlowView: View {
         }
     }
 
-    private var warmUpView: some View {
-        ZStack {
-            ARCameraPreview(session: camera.session).ignoresSafeArea()
-            VStack {
-                Spacer()
-                if let cameraError = camera.error {
-                    VStack(spacing: 12) {
-                        Label("Camera Unavailable", systemImage: "video.slash").font(.headline)
-                        Text(cameraError.localizedDescription).font(.caption).multilineTextAlignment(.center)
-                        Button("Try Again") { warmUpAttempt += 1 }.buttonStyle(.borderedProminent)
-                    }
-                    .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding()
-                } else {
-                    ProgressView("Running private on-device fit test…")
-                        .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding()
-                }
-            }
+    private struct WarmUpKey: Equatable {
+        let state: ModelAdmissionState
+        let attempt: Int
+    }
+
+    /// What the flow can and cannot do without the on-device model.
+    private var modelNotice: String? {
+        switch recoveryModel.state {
+        case .admitted:
+            nil
+        case .warming:
+            "Preparing the on-device model. Depth-based recovery works now."
+        case .checking, .downloading:
+            "Depth fit only while the on-device model is prepared."
+        case .needsDownload:
+            "Depth fit only. Download the on-device model in Storage for a photo-based fallback."
+        case .rejected(let reason):
+            "Depth fit only. \(reason)"
         }
-        .task(id: warmUpAttempt) {
-            camera.checkPermissions()
-            // Bail out on cancellation: after cancellation Task.sleep throws
-            // immediately, and `try?` would otherwise turn this into a hot
-            // spin. A camera error is surfaced by the view above.
-            while !Task.isCancelled, !camera.isSessionRunning, camera.error == nil {
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-            guard !Task.isCancelled, camera.isSessionRunning else { return }
-            recoveryModel.warmUpWhileARIsActive()
+    }
+
+    /// Warms the VLM once the camera runs (admission is a production-shaped
+    /// inference under live AR) without holding the flow behind it.
+    private func warmUpInBackground() async {
+        guard case .warming = recoveryModel.state else { return }
+        while !Task.isCancelled, !camera.isSessionRunning, camera.error == nil {
+            try? await Task.sleep(for: .milliseconds(100))
         }
+        guard !Task.isCancelled, camera.isSessionRunning else { return }
+        recoveryModel.warmUpWhileARIsActive()
     }
 
     @ViewBuilder
@@ -149,7 +150,14 @@ struct RecoveryFlowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
                     Spacer()
-                    if alignment.alignment == nil {
+                    if let cameraError = camera.error {
+                        VStack(spacing: 12) {
+                            Label("Camera Unavailable", systemImage: "video.slash").font(.headline)
+                            Text(cameraError.localizedDescription).font(.caption).multilineTextAlignment(.center)
+                            Button("Try Again") { warmUpAttempt += 1 }.buttonStyle(.borderedProminent)
+                        }
+                        .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding()
+                    } else if alignment.alignment == nil {
                         Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
                             .buttonStyle(.borderedProminent).controlSize(.large)
                     } else {
@@ -162,7 +170,8 @@ struct RecoveryFlowView: View {
                 }
             }
         }
-        .task { camera.checkPermissions() }
+        // Re-run on "Try Again" after a camera error.
+        .task(id: warmUpAttempt) { camera.checkPermissions() }
     }
 
     private var captureView: some View {
@@ -181,19 +190,8 @@ struct RecoveryFlowView: View {
                 }
                 .frame(maxWidth: .infinity).padding().background(.ultraThinMaterial)
                 if evidenceCaptureEnabled, corpusCollectionEnabled, plan != nil {
-                    Button {
-                        showStagedSetup = true
-                    } label: {
-                        Label(
-                            stagedDeclaration.map { "Staged fixture: Step \($0.expectedCompletedCount)" }
-                                ?? "Staged fixture: not declared",
-                            systemImage: stagedDeclaration == nil ? "flag.slash" : "flag.checkered"
-                        )
-                        .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(stagedDeclaration == nil ? .orange : .green)
-                    .padding(.top, 6)
+                    StagedDeclarationButton(declaration: stagedDeclaration) { showStagedSetup = true }
+                        .padding(.top, 6)
                 }
                 Spacer()
                 HStack(spacing: 10) {
@@ -226,7 +224,9 @@ struct RecoveryFlowView: View {
                 if let estimate {
                     LabeledContent("Certainty", value: estimate.certainty.rawValue.capitalized)
                     LabeledContent("On-device time", value: String(format: "%.1f s", Double(estimate.latencyMilliseconds) / 1000))
-                    if estimate.rankedStepIDs.isEmpty {
+                    if estimate.insufficiencyCause == .thermalDeferred {
+                        Text("Your iPhone is too warm to run the on-device model right now. Choose the last completed authored step yourself, or retry once it cools.")
+                    } else if estimate.rankedStepIDs.isEmpty {
                         Text("The views were insufficient. Choose the last completed authored step yourself.")
                     } else if let plan {
                         ForEach(estimate.rankedStepIDs, id: \.self) { id in
@@ -258,7 +258,8 @@ struct RecoveryFlowView: View {
     @MainActor
     private func load() async {
         do {
-            let loaded = try library.loadPlan(for: model)
+            try buildSession.open(model, loader: library, context: context)
+            guard let loaded = buildSession.plan else { return }
             plan = loaded
             selectedCompletedCount = model.currentStepIndex
             if let pack = partPack.readyLibraryURL {
@@ -297,13 +298,14 @@ struct RecoveryFlowView: View {
             authoredModelID: model.id,
             modelTitle: model.title,
             stepCount: plan.steps.count,
-            staged: corpusCollectionEnabled ? stagedDeclaration : nil
+            staged: corpusCollectionEnabled ? stagedDeclaration : nil,
+            admission: recoveryModel.admissionSnapshot,
+            conditions: DeviceConditionsProbe.snapshot()
         )
     }
 
     private func analyze() {
         guard let plan, let currentAlignment = alignment.alignment,
-              let modelDirectory = recoveryModel.modelDirectory,
               let partPackRoot = partPack.readyLibraryURL else { return }
         phase = .analyzing
         let previous = analysisTask
@@ -328,11 +330,13 @@ struct RecoveryFlowView: View {
                    let centerCapture = capturedViews.first(where: { $0.angle == .center }) ?? capturedViews.first {
                     await sessionRecorder?.recordDepthFrame(depthFrame, captureID: centerCapture.id)
                 }
-                let vlmEstimator = HierarchicalRecoveryEstimator(
-                    runtime: recoveryModel.runtime,
-                    modelDirectory: modelDirectory,
+                // Nil unless the model is admitted: then an inconclusive
+                // depth fit returns insufficient and the manual picker takes
+                // over.
+                let vlmEstimator = recoveryModel.makeVLMEstimator(
                     partPackRoot: partPackRoot,
-                    recorder: sessionRecorder
+                    recorder: sessionRecorder,
+                    variant: InferenceArmScheduler().next(evidenceEnabled: evidenceCaptureEnabled)
                 )
                 // Geometric-first (ADR 0010): a conclusive depth fit avoids
                 // loading the VLM at all; anything else falls through to the
@@ -424,16 +428,15 @@ struct RecoveryFlowView: View {
             return
         }
 
-        model.confirmedLastCompletedStepID = completedStep?.id
-        model.currentStepIndex = completedCount
-        model.lastOpenedAt = .now
-        let session = RecoverySessionRecord(modelID: model.id)
-        session.confirmedLastCompletedStepID = completedStep?.id
-        session.nextTargetStepID = completedCount < plan.steps.count ? plan.steps[completedCount].id : nil
-        session.modelRevision = estimate?.modelRevision
-        session.certaintyRawValue = estimate?.certainty.rawValue
-        context.insert(session)
-        try? context.save()
+        let record = RecoverySessionRecord(modelID: model.id)
+        record.confirmedLastCompletedStepID = completedStep?.id
+        record.nextTargetStepID = completedCount < plan.steps.count ? plan.steps[completedCount].id : nil
+        record.modelRevision = estimate?.modelRevision
+        record.certaintyRawValue = estimate?.certainty.rawValue
+        context.insert(record)
+        // Saves the record with the progress, and moves the shared cursor
+        // so the Guide lands on the recovered step.
+        buildSession.setCompletedCount(completedCount, source: .recovery)
         finalizeEvidence(plan: plan, confirmedCount: completedCount)
         captures.removeAll()
         centerDepthFrame = nil

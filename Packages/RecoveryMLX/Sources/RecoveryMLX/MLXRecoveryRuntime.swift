@@ -3,6 +3,7 @@ import MLX
 import MLXGuidedGeneration
 import MLXLMCommon
 import MLXVLM
+import os
 import Tokenizers
 
 public struct MLXRankOutput: Codable, Sendable {
@@ -16,9 +17,19 @@ public struct MLXStepCheckOutput: Codable, Sendable {
 
 public enum MLXRecoveryError: LocalizedError {
     case invalidStructuredOutput
+    /// The processor returned no image, so the model would have answered
+    /// from the prompt alone. The pinned Qwen3-VL silently falls back to
+    /// text-only when its image list is empty; a comparison board the model
+    /// never saw must fail loudly instead.
+    case imageInputDropped
+    case variantRequiresFork(String)
 
     public var errorDescription: String? {
-        "The on-device model did not produce a valid guided result."
+        switch self {
+        case .invalidStructuredOutput: "The on-device model did not produce a valid guided result."
+        case .imageInputDropped: "The on-device model received no image for this comparison."
+        case .variantRequiresFork(let axis): "The \(axis) variant needs the forked decoder, not decode=upstream."
+        }
     }
 }
 
@@ -37,6 +48,8 @@ public actor MLXRecoveryRuntime {
     }
     private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
 
+    private static let signposter = OSSignposter(subsystem: "com.bricky.app", category: "Inference")
+
     /// Bounded Metal buffer cache for iOS. MLX otherwise defaults the cache
     /// limit to the memory limit, which is far too large next to 3 GB of
     /// weights on an iPhone.
@@ -54,6 +67,11 @@ public actor MLXRecoveryRuntime {
     private var unloadWaiters: [CheckedContinuation<Void, Never>] = []
     /// The primary unload parked until every load waiter drops its result.
     private var loadDrainWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Where the loaded container is in its life, for the cold/warm bucket.
+    private var loadStartedAt: ContinuousClock.Instant?
+    private var loadedAt: ContinuousClock.Instant?
+    private var loadMilliseconds: Int?
+    private var callsSinceLoad = 0
 
     public init() {}
 
@@ -61,11 +79,11 @@ public actor MLXRecoveryRuntime {
         _ = try await modelContainer(modelDirectory: modelDirectory)
     }
 
-    /// GuidedGenerationLoop reserves 64 tokens for its closing bias. The
-    /// worst-case 8-slot ranking JSON is ~64 tokens under grammar masking, so
-    /// the previous 96 put the bias mid-array; 192 keeps the whole object out
-    /// of the soft zone. Generation still halts at grammar acceptance, so the
-    /// common case pays nothing.
+    /// Headroom over the worst-case 8-slot ranking (~64 tokens under the
+    /// grammar). Bricky passes no closing bias, so no soft zone exists; with
+    /// the shim's `any_whitespace = true`, only a whitespace run can exhaust
+    /// the budget. Generation halts at grammar acceptance, so the common case
+    /// pays nothing.
     static let rankMaxTokens = 192
     static let checkMaxTokens = 48
 
@@ -80,15 +98,29 @@ public actor MLXRecoveryRuntime {
         return output
     }
 
-    /// `maxTokens` overrides the default rank budget — an A/B knob for the
-    /// Mac harness; the app always passes nil.
-    public func rankWithTrace(imageURL: URL, prompt: String, candidateCount: Int, modelDirectory: URL, maxTokens: Int? = nil) async throws -> MLXRankResponse {
+    /// `maxTokens` and `decode` are A/B knobs for the Mac harness; the app
+    /// passes the defaults.
+    public func rankWithTrace(
+        imageURL: URL,
+        prompt: String,
+        candidateCount: Int,
+        modelDirectory: URL,
+        maxTokens: Int? = nil,
+        decode: DecodeMode = .legacy,
+        uniqueSlots: Bool = false,
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
+    ) async throws -> MLXRankResponse {
         let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .rank(slotCount: candidateCount),
             modelDirectory: modelDirectory,
-            maxTokens: maxTokens ?? Self.rankMaxTokens
+            maxTokens: maxTokens ?? Self.rankMaxTokens,
+            decode: decode,
+            uniqueSlots: uniqueSlots,
+            scoring: scoring,
+            imageSide: imageSide
         )
         var output: MLXRankOutput?
         var decodeError: String?
@@ -109,13 +141,24 @@ public actor MLXRecoveryRuntime {
         return output
     }
 
-    public func checkStepWithTrace(imageURL: URL, prompt: String, modelDirectory: URL) async throws -> MLXCheckResponse {
+    public func checkStepWithTrace(
+        imageURL: URL,
+        prompt: String,
+        modelDirectory: URL,
+        decode: DecodeMode = .legacy,
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
+    ) async throws -> MLXCheckResponse {
         let generated = try await generate(
             imageURL: imageURL,
             prompt: prompt,
             kind: .check,
             modelDirectory: modelDirectory,
-            maxTokens: Self.checkMaxTokens
+            maxTokens: Self.checkMaxTokens,
+            decode: decode,
+            uniqueSlots: false,
+            scoring: scoring,
+            imageSide: imageSide
         )
         var output: MLXStepCheckOutput?
         var decodeError: String?
@@ -146,12 +189,18 @@ public actor MLXRecoveryRuntime {
         }
         isUnloading = true
         loadGeneration += 1
+        // Nothing loaded means nothing allocated: skip touching the Metal
+        // allocator at all (it is also unavailable in the Simulator, where
+        // an unconditional clear aborted the process).
+        let heldResources = container != nil || loadTask != nil
         var inFlight = loadTask
         // Clear state before suspending so reentrant callers observe the
         // unloading barrier immediately and cannot start replacement loads.
         loadTask = nil
         grammarCache = nil
         container = nil
+        loadedAt = nil
+        loadStartedAt = nil
         if let inFlight {
             inFlight.cancel()
             // Drain the in-flight load so callers can rely on the weights
@@ -166,7 +215,9 @@ public actor MLXRecoveryRuntime {
         while activeLoadWaiters > 0 {
             await withCheckedContinuation { loadDrainWaiters.append($0) }
         }
-        MLX.Memory.clearCache()
+        if heldResources {
+            MLX.Memory.clearCache()
+        }
         isUnloading = false
         let parked = unloadWaiters
         unloadWaiters = []
@@ -184,6 +235,9 @@ public actor MLXRecoveryRuntime {
         let termination: MLXGenerationTrace.Termination
         let latencyMilliseconds: Int
         let maxTokens: Int
+        var inference: InferenceTelemetry?
+        let readouts: [DecisionReadout]?
+        var probe: ProbeReadout? = nil
 
         func trace(decodeError: String?, schemaJSON: String) -> MLXGenerationTrace {
             MLXGenerationTrace(
@@ -193,7 +247,10 @@ public actor MLXRecoveryRuntime {
                 termination: termination,
                 latencyMilliseconds: latencyMilliseconds,
                 maxTokens: maxTokens,
-                schemaJSON: schemaJSON
+                schemaJSON: schemaJSON,
+                inference: inference,
+                readouts: readouts,
+                probe: probe
             )
         }
     }
@@ -203,45 +260,136 @@ public actor MLXRecoveryRuntime {
         prompt: String,
         kind: GrammarKind,
         modelDirectory: URL,
-        maxTokens: Int
+        maxTokens: Int,
+        decode: DecodeMode,
+        uniqueSlots: Bool,
+        scoring: ScoringMode = .generate,
+        imageSide: Int = RecoveryInferenceVariant.baselineImageSide
     ) async throws -> GeneratedText {
+        // Unique slots needs the forked decoder's mask; the upstream loop
+        // cannot apply it.
+        if uniqueSlots, decode == .upstream {
+            throw MLXRecoveryError.variantRequiresFork("unique_slots")
+        }
         try Task.checkCancellation()
         let container = try await modelContainer(modelDirectory: modelDirectory)
         let cache = try await grammarResources(container: container)
         let started = ContinuousClock.now
-        return try await container.perform(values: GenerationValues(
+        var inference = InferenceTelemetry(
+            memoryBefore: ProcessMemorySnapshot.current(),
+            thermalBefore: ThermalStateName.current,
+            callsSinceLoad: callsSinceLoad,
+            secondsSinceLoad: loadedAt.map { Self.seconds($0.duration(to: .now)) },
+            loadMilliseconds: loadMilliseconds,
+            scoring: scoring
+        )
+        callsSinceLoad += 1
+        var generated = try await container.perform(values: GenerationValues(
             imageURL: imageURL,
             prompt: prompt,
             kind: kind,
             maxTokens: maxTokens,
+            decode: decode,
+            scoring: scoring,
+            imageSide: imageSide,
+            uniqueSlotLetters: {
+                guard uniqueSlots, case .rank(let slotCount) = kind else { return nil }
+                return Set(Self.rankSlotLetters.prefix(min(max(slotCount, 1), Self.rankSlotLetters.count)).compactMap(\.first))
+            }(),
             cache: cache
         )) { context, values in
+            let signpost = Self.signposter.beginInterval("Generate", id: Self.signposter.makeSignpostID(), "\(values.decode.rawValue)")
+            defer { Self.signposter.endInterval("Generate", signpost) }
             var userInput = UserInput(prompt: values.prompt, images: [.url(values.imageURL)])
-            userInput.processing = .init(resize: CGSize(width: 1024, height: 1024))
+            userInput.processing = .init(resize: CGSize(width: values.imageSide, height: values.imageSide))
+            let preprocessStarted = ContinuousClock.now
             let input = try await context.processor.prepare(input: userInput)
-            let root = values.cache.rootConstraint(for: values.kind)
-            // A matcher is stateful. Clone the compiled root for every stateless call.
-            let constraint = try root.clone()
+            let preprocessElapsed = preprocessStarted.duration(to: .now).components
+            guard input.image != nil else { throw MLXRecoveryError.imageInputDropped }
+            if values.scoring == .probe {
+                let decision: RecoveryProbe.Decision
+                switch values.kind {
+                case .rank(let slotCount): decision = .rank(slotCount: slotCount, letters: Self.rankSlotLetters)
+                case .check: decision = .check
+                }
+                let probe = try RecoveryProbe.run(
+                    input: input,
+                    context: context,
+                    constraint: try values.cache.freshConstraint(for: values.kind, hostTokenizer: context.tokenizer, fastForward: false),
+                    vocabSize: values.cache.tokenizer.vocabSize,
+                    decision: decision
+                )
+                var measured = probe.telemetry
+                measured.preprocessMilliseconds = Int(
+                    preprocessElapsed.seconds * 1_000 + preprocessElapsed.attoseconds / 1_000_000_000_000_000
+                )
+                let elapsed = started.duration(to: .now).components
+                var generated = GeneratedText(
+                    text: probe.rawOutput,
+                    generatedTokens: 0,
+                    termination: .readoutComplete,
+                    latencyMilliseconds: Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000),
+                    maxTokens: values.maxTokens,
+                    inference: InferenceTelemetry(decode: measured),
+                    readouts: probe.readouts
+                )
+                generated.probe = probe.readout
+                return generated
+            }
+            // A matcher is stateful, so every stateless call gets a fresh
+            // one. It is compiled rather than cloned: the pinned bridge's
+            // clone() always throws ("Fork() not available in xgrammar
+            // v0.1.30"), and compiling one of these schemas takes ~7 ms
+            // once the grammar tokenizer (~0.7 s) is cached.
+            let constraint = try values.cache.freshConstraint(for: values.kind, hostTokenizer: context.tokenizer)
             var output = ""
             var generatedTokens: Int?
             var termination = MLXGenerationTrace.Termination.accepted
-            do {
-                generatedTokens = try GuidedGenerationLoop.run(
+            var decodeTelemetry: DecodeTelemetry?
+            var readouts: [DecisionReadout]?
+            let emit: (String) -> Bool = { delta in
+                output += delta
+                return !Task.isCancelled
+            }
+            if let feeding = values.decode.feeding {
+                let result = try RecoveryGuidedDecoder.run(
                     input: input,
                     context: context,
                     constraint: constraint,
                     maxTokens: values.maxTokens,
-                    vocabSize: values.cache.tokenizer.vocabSize
-                ) { delta in
-                    output += delta
-                    return !Task.isCancelled
+                    vocabSize: values.cache.tokenizer.vocabSize,
+                    feeding: feeding,
+                    uniqueSlotLetters: values.uniqueSlotLetters,
+                    emit: emit
+                )
+                // Same trace semantics as the upstream path below: an
+                // exhausted budget reports no token count.
+                if result.grammarAccepted {
+                    generatedTokens = result.tokenCount
+                } else {
+                    termination = .maxTokensExhausted
                 }
-            } catch GuidedGenerationError.incompleteOutput {
-                // The partial text is evidence; before this catch it was
-                // destroyed and truncation was unobservable.
-                termination = .maxTokensExhausted
-            } catch GuidedGenerationError.prematureEOS {
-                termination = .prematureEOS
+                var measured = result.telemetry
+                measured.preprocessMilliseconds = Int(
+                    preprocessElapsed.seconds * 1_000 + preprocessElapsed.attoseconds / 1_000_000_000_000_000
+                )
+                decodeTelemetry = measured
+                readouts = result.readouts
+            } else {
+                do {
+                    generatedTokens = try GuidedGenerationLoop.run(
+                        input: input,
+                        context: context,
+                        constraint: constraint,
+                        maxTokens: values.maxTokens,
+                        vocabSize: values.cache.tokenizer.vocabSize,
+                        emit: emit
+                    )
+                } catch GuidedGenerationError.incompleteOutput {
+                    // The partial text is evidence; before this catch it was
+                    // destroyed and truncation was unobservable.
+                    termination = .maxTokensExhausted
+                }
             }
             try Task.checkCancellation()
             let elapsed = started.duration(to: .now).components
@@ -250,9 +398,26 @@ public actor MLXRecoveryRuntime {
                 generatedTokens: generatedTokens,
                 termination: termination,
                 latencyMilliseconds: Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000),
-                maxTokens: values.maxTokens
+                maxTokens: values.maxTokens,
+                inference: InferenceTelemetry(decode: decodeTelemetry),
+                readouts: readouts
             )
         }
+        inference.decode = generated.inference?.decode
+        inference.memoryAfter = ProcessMemorySnapshot.current()
+        inference.thermalAfter = ThermalStateName.current
+        generated.inference = inference
+        return generated
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int {
+        let components = duration.components
+        return Int(components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    private static func seconds(_ duration: Duration) -> Double {
+        let components = duration.components
+        return Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 
     private func modelContainer(modelDirectory: URL) async throws -> ModelContainer {
@@ -264,9 +429,10 @@ public actor MLXRecoveryRuntime {
         // Bound the Metal buffer cache before any weights load.
         MLX.Memory.cacheLimit = Self.gpuCacheLimitBytes
         let generation = loadGeneration
+        loadStartedAt = .now
         let task = Task<ModelContainer, Error> {
             try await VLMModelFactory.shared.loadContainer(
-                from: modelDirectory,
+                from: try LoadableModelDirectory.resolve(modelDirectory),
                 using: TransformersTokenizerLoader()
             )
         }
@@ -298,6 +464,11 @@ public actor MLXRecoveryRuntime {
                 loaded = nil
                 throw CancellationError()
             }
+            if container == nil, let loadStartedAt {
+                loadMilliseconds = Self.milliseconds(loadStartedAt.duration(to: .now))
+                loadedAt = .now
+                callsSinceLoad = 0
+            }
             container = loaded
             if loadTask == task { loadTask = nil }
             return loaded!
@@ -316,27 +487,14 @@ public actor MLXRecoveryRuntime {
                 vocabType: vocab.vocabType,
                 eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0)
             )
-            // Compile every slot-count variant up front. The cost lands in the
-            // admission warm-up, and the immutable array keeps the cache free
-            // of locking under @unchecked Sendable.
-            let rankConstraints = try (1...Self.rankSlotLetters.count).map { count in
-                try GrammarConstraint(
-                    tokenizer: tokenizer,
-                    jsonSchema: Self.rankSchema(slotCount: count),
-                    fastForward: true,
-                    hostTokenizer: context.tokenizer
-                )
+            let cache = GrammarCache(tokenizer: tokenizer, checkSchema: Self.checkSchema)
+            // Compile every schema once so a bad one fails the admission
+            // warm-up rather than the first recovery.
+            for count in 1...Self.rankSlotLetters.count {
+                _ = try cache.freshConstraint(for: .rank(slotCount: count), hostTokenizer: context.tokenizer)
             }
-            return GrammarCache(
-                tokenizer: tokenizer,
-                rankConstraints: rankConstraints,
-                checkConstraint: try GrammarConstraint(
-                    tokenizer: tokenizer,
-                    jsonSchema: Self.checkSchema,
-                    fastForward: true,
-                    hostTokenizer: context.tokenizer
-                )
-            )
+            _ = try cache.freshConstraint(for: .check, hostTokenizer: context.tokenizer)
+            return cache
         }
         grammarCache = cache
         return cache
@@ -348,28 +506,38 @@ private struct GenerationValues: @unchecked Sendable {
     let prompt: String
     let kind: MLXRecoveryRuntime.GrammarKind
     let maxTokens: Int
+    let decode: DecodeMode
+    let scoring: ScoringMode
+    let imageSide: Int
+    let uniqueSlotLetters: Set<Character>?
     let cache: GrammarCache
 }
 
+/// Holds the expensive, immutable part of grammar setup — the tokenizer
+/// info xgrammar builds from the vocabulary — and compiles a fresh matcher
+/// per call.
 private final class GrammarCache: @unchecked Sendable {
     let tokenizer: GrammarTokenizer
-    /// Index N-1 holds the constraint permitting slots A through the Nth letter.
-    private let rankConstraints: [GrammarConstraint]
-    private let checkConstraint: GrammarConstraint
+    private let checkSchema: String
 
-    init(tokenizer: GrammarTokenizer, rankConstraints: [GrammarConstraint], checkConstraint: GrammarConstraint) {
+    init(tokenizer: GrammarTokenizer, checkSchema: String) {
         self.tokenizer = tokenizer
-        self.rankConstraints = rankConstraints
-        self.checkConstraint = checkConstraint
+        self.checkSchema = checkSchema
     }
 
-    func rootConstraint(for kind: MLXRecoveryRuntime.GrammarKind) -> GrammarConstraint {
+    func freshConstraint(
+        for kind: MLXRecoveryRuntime.GrammarKind,
+        hostTokenizer: any MLXLMCommon.Tokenizer,
+        fastForward: Bool = true
+    ) throws -> GrammarConstraint {
+        let schema: String
         switch kind {
         case .check:
-            checkConstraint
+            schema = checkSchema
         case .rank(let slotCount):
-            rankConstraints[min(max(slotCount, 1), rankConstraints.count) - 1]
+            schema = MLXRecoveryRuntime.rankSchema(slotCount: slotCount)
         }
+        return try GrammarConstraint(tokenizer: tokenizer, jsonSchema: schema, fastForward: fastForward, hostTokenizer: hostTokenizer)
     }
 }
 

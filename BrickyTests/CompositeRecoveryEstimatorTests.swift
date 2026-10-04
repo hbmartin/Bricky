@@ -61,7 +61,8 @@ final class CompositeRecoveryEstimatorTests: XCTestCase {
     func testFallbackWithoutAGeometricLegIsLabelledVLM() async throws {
         let composite = CompositeRecoveryEstimator(
             geometric: nil,
-            fallback: StubFallback(latencyMilliseconds: 11_000, delay: .zero)
+            fallback: StubFallback(latencyMilliseconds: 11_000, delay: .zero),
+            thermalState: { .nominal }
         )
         let estimate = try await composite.estimate(
             captures: [],
@@ -81,7 +82,8 @@ final class CompositeRecoveryEstimatorTests: XCTestCase {
         let sleep = Duration.milliseconds(120)
         let composite = CompositeRecoveryEstimator(
             geometric: nil,
-            fallback: StubFallback(latencyMilliseconds: 1, delay: sleep)
+            fallback: StubFallback(latencyMilliseconds: 1, delay: sleep),
+            thermalState: { .nominal }
         )
         let estimate = try await composite.estimate(
             captures: [],
@@ -91,6 +93,71 @@ final class CompositeRecoveryEstimatorTests: XCTestCase {
         // The stub claims 1 ms. Before the composite owned the clock, that
         // self-report is what reached the benchmark row and the 20 s gate.
         XCTAssertGreaterThanOrEqual(estimate.latencyMilliseconds, 100)
+    }
+
+    /// A geometric leg that cannot conclude: the plan has no steps to fit.
+    private func inconclusiveGeometric() throws -> GeometricRecoveryEstimator {
+        let frame = RegistrationFrameInput(
+            depth: [], confidence: [], rawDepth: nil, rawConfidence: nil, width: 0, height: 0,
+            depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4, timestamp: 0
+        )
+        let root = FileManager.default.temporaryDirectory
+        do {
+            return try GeometricRecoveryEstimator(frame: frame, sourceRoot: root, partPackRoot: root)
+        } catch {
+            throw XCTSkip("Metal unavailable in this test environment")
+        }
+    }
+
+    func testWithoutAFallbackAnInconclusiveDepthFitHandsOverToTheUser() async throws {
+        // Geometric recovery is not gated on VLM admission: with no admitted
+        // model it still runs, and an inconclusive fit is reported honestly.
+        let composite = CompositeRecoveryEstimator(geometric: try inconclusiveGeometric(), fallback: nil)
+        let estimate = try await composite.estimate(captures: [], model: plan, alignment: alignment)
+        XCTAssertEqual(estimate.certainty, .insufficient)
+        XCTAssertEqual(estimate.method, .geometric)
+        XCTAssertEqual(estimate.insufficiencyCause, .geometricInconclusiveWithoutFallback)
+        XCTAssertTrue(estimate.rankedStepIDs.isEmpty)
+    }
+
+    func testAHotDeviceStartsNoVLMRecovery() async throws {
+        for thermal in [ProcessInfo.ThermalState.serious, .critical] {
+            let composite = CompositeRecoveryEstimator(
+                geometric: nil,
+                fallback: StubFallback(latencyMilliseconds: 5, delay: .zero),
+                thermalState: { thermal }
+            )
+            let estimate = try await composite.estimate(captures: [], model: plan, alignment: alignment)
+            XCTAssertEqual(estimate.certainty, .insufficient)
+            XCTAssertEqual(estimate.insufficiencyCause, .thermalDeferred)
+            XCTAssertEqual(estimate.method, .vlm)
+            XCTAssertTrue(estimate.rankedStepIDs.isEmpty, "the fallback must not have run")
+        }
+        let fair = CompositeRecoveryEstimator(
+            geometric: nil,
+            fallback: StubFallback(latencyMilliseconds: 5, delay: .zero),
+            thermalState: { .fair }
+        )
+        let estimate = try await fair.estimate(captures: [], model: plan, alignment: alignment)
+        XCTAssertEqual(estimate.rankedStepIDs, ["main.ldr#3"])
+    }
+
+    func testThePolicyWithholdsRecoveryBeforeChecks() {
+        XCTAssertEqual(InferencePolicy.decide(.recovery, thermal: .fair), .allowed)
+        XCTAssertEqual(InferencePolicy.decide(.recovery, thermal: .serious), .geometricOnly)
+        XCTAssertEqual(InferencePolicy.decide(.check, thermal: .serious), .allowed, "a single check still runs")
+        XCTAssertEqual(InferencePolicy.decide(.recovery, thermal: .critical), .geometricOnly)
+        XCTAssertEqual(InferencePolicy.decide(.check, thermal: .critical), .deferred)
+    }
+
+    func testWithNeitherLegTheUserIsToldToPickManually() async {
+        let composite = CompositeRecoveryEstimator(geometric: nil, fallback: nil)
+        do {
+            _ = try await composite.estimate(captures: [], model: plan, alignment: alignment)
+            XCTFail("an estimate without any leg must not be invented")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("manually"))
+        }
     }
 
     func testMillisecondsConversionMatchesTheEstimatorsOwnArithmetic() {

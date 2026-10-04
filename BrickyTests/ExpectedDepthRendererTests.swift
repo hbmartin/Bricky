@@ -168,4 +168,93 @@ final class ExpectedDepthRendererTests: XCTestCase {
         XCTAssertEqual(map.depthAt(x: 128, y: 96), 0)
         XCTAssertTrue(map.depth.allSatisfy { !$0.isNaN && $0 == 0 })
     }
+
+    // MARK: - Shared instance, prepared geometry, and batches
+
+    private func request(
+        _ geometry: DepthGeometry,
+        distanceOffset: Float = 0,
+        surface: ExpectedDepthRenderer.Surface = .nearest
+    ) -> DepthRenderRequest {
+        var viewFromModel = matrix_identity_float4x4
+        viewFromModel.columns.3 = SIMD4(0.01, -0.005, -distanceOffset, 1)
+        return DepthRenderRequest(geometry: geometry, viewFromModel: viewFromModel, surface: surface)
+    }
+
+    /// Two overlapping quads, so the nearest and farthest surfaces differ.
+    private var layeredSnapshot: InstructionGeometrySnapshot {
+        InstructionGeometrySnapshot(buffers: facingQuad(distance: 0.3) + facingQuad(distance: 0.35), bounds: nil)
+    }
+
+    func testBatchIsBitIdenticalToSingleRenders() async throws {
+        let renderer = try makeRenderer()
+        let geometry = renderer.prepare(layeredSnapshot)
+        let requests = [
+            request(geometry),
+            request(geometry, surface: .farthest),
+            request(geometry, distanceOffset: 0.1),
+            request(renderer.prepare(InstructionGeometrySnapshot(buffers: [], bounds: nil)))
+        ]
+        let batch = try await renderer.render(requests, intrinsics: intrinsics, width: width, height: height)
+        XCTAssertEqual(batch.count, requests.count)
+        let snapshots = [layeredSnapshot, layeredSnapshot, layeredSnapshot, InstructionGeometrySnapshot(buffers: [], bounds: nil)]
+        for (index, (single, snapshot)) in zip(requests, snapshots).enumerated() {
+            let alone = try renderer.render(
+                snapshot: snapshot,
+                viewFromModel: single.viewFromModel,
+                intrinsics: intrinsics,
+                width: width,
+                height: height,
+                surface: single.surface
+            )
+            XCTAssertEqual(batch[index].depth, alone.depth, "request \(index) differs from its single render")
+        }
+        XCTAssertGreaterThan(batch[1].depthAt(x: 128, y: 96), batch[0].depthAt(x: 128, y: 96), "farthest must see the back quad")
+        XCTAssertTrue(batch[3].depth.allSatisfy { $0 == 0 }, "empty geometry clears its target")
+    }
+
+    func testTargetsAreReusedAcrossBatches() async throws {
+        // Reused pool targets must be cleared: a second batch drawing nothing
+        // must not see the first batch's depth.
+        let renderer = try makeRenderer()
+        _ = try await renderer.render([request(renderer.prepare(layeredSnapshot))], intrinsics: intrinsics, width: width, height: height)
+        let empty = renderer.prepare(InstructionGeometrySnapshot(buffers: [], bounds: nil))
+        let maps = try await renderer.render([request(empty)], intrinsics: intrinsics, width: width, height: height)
+        XCTAssertTrue(maps[0].depth.allSatisfy { $0 == 0 })
+    }
+
+    func testConcurrentBatchesDoNotInterfere() async throws {
+        let renderer = try makeRenderer()
+        let near = renderer.prepare(InstructionGeometrySnapshot(buffers: facingQuad(distance: 0.3), bounds: nil))
+        let far = renderer.prepare(InstructionGeometrySnapshot(buffers: facingQuad(distance: 0.6), bounds: nil))
+        let intrinsics = intrinsics, width = width, height = height
+        let depths = try await withThrowingTaskGroup(of: (Int, Float).self) { group in
+            for index in 0..<8 {
+                let geometry = index.isMultiple(of: 2) ? near : far
+                group.addTask {
+                    let maps = try await renderer.render(
+                        [DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4)],
+                        intrinsics: intrinsics, width: width, height: height
+                    )
+                    return (index, maps[0].depthAt(x: 128, y: 96))
+                }
+            }
+            var results: [Int: Float] = [:]
+            for try await (index, depth) in group { results[index] = depth }
+            return results
+        }
+        for (index, depth) in depths {
+            XCTAssertEqual(depth, index.isMultiple(of: 2) ? 0.3 : 0.6, accuracy: 0.002, "batch \(index)")
+        }
+    }
+
+    func testSharedRendererIsOneInstance() throws {
+        do {
+            let first = try ExpectedDepthRenderer.shared()
+            let second = try ExpectedDepthRenderer.shared()
+            XCTAssertTrue(first === second)
+        } catch {
+            throw XCTSkip("Metal unavailable in this test environment")
+        }
+    }
 }

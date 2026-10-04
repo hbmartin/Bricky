@@ -113,7 +113,8 @@ Mutable over the session's life:
 - `estimate` — nullable summary: `ranked_step_ids`, `certainty`,
   `insufficiency_cause` (nullable: `broad_pass_unmatched`,
   `narrowing_pass_unmatched`, `final_pass_unmatched`,
-  `finalist_quorum_not_reached`), `latency_ms`, `method`
+  `finalist_quorum_not_reached`, `geometric_inconclusive_without_fallback`,
+  `thermal_deferred`), `latency_ms`, `method`
   (`geometric` / `composite` / `vlm`), and `model_revision`. The last two are
   the estimate's own, not the session header's — see `benchmark.ndjson`.
 - `analysis_error` — nullable string when the run threw.
@@ -180,7 +181,9 @@ what keeps it from winning, and it cannot also carry the reason.
 
 Written once per **labeled** session by `RecoveryBenchmarkWriter` (device) or
 derived by `bricky-harness replay` (Mac; always tagged
-`device_model: "replay:<mac>"`). The consumer contract is
+`device_model: "replay:<mac>"`, which `score_results.py` release mode
+rejects — only `iPhone<≥18>,<n>` identifiers are device evidence). The
+consumer contract is
 `Tools/RecoveryEvaluation/score_results.py`; `BrickyTests/
 RecoveryBenchmarkWriterTests.swift` mirrors its `REQUIRED_FIELDS` and
 `RELEASE_FIELDS` sets so drift fails a test, not a release run.
@@ -209,9 +212,41 @@ weights or solver produced the ranking; never parsed to infer the method),
 `top_step_index` (null only when
 `certainty` is `insufficient`), `physical_case`, `authored_model_id`,
 `legal_use_confirmed`, `lighting_condition`, `capture_angle`,
-`occlusion_condition`. Release rows must populate all of them (see the
-scorer README for corpus-level requirements: ≥150 cases, ≥10 models,
-variation coverage).
+`occlusion_condition`, `capture_elevation_degrees` (the center capture's
+measured viewing elevation below the horizon, from its camera transform).
+Release rows must populate all of them. Corpus-level requirements
+(provenance, variation coverage including two elevation bands, and the
+bound-based sample sizes) are in the scorer README.
+
+## Benchmark-protocol telemetry (optional, added 2026-09-25)
+
+All of these fields are optional additions (no version bump). They exist so
+that device rows can be bucketed and controlled the way the benchmark
+protocol requires: Release builds, cold/warm/sustained buckets, and
+interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift`.
+
+| Where | Field | Meaning |
+| --- | --- | --- |
+| manifest, session | `os_build`, `gpu_architecture` | `kern.osversion`; Metal's architecture name |
+| session | `physical_memory_bytes` | `ProcessInfo.physicalMemory` (the device-floor input) |
+| session | `admission` | floor, available bytes at check, footprint before load, load and warm-up ms, warm-up lifetime peak |
+| session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
+| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`. Absent axes decode to the baseline |
+| trace (checks) | `alternate_tile_relative_paths` | the target rendered from the check target the call did not use (`guide_camera` or `registered` → tile path). Written only with evidence on, and only when that target could be rendered: `registered` needs the AR guide's locked pose |
+| trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |
+| trace | `conditions` | `DeviceConditions` at the call |
+| trace | `readouts` | per small-legal-set decision: position, chosen token, legal candidates with masked-softmax probabilities |
+| benchmark | `variant_id` | the arm; the scorer refuses files that mix arms unless `--allow-mixed-arms` is passed |
+| benchmark | `latency_bucket` | `cold` (first call after load), `warm`, or `sustained` (≥ 1800 s of continuous AR); the scorer reports p50/p95 per bucket |
+| benchmark | `thermal_state_start`/`_end`, `seconds_since_ar_start`, `battery_state`, `low_power_mode` | conditions at the session's start and end |
+| benchmark | `vlm_calls`, `prefill_ms_total`, `decode_ms_total` | what the estimate cost in inference |
+| benchmark | `latency_scope` | `estimate_wall_clock` on device |
+
+`memory_peak_bytes` is now the kernel's lifetime `phys_footprint` peak
+(`ledger_phys_footprint_peak`), where the device has it. Before, it was the
+largest of the footprints sampled after each call, which misses peaks that
+happen inside a call. On macOS, `device_model` now reports `hw.model`
+(for example `Mac14,12`); `uname` only gives `arm64`.
 
 ## Step numbering: the three coordinate systems
 

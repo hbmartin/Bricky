@@ -1,11 +1,13 @@
 import ARKit
 import RealityKit
+import RecoveryMLX
 import SwiftUI
 
 struct ARGuideView: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var partPack: LDrawPartPackManager
+    @EnvironmentObject private var recoveryModel: RecoveryModelManager
     let model: StoredInstructionModel
     let plan: InstructionPlan
     @State private var step: AuthoredStep
@@ -16,6 +18,17 @@ struct ARGuideView: View {
     @State private var entity: Entity?
     @State private var error: String?
     @State private var isAdvancing = false
+    @StateObject private var photoCheck = PhotoCheckController()
+    @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
+    @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
+    @State private var stagedDeclaration: StagedFixtureDeclaration?
+    @State private var showStagedSetup = false
+    /// The open evidence session for the current photo check, and the
+    /// declaration it was opened with.
+    @State private var photoCheckRecorder: RecoveryEvidenceRecorder?
+    @State private var photoCheckStaged: StagedFixtureDeclaration?
+    @State private var photoCheckStep: AuthoredStep?
+    @State private var photoCheckTask: Task<Void, Never>?
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -65,7 +78,8 @@ struct ARGuideView: View {
                         .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
                     }
                     Spacer()
-                    if verification.isStablyComplete {
+                    photoCheckSection
+                    if verification.isStablyComplete, photoCheck.state == .idle {
                         // One tap after ≥2 s of stable complete — the user
                         // still confirms; nothing auto-advances (ADR 0008).
                         Button(
@@ -86,7 +100,7 @@ struct ARGuideView: View {
             .task {
                 camera.checkPermissions()
                 registration.frameObserver = { [weak verification] frame, update in
-                    await verification?.observe(frame: frame, registration: update)
+                    verification?.submit(frame: frame, registration: update)
                 }
                 await loadEntity()
                 // Placement can precede the fit sample when geometry loads
@@ -94,6 +108,7 @@ struct ARGuideView: View {
                 registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
             }
             .onDisappear {
+                endPhotoCheck(confirmed: false)
                 verification.stop()
                 registration.stop()
                 camera.stopSession()
@@ -107,33 +122,199 @@ struct ARGuideView: View {
             .onChange(of: alignment.alignment) { _, newValue in
                 registration.alignmentChanged(newValue, relay: camera.registrationRelay)
             }
+            .onChange(of: session.cursorStep?.id) { _, _ in
+                follow(session.cursorStep)
+            }
         }
         .navigationTitle("AR Step \(step.index)")
         .navigationBarTitleDisplayMode(.inline)
         .alert("AR Unavailable", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
+        .sheet(isPresented: $showStagedSetup) {
+            StagedFixtureSetupView(plan: plan, declaration: $stagedDeclaration)
+        }
     }
 
-    /// Persists the confirm exactly like `GuideView.confirmAndAdvance`, then
-    /// advances this AR session in place: the next step's geometry loads,
-    /// verification restarts on the new delta, and the tracker re-fits the
-    /// grown build from its current pose.
+    /// The VLM photo check at the locked pose: offered only while the
+    /// registration is locked and the model is admitted, and advisory like
+    /// every verdict here (ADR 0008).
+    @ViewBuilder
+    private var photoCheckSection: some View {
+        switch photoCheck.state {
+        case .idle:
+            if registration.lockedAlignment != nil, recoveryModel.isVLMAdmitted {
+                VStack(spacing: 6) {
+                    if evidenceCaptureEnabled, corpusCollectionEnabled {
+                        StagedDeclarationButton(declaration: stagedDeclaration) { showStagedSetup = true }
+                    }
+                    Button("Photo Check", systemImage: "camera.viewfinder") { startPhotoCheck() }
+                        .buttonStyle(.bordered).controlSize(.large)
+                }
+                .padding(.bottom, 4)
+            }
+        case .checking:
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Checking this step…")
+                Button("Cancel") { endPhotoCheck(confirmed: false) }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+            .padding(.bottom, 4)
+        case .finished(let result):
+            VStack(spacing: 10) {
+                Label("Photo check: \(result.rawValue.capitalized)", systemImage: photoCheckIcon(result))
+                    .font(.headline)
+                Text("This result is advisory. You decide when to advance.")
+                    .font(.caption)
+                HStack {
+                    Button("Done") { endPhotoCheck(confirmed: false) }
+                    if result == .complete {
+                        Button(step.index < plan.steps.count ? "Confirm & Next" : "Confirm & Finish") {
+                            confirmPhotoCheck()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+            .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(.bottom, 4)
+        case .failed(let message):
+            VStack(spacing: 8) {
+                Label("Photo check unavailable", systemImage: "exclamationmark.triangle").font(.headline)
+                Text(message).font(.caption).multilineTextAlignment(.center)
+                Button("Done") { endPhotoCheck(confirmed: false) }
+            }
+            .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(.bottom, 4)
+        }
+    }
+
+    private func photoCheckIcon(_ result: StepCheckResult) -> String {
+        switch result {
+        case .complete: "checkmark.circle.fill"
+        case .incomplete: "xmark.circle.fill"
+        case .uncertain: "questionmark.circle.fill"
+        }
+    }
+
+    private func startPhotoCheck() {
+        guard let pack = partPack.readyLibraryURL, let modelDirectory = recoveryModel.modelDirectory else { return }
+        guard InferencePolicy.decide(.check, thermal: ProcessInfo.processInfo.thermalState) != .deferred else {
+            photoCheck.refuse(InferencePolicy.deferredCheckMessage)
+            return
+        }
+        let staged = evidenceCaptureEnabled && corpusCollectionEnabled ? stagedDeclaration : nil
+        let recorder = makePhotoCheckRecorder(staged: staged)
+        let checkedStep = step
+        let service = VLMStepCheckService(
+            runtime: recoveryModel.runtime,
+            modelDirectory: modelDirectory,
+            partPackRoot: pack,
+            variant: InferenceArmScheduler().next(evidenceEnabled: evidenceCaptureEnabled),
+            recorder: recorder
+        )
+        let source = LivePoseSource(registration: registration, verification: verification)
+        let task = photoCheck.start(source: source) { alignment in
+            // The capture carries the locked alignment's identity: the
+            // registered target is rendered from this photo's camera under
+            // exactly that pose.
+            let capture = try RecoveryCaptureService().capture(from: camera, angle: .center, alignmentID: alignment.id)
+            // The AR guide keeps no milestone images; the recorder copies
+            // the photo when evidence is on.
+            let captureURL = try InstructionModelImporter.applicationSupportRoot()
+                .appendingPathComponent(capture.imageRelativePath)
+            defer { RecoveryWorkFileCleanup.remove(urls: [captureURL]) }
+            return try await service.check(capture: capture, plan: plan, step: checkedStep, registered: alignment).result
+        }
+        guard let task else { return }
+        photoCheckTask = task
+        photoCheckRecorder = recorder
+        photoCheckStaged = staged
+        photoCheckStep = checkedStep
+        // Registered so the app can cancel AND await in-flight MLX inference
+        // before unloading the runtime on suspension.
+        recoveryModel.trackInference(task)
+    }
+
+    /// A complete photo check confirmed by the user: a human label, and an
+    /// advance through the shared session like every other confirm.
+    private func confirmPhotoCheck() {
+        guard !isAdvancing else { return }
+        endPhotoCheck(confirmed: true)
+        isAdvancing = true
+        verification.stop()
+        session.confirm(step, source: .photoCheck)
+        guard step.index < plan.steps.count else {
+            dismiss()
+            return
+        }
+        follow(session.cursorStep)
+    }
+
+    /// Ends the check however it ended: cancels a running one and labels
+    /// its evidence (a staged declaration labels it either way) once the
+    /// check has stopped writing to it.
+    private func endPhotoCheck(confirmed: Bool) {
+        var analysisError: String?
+        if case .failed(let message) = photoCheck.state { analysisError = message }
+        photoCheck.cancel()
+        let task = photoCheckTask
+        let recorder = photoCheckRecorder
+        let groundTruth = photoCheckStep.map {
+            VLMStepCheckService.groundTruth(staged: photoCheckStaged, plan: plan, step: $0, confirmed: confirmed)
+        } ?? .unlabeled
+        photoCheckTask = nil
+        photoCheckRecorder = nil
+        photoCheckStaged = nil
+        photoCheckStep = nil
+        guard let recorder else { return }
+        Task.detached(priority: .utility) {
+            await task?.value
+            await recorder.finalize(estimate: nil, analysisError: analysisError, groundTruth: groundTruth)
+        }
+    }
+
+    private func makePhotoCheckRecorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder? {
+        guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
+        return RecoveryEvidenceRecorder(
+            root: root,
+            instructionSHA256: plan.sourceSHA256,
+            authoredModelID: model.id,
+            modelTitle: model.title,
+            stepCount: plan.steps.count,
+            staged: staged,
+            admission: recoveryModel.admissionSnapshot,
+            conditions: DeviceConditionsProbe.snapshot()
+        )
+    }
+
+    /// Confirms through the shared session; the cursor change then advances
+    /// this AR session in place (`follow(_:)`).
     private func confirmAndAdvance() {
         guard !isAdvancing else { return }
         isAdvancing = true
         // Dropping the verdict hides the confirm affordance immediately, so
         // one physical step cannot be confirmed twice before the next loads.
         verification.stop()
-        model.confirmedLastCompletedStepID = step.id
-        model.currentStepIndex = min(plan.steps.count, step.index)
-        model.lastOpenedAt = .now
-        try? context.save()
+        session.confirm(step, source: .arVerified)
         guard step.index < plan.steps.count else {
             dismiss()
             return
         }
-        step = plan.steps[step.index]
+        follow(session.cursorStep)
+    }
+
+    /// Moves this AR session to `next` — after a confirm here, or when the
+    /// cursor moved elsewhere (voice, Siri, another view): the next step's
+    /// geometry loads, verification restarts on the new delta, and the
+    /// tracker re-fits the grown build from its current pose.
+    private func follow(_ next: AuthoredStep?) {
+        guard let next, next.id != step.id else {
+            isAdvancing = false
+            return
+        }
+        verification.stop()
+        step = next
         Task {
             await loadEntity()
             registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
@@ -178,6 +359,17 @@ struct ARGuideView: View {
             )
         } catch { self.error = error.localizedDescription }
     }
+}
+
+/// The AR guide's registration and verifier, as a photo check sees them.
+@MainActor
+private struct LivePoseSource: RegisteredPoseSource {
+    let registration: RegistrationController
+    let verification: StepVerificationController
+
+    var lockedAlignment: ARAlignment? { registration.lockedAlignment }
+    func suspendVerification() { verification.suspend() }
+    func resumeVerification() { verification.resume() }
 }
 
 private struct AlignmentNudgePad: View {

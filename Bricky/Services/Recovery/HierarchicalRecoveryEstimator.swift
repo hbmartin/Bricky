@@ -13,12 +13,24 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
     /// Present only when the developer evidence toggle is on; recording is a
     /// pure observer and must never change the estimate.
     private let recorder: RecoveryEvidenceRecorder?
+    /// The VLM-path variant this estimate runs (ADR 0010 amendment): vote
+    /// rule, decoder feeding, slot uniqueness. Recorded on every trace.
+    private let variant: RecoveryInferenceVariant
+    /// The most recent probe readout, for the log-probability vote.
+    private var lastProbe: ProbeReadout?
 
-    init(runtime: MLXRecoveryRuntime, modelDirectory: URL, partPackRoot: URL, recorder: RecoveryEvidenceRecorder? = nil) {
+    init(
+        runtime: MLXRecoveryRuntime,
+        modelDirectory: URL,
+        partPackRoot: URL,
+        recorder: RecoveryEvidenceRecorder? = nil,
+        variant: RecoveryInferenceVariant = .baseline
+    ) {
         self.runtime = runtime
         self.modelDirectory = modelDirectory
         self.partPackRoot = partPackRoot
         self.recorder = recorder
+        self.variant = variant
     }
 
     func estimate(captures: [RecoveryCapture], model: InstructionPlan, alignment: ARAlignment) async throws -> RecoveryEstimate {
@@ -34,10 +46,10 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         }
         let started = ContinuousClock.now
         let renderer = try await InstructionSnapshotRenderer(plan: model, partPackRoot: partPackRoot)
-        let broad = Self.evenlySampledIndices(count: min(8, model.steps.count + 1), range: -1..<model.steps.count)
+        let broad = RecoveryIndexing.evenlySampledIndices(count: min(8, model.steps.count + 1), range: -1..<model.steps.count)
         let centerCapture = captures.first(where: { $0.angle == .center }) ?? captures[1]
         let broadRank = try await rank(capture: centerCapture, indices: broad, plan: model, alignment: alignment, renderer: renderer, pass: .broad, passIndex: 0)
-        guard broadRank.status == "matched", let broadLeader = Self.index(for: broadRank.ranking.first, candidates: broad) else {
+        guard broadRank.status == "matched", let broadLeader = RecoveryIndexing.candidateIndex(forSlot: broadRank.ranking.first, candidates: broad) else {
             return insufficient(captures: captures, started: started, cause: .broadPassUnmatched)
         }
 
@@ -45,78 +57,62 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         // spacing reaches 1, so the true step cannot be structurally excluded
         // from the finalists. Each pass shrinks the interval geometrically;
         // the pass count is log-bounded for safety.
-        var interval = Self.neighborInterval(around: broadLeader, samples: broad, lowerBound: -1, upperBound: model.steps.count)
+        var interval = RecoveryIndexing.neighborInterval(around: broadLeader, samples: broad, lowerBound: -1, upperBound: model.steps.count)
         var passes = 0
         let maxPasses = max(1, Int(log2(Double(model.steps.count + 2)).rounded(.up)))
         while interval.count > 8, passes < maxPasses {
             try Task.checkCancellation()
-            let sampled = Self.evenlySampledIndices(count: 8, range: interval)
+            let sampled = RecoveryIndexing.evenlySampledIndices(count: 8, range: interval)
             let passRank = try await rank(capture: centerCapture, indices: sampled, plan: model, alignment: alignment, renderer: renderer, pass: .narrowing, passIndex: passes)
-            guard passRank.status == "matched", let passLeader = Self.index(for: passRank.ranking.first, candidates: sampled) else {
+            guard passRank.status == "matched", let passLeader = RecoveryIndexing.candidateIndex(forSlot: passRank.ranking.first, candidates: sampled) else {
                 return insufficient(captures: captures, started: started, cause: .narrowingPassUnmatched)
             }
-            let next = Self.neighborInterval(around: passLeader, samples: sampled, lowerBound: -1, upperBound: model.steps.count)
+            let next = RecoveryIndexing.neighborInterval(around: passLeader, samples: sampled, lowerBound: -1, upperBound: model.steps.count)
             guard next.count < interval.count else { break }
             interval = next
             passes += 1
         }
         // Once interval.count <= 8, this samples every index (spacing == 1).
-        let narrowed = Self.evenlySampledIndices(count: min(8, interval.count), range: interval)
+        let narrowed = RecoveryIndexing.evenlySampledIndices(count: min(8, interval.count), range: interval)
         let narrowRank = try await rank(capture: centerCapture, indices: narrowed, plan: model, alignment: alignment, renderer: renderer, pass: .narrow, passIndex: 0)
-        guard narrowRank.status == "matched", let narrowLeader = Self.index(for: narrowRank.ranking.first, candidates: narrowed) else {
+        guard narrowRank.status == "matched", let narrowLeader = RecoveryIndexing.candidateIndex(forSlot: narrowRank.ranking.first, candidates: narrowed) else {
             return insufficient(captures: captures, started: started, cause: .finalPassUnmatched)
         }
 
         let finalists = Array(Set([narrowLeader - 1, narrowLeader, narrowLeader + 1]))
             .filter { $0 >= -1 && $0 < model.steps.count }
             .sorted()
-        var rankings: [[(position: Int, step: Int)]] = []
+        var views: [RecoveryVoteView<Int>] = []
+        lastProbe = nil
         for (viewIndex, capture) in captures.sorted(by: { $0.angle.rawValue < $1.angle.rawValue }).enumerated() {
             try Task.checkCancellation()
-            let result = try await rank(capture: capture, indices: finalists, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
+            // Rotated slot order moves each finalist through every slot
+            // across the three views; the vote maps slots per view.
+            let viewOrder = SlotAssignment.order(finalists, viewIndex: viewIndex, order: variant.slotOrder)
+            let slotMap = Dictionary(uniqueKeysWithValues: zip(RecoveryIndexing.slotLetters, viewOrder))
+            let result = try await rank(capture: capture, indices: viewOrder, plan: model, alignment: alignment, renderer: renderer, pass: .finalist, passIndex: viewIndex)
             // Views the model marked insufficient must not vote in scoring
             // or certainty.
             guard result.status == "matched" else { continue }
-            // Enumerate before dropping out-of-range slots so later
-            // candidates keep their true rank positions.
-            let mapped = result.ranking.enumerated().compactMap { position, slot -> (position: Int, step: Int)? in
-                guard let step = Self.index(for: slot, candidates: finalists) else { return nil }
-                return (position, step)
-            }
-            guard !mapped.isEmpty else { continue }
-            rankings.append(mapped)
+            views.append(RecoveryVoteView(
+                ranking: result.ranking.map { $0.uppercased() },
+                candidateForSlot: slotMap,
+                slotProbabilities: lastProbe?.options
+            ))
         }
-        guard rankings.count >= 2 else {
+        guard let vote = RecoveryVote.aggregate(views: views, finalists: finalists, rule: variant.vote) else {
             return insufficient(captures: captures, started: started, cause: .finalistQuorumNotReached)
         }
-
-        var scores: [Int: Int] = [:]
-        for ranking in rankings {
-            for entry in ranking {
-                scores[entry.step, default: 0] += max(0, finalists.count - entry.position)
-            }
-        }
-        let ordered = finalists.sorted {
-            let lhs = scores[$0, default: 0], rhs = scores[$1, default: 0]
-            return lhs == rhs ? $0 < $1 : lhs > rhs
-        }
-        let viewLeaders = rankings.compactMap { $0.first?.step }
-        let agreement = Dictionary(grouping: viewLeaders, by: { $0 }).values.map(\.count).max() ?? 0
-        let certainty: RecoveryCertainty = agreement >= 3 ? .high : (agreement == 2 ? .medium : .low)
         let duration = started.duration(to: .now)
         return RecoveryEstimate(
-            rankedStepIDs: ordered.prefix(3).map { Self.stepID(forIndex: $0, plan: model) },
-            certainty: certainty,
+            rankedStepIDs: vote.ordered.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0, plan: model) },
+            certainty: vote.certainty,
             modelRevision: RecoveryModelManager.revision,
             latencyMilliseconds: Self.milliseconds(duration),
             captureIDs: captures.map(\.id),
             insufficiencyCause: nil,
             method: .vlm
         )
-    }
-
-    static func stepID(forIndex index: Int, plan: InstructionPlan) -> String {
-        index == -1 ? plan.stepZeroID : plan.steps[index].id
     }
 
     private func rank(
@@ -128,7 +124,7 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         pass: RecoveryPassKind,
         passIndex: Int
     ) async throws -> MLXRankOutput {
-        let slots = Array("ABCDEFGH").map(String.init)
+        let slots = RecoveryIndexing.slotLetters
         var candidates: [(slot: String, image: UIImage, stepNumber: Int)] = []
         for (slot, index) in zip(slots, indices) {
             candidates.append((
@@ -139,10 +135,25 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
         }
         let root = try InstructionModelImporter.applicationSupportRoot()
         let captureURL = root.appendingPathComponent(capture.imageRelativePath)
-        let board = try await RecoveryBoardComposer.compose(physicalViewURL: captureURL, candidates: candidates)
+        let board = try await RecoveryBoardComposer.compose(
+            physicalViewURL: captureURL,
+            candidates: candidates,
+            layout: variant.boardLayout,
+            labels: variant.labels
+        )
         defer { try? FileManager.default.removeItem(at: board) }
-        let prompt = "The large top image is a physical brick build. The labeled renders A–H are cumulative authored instruction steps in one fixed model frame. Rank the closest labels from best to worst. Return insufficient when angle, occlusion, or evidence cannot support a comparison."
-        let response = try await runtime.rankWithTrace(imageURL: board, prompt: prompt, candidateCount: candidates.count, modelDirectory: modelDirectory)
+        let prompt = RecoveryPrompts.rank(slotCount: candidates.count, style: variant.promptStyle)
+        let response = try await runtime.rankWithTrace(
+            imageURL: board,
+            prompt: prompt,
+            candidateCount: candidates.count,
+            modelDirectory: modelDirectory,
+            decode: variant.decode,
+            uniqueSlots: variant.uniqueSlots,
+            scoring: variant.scoring,
+            imageSide: variant.imageSide
+        )
+        lastProbe = response.trace.probe
         if let recorder {
             // Runs before the defer removes the board, so the recorder can
             // copy the exact image the model saw.
@@ -150,7 +161,7 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
                 RecoveryEvidenceRecorder.RecordedCandidate(
                     slot: candidate.slot,
                     stepIndex: index,
-                    stepID: Self.stepID(forIndex: index, plan: plan),
+                    stepID: RecoveryIndexing.stepID(forIndex: index, plan: plan),
                     jpegData: candidate.image.jpegData(compressionQuality: 0.9)
                 )
             }
@@ -161,7 +172,8 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
                 candidates: recorded,
                 boardURL: board,
                 prompt: prompt,
-                trace: response.trace
+                trace: response.trace,
+                variant: variant
             )
         }
         guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
@@ -178,29 +190,6 @@ actor HierarchicalRecoveryEstimator: RecoveryEstimating {
             insufficiencyCause: cause,
             method: .vlm
         )
-    }
-
-    static func evenlySampledIndices(count: Int, range: Range<Int>) -> [Int] {
-        guard count > 0, !range.isEmpty else { return [] }
-        if count == 1 { return [range.lowerBound] }
-        return (0..<count).map { offset in
-            range.lowerBound + Int((Double(range.count - 1) * Double(offset) / Double(count - 1)).rounded())
-        }.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
-    }
-
-    private static func neighborInterval(around leader: Int, samples: [Int], lowerBound: Int, upperBound: Int) -> Range<Int> {
-        guard let position = samples.firstIndex(of: leader) else {
-            return max(lowerBound, leader - 4)..<min(upperBound, leader + 5)
-        }
-        let lower = position > 0 ? samples[position - 1] : lowerBound
-        let upper = position + 1 < samples.count ? samples[position + 1] + 1 : upperBound
-        return lower..<max(lower + 1, min(upperBound, upper))
-    }
-
-    private static func index(for slot: String?, candidates: [Int]) -> Int? {
-        guard let slot, let ascii = slot.uppercased().utf8.first else { return nil }
-        let offset = Int(ascii) - 65
-        return candidates.indices.contains(offset) ? candidates[offset] : nil
     }
 
     private static func milliseconds(_ duration: Duration) -> Int {

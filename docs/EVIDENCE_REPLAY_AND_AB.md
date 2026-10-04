@@ -65,16 +65,29 @@ Behavior:
 5. Writes benchmark rows to `--out` and every per-call result to
    `<out>.traces.ndjson`.
 
-Row provenance is enforced structurally: replay rows carry
-`device_model: "replay:<mac-identifier>"` and `latency_ms` equal to the sum
-of the *replayed* finalist latencies, so Mac numbers can never masquerade as
-device rows in a release corpus. The device's own numbers are the
+Row provenance: replay rows carry `device_model: "replay:<mac-identifier>"`
+and a `latency_ms` equal to the sum of every replayed call, with
+`latency_scope` saying which calls those were: `inference_all_passes` under
+`--all-passes`, otherwise `inference_finalists_only`. They
+copy the staged declaration's physical and legal-use flags verbatim, so the
+tag is what separates them from device rows, and `score_results.py` release
+mode enforces it: only admitted `iPhone<≥18>,<n>` identifiers are accepted,
+and a fixture may appear once. The device's own numbers are the
 `benchmark.ndjson` files already inside the bundle.
 
-The traces sidecar (`ReplayTraceResult`) carries per call: `raw_output`,
-`decode_error`, `termination`, `latency_ms`, the recorded
-`device_raw_output`, and `matches_device` — the quickest signal for whether
-a device failure reproduces at all.
+The traces sidecar (`ReplayTraceResult`) carries, per call:
+- `raw_output`, `decode_error`, `termination`, `latency_ms`;
+- the recorded `device_raw_output`;
+- `matches_device`: the same decision (status and ranking), ignoring
+  whitespace. It is the quickest signal for whether a device failure
+  reproduces at all;
+- `matches_device_raw`: byte identity;
+- `variant` / `variant_id`;
+- the decoded `decision`;
+- `outcome`: `truth_slot`, `chosen_slot`, `truth_in_candidates`,
+  `top1_correct`. These make rows pairable by trace for an A/B, and give
+  the slot-bias histogram;
+- the decoder's `inference` telemetry and `readouts`.
 
 ### A/B knobs
 
@@ -84,6 +97,15 @@ a device failure reproduces at all.
 | `--max-tokens N` | Override the rank token budget (device default is 192) |
 | `--recompose` | Rebuild each board from the raw capture + tiles through `RecoveryBoardLayoutV1` instead of replaying the stored board image (layout experiments) |
 | `--all-passes` | Replay the full hierarchy, not only finalists |
+| `--vote borda_dedup\|borda_legacy` | Finalist vote rule (`RecoveryVote`, shared with the app). `borda_dedup` is the app default; `borda_legacy` counts repeated slots as the app did before 2026-09 |
+| `--checks` | Also replay step-check traces into `<out>.checks.ndjson` as `vlm_check` rows. The scorer prints their false-complete rate; the expected verdict comes from the session's labeled step count. Staged check sessions (corpus collection, declared short of the checked step) are the negatives |
+| `--check-target guide_camera\|registered` | Replay checks against that target. A check recorded at the other target uses its `alternate_tile_relative_paths` tile and needs `--recompose`; a check with no tile for the target (every check outside the AR guide, for `registered`) has no row in that arm |
+| `--arm NAME`, `--variant JSON` | Record an arm label; `--variant` sets the whole `RecoveryInferenceVariant` at once (overriding `--decode`/`--vote`). Rows carry `variant_id` |
+| `--slot-order rotated`, `--board v2`, `--labels slot` | Rebuild boards (needs `--recompose`) with finalists rotated across views, the V2 layout (≤ 4 tall finalist tiles; side-by-side check), or slot-only labels (hides step numbers from the model) |
+| `--prompt-style baseline\|dynamic_range`, `--image-side N` | Replace recorded prompts (`dynamic_range` names only the slots on the board); resize boards to N px before the vision encoder |
+| `--unique-slots` | Mask slot letters already in the ranking (`unique_slots`); needs the forked decoder |
+| `--scoring generate\|probe` | `probe` reads the decision's probabilities from one prefill over a canonical answer prefix instead of generating JSON; pair with `--vote logprob` to pool views by log probability |
+| `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`
 

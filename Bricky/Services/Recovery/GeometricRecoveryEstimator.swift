@@ -59,22 +59,24 @@ actor GeometricRecoveryEstimator {
     private let renderer: ExpectedDepthRenderer
     /// Optional observer, exactly as `HierarchicalRecoveryEstimator` takes
     /// one: the disabled path costs nothing and recording can never change an
-    /// estimate (ADR 0007).
-    private let recorder: RecoveryEvidenceRecorder?
+    /// estimate (ADR 0007). Typed as the protocol so this file compiles into
+    /// the macOS SyntheticRGBD tool, which cannot link the MLX-backed recorder.
+    private let recorder: (any GeometricFitRecording)?
 
     init(
         frame: RegistrationFrameInput,
         sourceRoot: URL,
         partPackRoot: URL,
         configuration: Configuration = Configuration(),
-        recorder: RecoveryEvidenceRecorder? = nil
+        recorder: (any GeometricFitRecording)? = nil,
+        renderer: ExpectedDepthRenderer? = nil
     ) throws {
         self.frame = frame
         self.sourceRoot = sourceRoot
         self.partPackRoot = partPackRoot
         self.configuration = configuration
         self.recorder = recorder
-        renderer = try ExpectedDepthRenderer()
+        self.renderer = try renderer ?? ExpectedDepthRenderer.shared()
     }
 
     /// Returns a conclusive estimate or nil. Step zero (nothing built) has no
@@ -94,7 +96,7 @@ actor GeometricRecoveryEstimator {
         var passIndexByCandidate: [Int: Int] = [:]
         var interval = 0..<plan.steps.count
         for passIndex in 0..<configuration.refinementPasses {
-            let indices = HierarchicalRecoveryEstimator.evenlySampledIndices(
+            let indices = RecoveryIndexing.evenlySampledIndices(
                 count: min(configuration.candidatesPerPass, interval.count),
                 range: interval
             )
@@ -104,7 +106,7 @@ actor GeometricRecoveryEstimator {
                 let placements = Array(plan.cumulativePlacements(through: plan.steps[index]))
                 fresh.append((index, try await engine.snapshot(placements: placements)))
             }
-            for score in try Self.scoreCandidates(
+            for score in try await Self.scoreCandidates(
                 candidates: fresh,
                 frame: frame,
                 coarseWorldFromModel: alignment.transform,
@@ -139,7 +141,7 @@ actor GeometricRecoveryEstimator {
         let latency = Int(duration.components.seconds) * 1_000
             + Int(duration.components.attoseconds / 1_000_000_000_000_000)
         return RecoveryEstimate(
-            rankedStepIDs: ranked.prefix(3).map { HierarchicalRecoveryEstimator.stepID(forIndex: $0.index, plan: plan) },
+            rankedStepIDs: ranked.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0.index, plan: plan) },
             certainty: margin >= configuration.highCertaintyMargin ? .high : .medium,
             modelRevision: "depth-icp-geometric-v1",
             latencyMilliseconds: latency,
@@ -167,7 +169,7 @@ actor GeometricRecoveryEstimator {
                 sessionID: recorder.sessionID,
                 passIndex: passIndices[index] ?? 0,
                 candidateIndex: index,
-                stepID: HierarchicalRecoveryEstimator.stepID(forIndex: index, plan: plan),
+                stepID: RecoveryIndexing.stepID(forIndex: index, plan: plan),
                 score: candidate.score,
                 inlierFraction: candidate.quality.inlierFraction,
                 visibleFraction: candidate.visibleFraction,
@@ -203,32 +205,45 @@ actor GeometricRecoveryEstimator {
 
     /// Fits and scores each candidate against the frame. Pure with respect to
     /// its inputs; the estimator's plan/engine glue stays thin above it.
+    /// Every candidate is solved on the CPU first, then all of them render in
+    /// one GPU batch at their solved poses.
     static func scoreCandidates(
         candidates: [(index: Int, snapshot: InstructionGeometrySnapshot)],
         frame: RegistrationFrameInput,
         coarseWorldFromModel: simd_float4x4,
         renderer: ExpectedDepthRenderer,
         configuration: Configuration = Configuration()
-    ) throws -> [CandidateScore] {
+    ) async throws -> [CandidateScore] {
+        let signpost = GeometrySignposts.signposter.beginInterval("RecoveryScore", id: .exclusive, "\(candidates.count) candidates")
+        defer { GeometrySignposts.signposter.endInterval("RecoveryScore", signpost) }
         let observed = frame.rawDepth ?? frame.depth
         let observedConfidence = frame.rawConfidence ?? frame.confidence
-        var scores: [CandidateScore] = []
+
+        var solved: [(index: Int, snapshot: InstructionGeometrySnapshot, solve: DepthICPTracker.SolveResult)] = []
         for candidate in candidates {
             let sample = ModelSurfaceSampler.sample(candidate.snapshot, stepIndex: candidate.index)
             guard !sample.points.isEmpty else { continue }
-            let solve = DepthICPTracker.solve(
+            solved.append((candidate.index, candidate.snapshot, DepthICPTracker.solve(
                 sample: sample,
                 frame: frame,
                 initialWorldFromModel: coarseWorldFromModel
-            )
+            )))
+        }
+        let expectedMaps = try await renderer.render(
+            solved.map { candidate in
+                DepthRenderRequest(
+                    geometry: renderer.prepare(candidate.snapshot),
+                    viewFromModel: frame.worldFromCamera.inverse * candidate.solve.worldFromModel
+                )
+            },
+            intrinsics: frame.depthIntrinsics,
+            width: frame.width,
+            height: frame.height
+        )
 
-            let expected = try renderer.render(
-                snapshot: candidate.snapshot,
-                viewFromModel: frame.worldFromCamera.inverse * solve.worldFromModel,
-                intrinsics: frame.depthIntrinsics,
-                width: frame.width,
-                height: frame.height
-            )
+        var scores: [CandidateScore] = []
+        for (candidate, expected) in zip(solved, expectedMaps) {
+            let solve = candidate.solve
             var covered = 0
             var unexplained = 0
             var phantom = 0

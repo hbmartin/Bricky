@@ -46,6 +46,8 @@ actor LDrawGeometryEngine {
     }
 
     func snapshot(placements: some Collection<PartPlacement>) throws -> InstructionGeometrySnapshot {
+        let signpost = GeometrySignposts.signposter.beginInterval("Snapshot", id: .exclusive, "\(placements.count) placements")
+        defer { GeometrySignposts.signposter.endInterval("Snapshot", signpost) }
         var triangles: [Triangle] = []
         flattenOperations = 0
         for placement in placements {

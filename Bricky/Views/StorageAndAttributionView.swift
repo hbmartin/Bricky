@@ -6,9 +6,13 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
+    @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
+    @State private var confirmModelRemoval = false
+    @State private var armPlan = InferenceArmScheduler().plan
+    @State private var modelRemovalError: String?
 
     var body: some View {
         List {
@@ -30,6 +34,27 @@ struct StorageAndAttributionView: View {
                 }
                 if case .rejected = recoveryModel.state, recoveryModel.rejectionIsRetryable {
                     Button("Retry Recovery Check") { Task { await recoveryModel.check() } }
+                }
+                let onDisk = recoveryModel.onDiskBytes
+                if onDisk > 0 {
+                    LabeledContent("On this device", value: ByteCountFormatter.string(fromByteCount: onDisk, countStyle: .file))
+                    Button("Remove On-Device Model", role: .destructive) { confirmModelRemoval = true }
+                        .confirmationDialog(
+                            "Remove the on-device recovery model?",
+                            isPresented: $confirmModelRemoval,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Remove Model", role: .destructive) {
+                                Task {
+                                    do { try await recoveryModel.removeModel() } catch { modelRemovalError = error.localizedDescription }
+                                }
+                            }
+                        } message: {
+                            Text("Frees \(ByteCountFormatter.string(fromByteCount: onDisk, countStyle: .file)). Guides and depth-based checks keep working; photo-based recovery needs the model downloaded again.")
+                        }
+                }
+                if let modelRemovalError {
+                    Text(modelRemovalError).font(.caption).foregroundStyle(.red)
                 }
                 Text("Qwen3-VL-4B-Instruct 4-bit · pinned revision \(RecoveryModelManager.revision.prefix(12))…")
                     .font(.caption).foregroundStyle(.secondary)
@@ -74,6 +99,51 @@ struct StorageAndAttributionView: View {
                 Toggle("Corpus collection mode", isOn: $corpusCollectionEnabled)
                     .disabled(!evidenceCaptureEnabled)
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
+                Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
+                if let relief = recoveryModel.lastPressureRelief {
+                    LabeledContent(
+                        "Last memory-pressure unload",
+                        value: ByteCountFormatter.string(fromByteCount: relief.freedBytes, countStyle: .memory) + " freed"
+                    )
+                }
+                if evidenceCaptureEnabled {
+                    Picker("Inference arms", selection: $armPlan.mode) {
+                        Text("Baseline only").tag(InferenceArmScheduler.Mode.off)
+                        Text("Variant every time").tag(InferenceArmScheduler.Mode.single)
+                        Text("Interleave A/B").tag(InferenceArmScheduler.Mode.interleave)
+                    }
+                    if armPlan.mode != .off {
+                        Picker("Variant decoder", selection: $armPlan.variant.decode) {
+                            ForEach(DecodeMode.allCases.filter { $0 != .upstream }, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Toggle("Variant: unique slots", isOn: $armPlan.variant.uniqueSlots)
+                        Picker("Variant scoring", selection: $armPlan.variant.scoring) {
+                            ForEach(ScoringMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant slot order", selection: $armPlan.variant.slotOrder) {
+                            ForEach(SlotOrder.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant board", selection: $armPlan.variant.boardLayout) {
+                            ForEach(BoardLayoutVersion.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant labels", selection: $armPlan.variant.labels) {
+                            ForEach(TileLabelStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant prompt", selection: $armPlan.variant.promptStyle) {
+                            ForEach(PromptStyle.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant image side", selection: $armPlan.variant.imageSide) {
+                            ForEach([768, 1024, 1280], id: \.self) { Text("\($0) px").tag($0) }
+                        }
+                        Picker("Variant vote", selection: $armPlan.variant.vote) {
+                            ForEach(RecoveryVoteRule.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        Picker("Variant check target", selection: $armPlan.variant.checkTarget) {
+                            ForEach(CheckTarget.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        LabeledContent("Variant ID", value: armPlan.variant.id)
+                    }
+                }
             } header: {
                 Text("Developer")
             } footer: {
@@ -81,6 +151,7 @@ struct StorageAndAttributionView: View {
             }
         }
         .navigationTitle("Storage")
+        .onChange(of: armPlan) { _, plan in InferenceArmScheduler().plan = plan }
         .alert("Keychain Error", isPresented: Binding(get: { keychainError != nil }, set: { if !$0 { keychainError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(keychainError ?? "") }

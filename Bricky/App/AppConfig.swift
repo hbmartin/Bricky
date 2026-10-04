@@ -14,5 +14,14 @@ enum AppConfig {
         static let evidenceCaptureEnabled = "developer.evidenceCaptureEnabled"
         static let corpusCollectionEnabled = "developer.corpusCollectionEnabled"
         static let cloudAssistEnabled = "cloudAssist.enabled"
+        /// Persisted so a user who allowed a 3 GB cellular download is not
+        /// silently refused after a relaunch.
+        static let allowsCellularModelDownload = "recoveryModel.allowsCellularDownload"
+        /// Developer A/B arms for the VLM path (ADR 0010 amendment).
+        static let inferenceArmPlan = "developer.inferenceArmPlan"
+        static let inferenceArmCounter = "developer.inferenceArmCounter"
+        /// Unload the VLM after `RecoveryModelManager.idleUnloadInterval`
+        /// without inference. Off by default: re-warming costs a load.
+        static let idleUnloadEnabled = "developer.idleUnloadEnabled"
     }
 }

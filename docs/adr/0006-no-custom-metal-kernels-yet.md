@@ -23,6 +23,16 @@ raster render pass, which is an ordinary render pipeline, not a compute
 kernel, and is required for correctness (RealityKit exposes no depth
 readback), not speed.
 
+Amended 2026-09-25: the expected-depth pass may be one shared instance per
+process and may render several hypotheses per command buffer — as
+sequential passes, layered render targets, or instanced draws — because
+that remains an ordinary vertex/fragment render pipeline; no compute kernel
+is admitted by this amendment. The shared renderer uploads each snapshot's
+vertices once, pools its render targets, and completes batches
+asynchronously; its batches are bit-identical to single renders. Geometry
+signposts (`com.bricky.app` / `Geometry`) exist so the device profiling
+this ADR demands can attribute time before anything else moves to the GPU.
+
 ## Consequences
 
 The `apple-metal-tensorops` review does not cause speculative kernel work. The

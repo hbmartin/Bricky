@@ -15,7 +15,8 @@ settings:
   base:
     DEVELOPMENT_TEAM: 6UN3X7Q6SP
     SWIFT_VERSION: 5.9
-    TARGETED_DEVICE_FAMILY: "1,2"
+    # iPhone only (ADR 0012): the floor is the iPhone 17 Pro class.
+    TARGETED_DEVICE_FAMILY: "1"
     IPHONEOS_DEPLOYMENT_TARGET: 27.0
     MARKETING_VERSION: 2.0.0
     CURRENT_PROJECT_VERSION: 6
@@ -29,6 +30,7 @@ targets:
       - Bricky/Camera/ARCameraManager.swift
       - Bricky/Camera/ARCameraPreview.swift
       - Bricky/Camera/RegistrationFrameRelay.swift
+      - Bricky/Camera/ARActivityClock.swift
       - Bricky/Extensions/UIImage+Orientation.swift
       - Bricky/Services/Instructions
       - Bricky/Services/Recovery
@@ -75,6 +77,7 @@ targets:
         excludes:
           - "fixtures/**"
       - Bricky/Domain/RecoveryEvidence.swift
+      - Bricky/Domain/RecoveryIndexing.swift
       - Bricky/Domain/InstructionDomain.swift
       - Bricky/Domain/RegistrationDomain.swift
       - Bricky/Domain/VerificationDomain.swift
@@ -84,8 +87,12 @@ targets:
       - Bricky/Services/Instructions/LDConfigPalette.swift
       - Bricky/Services/Registration/ModelSurfaceSampler.swift
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
+      - Bricky/Services/Registration/GeometrySignposts.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
+      # Compiles here so geometric recovery can be replayed on a Mac from
+      # retained depth frames; it must stay free of UIKit and MLX.
+      - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
     dependencies:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
@@ -114,6 +121,20 @@ targets:
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift
+      - BrickyTests/RecoveryIndexingTests.swift
+      - BrickyTests/DeviceFloorTests.swift
+      - BrickyTests/StorageLayoutTests.swift
+      - BrickyTests/StepVerificationControllerTests.swift
+      - BrickyTests/ARActivityClockTests.swift
+      - BrickyTests/RecoveryModelManagerTests.swift
+      - BrickyTests/BuildSessionControllerTests.swift
+      - BrickyTests/PartDescriptionIndexTests.swift
+      - BrickyTests/DocumentOpenRouterTests.swift
+      - BrickyTests/InferenceArmSchedulerTests.swift
+      - BrickyTests/PhotoCheckControllerTests.swift
+      - BrickyTests/VLMStepCheckServiceTests.swift
+      - BrickyTests/MemoryGovernorTests.swift
+      - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

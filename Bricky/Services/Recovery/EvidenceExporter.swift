@@ -65,7 +65,9 @@ enum EvidenceExporter {
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
             modelID: RecoveryModelManager.modelID,
             modelRevision: RecoveryModelManager.revision,
-            sessionIDs: sessions.map(\.id)
+            sessionIDs: sessions.map(\.id),
+            osBuild: DeviceIdentity.osBuild,
+            gpuArchitecture: DeviceIdentity.gpuArchitecture
         )
         try EvidenceSchema.encoder(prettyPrinted: true)
             .encode(manifest)

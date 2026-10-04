@@ -38,6 +38,9 @@ final class ARCameraManager: NSObject, ObservableObject {
     /// Fan-out of copied LiDAR depth frames for the registration tracker;
     /// fed from the delegate queue, so it lives outside actor isolation.
     nonisolated let registrationRelay = RegistrationFrameRelay()
+    /// This manager's identity in `ARActivityClock`, which times continuous
+    /// AR for the benchmark's sustained bucket.
+    private nonisolated let activityToken = UUID()
     private let delegateQueue = DispatchQueue(label: AppConfig.queuePrefix + ".ar.delegate")
 
     /// The whole app requires LiDAR-class AR: scene-mesh reconstruction for
@@ -64,6 +67,7 @@ final class ARCameraManager: NSObject, ObservableObject {
         // in onDisappear, making this a safety net for the last release.
         let session = session
         Task { @MainActor in session.pause() }
+        ARActivityClock.shared.sessionStopped(activityToken)
     }
 
     func checkPermissions() {
@@ -90,6 +94,7 @@ final class ARCameraManager: NSObject, ObservableObject {
 
     func stopSession() {
         session.pause()
+        ARActivityClock.shared.sessionStopped(activityToken)
         registrationRelay.stop()
         isSessionRunning = false
         trackingState = .notAvailable
@@ -163,6 +168,7 @@ final class ARCameraManager: NSObject, ObservableObject {
             configuration.frameSemantics.insert(.personSegmentationWithDepth)
         }
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+        ARActivityClock.shared.sessionStarted(activityToken)
         error = nil
         isSessionRunning = true
     }

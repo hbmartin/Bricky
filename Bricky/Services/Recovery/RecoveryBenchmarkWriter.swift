@@ -38,6 +38,16 @@ extension RecoveryEvidenceRecorder {
             guard session.groundTruth.kind != .unlabeled, let estimate = session.estimate else { return }
             let rows = loadTraceRows()
             let voting = rows.filter { $0.pass == .finalist || $0.pass == .check }
+            let decode = rows.compactMap { $0.inference?.decode }
+            let start = session.conditionsStart ?? rows.first?.conditions
+            // The bucket of the estimate is the bucket of its first call:
+            // a recovery that began on a freshly loaded model paid the cold
+            // cost, however many warm calls followed.
+            let bucket = LatencyBucket.classify(
+                callsSinceLoad: rows.first?.inference?.callsSinceLoad,
+                secondsSinceARStart: start?.secondsSinceARStart
+            )
+            let peaks = rows.compactMap { $0.inference?.memoryAfter?.lifetimePeakBytes ?? $0.memoryFootprintBytes }
             let slotSource = voting.first(where: { $0.captureAngle == CaptureAngle.center.rawValue }) ?? voting.first
             let row = RecoveryBenchmarkV1(
                 schemaVersion: RecoveryBenchmarkV1.schemaVersion,
@@ -48,7 +58,7 @@ extension RecoveryEvidenceRecorder {
                 expectedStepID: inputs.expectedStepID,
                 candidateSlots: slotSource?.candidateStepIDs ?? [:],
                 boardRelativePaths: voting.map(\.boardRelativePath),
-                cameraMetadata: session.captures.map(Self.cameraMetadata),
+                cameraMetadata: session.captures.map(\.benchmarkCameraMetadata),
                 expectedStepIndex: inputs.expectedCompletedCount,
                 rankedStepIDs: estimate.rankedStepIDs,
                 certainty: RecoveryCertainty(rawValue: estimate.certainty) ?? .insufficient,
@@ -63,14 +73,28 @@ extension RecoveryEvidenceRecorder {
                 deviceModel: session.deviceModel,
                 operatingSystem: session.operatingSystem,
                 latencyMilliseconds: estimate.latencyMilliseconds,
-                memoryPeakBytes: rows.compactMap(\.memoryFootprintBytes).max() ?? 0,
+                memoryPeakBytes: peaks.max() ?? 0,
                 topStepIndex: estimate.rankedStepIDs.first.flatMap { inputs.stepNumbersByID[$0] },
                 physicalCase: session.staged?.physicalCase,
                 authoredModelID: session.authoredModelID.uuidString,
                 legalUseConfirmed: session.staged?.legalUseConfirmed,
                 lightingCondition: session.staged?.lighting.rawValue,
                 captureAngle: session.captures.map(\.angle).joined(separator: ","),
-                occlusionCondition: session.staged?.occlusion.rawValue
+                occlusionCondition: session.staged?.occlusion.rawValue,
+                captureElevationDegrees: session.captures.benchmarkElevationDegrees,
+                variantID: (rows.first?.variant ?? .baseline).id,
+                osBuild: session.osBuild,
+                gpuArchitecture: session.gpuArchitecture,
+                thermalStateStart: start?.thermalState,
+                thermalStateEnd: session.conditionsEnd?.thermalState,
+                secondsSinceARStart: start?.secondsSinceARStart,
+                latencyBucket: bucket,
+                vlmCalls: rows.count,
+                prefillMillisecondsTotal: decode.isEmpty ? nil : decode.reduce(0) { $0 + $1.prefillMilliseconds },
+                decodeMillisecondsTotal: decode.isEmpty ? nil : decode.reduce(0) { $0 + $1.decodeMilliseconds },
+                batteryState: start?.batteryState,
+                lowPowerMode: start?.lowPowerMode,
+                latencyScope: "estimate_wall_clock"
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
@@ -78,21 +102,5 @@ extension RecoveryEvidenceRecorder {
             line.append(UInt8(ascii: "\n"))
             try line.write(to: sessionDirectory.appendingPathComponent("benchmark.ndjson"), options: .atomic)
         }
-    }
-
-    private static func cameraMetadata(for capture: EvidenceCaptureRecord) -> [String: Float] {
-        var metadata: [String: Float] = [:]
-        // Column-major 3×3 intrinsics: fx c0r0, fy c1r1, cx c2r0, cy c2r1.
-        if capture.cameraIntrinsics.count >= 9 {
-            metadata["fx"] = capture.cameraIntrinsics[0]
-            metadata["fy"] = capture.cameraIntrinsics[4]
-            metadata["cx"] = capture.cameraIntrinsics[6]
-            metadata["cy"] = capture.cameraIntrinsics[7]
-        }
-        if capture.cameraImageResolution.count >= 2 {
-            metadata["width"] = capture.cameraImageResolution[0]
-            metadata["height"] = capture.cameraImageResolution[1]
-        }
-        return metadata
     }
 }

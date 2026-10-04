@@ -1,7 +1,10 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-08-04. Companion to
-[EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md).
+Last revised 2026-09-25. Companion to
+[EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
+program that supersedes much of the sequencing below — honest gates first,
+then device measurement, then the placement-level build diff — is
+[IOS27_ROADMAP.md](IOS27_ROADMAP.md).
 
 The harness shipped with a deliberate sequencing decision: **instrumentation
 plus two provably-safe fixes only** (dynamic rank grammar, rank token
@@ -24,9 +27,14 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
 2. **Device benchmark row for the shipped fixes.** CONTRIBUTING requires
    physical-device benchmark rows for MLX changes; the dynamic-grammar and
    `rankMaxTokens: 96 → 192` changes shipped on the strength of static
-   analysis (closing bias previously began mid-array at token 32). Confirm
-   on device: `termination` should be `accepted` on effectively all rank
-   traces, and `max_tokens_exhausted` rows should disappear.
+   analysis. **Retracted 2026-09-25:** that analysis assumed a closing bias
+   that began mid-array at token 32, but Bricky never passes a
+   `closingBias` to `GuidedGenerationLoop.run`, so no soft zone exists.
+   With the pinned shim's `any_whitespace=true`, the only way to exhaust
+   the budget is a whitespace run; `WhitespaceTokenBias` is the variant to
+   try if telemetry shows it. Confirm on device: `termination` should be
+   `accepted` on effectively all rank traces, and `max_tokens_exhausted`
+   rows should stay absent.
 3. **Board-parity A/B for the composer change.** `RecoveryBoardLayoutV1`
    changed what the model sees in two ways: boards are now exactly
    1024×1024 (the old UIKit composer rendered at screen scale, 2–3× larger
@@ -54,11 +62,23 @@ scores better.
 | --- | --- | --- |
 | Portrait aspect-fill crop | The 992×420 physical strip center-crops portrait captures, cutting off the top/bottom of the build ("decapitation") | Layout variant in `RecoveryBoardLayoutV1` + `--recompose` A/B |
 | Prompt rewrites | Rank prompt hardcodes "A–H" even when fewer slots exist (the grammar is now dynamic but the wording is not); per-pass prompts may beat one generic prompt | `--prompt-file` A/B per variant |
-| Check token budget | `checkMaxTokens: 48` puts the whole check generation inside the 64-token closing-bias soft zone from token 0 | Needs a check-replay path first (see §4), then `--max-tokens` A/B |
 | Finalist selection | The ±1-neighbor finalist set and center-capture funnel may structurally exclude the true step when the narrow pass is off by more than one | `--all-passes` traces quantify how often the truth was outside the finalist set before any redesign |
 | Recompose vs stored boards | JPEG re-encode of tiles through the kit should be visually irrelevant | Same-bundle stored-vs-recomposed replay (doubles as item 1.3) |
 
+A former "check token budget" row was withdrawn on 2026-09-25: its premise
+(a 64-token closing-bias soft zone) does not exist, because the bias is never
+passed (§1 item 2).
+
 ## 2a. The RGB support term (owed, ADR 0008)
+
+The challenge suite (2026-09-25) now measures the blind spots this term
+and the placement-level diff are meant to close. On `challenge.ldr` at
+seed 7, a colour swap reads complete on 3 of 3 strong steps (the expected
+failure). More urgently, **a brick one plate (3.2 mm) too high also reads
+complete on 3 of 3 strong steps**: the 6 mm depth tolerance swallows the
+offset. That is a false-complete class inside today's product boundary,
+and it is guarded in `fixtures/challenge/baseline.json` so a fix reads as
+an improvement.
 
 `GeometricStepVerifier` refuses a `complete` verdict under marginal
 detectability because ADR 0008 requires depth **and RGB** agreement there and
@@ -82,15 +102,26 @@ What it needs, in order:
 
 ## 3. Corpus goals
 
-- **Release gate (VLM recovery):** ≥150 physical cases from ≥10 legally
-  usable authored models, adjacent-step candidates present, lighting/angle/
-  occlusion each with ≥2 distinct labels, scored without
-  `--allow-small-corpus`. Gates: top-3 ≥ 0.95, top-1 ≥ 0.80, composite
-  median ≤ 20 s. Currently: **zero rows**.
-- **Triad physical corpus (CONTEXT gap):** ≥40 staged fixtures across ≥6
-  models for the registration/verification gates — a distinct corpus with
-  its own producer (geometric rows carry `estimator_method: geometric`),
-  but the same staged-fixture declarations and scorer.
+- **Release gate (VLM recovery):** device rows from legally usable
+  authored models, adjacent-step candidates present, lighting and
+  occlusion each with ≥2 distinct labels and ≥2 measured elevation bands,
+  scored in release mode. Gates: top-3 ≥ 0.95, top-1 ≥ 0.80, composite
+  median ≤ 20 s, each judged on its one-sided 95% bound. Currently:
+  **zero rows**.
+- **Sample sizes follow from the gates (settled 2026-09-25).** The old
+  fixed minimums (150 cases / 10 models here, 40 / 6 in the scorer)
+  conflicted and are gone. `score_results.py --explain-minimums` prints the
+  zero-miss size of each gate: for example ≥59 rows for top-3 ≥ 0.95, ≥149
+  negatives for false-complete ≤ 2%, and ≥5 rows for any median-latency
+  gate. A required gate with no rows fails release mode. The authored-model
+  **diversity floor is pending an owner decision** (6 or 10); until then
+  the scorer constant stays at 6.
+- **Triad physical corpus (CONTEXT gap):** staged fixtures across the same
+  authored-model floor for the registration and verification gates, sized
+  by the same bounds. It is a distinct corpus with its own producer
+  (geometric rows carry `estimator_method: geometric`) but the same
+  staged-fixture declarations and scorer. Verification and registration
+  rows need `provenance: device`, and no device producer emits them yet.
 - **Failure library:** unlabeled sessions are kept on purpose; a growing set
   of reproducible-on-Mac failure bundles is the raw material for the A/B
   table above. Purge caps (40 sessions / 2 GB) mean interesting sessions
@@ -105,17 +136,40 @@ What it needs, in order:
   Sessions also retain the recovery depth frame (ADR 0007 amendment), which
   is what makes a future geometric replay possible without re-collecting the
   physical corpus.
-- **Geometric replay on Mac.** Now unblocked by the retained depth frames,
-  but blocked on a refactor: `GeometricRecoveryEstimator` calls
-  `HierarchicalRecoveryEstimator.evenlySampledIndices` / `.stepID`, and that
-  file imports `RecoveryMLX` and `UIKit`, so the geometric stack cannot
-  compile into a macOS tool. `Tools/SyntheticScenes/SyntheticRGBDMain.swift`
-  already hand-duplicates `HierarchicalIndices.evenly` because of it — the
-  same constant drift the board-layout kit was created to kill. Extract both
-  helpers into a UIKit-free home first.
-- **Check-trace replay.** `bricky-harness replay` skips `check` traces
-  entirely; a `--checks` mode replaying them against `checkStepWithTrace`
-  would unlock the check-token-budget A/B in §2.
+- **Geometric replay on Mac.** Unblocked by the retained depth frames and,
+  since 2026-09-25, by the refactor it waited on: the index schedule and
+  step identities live in the Foundation-only `RecoveryIndexing`, and
+  `GeometricRecoveryEstimator` records through a `GeometricFitRecording`
+  protocol, so the estimator compiles into the macOS SyntheticRGBD tool
+  (its hand-copied `HierarchicalIndices` is gone). What remains is the
+  replay entry point itself: reading a bundle's `depth/` planes into
+  `RegistrationFrameInput` and emitting geometric benchmark rows.
+- ✅ **Check-trace replay.** Done 2026-09-25: `bricky-harness replay
+  --checks` writes `vlm_check` rows that the scorer reports (false-complete
+  first). Negatives still require staged check sessions.
+- ✅ **Staged check sessions and the check-target A/B.** Done 2026-09-25:
+  with corpus collection on, Check Step and the AR guide's Photo Check take
+  a staged declaration, which labels the check whatever the user taps, so a
+  build declared short of the checked step is a negative. Photo Check runs
+  at the locked registration; with evidence on, each check also records the
+  target it did not use (`alternate_tile_relative_paths`), and `replay
+  --checks --check-target registered --recompose` pairs the two targets on
+  the same photos. Still owed: a device-side `vlm_check` row writer, so
+  check false-complete can become a release gate rather than a replay
+  number.
+- **Cloud assist on a hot device.** When the thermal policy withholds the
+  VLM (`thermal_deferred`), the user gets the manual picker only. Offering
+  cloud assist there needs an ADR 0011 amendment first: today ADR 0011
+  offers cloud assist only after a local check returned uncertain, and
+  recovery has no cloud path at all.
+- **Background model delivery needs device QA.** Since 2026-09-25 the model
+  downloads through a background `URLSession` and is verified in the
+  foreground (ADR 0003 amendment). The Simulator cannot exercise real
+  background launches. Before release, on a device: background the app for
+  10 minutes mid-download; force-quit and relaunch (the transfer should be
+  re-attached, not restarted); pause for 2 hours and resume (does the
+  signed Hugging Face CDN URL in the resume data expire?); and confirm that
+  `RecoveryModels/` is excluded from backup.
 - **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
   existence, not image decodability — a corrupt JPEG passes `--dry-run` and
   fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes
@@ -161,7 +215,7 @@ the harness.
   when there are none. `estimator_method` was added as *required* on
   2026-08-07 for exactly that reason — an optional field with a silent
   default is what made the geometric latency gate unreachable in the first
-  place, and `validate_recovery_rows` names a missing field more usefully
+  place, and `validate_rows` names a missing field more usefully
   than a schema-version mismatch would. Once real rows exist, the rule binds
   again.
 - Semantic changes: bump the specific version stamp
