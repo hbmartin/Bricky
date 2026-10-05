@@ -155,9 +155,15 @@ What it needs, in order:
   at the locked registration; with evidence on, each check also records the
   target it did not use (`alternate_tile_relative_paths`), and `replay
   --checks --check-target registered --recompose` pairs the two targets on
-  the same photos. Still owed: a device-side `vlm_check` row writer, so
-  check false-complete can become a release gate rather than a replay
-  number.
+  the same photos.
+- ✅ **Device-side `vlm_check` rows.** Done 2026-10-05: finalizing a
+  labeled session that ran photo checks writes `check.ndjson`, with one
+  `vlm_check` row per check (provenance `device`). Release mode accepts
+  these rows only from staged declarations on a floor device. Confirmed
+  labels stay informational: a step is confirmed only after the user
+  accepted the check, so those labels lean toward complete. Phase 1 has to
+  collect them: staged check sessions, including builds declared short of
+  the checked step.
 - **Cloud assist on a hot device.** When the thermal policy withholds the
   VLM (`thermal_deferred`), the user gets the manual picker only. Offering
   cloud assist there needs an ADR 0011 amendment first: today ADR 0011

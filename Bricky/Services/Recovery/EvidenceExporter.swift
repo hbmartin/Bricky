@@ -11,6 +11,7 @@ enum EvidenceExporter {
         let modelTitle: String
         let groundTruthKind: EvidenceGroundTruth.Kind
         let hasBenchmarkRow: Bool
+        let hasCheckRows: Bool
         let byteCount: Int64
     }
 
@@ -36,6 +37,9 @@ enum EvidenceExporter {
                 groundTruthKind: session.groundTruth.kind,
                 hasBenchmarkRow: FileManager.default.fileExists(
                     atPath: directory.appendingPathComponent("benchmark.ndjson").path
+                ),
+                hasCheckRows: FileManager.default.fileExists(
+                    atPath: directory.appendingPathComponent(RecoveryEvidenceRecorder.checkRowsFilename).path
                 ),
                 byteCount: RecoveryEvidenceRecorder.directorySize(directory)
             )

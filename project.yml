@@ -121,6 +121,7 @@ targets:
       - BrickyTests/LDrawGeometryEngineTests.swift
       - BrickyTests/RecoveryCaptureTests.swift
       - BrickyTests/RecoveryBenchmarkWriterTests.swift
+      - BrickyTests/VLMCheckRowWriterTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

@@ -51,6 +51,7 @@
 		59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */; };
 		5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
+		6192674283502FF2E52B9C6E /* VLMCheckRowWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71E30B52B3B135BA91DF026 /* VLMCheckRowWriterTests.swift */; };
 		61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
 		644B79E5AA29780269282E51 /* InstructionDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377413BF2084446EFA7A660 /* InstructionDomain.swift */; };
 		644FC9E3C196DDE3F54F4C17 /* GeometrySignposts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25E09395EE9E36968E58955 /* GeometrySignposts.swift */; };
@@ -219,6 +220,7 @@
 		B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifier.swift; sourceTree = "<group>"; };
 		B5ED611589DD687D0BB8AC05 /* BackgroundURLSessionDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundURLSessionDelivery.swift; sourceTree = "<group>"; };
 		B64D5192D964260754B754E0 /* ARActivityClockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARActivityClockTests.swift; sourceTree = "<group>"; };
+		B71E30B52B3B135BA91DF026 /* VLMCheckRowWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLMCheckRowWriterTests.swift; sourceTree = "<group>"; };
 		B846C324539715D80A41F6F3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B9875749055872E5C5260701 /* BrickyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudVisionProvider.swift; sourceTree = "<group>"; };
@@ -325,6 +327,7 @@
 				8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */,
 				9A84BA4D548E212777156661 /* StorageLayoutTests.swift */,
 				05743035E70D88A405DCEE91 /* SwiftParityTests.swift */,
+				B71E30B52B3B135BA91DF026 /* VLMCheckRowWriterTests.swift */,
 				74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */,
 			);
 			path = BrickyTests;
@@ -761,6 +764,7 @@
 				37A85FEF359A09F1AD6BCCDB /* StepVerificationControllerTests.swift in Sources */,
 				773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */,
 				9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */,
+				6192674283502FF2E52B9C6E /* VLMCheckRowWriterTests.swift in Sources */,
 				080E5FE0E65857D82A734117 /* VLMStepCheckServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

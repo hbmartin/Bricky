@@ -47,6 +47,7 @@ Evidence/<session-uuid>/
   traces.ndjson         # one EvidenceTraceRow per inference call
   fits.ndjson           # one GeometricFitRecord per scored candidate (optional)
   benchmark.ndjson      # 0 or 1 RecoveryBenchmarkV1 rows (labeled sessions)
+  check.ndjson          # one VLMCheckRowV1 per check call (labeled sessions with checks)
   captures/<capture-uuid>.jpg          # the 3 guided AR photos (copies)
   boards/<trace-uuid>.jpg              # exact board image the model saw
   tiles/<trace-uuid>/<slot>.jpg        # per-candidate renders, JPEG q0.9
@@ -176,6 +177,26 @@ what keeps it from winning, and it cannot also carry the reason.
 | `memory_footprint_bytes` | int64? | `phys_footprint` at record time |
 | `model_revision` | string | |
 | `created_at` | ISO-8601 | |
+
+## `check.ndjson` — VLMCheckRowV1
+
+Written when a **labeled** session that ran photo checks is finalized, with
+one row per check call (`kind: "vlm_check"`, `provenance: "device"`). The
+fields are `fixture_id` (the check's trace uuid), `session_id`,
+`expected_verdict` (complete when the labeled completed count reaches the
+checked step, otherwise incomplete), `produced_verdict` (`uncertain` with
+`decode_failed: true` when the answer did not decode), `latency_ms`,
+`variant_id`, `check_target`, `model_revision`, `device_model`, `os_build`,
+`label_kind` (`staged` or `confirmed`), `authored_model_id`, `step_index`
+(plan index of the checked step), and the staged declaration's
+`physical_case`, `legal_use_confirmed`, `lighting_condition` and
+`occlusion_condition`.
+
+`bricky-harness replay --checks` writes the same kind from Mac replays with
+`provenance: "replay"`. Release mode accepts only device rows with
+`label_kind: "staged"` from a floor device. A confirmed label exists only
+when the user accepted the check, so it leans toward complete and stays
+informational.
 
 ## `benchmark.ndjson` — RecoveryBenchmarkV1
 

@@ -18,6 +18,7 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
     }
 
     static let directoryName = "Evidence"
+    static let checkRowsFilename = "check.ndjson"
     static let maxSessions = 40
     static let maxTotalBytes: Int64 = 2 * 1024 * 1024 * 1024
 
@@ -259,7 +260,25 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             session.groundTruth = groundTruth
             session.conditionsEnd = conditions
             try writeSessionFile()
+            try writeCheckRows()
         }
+    }
+
+    /// Writes one `vlm_check` row per labeled check call to `check.ndjson`,
+    /// so staged photo checks on a device produce the scorer's check
+    /// evidence. Unlabeled sessions and recoveries without checks write
+    /// nothing.
+    private func writeCheckRows() throws {
+        let rows = VLMCheckRowV1.deviceRows(session: session, traces: loadTraceRows())
+        guard !rows.isEmpty else { return }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var data = Data()
+        for row in rows {
+            data.append(try encoder.encode(row))
+            data.append(UInt8(ascii: "\n"))
+        }
+        try data.write(to: sessionDirectory.appendingPathComponent(Self.checkRowsFilename), options: .atomic)
     }
 
     /// Trace rows written so far, decoded back from `traces.ndjson`.

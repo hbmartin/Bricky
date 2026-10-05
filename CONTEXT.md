@@ -279,6 +279,6 @@ python3 check_regression.py challenge.ndjson \
   measured peak (lifetime `phys_footprint` peak less the pre-load
   footprint, which every admission records) plus 25%, and confirm the
   device floor's memory threshold (ADR 0003 and ADR 0012 amendments).
-- 🔴 GAP — step-check false-complete is measurable only on Mac replay of
-  staged check sessions today; a device-side `vlm_check` row writer is owed
-  before it can become a release gate.
+- 🔴 GAP — step-check false-complete has a device producer
+  (`check.ndjson`, staged labels only) but no rows yet: Phase 1 must
+  collect staged check sessions, including negatives.

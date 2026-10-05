@@ -599,10 +599,37 @@ class VLMCheckTests(unittest.TestCase):
         self.assertEqual(report["complete_recall"], 0.5)
         self.assertEqual(report["uncertain_rate"], 0.25)
 
-    def test_vlm_check_rows_are_not_release_evidence(self) -> None:
-        code, output = MainTests.run_main([self.check_row("incomplete", "incomplete")], informational=False)
+    @classmethod
+    def device_row(cls, fixture: str, **overrides: object) -> dict[str, object]:
+        row = cls.check_row("incomplete", "incomplete")
+        row.update({"fixture_id": fixture, "provenance": "device", "device_model": "iPhone18,1",
+                    "label_kind": "staged", "physical_case": True, "legal_use_confirmed": True,
+                    "authored_model_id": "model-1"})
+        row.update(overrides)
+        return row
+
+    def test_release_accepts_device_vlm_check(self) -> None:
+        rows = [self.device_row("a"), self.device_row("b", expected_verdict="complete", produced_verdict="complete")]
+        code, output = MainTests.run_main(rows, informational=False, require_kinds=set())
+        self.assertEqual(code, 0, output)
+        self.assertIn("VLM_CHECK_FALSE_COMPLETE 0.0000 (0/1 negatives", output)
+
+    def test_release_refuses_replay_and_confirmed_vlm_check(self) -> None:
+        cases = (
+            (self.check_row("incomplete", "incomplete") | {"provenance": "replay", "device_model": "replay:Mac16,1"},
+             "provenance 'replay'"),
+            (self.device_row("a", label_kind="confirmed"), "label_kind 'confirmed'"),
+            (self.device_row("a", device_model="iPhone17,1"), "below the device floor"),
+            (self.device_row("a", physical_case=None), "physical case"),
+        )
+        for row, message in cases:
+            code, output = MainTests.run_main([row], informational=False, require_kinds=set())
+            self.assertEqual(code, 1, message)
+            self.assertIn(message, output)
+        code, output = MainTests.run_main([self.device_row("a"), self.device_row("a")],
+                                          informational=False, require_kinds=set())
         self.assertEqual(code, 1)
-        self.assertIn("Mac replays", output)
+        self.assertIn("repeats fixture_id", output)
 
 
 class BenchmarkProtocolTests(unittest.TestCase):

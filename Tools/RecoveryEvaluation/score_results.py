@@ -812,6 +812,30 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def validate_vlm_check_release(rows: list[dict[str, object]]) -> None:
+    """Step-check rows enter a release corpus only from a device session with
+    a label declared before capture. Mac replays (provenance `replay`) are
+    refused as for every kind. So are confirmed labels: a step is confirmed
+    only after the user accepted a check, so those labels lean toward
+    complete and would understate the false-complete rate."""
+    fixtures: set[str] = set()
+    for index, row in enumerate(rows, start=1):
+        label = f"release {VLM_CHECK_KIND} row {index}"
+        if row.get("provenance") != "device":
+            raise SystemExit(f"{label} has provenance {row.get('provenance')!r}; release needs 'device'")
+        unique_fixture(row, fixtures, label)
+        validate_release_device(row, label)
+        if row.get("label_kind") != "staged":
+            raise SystemExit(f"{label} has label_kind {row.get('label_kind')!r}; release needs 'staged'")
+        if row.get("physical_case") is not True:
+            raise SystemExit(f"{label} is not explicitly marked as a physical case")
+        if row.get("legal_use_confirmed") is not True:
+            raise SystemExit(f"{label} lacks confirmed legal-use provenance")
+        model_id = row.get("authored_model_id")
+        if not isinstance(model_id, str) or not model_id.strip():
+            raise SystemExit(f"{label} authored_model_id must be non-empty")
+
+
 def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
     for index, row in enumerate(rows, start=1):
         label = f"vlm_check row {index}"
@@ -963,7 +987,7 @@ def main(
         if kinds[CHALLENGE_KIND]:
             raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
         if kinds[VLM_CHECK_KIND]:
-            raise SystemExit(f"{VLM_CHECK_KIND} rows are Mac replays and are not release evidence")
+            validate_vlm_check_release(kinds[VLM_CHECK_KIND])
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
