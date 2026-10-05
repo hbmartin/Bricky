@@ -116,7 +116,7 @@
       "value": 38.0
     },
     "challenge.expected_failure_false_complete_cases": {
-      "direction": "exact",
+      "direction": "lower_is_better",
       "tolerance": 0.0,
       "value": 3.0
     },

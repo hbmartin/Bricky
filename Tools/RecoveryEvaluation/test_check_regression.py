@@ -122,6 +122,7 @@ class AutoGuardTests(unittest.TestCase):
                        "synthetic_summary.regression.generated_verification_rows"):
             self.assertEqual(auto_guard(metric)["direction"], "exact", metric)
         for metric in ("verification.false_complete_cases", "verification.undetectable_false_completes",
+                       "challenge.expected_failure_false_complete_cases",
                        "synthetic_summary.regression.dropped_expected_complete_below_strong"):
             self.assertEqual(auto_guard(metric)["direction"], "lower_is_better", metric)
 
