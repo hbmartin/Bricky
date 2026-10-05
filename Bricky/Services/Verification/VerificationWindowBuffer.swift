@@ -44,6 +44,9 @@ struct VerificationWindowCapture: Sendable {
     /// Verifier compute since the step began, for the device row's latency.
     let ingestMillisecondsSinceBegin: Int
     let createdAt: Date
+    /// The shadow build diff when it closed, if one ran (M2.3).
+    var shadowDiff: BuildDiff? = nil
+    var shadowVerdict: StepVerification? = nil
 }
 
 /// Where the verification controller sends windows; the evidence recorder

@@ -49,6 +49,7 @@ Evidence/<session-uuid>/
   benchmark.ndjson      # 0 or 1 RecoveryBenchmarkV1 rows (labeled sessions)
   check.ndjson          # one VLMCheckRowV1 per check call (labeled sessions with checks)
   verification.ndjson   # one VerificationRowV1 per closed staged verification (AR guide)
+  diffs.ndjson          # one BuildDiffRecord per window, when the shadow build diff ran
   windows/<window-uuid>.json           # VerificationWindowRecord
   windows/frames/<frame-uuid>.json     # EvidenceDepthFrameRecord for one judged frame
   windows/frames/<frame-uuid>.{depth,confidence,raw-depth,raw-confidence}
@@ -224,6 +225,24 @@ Each scenario implies an expected verdict:
 | `shifted_one_stud` | misplaced | |
 | `missing` | incomplete | |
 | `rotated`, `wrong_colour`, `plate_offset` | incomplete | Challenge classes. `rotated` and `wrong_colour` are also expected failures. |
+
+## `diffs.ndjson` — BuildDiffRecord
+
+While evidence capture is on, the AR guide also runs the build diff (M2.3)
+in shadow on the frames the verifier judged. Each window it closes adds one
+row with these fields:
+- `window_id`, `step_id` and `frames_used`;
+- `placements`, one entry per placement the step adds:
+  - `placement`, the timeline index;
+  - `state`: `present`, `absent`, `displaced`, `rotated` or
+    `not_observable`;
+  - `offset`: `[dx, dz, dy, quarter_turns]`, for `displaced` and `rotated`;
+  - the `support`, `absence` and `unexplained` votes, and `frames_seen`;
+- `adapter_verdict`: the placement-aware verdict, which is logged only;
+- `verifier_verdict`: what the user was shown.
+
+`SyntheticRGBD --replay-bundle <bundle> --judge diff` replays windows
+through the build diff instead of the verifier.
 
 ## `verification.ndjson` — VerificationRowV1
 

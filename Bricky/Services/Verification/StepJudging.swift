@@ -63,3 +63,13 @@ extension GeometricStepVerifier: StepJudging {
         begin(stepID: stepID, completedSnapshot: geometry.completedSnapshot, deltaSnapshot: geometry.deltaSnapshot)
     }
 }
+
+/// A judge that also reports a build diff: the shadow beside the verifier
+/// (M2.3). Its verdicts are logged and recorded, never shown.
+protocol ShadowStepJudging: StepJudging {
+    func latestDiff() -> BuildDiff?
+}
+
+extension BuildDiffEngine: ShadowStepJudging {
+    func latestDiff() -> BuildDiff? { lastDiff }
+}

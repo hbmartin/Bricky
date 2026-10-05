@@ -334,3 +334,62 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
         case matchesDevice = "matches_device"
     }
 }
+
+/// What the shadow build diff (M2.3) concluded when a window closed, one row
+/// per window in `diffs.ndjson`. Plain fields only: the kit does not know
+/// the app's domain types.
+public struct BuildDiffRecord: Codable, Sendable, Equatable {
+    public struct Placement: Codable, Sendable, Equatable {
+        /// Index into the plan's placement timeline.
+        public var placement: Int
+        public var state: String
+        /// `[dx, dz, dy, quarter_turns]` for displaced or rotated states.
+        public var offset: [Int]?
+        public var support: Int
+        public var absence: Int
+        public var unexplained: Int
+        public var framesSeen: Int
+
+        public init(placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int) {
+            self.placement = placement
+            self.state = state
+            self.offset = offset
+            self.support = support
+            self.absence = absence
+            self.unexplained = unexplained
+            self.framesSeen = framesSeen
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case placement, state, offset, support, absence, unexplained
+            case framesSeen = "frames_seen"
+        }
+    }
+
+    public var windowID: UUID
+    public var stepID: String
+    public var placements: [Placement]
+    /// The placement-aware adapter's verdict, logged only.
+    public var adapterVerdict: String
+    /// What the user was shown.
+    public var verifierVerdict: String
+    public var framesUsed: Int
+
+    public init(windowID: UUID, stepID: String, placements: [Placement], adapterVerdict: String, verifierVerdict: String, framesUsed: Int) {
+        self.windowID = windowID
+        self.stepID = stepID
+        self.placements = placements
+        self.adapterVerdict = adapterVerdict
+        self.verifierVerdict = verifierVerdict
+        self.framesUsed = framesUsed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case windowID = "window_id"
+        case stepID = "step_id"
+        case placements
+        case adapterVerdict = "adapter_verdict"
+        case verifierVerdict = "verifier_verdict"
+        case framesUsed = "frames_used"
+    }
+}

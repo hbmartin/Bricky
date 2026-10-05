@@ -87,3 +87,25 @@ reliable resolution (Luetzenburg et al., *Scientific Reports* 11, 22221,
 2021). A stud is 8 mm pitch and a plate 3.2 mm tall. Depth alone should not
 be trusted to call a marginal delta complete, and the current refusal is
 right even though the gate covering it is currently unsatisfiable.
+
+## Amendment (2026-10-05): a per-placement build diff, in shadow
+
+`BuildDiffEngine` (M2.3) judges the current step per authored placement:
+present, absent, displaced by a stud, turned, or not observable. It wraps
+this ADR's verifier, so its step verdict is the verifier's own, frame for
+frame. Per-placement evidence comes from the same expected-depth renders,
+plus each placement drawn alone as a vertex range.
+
+The asymmetry of this ADR carries over. "Present" is the per-placement
+"complete": it needs the same support floor and contrary ceiling, and it is
+never concluded under marginal detectability. A displacement or turn is
+concluded only under strong detectability. Plate steps (3.2 mm) are tallied
+and never concluded.
+
+Authority does not move. The user only ever sees the verifier's verdict.
+The diff runs only while evidence capture is on. Its placement-aware verdict
+may only take a "complete" away, and is logged and recorded
+(`diffs.ndjson`), never shown. The flip needs:
+- at least 20 replayed real verification windows with no paired regression;
+- 0 false present on the challenge set;
+- false-complete still 0.

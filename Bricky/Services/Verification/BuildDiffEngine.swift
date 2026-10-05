@@ -53,8 +53,12 @@ actor BuildDiffEngine: StepJudging {
     /// Renders of the most recent per-placement pass, for the budget test.
     private(set) var lastPassRenders = 0
 
-    init(configuration: Configuration = Configuration(), renderer: ExpectedDepthRenderer? = nil) throws {
+    init(
+        configuration: Configuration = Configuration(), renderer: ExpectedDepthRenderer? = nil,
+        policy: DiffStepVerdictAdapter.Policy = .legacyEquivalent
+    ) throws {
         self.configuration = configuration
+        self.policy = policy
         let renderer = try renderer ?? ExpectedDepthRenderer.shared()
         self.renderer = renderer
         verifier = try GeometricStepVerifier(configuration: configuration.verifier, renderer: renderer)

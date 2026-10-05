@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 
 /// Drives live geometric verification for the step being built. Frames and
@@ -27,6 +28,16 @@ final class StepVerificationController: ObservableObject {
 
     private let makeVerifier: () throws -> any StepJudging
     private var verifier: (any StepJudging)?
+    /// The build diff in shadow (M2.3): judges the same frames after the
+    /// verifier, only while evidence capture is on, and is never published.
+    private let makeShadow: () throws -> any ShadowStepJudging
+    private let shadowEnabled: () -> Bool
+    private var shadow: (any ShadowStepJudging)?
+    /// The shadow's latest diff and its placement-aware verdict, for logs
+    /// and evidence windows. Deliberately not `@Published`.
+    private(set) var lastShadowDiff: BuildDiff?
+    private(set) var lastShadowVerdict: StepVerification?
+    private let logger = Logger(subsystem: AppConfig.bundleID, category: "BuildDiff")
     /// Bumped on every `begin` and `stop`: a frame in flight across the step
     /// boundary must not publish into the new step's verification.
     private var generation = 0
@@ -56,8 +67,16 @@ final class StepVerificationController: ObservableObject {
     /// repeat the same frames.
     private let windowSpacing: TimeInterval = 3
 
-    init(makeVerifier: @escaping () throws -> any StepJudging = { try GeometricStepVerifier() }) {
+    init(
+        makeVerifier: @escaping () throws -> any StepJudging = { try GeometricStepVerifier() },
+        makeShadow: @escaping () throws -> any ShadowStepJudging = { try BuildDiffEngine(policy: .placementAware) },
+        shadowEnabled: @escaping () -> Bool = {
+            UserDefaults.standard.bool(forKey: AppConfig.Defaults.evidenceCaptureEnabled)
+        }
+    ) {
         self.makeVerifier = makeVerifier
+        self.makeShadow = makeShadow
+        self.shadowEnabled = shadowEnabled
     }
 
     var statusLabel: String? {
@@ -119,6 +138,14 @@ final class StepVerificationController: ObservableObject {
             // Awaited, with frames refused until it returns, so no frame can
             // reach the verifier before it holds this step's snapshots.
             await verifier.begin(stepID: stepID, geometry: geometry)
+            lastShadowDiff = nil
+            lastShadowVerdict = nil
+            if shadowEnabled(), let judge = try? shadow ?? makeShadow() {
+                shadow = judge
+                await judge.begin(stepID: stepID, geometry: geometry)
+            } else {
+                shadow = nil
+            }
             // A later begin() or stop() owns the state now.
             if beginGeneration == generation {
                 acceptingFrames = true
@@ -162,8 +189,26 @@ final class StepVerificationController: ObservableObject {
                 ))
             }
             publish(result, at: next.frame.timestamp)
+            await judgeInShadow(next.frame, next.registration, authoritative: result, generation: ingestGeneration)
         }
         worker = nil
+    }
+
+    /// Runs the shadow on the frame the verifier just judged. Its errors are
+    /// ignored and its verdict is only logged: the shadow can never change
+    /// what the user sees.
+    private func judgeInShadow(
+        _ frame: RegistrationFrameInput, _ registration: ModelRegistration,
+        authoritative: StepVerification, generation ingestGeneration: Int
+    ) async {
+        guard let shadow, ingestGeneration == generation, !isSuspended else { return }
+        guard let verdict = try? await shadow.ingest(frame: frame, registration: registration),
+              ingestGeneration == generation, !isSuspended else { return }
+        lastShadowVerdict = verdict
+        lastShadowDiff = await shadow.latestDiff()
+        if verdict.verdict != authoritative.verdict {
+            logger.notice("Shadow diff disagrees: verifier \(authoritative.verdict.evidenceName, privacy: .public), placement-aware \(verdict.verdict.evidenceName, privacy: .public)")
+        }
     }
 
     private func publish(_ result: StepVerification, at timestamp: TimeInterval) {
@@ -225,7 +270,9 @@ final class StepVerificationController: ObservableObject {
             verification: verification,
             staged: stagedVerification,
             ingestMillisecondsSinceBegin: ingestMillisecondsSinceBegin,
-            createdAt: .now
+            createdAt: .now,
+            shadowDiff: lastShadowDiff,
+            shadowVerdict: lastShadowVerdict
         )
         Task { await windowSink.record(capture) }
     }
@@ -248,8 +295,13 @@ final class StepVerificationController: ObservableObject {
         completeSince = nil
         lastIngestTimestamp = -.infinity
         resetWindow()
+        lastShadowDiff = nil
+        lastShadowVerdict = nil
         if let verifier {
             Task { await verifier.resetEvidence() }
+        }
+        if let shadow {
+            Task { await shadow.resetEvidence() }
         }
     }
 }

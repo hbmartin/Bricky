@@ -79,6 +79,27 @@ final class StepVerificationControllerTests: XCTestCase {
         func record(_ window: VerificationWindowCapture) async { windows.append(window) }
     }
 
+    /// A shadow that disagrees with everything, records what it saw, and
+    /// can be made to fail.
+    private actor ShadowFake: ShadowStepJudging {
+        private(set) var ingested: [TimeInterval] = []
+        private(set) var begins = 0
+        private var failing = false
+        func begin(stepID: String, geometry: StepGeometry) { begins += 1 }
+        func resetEvidence() {}
+        func fail() { failing = true }
+        func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification {
+            ingested.append(frame.timestamp)
+            if failing { throw CancellationError() }
+            return StepVerification(
+                stepID: "step", verdict: .incomplete, detectability: .strong, deltaPixels: 1, framesUsed: 1,
+                completeFraction: 0, incompleteFraction: 1, registrationQuality: registration.quality,
+                timestamp: frame.timestamp
+            )
+        }
+        func latestDiff() -> BuildDiff? { BuildDiff(stepID: "step", observations: [], framesUsed: ingested.count) }
+    }
+
     private let emptySnapshot = InstructionGeometrySnapshot(buffers: [], bounds: nil)
 
     private func frame(at timestamp: TimeInterval) -> RegistrationFrameInput {
@@ -170,6 +191,78 @@ final class StepVerificationControllerTests: XCTestCase {
         await Task.yield()
         let collected = await collector.windows
         XCTAssertTrue(collected.isEmpty)
+    }
+
+    private func shadowed(
+        _ shadow: ShadowFake, enabled: Bool = true
+    ) async -> StepVerificationController {
+        let controller = StepVerificationController(
+            makeVerifier: { ScriptedVerifier([.complete]) },
+            makeShadow: { shadow },
+            shadowEnabled: { enabled }
+        )
+        await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot)
+        return controller
+    }
+
+    private func shadowIngests(_ shadow: ShadowFake, count: Int) async -> [TimeInterval] {
+        for _ in 0..<1_000 where await shadow.ingested.count < count {
+            await Task.yield()
+        }
+        return await shadow.ingested
+    }
+
+    func testShadowNeverPublishes() async {
+        let shadow = ShadowFake()
+        let controller = await shadowed(shadow)
+        await judge(controller, at: 1.0)
+        _ = await shadowIngests(shadow, count: 1)
+        for _ in 0..<100 where controller.lastShadowVerdict == nil { await Task.yield() }
+        XCTAssertEqual(controller.verification?.verdict, .complete, "the user sees the verifier, never the shadow")
+        XCTAssertEqual(controller.lastShadowVerdict?.verdict, .incomplete)
+        XCTAssertNotNil(controller.lastShadowDiff)
+    }
+
+    func testShadowAbsentWhenToggleOff() async {
+        let shadow = ShadowFake()
+        let controller = await shadowed(shadow, enabled: false)
+        await judge(controller, at: 1.0)
+        await Task.yield()
+        let begins = await shadow.begins
+        let ingested = await shadow.ingested
+        XCTAssertEqual(begins, 0)
+        XCTAssertTrue(ingested.isEmpty)
+        XCTAssertNil(controller.lastShadowVerdict)
+    }
+
+    func testShadowSeesTheSameFrames() async {
+        let shadow = ShadowFake()
+        let controller = await shadowed(shadow)
+        for timestamp in [1.0, 2.0, 3.0] { await judge(controller, at: timestamp) }
+        let ingested = await shadowIngests(shadow, count: 3)
+        XCTAssertEqual(ingested, [1.0, 2.0, 3.0])
+    }
+
+    func testShadowPausesWhenSuspended() async {
+        let shadow = ShadowFake()
+        let controller = await shadowed(shadow)
+        await judge(controller, at: 1.0)
+        _ = await shadowIngests(shadow, count: 1)
+        controller.suspend()
+        controller.submit(frame: frame(at: 2.0), registration: registration)
+        for _ in 0..<50 { await Task.yield() }
+        let ingested = await shadow.ingested
+        XCTAssertEqual(ingested, [1.0])
+    }
+
+    func testShadowErrorIsIgnored() async {
+        let shadow = ShadowFake()
+        await shadow.fail()
+        let controller = await shadowed(shadow)
+        await judge(controller, at: 1.0)
+        _ = await shadowIngests(shadow, count: 1)
+        XCTAssertEqual(controller.verification?.verdict, .complete)
+        XCTAssertNil(controller.lastShadowVerdict)
     }
 
     func testOnlyTheNewestWaitingFrameIsJudged() async {

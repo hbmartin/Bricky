@@ -20,6 +20,8 @@ public struct EvidenceBundleReader {
         /// The frames windows reference, by frame id, from
         /// `windows/frames/<frame-id>.json`.
         public let windowFrames: [UUID: EvidenceDepthFrameRecord]
+        /// The shadow build diff when each window closed, from `diffs.ndjson`.
+        public let diffRecords: [BuildDiffRecord]
     }
 
     public let bundleDirectory: URL
@@ -85,6 +87,12 @@ public struct EvidenceBundleReader {
                     let record = try decoder.decode(EvidenceDepthFrameRecord.self, from: Data(contentsOf: url))
                     windowFrames[record.captureID] = record
                 }
+                var diffs: [BuildDiffRecord] = []
+                if let data = try? Data(contentsOf: directory.appendingPathComponent("diffs.ndjson")) {
+                    diffs = try data.split(separator: UInt8(ascii: "\n")).map {
+                        try decoder.decode(BuildDiffRecord.self, from: Data($0))
+                    }
+                }
                 return Session(
                     directory: directory,
                     file: file,
@@ -92,7 +100,8 @@ public struct EvidenceBundleReader {
                     fitRecords: fits,
                     depthFrames: depthFrames,
                     verificationWindows: windows.sorted { $0.createdAt < $1.createdAt },
-                    windowFrames: windowFrames
+                    windowFrames: windowFrames,
+                    diffRecords: diffs
                 )
             }
             .sorted { $0.file.createdAt < $1.file.createdAt }

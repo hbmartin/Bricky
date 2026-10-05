@@ -13,6 +13,13 @@ import simd
 /// rows (provenance `replay`, never release evidence); every window counts
 /// toward the printed agreement.
 enum WindowReplay {
+    /// Which judge replays the windows: the verifier the device ran, or the
+    /// build diff with its placement-aware verdict (M2.3).
+    enum Judge: String {
+        case verifier
+        case diff
+    }
+
     struct Summary {
         var windows = 0
         var replayed = 0
@@ -21,8 +28,8 @@ enum WindowReplay {
     }
 
     static func run(
-        bundle: URL, plan: InstructionPlan, sourceIdentity: String, engine: LDrawGeometryEngine,
-        renderer: ExpectedDepthRenderer
+        bundle: URL, plan: InstructionPlan, sourceIdentity: String, geometry: PlacementGeometry,
+        renderer: ExpectedDepthRenderer, judge: Judge = .verifier
     ) async throws -> (rows: [String], summary: Summary) {
         let reader = try EvidenceBundleReader(bundleDirectory: bundle)
         let issues = reader.validate()
@@ -46,10 +53,12 @@ enum WindowReplay {
                     print("window \(window.windowID.uuidString.prefix(8)): step \(window.stepID) is not in this plan; skipped")
                     continue
                 }
-                let completed = try await engine.snapshot(placements: Array(plan.completedPlacements(before: step)))
-                let delta = try await engine.snapshot(placements: Array(plan.addedPlacements(for: step)))
-                let verifier = try GeometricStepVerifier(renderer: renderer)
-                await verifier.begin(stepID: step.id, completedSnapshot: completed, deltaSnapshot: delta)
+                let verifier: any StepJudging
+                switch judge {
+                case .verifier: verifier = try GeometricStepVerifier(renderer: renderer)
+                case .diff: verifier = try BuildDiffEngine(renderer: renderer, policy: .placementAware)
+                }
+                await verifier.begin(stepID: step.id, geometry: StepGeometry(step: step, geometry: geometry))
                 let started = ContinuousClock.now
                 var result: StepVerification?
                 for frame in window.frames {
@@ -61,6 +70,9 @@ enum WindowReplay {
                     )
                 }
                 guard let result else { continue }
+                if let diff = verifier as? BuildDiffEngine, let placements = await diff.lastDiff?.observations {
+                    print("window \(window.windowID.uuidString.prefix(8)): " + placements.map { "p\($0.placement)=\($0.state.name)" }.joined(separator: " "))
+                }
                 summary.replayed += 1
                 let produced = result.verdict.evidenceName
                 let matches = produced == window.verdict

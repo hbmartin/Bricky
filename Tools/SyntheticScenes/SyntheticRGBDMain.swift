@@ -58,6 +58,7 @@ struct SyntheticRGBDMain {
         /// Replays an evidence bundle's verification windows instead of
         /// generating synthetic scenes.
         var replayBundle: String?
+        var replayJudge = WindowReplay.Judge.verifier
         /// Prints colour-order vs timeline-order render differences per step
         /// and exits (M2.0 diagnostic).
         var checkRenderOrder = false
@@ -66,7 +67,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle>] [--check-render-order]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -93,6 +94,9 @@ struct SyntheticRGBDMain {
                 guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
                 options.suite = suite
             case "--replay-bundle": options.replayBundle = value
+            case "--judge":
+                guard let judge = WindowReplay.Judge(rawValue: value) else { throw CLIError("invalid value for --judge: \(value)") }
+                options.replayJudge = judge
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
@@ -146,8 +150,11 @@ struct SyntheticRGBDMain {
                 bundle: URL(fileURLWithPath: bundle),
                 plan: plan,
                 sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles),
-                engine: engine,
-                renderer: renderer
+                geometry: try await PlacementGeometryStore.shared.geometry(
+                    for: plan, sourceRoot: sourceDirectory, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
+                ),
+                renderer: renderer,
+                judge: options.replayJudge
             )
             try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
                 .write(toFile: options.outPath, atomically: true, encoding: .utf8)

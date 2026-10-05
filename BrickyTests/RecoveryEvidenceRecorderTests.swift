@@ -247,6 +247,32 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(row["challenge_class"], "a release-eligible scenario must not carry challenge keys")
     }
 
+    func testAWindowWithAShadowDiffWritesADiffRow() async throws {
+        let recorder = makeRecorder()
+        let samples = (0..<2).map { windowSample(timestamp: TimeInterval($0)) }
+        let original = windowCapture(samples: samples, trigger: .confirm, staged: nil)
+        let diff = BuildDiff(stepID: "main.ldr#3", observations: [
+            PlacementObservation(placement: 4, state: .displaced(LatticeOffset(dx: 1)), evidence: PlacementEvidence(support: 12, absence: 3))
+        ], framesUsed: 9)
+        let capture = VerificationWindowCapture(
+            windowID: original.windowID, stepID: original.stepID, stepIndex: original.stepIndex, trigger: .confirm,
+            samples: original.samples, verification: original.verification, staged: nil,
+            ingestMillisecondsSinceBegin: 70, createdAt: .now, shadowDiff: diff,
+            shadowVerdict: original.verification.replacingVerdict(.misplaced(offsetStuds: SIMD2(1, 0)))
+        )
+        await recorder.record(capture)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent(RecoveryEvidenceRecorder.diffRowsFilename)
+        let record = try JSONDecoder().decode(BuildDiffRecord.self, from: try Data(contentsOf: url).split(separator: UInt8(ascii: "\n"))[0])
+        XCTAssertEqual(record.windowID, capture.windowID)
+        XCTAssertEqual(record.placements.first?.state, "displaced")
+        XCTAssertEqual(record.placements.first?.offset, [1, 0, 0, 0])
+        XCTAssertEqual(record.adapterVerdict, "misplaced")
+        XCTAssertEqual(record.verifierVerdict, "incomplete")
+    }
+
     private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {
         VerificationWindowSample(
             frameID: UUID(),

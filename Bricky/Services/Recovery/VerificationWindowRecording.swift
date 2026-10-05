@@ -51,6 +51,21 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
             try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
                 .write(to: sessionDirectory.appendingPathComponent("windows/\(window.windowID.uuidString).json"), options: .atomic)
             noteWindowWritten()
+            if let diff = window.shadowDiff {
+                let record = BuildDiffRecord(
+                    windowID: window.windowID,
+                    stepID: window.stepID,
+                    placements: diff.observations.map(Self.placementRecord),
+                    adapterVerdict: (window.shadowVerdict?.verdict ?? verification.verdict).evidenceName,
+                    verifierVerdict: verification.verdict.evidenceName,
+                    framesUsed: diff.framesUsed
+                )
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                var line = try encoder.encode(record)
+                line.append(UInt8(ascii: "\n"))
+                try append(line, to: Self.diffRowsFilename)
+            }
             // A staged declaration closes when the user confirms, overrides,
             // or leaves the step: that closing window is the device row.
             if let staged = window.staged, window.trigger != .verdictChange {
@@ -77,6 +92,25 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
                 try append(line, to: Self.verificationRowsFilename)
             }
         }
+    }
+
+    static let diffRowsFilename = "diffs.ndjson"
+
+    static func placementRecord(_ observation: PlacementObservation) -> BuildDiffRecord.Placement {
+        let offset: [Int]? = switch observation.state {
+        case .displaced(let offset): [offset.dx, offset.dz, offset.dy, offset.quarterTurns]
+        case .rotated(let turns): [0, 0, 0, turns]
+        default: nil
+        }
+        return BuildDiffRecord.Placement(
+            placement: observation.placement,
+            state: observation.state.name,
+            offset: offset,
+            support: observation.evidence.support,
+            absence: observation.evidence.absence,
+            unexplained: observation.evidence.unexplained,
+            framesSeen: observation.evidence.framesSeen
+        )
     }
 
     /// Windows written to this session so far.
