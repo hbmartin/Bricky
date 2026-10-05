@@ -6,6 +6,17 @@ import Foundation
 /// placements.
 struct PlacementGeometry: Sendable {
     let segments: SegmentedGeometry
+    /// Lattice status, occupancy and support graph, from the same flatten.
+    let index: PlacementGeometryIndex
+
+    init(segments: SegmentedGeometry, index: PlacementGeometryIndex) {
+        self.segments = segments
+        self.index = index
+    }
+
+    init(plan: InstructionPlan, segments: SegmentedGeometry) {
+        self.init(segments: segments, index: PlacementGeometryIndex.build(plan: plan, segments: segments))
+    }
 
     /// Everything built through `step`.
     func cumulativeSnapshot(through step: AuthoredStep) -> InstructionGeometrySnapshot {
@@ -38,6 +49,9 @@ actor PlacementGeometryStore {
     }
 
     private var cached: (key: Key, geometry: PlacementGeometry)?
+    /// Per part reference, for the cached plan's source and pack: a model's
+    /// own file can shadow a pack part of the same name.
+    private var symmetries: (key: Key, byReference: [String: RotationalSymmetry])?
     private var inFlight: (key: Key, task: Task<PlacementGeometry, Error>)?
     /// Flattens performed, for tests.
     private(set) var buildCount = 0
@@ -56,10 +70,9 @@ actor PlacementGeometryStore {
         if let cached, cached.key == key { return cached.geometry }
         if let inFlight, inFlight.key == key { return try await inFlight.task.value }
         buildCount += 1
-        let timeline = plan.placementTimeline
         let task = Task {
             let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
-            return PlacementGeometry(segments: try await engine.segmented(placements: timeline))
+            return PlacementGeometry(plan: plan, segments: try await engine.segmented(placements: plan.placementTimeline))
         }
         inFlight = (key, task)
         defer { if inFlight?.key == key { inFlight = nil } }
@@ -68,8 +81,28 @@ actor PlacementGeometryStore {
         return geometry
     }
 
+    /// How `reference` survives quarter turns, measured once per part.
+    func symmetry(
+        of reference: String, in plan: InstructionPlan, sourceRoot: URL, partPackRoot: URL
+    ) async throws -> RotationalSymmetry {
+        let key = Self.key(for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        if symmetries?.key != key { symmetries = (key, [:]) }
+        if let known = symmetries?.byReference[reference] { return known }
+        let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        // The part alone, in its own frame: identity transform, origin at
+        // the footprint centre for LDraw bricks.
+        let part = PartPlacement(
+            id: "symmetry:\(reference)", partReference: reference, colorCode: 16, transform: LDrawTransform(),
+            sourceSection: "", sourceLine: 0, isSubmodelReference: false
+        )
+        let measured = RotationalSymmetry.measure(positions: try await engine.segmented(placements: [part]).positions)
+        if symmetries?.key == key { symmetries?.byReference[reference] = measured }
+        return measured
+    }
+
     /// Drops the cached geometry, e.g. when the AR guide closes.
     func purge() {
         cached = nil
+        symmetries = nil
     }
 }

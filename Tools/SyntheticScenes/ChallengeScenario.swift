@@ -28,6 +28,15 @@ struct ChallengeScenario {
     let expectation: Expectation
     var expectedFailure = false
 
+    /// The yaw a rotation scenario applies, for the symmetry cross-check.
+    var quarterTurns: Int? {
+        switch label {
+        case "rot90": 1
+        case "rot180": 2
+        default: nil
+        }
+    }
+
     /// Same-footprint substitutions: a slope where a brick belongs.
     static let wrongPartSwaps = ["3001.dat": "3037.dat", "3003.dat": "3039.dat", "3004.dat": "3040b.dat"]
 

@@ -139,6 +139,16 @@
       "direction": "exact",
       "tolerance": 0.0,
       "value": 6.0
+    },
+    "synthetic_summary.symmetry.checked": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 12.0
+    },
+    "synthetic_summary.symmetry.oracle_disagreements": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
     }
   },
   "seed": 7

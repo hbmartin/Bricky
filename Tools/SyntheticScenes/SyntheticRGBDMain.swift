@@ -271,6 +271,12 @@ extension SyntheticRGBDMain {
         var stepsUsed = 0
         var notApplicable: [String: Int] = [:]
         var dropped: [String: Int] = [:]
+        // The placement index's symmetry (Chamfer, M2.0) is checked against
+        // the render-based depth-equivalence oracle on every rotation row.
+        var symmetryChecked = 0
+        var symmetryDisagreements = 0
+        let sourceRoot = URL(fileURLWithPath: options.modelPath).deletingLastPathComponent()
+        let partPackRoot = URL(fileURLWithPath: options.ldrawRoot)
 
         for step in plan.steps {
             let added = Array(plan.addedPlacements(for: step))
@@ -307,6 +313,16 @@ extension SyntheticRGBDMain {
                     let symmetric = try scene.depthEquivalent(delta, physicalDelta)
                     challengeClass = scenario.label + (symmetric ? "_symmetric" : "_asymmetric")
                     expected = symmetric ? "complete" : "misplaced"
+                    if let turns = scenario.quarterTurns {
+                        let indexed = try await PlacementGeometryStore.shared.symmetry(
+                            of: placement.partReference, in: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
+                        ).isSymmetric(quarterTurns: turns)
+                        symmetryChecked += 1
+                        if indexed != symmetric {
+                            symmetryDisagreements += 1
+                            print("symmetry disagreement: \(placement.partReference) \(scenario.label) index=\(indexed) oracle=\(symmetric)")
+                        }
+                    }
                 }
 
                 let started = ContinuousClock.now
@@ -348,6 +364,15 @@ extension SyntheticRGBDMain {
             "dropped_expected_complete_below_strong": dropped.values.reduce(0, +),
             "dropped_by_class": dropped,
             "not_applicable_by_class": notApplicable,
+        ]))
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "symmetry",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "checked": symmetryChecked,
+            "oracle_disagreements": symmetryDisagreements,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)

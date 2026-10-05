@@ -100,7 +100,7 @@ actor GeometricRecoveryEstimator {
             geometry = provided
         } else {
             let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
-            geometry = PlacementGeometry(segments: try await engine.segmented(placements: plan.placementTimeline))
+            geometry = PlacementGeometry(plan: plan, segments: try await engine.segmented(placements: plan.placementTimeline))
         }
 
         var scored: [Int: CandidateScore] = [:]
