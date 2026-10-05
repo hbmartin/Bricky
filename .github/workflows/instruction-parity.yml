@@ -130,7 +130,9 @@ jobs:
     # deployment target; building and testing here is also the workflow's
     # iOS 27 build check.
     runs-on: xcode-27
-    timeout-minutes: 60
+    # A cold build compiles mlx-swift's C++ and Metal sources; the build
+    # and the test run have their own limits so a stall shows which it was.
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -157,12 +159,20 @@ jobs:
       # UI tests run too: they force a device-floor verdict with a Debug-only
       # launch argument, because the Simulator has no LiDAR and would
       # otherwise only ever show the unsupported screen.
-      - name: Build and run native parity and UI tests
+      - name: Build for testing
+        timeout-minutes: 65
         run: |
           xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
-            -parallel-testing-enabled NO test \
+            -showBuildTimingSummary build-for-testing
+      - name: Run native parity and UI tests
+        timeout-minutes: 40
+        run: |
+          xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
+            -parallel-testing-enabled NO test-without-building \
             -only-testing:BrickyTests -only-testing:BrickyUITests
 
   harness-macos:
