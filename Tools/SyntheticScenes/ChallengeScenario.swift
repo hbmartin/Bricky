@@ -28,6 +28,21 @@ struct ChallengeScenario {
     let expectation: Expectation
     var expectedFailure = false
 
+    /// What the edited placement truly is, for the build diff's placement
+    /// rows. Plate steps are observe-only; a symmetric turn is no change.
+    func expectedPlacement(symmetricTurn: Bool) -> (state: String, offset: LatticeOffset?, observeOnly: Bool) {
+        switch label {
+        case "shift1z": ("displaced", LatticeOffset(dz: 1), false)
+        case "plate_up1": ("displaced", LatticeOffset(dy: 1), true)
+        case "plate_down1": ("displaced", LatticeOffset(dy: -1), true)
+        case "rot90", "rot180":
+            symmetricTurn ? ("present", nil, false) : ("rotated", LatticeOffset(quarterTurns: quarterTurns ?? 0), false)
+        case "wrong_part_same_footprint": ("absent", nil, false)
+        case "colour_swap": ("colour_mismatch", nil, false)
+        default: ("not_observable", nil, false)
+        }
+    }
+
     /// The yaw a rotation scenario applies, for the symmetry cross-check.
     var quarterTurns: Int? {
         switch label {

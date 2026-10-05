@@ -33,7 +33,15 @@ import json
 import sys
 from pathlib import Path
 
-from score_results import CHALLENGE_KIND, partition, score_challenge, score_registration, score_verification
+from score_results import (
+    CHALLENGE_KIND,
+    PLACEMENT_KIND,
+    partition,
+    score_challenge,
+    score_placement,
+    score_registration,
+    score_verification,
+)
 
 LOWER_IS_BETTER = "lower_is_better"
 HIGHER_IS_BETTER = "higher_is_better"
@@ -49,6 +57,8 @@ FAILURE_COUNT_LEAVES = {
     "false_complete_cases",
     "undetectable_false_completes",
     "expected_failure_false_complete_cases",
+    "false_present_cases",
+    "undetectable_false_present_cases",
 }
 
 
@@ -103,6 +113,8 @@ def measure(path: Path) -> dict[str, float]:
         report["registration"], _ = score_registration(kinds["registration"])
     if kinds[CHALLENGE_KIND]:
         report["challenge"] = score_challenge(kinds[CHALLENGE_KIND])
+    if kinds[PLACEMENT_KIND]:
+        report["placement"], _ = score_placement(kinds[PLACEMENT_KIND])
     return flatten(report)
 
 

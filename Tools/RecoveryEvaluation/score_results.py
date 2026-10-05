@@ -58,6 +58,11 @@ CHALLENGE_KIND = "verification_challenge"
 # false-complete rate, reported beside the geometric verifier's. Mac replay
 # rows, so never release evidence.
 VLM_CHECK_KIND = "vlm_check"
+# Per-placement build diff rows (M2.3): what the shadow diff concluded about
+# each authored placement. Informational until real windows exist.
+PLACEMENT_KIND = "placement"
+PLACEMENT_STATES = {"present", "absent", "displaced", "rotated", "colour_mismatch", "not_observable"}
+PLACEMENT_FALSE_PRESENT_CEILING = 0.02
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -868,6 +873,52 @@ def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def validate_placement_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows, start=1):
+        label = f"placement row {index}"
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"{label} has unsupported schema")
+        missing = sorted({"fixture_id", "expected_state", "produced_state"} - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if row["expected_state"] not in PLACEMENT_STATES or row["produced_state"] not in PLACEMENT_STATES:
+            raise SystemExit(f"{label} has an invalid placement state")
+
+
+def score_placement(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    """The build diff's headline is false present: a placement that is not
+    there as authored (absent, shifted, turned) read as present. Observe-only
+    rows (plate steps) and expected failures (a colour swap) never count."""
+    validate_placement_rows(rows)
+    scored = [row for row in rows if not row.get("observe_only") and not row.get("expected_failure")]
+    negatives = [row for row in scored if row["expected_state"] != "present"]
+    false_present = [row for row in negatives if row["produced_state"] == "present"]
+    gate = rate_gate(
+        "placement.false_present_rate", len(false_present), len(negatives),
+        ceiling=PLACEMENT_FALSE_PRESENT_CEILING, required=False,
+    )
+    by_expected: dict[str, dict[str, int]] = {}
+    for row in scored:
+        produced = by_expected.setdefault(row["expected_state"], {})
+        produced[row["produced_state"]] = produced.get(row["produced_state"], 0) + 1
+    positives = [row for row in scored if row["expected_state"] == "present"]
+    report = {
+        "cases": len(rows),
+        "negatives": len(negatives),
+        "false_present_cases": len(false_present),
+        "false_present_rate": gate.value,
+        "false_present_upper_95": gate.bound,
+        "undetectable_false_present_cases": sum(row.get("detectability") == "undetectable" for row in false_present),
+        "observe_only_cases": sum(bool(row.get("observe_only")) for row in rows),
+        "expected_failure_cases": sum(bool(row.get("expected_failure")) for row in rows),
+        "present_recall": (
+            sum(row["produced_state"] == "present" for row in positives) / len(positives) if positives else None
+        ),
+        "by_expected_state": by_expected,
+    }
+    return report, [gate]
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -881,7 +932,7 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
-        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND)
+        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND)
     }
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
@@ -988,6 +1039,8 @@ def main(
             raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
         if kinds[VLM_CHECK_KIND]:
             validate_vlm_check_release(kinds[VLM_CHECK_KIND])
+        if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_KIND]):
+            raise SystemExit(f"{PLACEMENT_KIND} rows other than device rows are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -1008,6 +1061,9 @@ def main(
         report[CHALLENGE_KIND] = score_challenge(kinds[CHALLENGE_KIND])
     if kinds[VLM_CHECK_KIND]:
         report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
+    placement_gates: list[Gate] = []
+    if kinds[PLACEMENT_KIND]:
+        report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -1023,6 +1079,23 @@ def main(
             f"VLM_CHECK_FALSE_COMPLETE {shown} ({check['false_complete_cases']}/{check['negatives']} negatives, "
             f"upper95={format_number(check['false_complete_upper_95'])})"
         )
+    if PLACEMENT_KIND in report:
+        placement = report[PLACEMENT_KIND]
+        shown = UNMEASURED if placement["false_present_rate"] is None else f"{placement['false_present_rate']:.4f}"
+        print(
+            f"PLACEMENT_FALSE_PRESENT {shown} ({placement['false_present_cases']}/{placement['negatives']} negatives, "
+            f"upper95={format_number(placement['false_present_upper_95'])})"
+        )
+        for gate in placement_gates:
+            status = gate.status(release=release)
+            failed_placement = gate.fails(release=release)
+            print(
+                f"GATE {gate.name} {status} value={format_number(gate.value)} "
+                f"bound={format_number(gate.bound)} n={gate.trials} threshold<={gate.threshold:g}"
+            )
+            placement["gates"] = {gate.name: gate.summary(release=release)}
+            if failed_placement:
+                print("(informational until real verification windows exist; never fails the run)")
     if CHALLENGE_KIND in report:
         for line in challenge_lines(report[CHALLENGE_KIND]):
             print(line)

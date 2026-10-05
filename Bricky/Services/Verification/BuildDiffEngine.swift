@@ -318,7 +318,11 @@ actor BuildDiffEngine: StepJudging {
         let classified = Float(record.classified)
         let support = Float(record.support) / classified
         let absence = Float(record.absence) / classified
-        if support >= configuration.supportFloor, absence <= configuration.contraryCeiling { return .present }
+        // Present is the per-placement complete, and as hard to earn
+        // (ADR 0008): never under marginal detectability.
+        if support >= configuration.supportFloor, absence <= configuration.contraryCeiling {
+            return groupDetectability == .strong ? .present : .notObservable(.insufficientEvidence)
+        }
         if absence >= configuration.absenceFloor, absence > support { return .absent }
         return .notObservable(.insufficientEvidence)
     }

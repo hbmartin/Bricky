@@ -27,6 +27,36 @@
   "fixture": "fixtures/real-tower/tower.ldr",
   "generated": "2026-09-25",
   "metrics": {
+    "placement.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 80.0
+    },
+    "placement.expected_failure_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "placement.false_present_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "placement.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 60.0
+    },
+    "placement.observe_only_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "placement.undetectable_false_present_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
     "registration.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -35,6 +65,16 @@
     "registration.convergence_rate": {
       "direction": "higher_is_better",
       "tolerance": 0.05,
+      "value": 0.0
+    },
+    "synthetic_summary.placement.generated_placement_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 80.0
+    },
+    "synthetic_summary.placement.judge_disagreements": {
+      "direction": "exact",
+      "tolerance": 0.0,
       "value": 0.0
     },
     "synthetic_summary.regression.dropped_expected_complete_below_strong": {

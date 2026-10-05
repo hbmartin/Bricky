@@ -28,6 +28,7 @@ from score_results import (
     validate_rows,
     validate_triad_release,
     score_challenge,
+    score_placement,
 )
 
 RELEASE_ROWS = 60
@@ -260,6 +261,47 @@ def challenge_row(challenge_class: str, expected: str, produced: str, *, expecte
         "detectability": "strong",
         "latency_ms": 900,
     }
+
+
+def placement_row(expected: str, produced: str, **extra: object) -> dict[str, object]:
+    row: dict[str, object] = {"kind": "placement", "schema_version": 1, "provenance": "synthetic",
+                              "fixture_id": f"p-{expected}-{produced}", "expected_state": expected,
+                              "produced_state": produced, "detectability": "strong"}
+    row.update(extra)
+    return row
+
+
+class PlacementScoringTests(unittest.TestCase):
+    def test_partition_accepts_placement(self) -> None:
+        kinds = partition([placement_row("present", "present")])
+        self.assertEqual(len(kinds["placement"]), 1)
+
+    def test_false_present_excludes_observe_only_and_expected_failures(self) -> None:
+        rows = [
+            placement_row("absent", "present"),
+            placement_row("displaced", "displaced"),
+            placement_row("displaced", "present", observe_only=True),
+            placement_row("colour_mismatch", "present", expected_failure=True),
+            placement_row("present", "present"),
+            placement_row("absent", "present", detectability="undetectable"),
+        ]
+        report, gates = score_placement(rows)
+        self.assertEqual(report["negatives"], 3)
+        self.assertEqual(report["false_present_cases"], 2)
+        self.assertEqual(report["undetectable_false_present_cases"], 1)
+        self.assertEqual(report["observe_only_cases"], 1)
+        self.assertEqual(report["present_recall"], 1.0)
+        self.assertFalse(gates[0].required, "informational until real windows exist")
+
+    def test_release_rejects_synthetic_placement(self) -> None:
+        code, output = MainTests.run_main([placement_row("present", "present")], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
+
+    def test_placement_headline_prints_and_never_fails(self) -> None:
+        code, output = MainTests.run_main([placement_row("absent", "present"), placement_row("absent", "absent")])
+        self.assertEqual(code, 0)
+        self.assertIn("PLACEMENT_FALSE_PRESENT 0.5000 (1/2 negatives", output)
 
 
 class ChallengeScoringTests(unittest.TestCase):

@@ -137,6 +137,17 @@ struct VerificationScenario {
     /// "undetectable" and the verifier must abstain.
     var occludesDelta = false
 
+    /// What each delta placement truly is in this scenario, for the build
+    /// diff's placement rows.
+    var expectedPlacement: (state: String, offset: LatticeOffset?) {
+        switch label {
+        case "none": ("present", nil)
+        case "missing": ("absent", nil)
+        case "shift1x": ("displaced", LatticeOffset(dx: 1))
+        default: ("not_observable", nil)
+        }
+    }
+
     /// Physical scene = completed geometry plus the scenario's version of the
     /// delta (present, absent, or shifted).
     func physicalSnapshot(
@@ -423,9 +434,32 @@ struct SyntheticScene {
         physical: InstructionGeometrySnapshot,
         sensor: SensorModel
     ) async throws -> StepVerification {
+        try await verify(completed: completed, delta: delta, physical: physical, sensor: sensor, shadow: nil).verification
+    }
+
+    /// What a shadow judge concluded beside the verifier, on the same frames.
+    struct ShadowResult {
+        let verdict: StepVerification
+        let diff: BuildDiff?
+        let milliseconds: Int
+    }
+
+    /// `verify`, also feeding every frame to `shadow` (the build diff, M2.3)
+    /// when given. The shadow draws no randomness and is timed apart, so the
+    /// verifier's rows are unchanged by it.
+    func verify(
+        completed: InstructionGeometrySnapshot,
+        delta: InstructionGeometrySnapshot,
+        physical: InstructionGeometrySnapshot,
+        sensor: SensorModel,
+        shadow: (judge: BuildDiffEngine, geometry: StepGeometry)?
+    ) async throws -> (verification: StepVerification, shadow: ShadowResult?) {
         var sensor = sensor
         let verifier = try GeometricStepVerifier(renderer: renderer)
         await verifier.begin(stepID: "synthetic", completedSnapshot: completed, deltaSnapshot: delta)
+        if let shadow { await shadow.judge.begin(stepID: "synthetic", geometry: shadow.geometry) }
+        var shadowVerdict: StepVerification?
+        var shadowDuration = Duration.zero
         let registration = ModelRegistration(
             alignmentID: UUID(),
             worldFromModel: matrix_identity_float4x4,
@@ -444,9 +478,17 @@ struct SyntheticScene {
                 timestamp: Double(index) * 0.1
             )
             last = try await verifier.ingest(frame: frame, registration: registration)
+            if let shadow {
+                let started = ContinuousClock.now
+                shadowVerdict = try await shadow.judge.ingest(frame: frame, registration: registration)
+                shadowDuration += started.duration(to: .now)
+            }
         }
         guard let last else { throw CLIError("verifier produced no assessment") }
-        return last
+        guard let shadow, let shadowVerdict else { return (last, nil) }
+        return (last, ShadowResult(
+            verdict: shadowVerdict, diff: await shadow.judge.lastDiff, milliseconds: shadowDuration.milliseconds
+        ))
     }
 }
 
@@ -516,6 +558,56 @@ enum Row {
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
         ])
+    }
+
+    /// One `placement` row per observed placement of a shadow diff.
+    static func placements(
+        fixture: String,
+        diff: BuildDiff,
+        plan: InstructionPlan,
+        expected: (Int) -> (state: String, offset: LatticeOffset?),
+        detectability: DeltaDetectability,
+        observeOnly: Bool = false,
+        expectedFailure: Bool = false,
+        challengeClass: String? = nil,
+        latencyMilliseconds: Int
+    ) throws -> [String] {
+        try diff.observations.map { observation in
+            let truth = expected(observation.placement)
+            var row: [String: Any] = [
+                "kind": "placement",
+                "provenance": "synthetic",
+                "schema_version": 1,
+                "fixture_id": "\(fixture)-p\(observation.placement)",
+                "placement_id": plan.placementTimeline.indices.contains(observation.placement)
+                    ? plan.placementTimeline[observation.placement].id : "\(observation.placement)",
+                "expected_state": truth.state,
+                "produced_state": observation.state.name,
+                "observe_only": observeOnly,
+                "expected_failure": expectedFailure,
+                "detectability": detectability.rawValue,
+                "support": observation.evidence.support,
+                "absence": observation.evidence.absence,
+                "unexplained": observation.evidence.unexplained,
+                "latency_ms": latencyMilliseconds,
+            ]
+            if let offset = truth.offset { row["expected_offset"] = [offset.dx, offset.dz, offset.dy, offset.quarterTurns] }
+            switch observation.state {
+            case .displaced(let offset): row["produced_offset"] = [offset.dx, offset.dz, offset.dy, offset.quarterTurns]
+            case .rotated(let turns): row["produced_offset"] = [0, 0, 0, turns]
+            default: break
+            }
+            if let challengeClass { row["challenge_class"] = challengeClass }
+            return try encode(row)
+        }
+    }
+
+    /// True when two assessments agree in every field the verifier reports.
+    static func sameAssessment(_ lhs: StepVerification, _ rhs: StepVerification) -> Bool {
+        lhs.verdict == rhs.verdict && lhs.detectability == rhs.detectability
+            && lhs.deltaPixels == rhs.deltaPixels && lhs.framesUsed == rhs.framesUsed
+            && lhs.completeFraction.bitPattern == rhs.completeFraction.bitPattern
+            && lhs.incompleteFraction.bitPattern == rhs.incompleteFraction.bitPattern
     }
 
     static func producedVerdict(_ verdict: StepVerdict) -> String {

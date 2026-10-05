@@ -165,6 +165,10 @@ struct SyntheticRGBDMain {
         var registrationRows = 0
         var verificationRows = 0
         var droppedByDetectability: [String: Int] = [:]
+        // The shadow build diff (M2.3) judges the same frames; its rows go
+        // after the regression rows so those stay byte-identical.
+        var placementRows: [String] = []
+        var judgeDisagreements = 0
 
         let stepIndices = RecoveryIndexing.evenlySampledIndices(
             count: min(options.sampledSteps, plan.steps.count),
@@ -202,15 +206,36 @@ struct SyntheticRGBDMain {
 
             // Verification scenarios: the physical scene carries the injected
             // error, the verifier judges the authored delta.
+            let stepGeometry = StepGeometry(step: step, geometry: geometry)
             for scenario in VerificationScenario.taxonomy {
                 let physical = scenario.physicalSnapshot(completed: completed, delta: delta)
+                let authoredCompleted = scenario.authoredCompleted(completed: completed, delta: delta)
                 let started = ContinuousClock.now
-                let verdict = try await scene.verify(
-                    completed: scenario.authoredCompleted(completed: completed, delta: delta),
+                let (verdict, shadow) = try await scene.verify(
+                    completed: authoredCompleted,
                     delta: delta,
                     physical: physical,
-                    sensor: SensorModel(rng: &rng)
+                    sensor: SensorModel(rng: &rng),
+                    shadow: (try BuildDiffEngine(renderer: renderer), StepGeometry(
+                        completedSnapshot: authoredCompleted, deltaSnapshot: delta,
+                        segments: stepGeometry.segments, index: stepGeometry.index,
+                        completedPlacements: stepGeometry.completedPlacements, deltaPlacements: stepGeometry.deltaPlacements
+                    ))
                 )
+                let verifierMilliseconds = started.duration(to: .now).milliseconds - (shadow?.milliseconds ?? 0)
+                if let shadow {
+                    if !Row.sameAssessment(shadow.verdict, verdict) { judgeDisagreements += 1 }
+                    if let diff = shadow.diff {
+                        placementRows += try Row.placements(
+                            fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
+                            diff: diff,
+                            plan: plan,
+                            expected: { _ in scenario.expectedPlacement },
+                            detectability: verdict.detectability,
+                            latencyMilliseconds: shadow.milliseconds
+                        )
+                    }
+                }
                 // An expected-complete row whose delta the verifier itself
                 // rates below strong is not a fair recall target: the honest
                 // response to a weakly visible delta is abstention (ADR 0008),
@@ -228,7 +253,7 @@ struct SyntheticRGBDMain {
                     fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
                     expected: scenario.expectedVerdict,
                     verification: verdict,
-                    latencyMilliseconds: started.duration(to: .now).milliseconds
+                    latencyMilliseconds: verifierMilliseconds
                 ))
                 verificationRows += 1
             }
@@ -248,6 +273,16 @@ struct SyntheticRGBDMain {
             "generated_verification_rows": verificationRows,
             "dropped_expected_complete_below_strong": droppedByDetectability.values.reduce(0, +),
             "dropped_by_detectability": droppedByDetectability,
+        ]))
+        rows += placementRows
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "placement",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "generated_placement_rows": placementRows.count,
+            "judge_disagreements": judgeDisagreements,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
@@ -277,6 +312,11 @@ extension SyntheticRGBDMain {
         var symmetryDisagreements = 0
         let sourceRoot = URL(fileURLWithPath: options.modelPath).deletingLastPathComponent()
         let partPackRoot = URL(fileURLWithPath: options.ldrawRoot)
+        let geometry = try await PlacementGeometryStore.shared.geometry(
+            for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
+        )
+        var placementRows: [String] = []
+        var judgeDisagreements = 0
 
         for step in plan.steps {
             let added = Array(plan.addedPlacements(for: step))
@@ -306,11 +346,13 @@ extension SyntheticRGBDMain {
                 }
                 let challengeClass: String
                 let expected: String
+                var symmetricTurn = false
                 switch scenario.expectation {
                 case .verdict(let verdict):
                     (challengeClass, expected) = (scenario.label, verdict)
                 case .completeIfDepthEquivalent:
                     let symmetric = try scene.depthEquivalent(delta, physicalDelta)
+                    symmetricTurn = symmetric
                     challengeClass = scenario.label + (symmetric ? "_symmetric" : "_asymmetric")
                     expected = symmetric ? "complete" : "misplaced"
                     if let turns = scenario.quarterTurns {
@@ -326,12 +368,31 @@ extension SyntheticRGBDMain {
                 }
 
                 let started = ContinuousClock.now
-                let verdict = try await scene.verify(
+                let (verdict, shadow) = try await scene.verify(
                     completed: completed,
                     delta: delta,
                     physical: InstructionGeometrySnapshot(buffers: completed.buffers + physicalDelta.buffers, bounds: nil),
-                    sensor: SensorModel(rng: &rng)
+                    sensor: SensorModel(rng: &rng),
+                    shadow: (try BuildDiffEngine(renderer: renderer), StepGeometry(step: step, geometry: geometry))
                 )
+                let verifierMilliseconds = started.duration(to: .now).milliseconds - (shadow?.milliseconds ?? 0)
+                if let shadow {
+                    if !Row.sameAssessment(shadow.verdict, verdict) { judgeDisagreements += 1 }
+                    if let diff = shadow.diff {
+                        let truth = scenario.expectedPlacement(symmetricTurn: symmetricTurn)
+                        placementRows += try Row.placements(
+                            fixture: "\(fixtureStem)-s\(step.index)-\(scenario.label)-\(placement.partReference)",
+                            diff: diff,
+                            plan: plan,
+                            expected: { _ in (truth.state, truth.offset) },
+                            detectability: verdict.detectability,
+                            observeOnly: truth.observeOnly,
+                            expectedFailure: scenario.expectedFailure,
+                            challengeClass: challengeClass,
+                            latencyMilliseconds: shadow.milliseconds
+                        )
+                    }
+                }
                 // Same rule as the regression suite: an expected-complete
                 // row below strong detectability is not a fair recall target.
                 if expected == "complete", verdict.detectability != .strong {
@@ -344,7 +405,7 @@ extension SyntheticRGBDMain {
                     expected: expected,
                     expectedFailure: scenario.expectedFailure,
                     verification: verdict,
-                    latencyMilliseconds: started.duration(to: .now).milliseconds
+                    latencyMilliseconds: verifierMilliseconds
                 ))
             }
         }
@@ -373,6 +434,16 @@ extension SyntheticRGBDMain {
             "seed": options.seed,
             "checked": symmetryChecked,
             "oracle_disagreements": symmetryDisagreements,
+        ]))
+        rows += placementRows
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "challenge_placement",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "generated_placement_rows": placementRows.count,
+            "judge_disagreements": judgeDisagreements,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
