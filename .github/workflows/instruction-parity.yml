@@ -139,6 +139,21 @@ jobs:
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate
+      # mlx-swift compiles .metal sources, and Xcode 27 ships the Metal
+      # compiler as a separately downloaded component.
+      - name: Ensure Metal Toolchain
+        run: |
+          if ! xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+      # The floor device (ADR 0012) is the test device. The runner image
+      # does not pre-create an iPhone 17 Pro, but Xcode 27 ships its device
+      # type, so create one when it is missing.
+      - name: Ensure iPhone 17 Pro simulator
+        run: |
+          if ! xcrun simctl list devices available | grep -q 'iPhone 17 Pro ('; then
+            xcrun simctl create 'iPhone 17 Pro' com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro
+          fi
       # UI tests run too: they force a device-floor verdict with a Debug-only
       # launch argument, because the Simulator has no LiDAR and would
       # otherwise only ever show the unsupported screen.
