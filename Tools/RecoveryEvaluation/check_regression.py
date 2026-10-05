@@ -36,9 +36,11 @@ from pathlib import Path
 from score_results import (
     CHALLENGE_KIND,
     PLACEMENT_KIND,
+    REPAIR_KIND,
     partition,
     score_challenge,
     score_placement,
+    score_repair,
     score_registration,
     score_verification,
 )
@@ -59,6 +61,8 @@ FAILURE_COUNT_LEAVES = {
     "expected_failure_false_complete_cases",
     "false_present_cases",
     "undetectable_false_present_cases",
+    "harmful_actions",
+    "direction_disagreement_cases",
 }
 
 
@@ -115,6 +119,8 @@ def measure(path: Path) -> dict[str, float]:
         report["challenge"] = score_challenge(kinds[CHALLENGE_KIND])
     if kinds[PLACEMENT_KIND]:
         report["placement"], _ = score_placement(kinds[PLACEMENT_KIND])
+    if kinds[REPAIR_KIND]:
+        report["repair_plan"], _ = score_repair(kinds[REPAIR_KIND])
     return flatten(report)
 
 

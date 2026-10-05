@@ -13,6 +13,7 @@
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
 		07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */; };
 		080E5FE0E65857D82A734117 /* VLMStepCheckServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */; };
+		0B71252BF557DE0600EB2D47 /* RepairDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E4F225F65FE3333B524877 /* RepairDomain.swift */; };
 		0C942BD7361D1F3B543F4367 /* PhotoCheckController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */; };
@@ -31,6 +32,7 @@
 		2C7628A53E2FBBBFBA76F85D /* SegmentedGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0B75DC6220349A5907258E /* SegmentedGeometry.swift */; };
 		2C805B31F620F8B53C9A693D /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */; };
 		2C9A30B4610F957904A1AF69 /* StepJudging.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */; };
+		2D3348938B0DEB81054DC9F1 /* CameraRelativeDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */; };
 		308A21E669DBA3515C7AEFCA /* LDConfigPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */; };
 		334D9608F8A63775657C8FA6 /* PlacementGeometryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E44DAFAB62FF105D6736AE9 /* PlacementGeometryIndex.swift */; };
 		35F42195554DFE4534FEA1C3 /* ModelDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789BB736F6B7F975CF21E99B /* ModelDelivery.swift */; };
@@ -63,6 +65,7 @@
 		59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */; };
 		5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
+		60E27187389AA678D8117CC9 /* RepairDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E4F225F65FE3333B524877 /* RepairDomain.swift */; };
 		60E3AE1BCB993499ED297BBE /* ColourGridSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3175D0EDFCBB792D2FC940A /* ColourGridSampler.swift */; };
 		6192674283502FF2E52B9C6E /* VLMCheckRowWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71E30B52B3B135BA91DF026 /* VLMCheckRowWriterTests.swift */; };
 		61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6558CCE119E7CC26793BD65E /* LDrawInstructionParser.swift */; };
@@ -86,6 +89,7 @@
 		7EEFF12AB71991AD5E3DF969 /* InstructionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */; };
 		80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
+		829196A1BF915CC063472FF0 /* RepairPlanningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5BBE45F64B561B5F1CC030 /* RepairPlanningTests.swift */; };
 		84F184173E6E02B3A9F5A693 /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */; };
 		860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
 		866D9F7DAEA448A189819978 /* PhotoCheckControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCE4E27B457E2F0AF1BC8A4 /* PhotoCheckControllerTests.swift */; };
@@ -96,6 +100,7 @@
 		8BD7EBDF97F56EA8F4629B81 /* RealityKitInstructionAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61ECD3285AB0AC1AF4DC57B6 /* RealityKitInstructionAdapter.swift */; };
 		8C96E038DEFAE247B0024D6D /* VerificationWindowRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = E17A06C0572404D55640833C /* VerificationWindowRecording.swift */; };
 		8D82E81D5D251E5324886B92 /* RecoveryCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */; };
+		8E178F0FA0FD54AA6A5CB3E7 /* RepairPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868429598B01C6397EDFA9F1 /* RepairPlanner.swift */; };
 		9042BB8E470AE496D9790A38 /* RecoveryFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78947AB1247484BE398B4D2 /* RecoveryFlowView.swift */; };
 		90879D161883926A2B768D0B /* ColourGridSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4053022D550F95E882465C /* ColourGridSamplerTests.swift */; };
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
@@ -124,6 +129,7 @@
 		B7BE9DB6E235B31E72EFA2F2 /* PlacementGeometryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */; };
 		BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */; };
 		BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */; };
+		BDE61C7D88D0A67DC4DC646F /* CameraRelativeDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */; };
 		C0D8501EDD9AA5F89533D70B /* MemoryGovernor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9785F3F83F1C9D08C4FE106F /* MemoryGovernor.swift */; };
 		C15523B38D9128BAE05738E3 /* PlacementGeometryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */; };
 		C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */; };
@@ -151,9 +157,11 @@
 		EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
 		EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */; };
 		F337E5A20E425B5F18DC3758 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
+		F55E19809F6164C82D80F3B0 /* RepairSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */; };
 		F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
 		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
+		F7157EC1FC7E871C6D0E1F80 /* RepairPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868429598B01C6397EDFA9F1 /* RepairPlanner.swift */; };
 		F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
 		F9CD6433176BD57E93572C24 /* VerificationEvidenceReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8B905DF3AD288BE68260A /* VerificationEvidenceReplay.swift */; };
 		FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */; };
@@ -215,6 +223,8 @@
 		58F794530C71D1434800ED17 /* VerificationWindowBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationWindowBufferTests.swift; sourceTree = "<group>"; };
 		59AADE68549F7806130D18F6 /* VerificationWindowBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationWindowBuffer.swift; sourceTree = "<group>"; };
 		5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LDRAW_ATTRIBUTION.txt; sourceTree = "<group>"; };
+		5C5BBE45F64B561B5F1CC030 /* RepairPlanningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPlanningTests.swift; sourceTree = "<group>"; };
+		5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRelativeDirection.swift; sourceTree = "<group>"; };
 		5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceArmSchedulerTests.swift; sourceTree = "<group>"; };
 		5E5EA1EFFD9AB9F835837462 /* WindowReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowReplay.swift; sourceTree = "<group>"; };
 		5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureTests.swift; sourceTree = "<group>"; };
@@ -235,6 +245,7 @@
 		7D75275F92B067A38B70821C /* BuildDiffDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDiffDomain.swift; sourceTree = "<group>"; };
 		7F0B75DC6220349A5907258E /* SegmentedGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedGeometry.swift; sourceTree = "<group>"; };
 		85778E2B3323B8DD913494D2 /* DeviceFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloor.swift; sourceTree = "<group>"; };
+		868429598B01C6397EDFA9F1 /* RepairPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPlanner.swift; sourceTree = "<group>"; };
 		89E271521248A9118A672048 /* PartSymmetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartSymmetry.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
 		8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepVerificationControllerTests.swift; sourceTree = "<group>"; };
@@ -271,6 +282,7 @@
 		CEC21ADD1BD63D6B5FC14519 /* MemoryGovernorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryGovernorTests.swift; sourceTree = "<group>"; };
 		CFDFEAA35B987423737DBB14 /* GeometricStepVerifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifierTests.swift; sourceTree = "<group>"; };
 		D0B8B905DF3AD288BE68260A /* VerificationEvidenceReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationEvidenceReplay.swift; sourceTree = "<group>"; };
+		D1E4F225F65FE3333B524877 /* RepairDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairDomain.swift; sourceTree = "<group>"; };
 		D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngine.swift; sourceTree = "<group>"; };
 		D274255AB95722CBD03B8747 /* DepthICPTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthICPTracker.swift; sourceTree = "<group>"; };
 		D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedFixtureSetupView.swift; sourceTree = "<group>"; };
@@ -297,6 +309,7 @@
 		F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F55F8DA3400964CC35D8EB2A /* SyntheticRGBD */ = {isa = PBXFileReference; includeInIndex = 0; path = SyntheticRGBD; sourceTree = BUILT_PRODUCTS_DIR; };
 		F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedGeometryTests.swift; sourceTree = "<group>"; };
+		F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairSuite.swift; sourceTree = "<group>"; };
 		F61283C0C4E15D404920ED28 /* PartDescriptionIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartDescriptionIndex.swift; sourceTree = "<group>"; };
 		F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriterTests.swift; sourceTree = "<group>"; };
 		F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderOrderCheck.swift; sourceTree = "<group>"; };
@@ -373,6 +386,7 @@
 				012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */,
 				776DE075F6358E0E28C47B06 /* RecoveryIndexingTests.swift */,
 				B18C9BE053B07AB788E2FEF5 /* RecoveryModelManagerTests.swift */,
+				5C5BBE45F64B561B5F1CC030 /* RepairPlanningTests.swift */,
 				F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */,
 				8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */,
 				9A84BA4D548E212777156661 /* StorageLayoutTests.swift */,
@@ -406,11 +420,22 @@
 			path = Bricky/Resources;
 			sourceTree = "<group>";
 		};
+		2D593164C02287B18E01D81C /* Repair */ = {
+			isa = PBXGroup;
+			children = (
+				5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */,
+				868429598B01C6397EDFA9F1 /* RepairPlanner.swift */,
+			);
+			name = Repair;
+			path = Bricky/Services/Repair;
+			sourceTree = "<group>";
+		};
 		33AC7A23F6AE57327503A64F /* SyntheticScenes */ = {
 			isa = PBXGroup;
 			children = (
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
+				F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
 				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
 				5E5EA1EFFD9AB9F835837462 /* WindowReplay.swift */,
@@ -478,6 +503,7 @@
 				4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */,
 				F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */,
 				E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */,
+				D1E4F225F65FE3333B524877 /* RepairDomain.swift */,
 				0A0119F360F3125105431438 /* VerificationDomain.swift */,
 				D0B8B905DF3AD288BE68260A /* VerificationEvidenceReplay.swift */,
 			);
@@ -545,6 +571,7 @@
 				D05A08833F588BE4C04EDA26 /* Recovery */,
 				6CD926353DB9E5DCEB2EFFAD /* Recovery */,
 				C7CAB5BF237424B3A36BA439 /* Registration */,
+				2D593164C02287B18E01D81C /* Repair */,
 				26787D44DD3F39F7B58C162B /* Resources */,
 				33AC7A23F6AE57327503A64F /* SyntheticScenes */,
 				40DBE0A4D719F739D424DC15 /* Verification */,
@@ -776,6 +803,7 @@
 			files = (
 				72B2AEF320E6138077EAF215 /* BuildDiffDomain.swift in Sources */,
 				73215EA20824B399957536D3 /* BuildDiffEngine.swift in Sources */,
+				BDE61C7D88D0A67DC4DC646F /* CameraRelativeDirection.swift in Sources */,
 				80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */,
 				C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */,
 				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
@@ -795,6 +823,9 @@
 				66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */,
 				A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */,
 				133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */,
+				60E27187389AA678D8117CC9 /* RepairDomain.swift in Sources */,
+				8E178F0FA0FD54AA6A5CB3E7 /* RepairPlanner.swift in Sources */,
+				F55E19809F6164C82D80F3B0 /* RepairSuite.swift in Sources */,
 				2C7628A53E2FBBBFBA76F85D /* SegmentedGeometry.swift in Sources */,
 				2C9A30B4610F957904A1AF69 /* StepJudging.swift in Sources */,
 				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
@@ -839,6 +870,7 @@
 				1C89B284020DCD3BF8032315 /* RecoveryEvidenceSweepTests.swift in Sources */,
 				B49CC48F89DA0262835F243D /* RecoveryIndexingTests.swift in Sources */,
 				52AD18E186BA2BE6925A9CDC /* RecoveryModelManagerTests.swift in Sources */,
+				829196A1BF915CC063472FF0 /* RepairPlanningTests.swift in Sources */,
 				3EA3E6B538AB252790E57BEB /* SegmentedGeometryTests.swift in Sources */,
 				37A85FEF359A09F1AD6BCCDB /* StepVerificationControllerTests.swift in Sources */,
 				773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */,
@@ -864,6 +896,7 @@
 				36B26653555AD081A54BC8E9 /* BuildDiffDomain.swift in Sources */,
 				796305B1AAA9297D24D21A9A /* BuildDiffEngine.swift in Sources */,
 				FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */,
+				2D3348938B0DEB81054DC9F1 /* CameraRelativeDirection.swift in Sources */,
 				F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */,
 				E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */,
 				59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */,
@@ -915,6 +948,8 @@
 				4306F6AD9E09726F6969B388 /* RegistrationController.swift in Sources */,
 				596E5F7E6AE9925BC8BDC8B5 /* RegistrationDomain.swift in Sources */,
 				DB4BC1602860E165B1DD47F6 /* RegistrationFrameRelay.swift in Sources */,
+				0B71252BF557DE0600EB2D47 /* RepairDomain.swift in Sources */,
+				F7157EC1FC7E871C6D0E1F80 /* RepairPlanner.swift in Sources */,
 				586EB1012DD6375874E0FE0D /* SegmentedGeometry.swift in Sources */,
 				69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */,
 				27307B0BB50EAE558ED586F6 /* StagedVerificationSetupView.swift in Sources */,

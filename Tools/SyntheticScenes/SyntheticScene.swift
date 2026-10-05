@@ -269,6 +269,25 @@ struct SyntheticScene {
 
     /// Two oblique views on opposite sides, the product's actual geometry:
     /// the user moves, and each view constrains the directions it can see.
+    /// An oblique view from `azimuthDegrees` around the build (0 = from +z,
+    /// 90 = from +x), at the regression views' elevation and distance.
+    func obliquePose(azimuthDegrees: Float) -> simd_float4x4 {
+        let radians = azimuthDegrees * .pi / 180
+        let reach = viewDistance * 1.35
+        return lookAt(
+            eye: SIMD3(boundsCenter.x + reach * sin(radians), viewDistance * 0.85, boundsCenter.z + reach * cos(radians)),
+            target: boundsCenter
+        )
+    }
+
+    /// Nearly straight down onto the build.
+    var overheadPose: simd_float4x4 {
+        lookAt(
+            eye: SIMD3(boundsCenter.x, boundsCenter.y + viewDistance, boundsCenter.z + viewDistance * 0.01),
+            target: boundsCenter
+        )
+    }
+
     var viewPoses: [simd_float4x4] {
         let center = boundsCenter
         let distance = viewDistance
@@ -295,11 +314,7 @@ struct SyntheticScene {
         _ rhs: InstructionGeometrySnapshot,
         tolerance: Float = 0.0005
     ) throws -> Bool {
-        let overhead = lookAt(
-            eye: SIMD3(boundsCenter.x, boundsCenter.y + viewDistance, boundsCenter.z + viewDistance * 0.01),
-            target: boundsCenter
-        )
-        for pose in viewPoses + [overhead] {
+        for pose in viewPoses + [overheadPose] {
             let maps = try [lhs, rhs].map { snapshot in
                 try renderer.render(
                     snapshot: snapshot,
@@ -452,7 +467,8 @@ struct SyntheticScene {
         delta: InstructionGeometrySnapshot,
         physical: InstructionGeometrySnapshot,
         sensor: SensorModel,
-        shadow: (judge: BuildDiffEngine, geometry: StepGeometry)?
+        shadow: (judge: BuildDiffEngine, geometry: StepGeometry)?,
+        view: simd_float4x4? = nil
     ) async throws -> (verification: StepVerification, shadow: ShadowResult?) {
         var sensor = sensor
         let verifier = try GeometricStepVerifier(renderer: renderer)
@@ -469,7 +485,7 @@ struct SyntheticScene {
             timestamp: 0
         )
         var last: StepVerification?
-        let view = viewPoses[0]
+        let view = view ?? viewPoses[0]
         for index in 0..<10 {
             let frame = try frame(
                 of: physical,

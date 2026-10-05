@@ -280,6 +280,14 @@ final class GeometricStepVerifierTests: XCTestCase {
         }
     }
 
+    func testVerificationCarriesPoses() async throws {
+        for judge in judges {
+            let verification = try await runVerifier(judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer()])
+            XCTAssertEqual(verification.worldFromCamera, worldFromCamera, judge.name)
+            XCTAssertEqual(verification.worldFromModel, matrix_identity_float4x4, judge.name)
+        }
+    }
+
     func testThinEvidenceStaysUncertainAndNeverComplete() async throws {
         // Two frames are below the evidence budget even with a perfect scene.
         for judge in judges {

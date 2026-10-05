@@ -129,13 +129,13 @@ actor GeometricStepVerifier {
             let reason: UncertainReason = registration.state == .ambiguous
                 ? .poseAmbiguous
                 : .registrationNotLocked
-            return (assessment(verdict: .uncertain(reason), registration: registration, timestamp: frame.timestamp), nil)
+            return (assessment(verdict: .uncertain(reason), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         guard let completedGeometry, let deltaGeometry else {
             return (assessment(
                 verdict: .uncertain(.insufficientEvidence),
                 registration: registration,
-                timestamp: frame.timestamp
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
             ), nil)
         }
 
@@ -162,7 +162,7 @@ actor GeometricStepVerifier {
             height: frame.height
         )
         guard generation == evidenceGeneration else {
-            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp), nil)
+            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         let completedMap = baseMaps[0]
         let deltaMap = baseMaps[1]
@@ -186,7 +186,7 @@ actor GeometricStepVerifier {
             return (assessment(
                 verdict: .uncertain(.occludedView),
                 registration: registration,
-                timestamp: frame.timestamp
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
             ), nil)
         }
 
@@ -197,7 +197,7 @@ actor GeometricStepVerifier {
             return (assessment(
                 verdict: .uncertain(.deltaUndetectable),
                 registration: registration,
-                timestamp: frame.timestamp
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
             ), nil)
         }
         lastDetectability = medianChange >= configuration.strongMedianDelta
@@ -254,7 +254,7 @@ actor GeometricStepVerifier {
         // `begin` already discarded them, so only the lattice votes need
         // guarding here.
         guard generation == evidenceGeneration else {
-            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp), nil)
+            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         for (slot, alternativeMap) in alternativeMaps.enumerated() {
             for index in deltaMap.depth.indices
@@ -293,7 +293,7 @@ actor GeometricStepVerifier {
             viewFromModel: viewFromModel, completed: completedMap, delta: deltaMap,
             observedDepth: observed, observedConfidence: observedConfidence
         )
-        return (assessment(verdict: verdict(), registration: registration, timestamp: frame.timestamp), maps)
+        return (assessment(verdict: verdict(), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), maps)
     }
 
     private func verdict() -> StepVerdict {
@@ -351,7 +351,8 @@ actor GeometricStepVerifier {
     private func assessment(
         verdict: StepVerdict,
         registration: ModelRegistration,
-        timestamp: TimeInterval
+        timestamp: TimeInterval,
+        camera: simd_float4x4
     ) -> StepVerification {
         StepVerification(
             stepID: stepID,
@@ -362,7 +363,9 @@ actor GeometricStepVerifier {
             completeFraction: classifiedVotes > 0 ? Float(completeVotes) / Float(classifiedVotes) : 0,
             incompleteFraction: classifiedVotes > 0 ? Float(incompleteVotes) / Float(classifiedVotes) : 0,
             registrationQuality: registration.quality,
-            timestamp: timestamp
+            timestamp: timestamp,
+            worldFromModel: registration.worldFromModel,
+            worldFromCamera: camera
         )
     }
 }

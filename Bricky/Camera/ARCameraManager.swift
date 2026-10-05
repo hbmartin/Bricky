@@ -141,10 +141,21 @@ final class ARCameraManager: NSObject, ObservableObject {
         )
     }
 
-    private static func currentInterfaceOrientation() -> UIInterfaceOrientation {
+    static func currentInterfaceOrientation() -> UIInterfaceOrientation {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
         return scene?.interfaceOrientation ?? .portrait
+    }
+
+    /// The screen's rotation against the camera sensor, for repair wording
+    /// that says which way to move a part from where the user stands.
+    static func screenRotation() -> ScreenRotation {
+        switch currentInterfaceOrientation() {
+        case .landscapeRight: .landscapeRight
+        case .landscapeLeft: .landscapeLeft
+        case .portraitUpsideDown: .portraitUpsideDown
+        default: .portrait
+        }
     }
 
     private func configureSession() {

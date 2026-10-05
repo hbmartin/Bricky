@@ -29,6 +29,7 @@ from score_results import (
     validate_triad_release,
     score_challenge,
     score_placement,
+    score_repair,
 )
 
 RELEASE_ROWS = 60
@@ -302,6 +303,36 @@ class PlacementScoringTests(unittest.TestCase):
         code, output = MainTests.run_main([placement_row("absent", "present"), placement_row("absent", "absent")])
         self.assertEqual(code, 0)
         self.assertIn("PLACEMENT_FALSE_PRESENT 0.5000 (1/2 negatives", output)
+
+
+def repair_row(harmful: int = 0, **extra: object) -> dict[str, object]:
+    row: dict[str, object] = {"kind": "repair_plan", "schema_version": 1, "provenance": "synthetic",
+                              "fixture_id": "r", "harmful_actions": harmful,
+                              "expected_actions": [{"action": "move", "placement": 1, "offset": [-1, 0]}],
+                              "produced_actions": [{"action": "move", "placement": 1, "offset": [-1, 0]}],
+                              "expected_direction": "your_left", "produced_direction": "your_left"}
+    row.update(extra)
+    return row
+
+
+class RepairScoringTests(unittest.TestCase):
+    def test_repair_plan_harmful_fails(self) -> None:
+        code, output = MainTests.run_main([repair_row(), repair_row(harmful=1)])
+        self.assertEqual(code, 1, "a harmful action fails even an informational run")
+        self.assertIn("REPAIR_HARMFUL_ACTIONS 1", output)
+
+    def test_clean_repairs_pass_and_report_direction(self) -> None:
+        rows = [repair_row(), repair_row(produced_direction="your_right"), repair_row(produced_direction="none")]
+        report, gates = score_repair(rows)
+        self.assertEqual(report["directed_cases"], 2)
+        self.assertEqual(report["direction_disagreement_cases"], 1)
+        self.assertEqual(report["plans_matching"], 3)
+        self.assertFalse(gates[0].fails(release=True))
+
+    def test_repair_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main([repair_row()], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
 
 
 class ChallengeScoringTests(unittest.TestCase):

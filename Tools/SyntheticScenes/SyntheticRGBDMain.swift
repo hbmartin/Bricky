@@ -46,6 +46,8 @@ struct SyntheticRGBDMain {
         case regression
         /// Mistake classes the taxonomy lacks, on every single-part step.
         case challenge
+        /// Repair plans and their camera-relative wording (M2.4).
+        case repair
     }
 
     struct Options {
@@ -67,7 +69,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -159,6 +161,10 @@ struct SyntheticRGBDMain {
             try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
                 .write(toFile: options.outPath, atomically: true, encoding: .utf8)
             print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.matches) match the device verdict; \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
+            return
+        }
+        if options.suite == .repair {
+            try await runRepair(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
             return
         }
         if options.suite == .challenge {

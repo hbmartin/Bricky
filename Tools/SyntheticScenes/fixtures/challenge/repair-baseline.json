@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "Regression baseline for the repair suite (SyntheticRGBD --suite repair,",
+    "fixture challenge.ldr, seed 7), checked by check_regression.py.",
+    "Each sampled step is built one stud off in four directions, judged from",
+    "a diagonal, a front, a side and an overhead view, and the planner's",
+    "repair is worded under all four screen rotations (M2.4).",
+    "harmful_actions must stay 0: an action that does not exactly undo the",
+    "shift would make the build worse. Direction disagreements with the",
+    "independent image-space projection are guarded lower_is_better.",
+    "Rows worded 'none' sit within 8 degrees of a sector boundary; the",
+    "diagonal regression view puts every stud-axis move there by design."
+  ],
+  "fixture": "fixtures/challenge/challenge.ldr",
+  "generated": "2026-10-05",
+  "metrics": {
+    "repair_plan.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 384.0
+    },
+    "repair_plan.directed_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 176.0
+    },
+    "repair_plan.direction_disagreement_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "repair_plan.harmful_actions": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "repair_plan.plans_produced": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 224.0
+    },
+    "synthetic_summary.repair.generated_repair_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 384.0
+    },
+    "synthetic_summary.repair.plans_produced": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 56.0
+    },
+    "synthetic_summary.repair.steps_sampled": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    }
+  },
+  "seed": 7
+}

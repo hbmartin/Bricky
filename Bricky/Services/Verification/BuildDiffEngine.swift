@@ -370,7 +370,9 @@ extension StepVerification {
             completeFraction: completeFraction,
             incompleteFraction: incompleteFraction,
             registrationQuality: registrationQuality,
-            timestamp: timestamp
+            timestamp: timestamp,
+            worldFromModel: worldFromModel,
+            worldFromCamera: worldFromCamera
         )
     }
 }

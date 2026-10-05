@@ -63,6 +63,9 @@ VLM_CHECK_KIND = "vlm_check"
 PLACEMENT_KIND = "placement"
 PLACEMENT_STATES = {"present", "absent", "displaced", "rotated", "colour_mismatch", "not_observable"}
 PLACEMENT_FALSE_PRESENT_CEILING = 0.02
+# Synthetic repair plans (M2.4): deterministic actions from a verdict. A
+# harmful action (one that would make the build worse) must never happen.
+REPAIR_KIND = "repair_plan"
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -919,6 +922,30 @@ def score_placement(rows: list[dict[str, object]]) -> tuple[dict[str, object], l
     return report, [gate]
 
 
+def score_repair(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    for index, row in enumerate(rows, start=1):
+        missing = sorted({"fixture_id", "harmful_actions", "expected_actions", "produced_actions"} - row.keys())
+        if missing:
+            raise SystemExit(f"repair_plan row {index} missing fields: {', '.join(missing)}")
+        if not is_exact_int(row["harmful_actions"]) or row["harmful_actions"] < 0:
+            raise SystemExit(f"repair_plan row {index} harmful_actions must be a non-negative integer")
+    harmful = sum(row["harmful_actions"] for row in rows)
+    directed = [row for row in rows if row.get("produced_direction") not in (None, "none")
+                and row.get("expected_direction") not in (None, "none")]
+    agreeing = sum(row["produced_direction"] == row["expected_direction"] for row in directed)
+    gate = count_gate("repair_plan.harmful_actions", harmful, 0, trials=len(rows))
+    report = {
+        "cases": len(rows),
+        "plans_produced": sum(bool(row["produced_actions"]) for row in rows),
+        "plans_matching": sum(row["produced_actions"] == row["expected_actions"] for row in rows if row["produced_actions"]),
+        "harmful_actions": harmful,
+        "directed_cases": len(directed),
+        "direction_disagreement_cases": len(directed) - agreeing,
+        "direction_agreement": agreeing / len(directed) if directed else None,
+    }
+    return report, [gate]
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -932,7 +959,7 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
-        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND)
+        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND)
     }
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
@@ -1041,6 +1068,8 @@ def main(
             validate_vlm_check_release(kinds[VLM_CHECK_KIND])
         if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_KIND]):
             raise SystemExit(f"{PLACEMENT_KIND} rows other than device rows are not release evidence")
+        if kinds[REPAIR_KIND]:
+            raise SystemExit(f"{REPAIR_KIND} rows are synthetic and are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -1064,6 +1093,9 @@ def main(
     placement_gates: list[Gate] = []
     if kinds[PLACEMENT_KIND]:
         report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
+    repair_gates: list[Gate] = []
+    if kinds[REPAIR_KIND]:
+        report[REPAIR_KIND], repair_gates = score_repair(kinds[REPAIR_KIND])
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -1096,11 +1128,21 @@ def main(
             placement["gates"] = {gate.name: gate.summary(release=release)}
             if failed_placement:
                 print("(informational until real verification windows exist; never fails the run)")
+    if REPAIR_KIND in report:
+        repair = report[REPAIR_KIND]
+        print(
+            f"REPAIR_HARMFUL_ACTIONS {repair['harmful_actions']} ({repair['cases']} cases, "
+            f"{repair['plans_produced']} plans, direction agreement {format_number(repair['direction_agreement'])})"
+        )
     if CHALLENGE_KIND in report:
         for line in challenge_lines(report[CHALLENGE_KIND]):
             print(line)
 
-    failed = False
+    # A harmful repair action fails the run in either mode: it would make a
+    # build worse, which no corpus size excuses.
+    failed = any(gate.fails(release=True) for gate in repair_gates)
+    for gate in repair_gates:
+        print(f"GATE {gate.name} {gate.status(release=True)} value={format_number(gate.value)} n={gate.trials} threshold<={gate.threshold:g}")
     for kind in KINDS:
         if not kinds[kind]:
             required = kind in require_kinds
