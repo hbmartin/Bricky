@@ -360,6 +360,9 @@ public actor MLXRecoveryRuntime {
                     vocabSize: values.cache.tokenizer.vocabSize,
                     feeding: feeding,
                     uniqueSlotLetters: values.uniqueSlotLetters,
+                    slotLetterTokens: values.uniqueSlotLetters == nil
+                        ? [:]
+                        : values.cache.slotLetterTokens(hostTokenizer: context.tokenizer),
                     emit: emit
                 )
                 // Same trace semantics as the upstream path below: an
@@ -520,9 +523,27 @@ private final class GrammarCache: @unchecked Sendable {
     let tokenizer: GrammarTokenizer
     private let checkSchema: String
 
+    private let letterLock = NSLock()
+    private var letterIndex: [Character: [Int]]?
+
     init(tokenizer: GrammarTokenizer, checkSchema: String) {
         self.tokenizer = tokenizer
         self.checkSchema = checkSchema
+    }
+
+    /// The unique-slots variant's per-letter token index, built on first
+    /// use: one decode per vocabulary entry, so baseline calls never pay.
+    func slotLetterTokens(hostTokenizer: any MLXLMCommon.Tokenizer) -> [Character: [Int]] {
+        letterLock.lock()
+        defer { letterLock.unlock() }
+        if let letterIndex { return letterIndex }
+        let index = SlotUniqueness.letterTokens(
+            vocabSize: tokenizer.vocabSize,
+            letters: Set(MLXRecoveryRuntime.rankSlotLetters.compactMap(\.first)),
+            text: { hostTokenizer.decode(tokenIds: [$0]) }
+        )
+        letterIndex = index
+        return index
     }
 
     func freshConstraint(

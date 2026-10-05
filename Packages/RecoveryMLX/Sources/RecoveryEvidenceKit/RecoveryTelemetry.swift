@@ -416,6 +416,21 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
 
     public static let baseline = RecoveryInferenceVariant()
 
+    /// A combination no call can honour.
+    public struct InvalidCombination: Error, Equatable, CustomStringConvertible {
+        public let description: String
+    }
+
+    /// Throws for combinations that would run but measure nothing. A
+    /// log-probability vote reads each view's slot distribution, which only
+    /// probe scoring produces; with generated calls no view votes, and every
+    /// session would quietly come out insufficient under this arm's id.
+    public func validate() throws {
+        if vote == .logprob, scoring != .probe {
+            throw InvalidCombination(description: "vote=logprob needs scoring=probe: generated calls carry no slot probabilities")
+        }
+    }
+
     public var id: String {
         var parts: [String] = []
         if decode != .legacy { parts.append("decode=\(decode.rawValue)") }
@@ -456,10 +471,15 @@ public struct AdmissionSnapshot: Codable, Sendable, Equatable {
     public var warmUpMilliseconds: Int?
     /// Lifetime footprint peak after the warm-up inference.
     public var warmUpPeakBytes: Int64?
+    /// Lifetime footprint peak just before the load. The peak never resets,
+    /// so an earlier load or AR spike can already sit above what loading
+    /// this model reaches.
+    public var lifetimePeakBeforeLoadBytes: Int64?
 
     public init(
         floorBytes: Int64, availableBytesAtCheck: Int64? = nil, footprintBeforeLoadBytes: Int64? = nil,
-        loadMilliseconds: Int? = nil, warmUpMilliseconds: Int? = nil, warmUpPeakBytes: Int64? = nil
+        loadMilliseconds: Int? = nil, warmUpMilliseconds: Int? = nil, warmUpPeakBytes: Int64? = nil,
+        lifetimePeakBeforeLoadBytes: Int64? = nil
     ) {
         self.floorBytes = floorBytes
         self.availableBytesAtCheck = availableBytesAtCheck
@@ -467,6 +487,24 @@ public struct AdmissionSnapshot: Codable, Sendable, Equatable {
         self.loadMilliseconds = loadMilliseconds
         self.warmUpMilliseconds = warmUpMilliseconds
         self.warmUpPeakBytes = warmUpPeakBytes
+        self.lifetimePeakBeforeLoadBytes = lifetimePeakBeforeLoadBytes
+    }
+
+    /// What the load and warm-up added at their peak: the warm-up peak less
+    /// the footprint before load (ADR 0003). Nil when the run cannot say,
+    /// because the process had already peaked at least as high before the
+    /// load, so the lifetime peak after warm-up is not this model's.
+    public var modelPeakCostBytes: Int64? {
+        guard let peak = warmUpPeakBytes, let before = footprintBeforeLoadBytes,
+              let peakBefore = lifetimePeakBeforeLoadBytes, peak > peakBefore else { return nil }
+        return peak - before
+    }
+
+    /// True when the inputs were recorded but an earlier peak hides the
+    /// model's: profile again in a fresh process.
+    public var isPeakMasked: Bool {
+        warmUpPeakBytes != nil && footprintBeforeLoadBytes != nil
+            && lifetimePeakBeforeLoadBytes != nil && modelPeakCostBytes == nil
     }
 
     enum CodingKeys: String, CodingKey {
@@ -476,6 +514,7 @@ public struct AdmissionSnapshot: Codable, Sendable, Equatable {
         case loadMilliseconds = "load_ms"
         case warmUpMilliseconds = "warm_up_ms"
         case warmUpPeakBytes = "warm_up_peak_bytes"
+        case lifetimePeakBeforeLoadBytes = "lifetime_peak_before_load_bytes"
     }
 }
 

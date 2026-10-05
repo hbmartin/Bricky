@@ -89,4 +89,19 @@ public enum ReplayAggregation {
         /// Only the finalist calls, when the earlier passes were not replayed.
         case finalistsOnly = "inference_finalists_only"
     }
+
+    /// What a session's replay ran: the summed latency and the number of
+    /// calls behind it, kept together so a row's `vlm_calls` always counts
+    /// the calls its `latency_ms` adds up.
+    public struct CallTally: Sendable, Equatable {
+        public private(set) var latencyMilliseconds = 0
+        public private(set) var calls = 0
+
+        public init() {}
+
+        public mutating func add(latencyMilliseconds: Int) {
+            self.latencyMilliseconds += latencyMilliseconds
+            calls += 1
+        }
+    }
 }

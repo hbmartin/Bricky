@@ -63,6 +63,12 @@ final class LogProbabilityVoteTests: XCTestCase {
         XCTAssertEqual(split.certainty, .low)
     }
 
+    func testLogProbabilityVoteNeedsProbeScoring() throws {
+        XCTAssertThrowsError(try RecoveryInferenceVariant(vote: .logprob).validate())
+        XCTAssertNoThrow(try RecoveryInferenceVariant(vote: .logprob, scoring: .probe).validate())
+        XCTAssertNoThrow(try RecoveryInferenceVariant.baseline.validate())
+    }
+
     func testViewsWithoutProbabilitiesDoNotVote() {
         let unscored = RecoveryVoteView(ranking: ["A"], candidateForSlot: slots)
         XCTAssertNil(RecoveryVote.aggregate(views: [unscored, view(["A": 1])], finalists: finalists, rule: .logprob))

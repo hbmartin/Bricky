@@ -90,6 +90,22 @@ final class BuildSessionControllerTests: XCTestCase {
         XCTAssertEqual(model.currentStepIndex, 3, "clamped to the plan")
     }
 
+    func testConfirmAfterBrowsingBackKeepsProgress() throws {
+        let session = try openedSession(completed: 2)
+        model.confirmedLastCompletedStepID = plan.steps[1].id
+        session.browse(by: -2)
+        XCTAssertEqual(session.cursorStep?.id, plan.steps[0].id)
+        session.confirm(plan.steps[0], source: .guide)
+        XCTAssertEqual(model.currentStepIndex, 2, "confirming an earlier step must not rewind progress")
+        XCTAssertEqual(model.confirmedLastCompletedStepID, plan.steps[1].id)
+        XCTAssertEqual(session.cursorIndex, 1, "Next on a browsed-back step browses forward")
+        session.confirm(plan.steps[1], source: .guide)
+        XCTAssertEqual(model.currentStepIndex, 2)
+        XCTAssertEqual(session.cursorIndex, 2, "back at the frontier")
+        session.confirm(plan.steps[2], source: .guide)
+        XCTAssertEqual(model.currentStepIndex, 3, "the frontier step still advances")
+    }
+
     func testBrowsingNeverSaves() throws {
         let session = try openedSession(completed: 1)
         session.browse(by: 1)

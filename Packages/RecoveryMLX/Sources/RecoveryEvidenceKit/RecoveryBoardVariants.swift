@@ -92,6 +92,26 @@ public enum RecoveryPrompts {
         guard layout == .v2 else { return baselineCheck }
         return "The left image is the physical build. Candidate A, on the right, is the cumulative authored target for this step. Decide complete, incomplete, or uncertain. Do not diagnose individual missing parts."
     }
+
+    /// The rank prompt a replay sends. The recorded prompt (or an explicit
+    /// override) replays unchanged unless the variant restyles it. An
+    /// explicit style flag always regenerates, even `baseline`; a variant's
+    /// non-baseline style regenerates too, so a style named only in
+    /// `--variant` JSON is what the model actually sees.
+    public static func replayRank(
+        recorded: String, override: String?, explicitStyle: PromptStyle?,
+        variant: RecoveryInferenceVariant, slotCount: Int
+    ) -> String {
+        guard explicitStyle != nil || variant.promptStyle != .baseline else { return override ?? recorded }
+        return rank(slotCount: slotCount, style: variant.promptStyle)
+    }
+
+    /// The check prompt a replay sends: as `replayRank`, and a board layout
+    /// other than V1 always needs its own wording.
+    public static func replayCheck(recorded: String, explicitStyle: PromptStyle?, variant: RecoveryInferenceVariant) -> String {
+        guard explicitStyle != nil || variant.promptStyle != .baseline || variant.boardLayout != .v1 else { return recorded }
+        return check(style: variant.promptStyle, layout: variant.boardLayout)
+    }
 }
 
 /// The second board layout. V1 stays untouched so its evidence replays

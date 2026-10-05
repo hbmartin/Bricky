@@ -20,13 +20,39 @@ public enum SlotUniqueness {
         Set(text.filter { allowed.contains($0) })
     }
 
-    /// Legal tokens to mask because their text names an already-emitted
-    /// letter. The grammar's `maxItems` equals the slot count, so once every
-    /// letter is used it requires `]`: a legal letter always remains while
-    /// one is needed.
-    public static func blockedTokens(legal: [Int], text: (Int) -> String, emitted: Set<Character>, allowed: Set<Character>) -> [Int] {
+    /// Every token whose text names a slot letter, by letter. Built once per
+    /// tokenizer and masked from whole. Masking from the readout's legal
+    /// list stopped exactly where it mattered: after `[` or `,`, whitespace
+    /// runs push the legal set past `readoutLegalLimit`, while merged
+    /// quote+letter tokens stay legal.
+    public static func letterTokens(vocabSize: Int, letters: Set<Character>, text: (Int) -> String) -> [Character: [Int]] {
+        var index: [Character: [Int]] = [:]
+        for id in 0..<vocabSize {
+            for letter in slotLetters(in: text(id), allowed: letters) {
+                index[letter, default: []].append(id)
+            }
+        }
+        return index
+    }
+
+    /// Tokens to mask because their text names an already-emitted letter.
+    /// Masking a token the grammar already forbids changes nothing, so no
+    /// legal set is needed. The grammar's `maxItems` equals the slot count,
+    /// so once every letter is used it requires `]`: a legal letter always
+    /// remains while one is needed.
+    public static func blockedTokens(index: [Character: [Int]], emitted: Set<Character>) -> [Int] {
         guard !emitted.isEmpty else { return [] }
-        return legal.filter { !slotLetters(in: text($0), allowed: allowed).isDisjoint(with: emitted) }
+        return Set(emitted.flatMap { index[$0] ?? [] }).sorted()
+    }
+
+    /// How many of `blocked` the grammar allowed at this position: the
+    /// repeats the mask actually prevented.
+    public static func legalCount(_ blocked: [Int], mask: [Int32]) -> Int {
+        blocked.reduce(0) { count, id in
+            let word = id / 32
+            guard word < mask.count else { return count }
+            return count + Int((UInt32(bitPattern: mask[word]) >> UInt32(id % 32)) & 1)
+        }
     }
 }
 
@@ -56,6 +82,7 @@ enum RecoveryGuidedDecoder {
         vocabSize: Int,
         feeding: DecodeFeeding,
         uniqueSlotLetters: Set<Character>? = nil,
+        slotLetterTokens: [Character: [Int]] = [:],
         recordReadouts: Bool = true,
         emit: (String) -> Bool
     ) throws -> Result {
@@ -122,19 +149,17 @@ enum RecoveryGuidedDecoder {
                 cacheHeldEveryEmittedToken = false
                 assert(feeding != .feedAll, "feed_all left an emitted token out of the KV cache")
             }
-            let legal = (recordReadouts || uniqueSlotLetters != nil) && mask.needsApply
+            let legal = recordReadouts && mask.needsApply
                 ? DecisionReadout.legalTokens(mask: mask.mask, vocabSize: vocabSize, limit: readoutLegalLimit)
                 : nil
             var sampleMask = maskArray
-            if let allowed = uniqueSlotLetters, let legal {
-                let blocked = SlotUniqueness.blockedTokens(
-                    legal: legal, text: { context.tokenizer.decode(tokenIds: [$0]) }, emitted: emittedSlots, allowed: allowed
-                )
-                if !blocked.isEmpty, let base = maskArray {
+            if uniqueSlotLetters != nil, mask.needsApply, let base = maskArray {
+                let blocked = SlotUniqueness.blockedTokens(index: slotLetterTokens, emitted: emittedSlots)
+                if !blocked.isEmpty {
                     var penalty = [Float](repeating: 0, count: logitDim)
                     for id in blocked where id < logitDim { penalty[id] = -Float.infinity }
                     sampleMask = base + MLXArray(penalty)
-                    maskedRepeatSlots += blocked.count
+                    maskedRepeatSlots += SlotUniqueness.legalCount(blocked, mask: mask.mask)
                 }
             }
             let token = applyMaskAndSample(logits: logits, maskArray: sampleMask)

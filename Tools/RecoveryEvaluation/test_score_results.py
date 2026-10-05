@@ -296,6 +296,14 @@ class ChallengeScoringTests(unittest.TestCase):
         self.assertIn("CHALLENGE_FALSE_COMPLETE plate_up1 1/2", lines)
         self.assertIn("CHALLENGE_FALSE_COMPLETE colour_swap 1/2 XFAIL", lines)
 
+    def test_an_abstaining_expected_complete_row_is_not_a_negative(self) -> None:
+        rows = [challenge_row("rot180_symmetric", "complete", "uncertain")]
+        report = score_challenge(rows)
+        self.assertEqual(report["by_class"]["rot180_symmetric"]["negatives"], 0)
+        code, output = MainTests.run_main(rows)
+        self.assertEqual(code, 0)
+        self.assertIn("CHALLENGE_FALSE_COMPLETE rot180_symmetric 0/0", output.splitlines())
+
     def test_challenge_rows_are_not_release_evidence(self) -> None:
         code, output = MainTests.run_main(self.ROWS, informational=False)
         self.assertEqual(code, 1)

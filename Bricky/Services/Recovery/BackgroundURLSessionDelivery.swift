@@ -35,6 +35,8 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
     let verifier: VerifiedAssetDownloader
     let pollInterval: Duration
     /// Failed, unverifiable, or refused rounds per asset before giving up.
+    /// A pause that left resume data is not a failed round; pauses that
+    /// wrote nothing have their own budget of the same size.
     let maximumAttempts: Int
 
     init(
@@ -68,9 +70,11 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
     ) async throws {
         try FileManager.default.createDirectory(at: manifest.directory, withIntermediateDirectories: true)
         var attempts: [String: Int] = [:]
+        var stalls: [String: Int] = [:]
+        var lastCause: [String: Error] = [:]
         while true {
             try Task.checkCancellation()
-            let missing = await publishDownloaded(manifest)
+            let (missing, rejected) = await publish(manifest)
             if missing.isEmpty {
                 await progress(1)
                 return
@@ -82,25 +86,39 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
                 let destination = manifest.directory.appendingPathComponent(asset.path)
                 let resumeURL = Self.resumeDataURL(for: destination)
                 let failure = transfer.takeFailure(description)
+                // Resume data from a failed attempt may carry an expired
+                // signed CDN URL; after a failure, start over.
+                let resumeData = failure == nil ? try? Data(contentsOf: resumeURL) : nil
+                try? FileManager.default.removeItem(at: resumeURL)
+                if let resumeData {
+                    // A pause is not a failed round, but a transfer that
+                    // keeps pausing without writing a byte is stuck.
+                    if transfer.bytesWritten(description) > 0 {
+                        stalls[description] = 0
+                    } else {
+                        let stalled = (stalls[description] ?? 0) + 1
+                        stalls[description] = stalled
+                        guard stalled <= maximumAttempts else {
+                            throw ModelTransferError.stalled(asset: asset.path)
+                        }
+                    }
+                    transfer.resume(from: resumeData, description: description, expectedBytes: asset.bytes)
+                    continue
+                }
+                if let cause = failure ?? (rejected.contains(asset.path) ? VerifiedAssetError.hashMismatch : nil) {
+                    lastCause[description] = cause
+                }
                 let attempt = (attempts[description] ?? 0) + 1
                 attempts[description] = attempt
                 guard attempt <= maximumAttempts else {
-                    throw failure ?? VerifiedAssetError.hashMismatch
+                    throw lastCause[description] ?? ModelTransferError.interrupted(asset: asset.path)
                 }
-                // Resume data from a failed attempt may carry an expired
-                // signed CDN URL; after a failure, start over.
-                if failure == nil, let resumeData = try? Data(contentsOf: resumeURL) {
-                    try? FileManager.default.removeItem(at: resumeURL)
-                    transfer.resume(from: resumeData, description: description, expectedBytes: asset.bytes)
-                } else {
-                    try? FileManager.default.removeItem(at: resumeURL)
-                    // Leftovers of the foreground downloader are not
-                    // resumable here and must not be credited as progress.
-                    try? FileManager.default.removeItem(at: destination.appendingPathExtension("partial"))
-                    var request = URLRequest(url: manifest.remoteURL(for: asset))
-                    request.allowsCellularAccess = allowsCellular
-                    transfer.start(request, description: description, expectedBytes: asset.bytes)
-                }
+                // Leftovers of the foreground downloader are not resumable
+                // here and must not be credited as progress.
+                try? FileManager.default.removeItem(at: destination.appendingPathExtension("partial"))
+                var request = URLRequest(url: manifest.remoteURL(for: asset))
+                request.allowsCellularAccess = allowsCellular
+                transfer.start(request, description: description, expectedBytes: asset.bytes)
             }
             // Cancellation ends this wait, never the transfers: the manager
             // re-attaches when the app returns.
@@ -127,8 +145,15 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
     /// any that fail, and returns the assets still not on disk. Foreground
     /// only: this is the only place a background download is verified.
     func publishDownloaded(_ manifest: ModelManifest) async -> [RecoveryModelManager.Asset] {
+        await publish(manifest).missing
+    }
+
+    /// `publishDownloaded`, also naming the assets whose downloaded file
+    /// failed verification and was deleted.
+    private func publish(_ manifest: ModelManifest) async -> (missing: [RecoveryModelManager.Asset], rejected: Set<String>) {
         let fileManager = FileManager.default
         var missing: [RecoveryModelManager.Asset] = []
+        var rejected: Set<String> = []
         for asset in manifest.assets {
             let destination = manifest.directory.appendingPathComponent(asset.path)
             let downloaded = Self.downloadedURL(for: destination)
@@ -151,6 +176,7 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
                 } else {
                     try? fileManager.removeItem(at: downloaded)
                     try? fileManager.removeItem(at: downloaded.appendingPathExtension("verified"))
+                    rejected.insert(asset.path)
                 }
             }
             var published = false
@@ -159,7 +185,7 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
             }
             if !published { missing.append(asset) }
         }
-        return missing
+        return (missing, rejected)
     }
 
     func remove(_ manifest: ModelManifest) async throws {
@@ -181,6 +207,23 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
             }
         }
         return min(1, Double(done) / Double(max(1, manifest.totalBytes)))
+    }
+}
+
+/// Why background delivery gave up when no transfer failed outright.
+enum ModelTransferError: LocalizedError, Equatable {
+    /// The transfer kept pausing without writing anything.
+    case stalled(asset: String)
+    /// The transfer kept ending without a file, an error, or resume data.
+    case interrupted(asset: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .stalled(let asset):
+            return "The download of \(asset) stopped making progress. Check your connection and try again."
+        case .interrupted(let asset):
+            return "The download of \(asset) kept being interrupted. Try again."
+        }
     }
 }
 

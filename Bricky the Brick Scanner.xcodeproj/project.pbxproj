@@ -878,7 +878,7 @@
 				PRODUCT_NAME = Bricky;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -893,7 +893,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bricky.uitests;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = Bricky;
 			};
 			name = Debug;
@@ -915,7 +915,7 @@
 				PRODUCT_NAME = Bricky;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -989,7 +989,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bricky.uitests;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = Bricky;
 			};
 			name = Release;
@@ -1005,7 +1005,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bricky.tests;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bricky.app/Bricky";
 			};
 			name = Debug;
@@ -1117,7 +1117,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bricky.tests;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Bricky.app/Bricky";
 			};
 			name = Release;

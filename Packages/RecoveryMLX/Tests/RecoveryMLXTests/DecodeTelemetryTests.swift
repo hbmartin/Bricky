@@ -47,26 +47,41 @@ final class DecodeTelemetryTests: XCTestCase {
 
 final class SlotUniquenessTests: XCTestCase {
     private let allowed: Set<Character> = ["A", "B", "C"]
-    private let texts = [10: "A", 11: "B", 12: "C", 13: "A\"", 14: "\"", 15: "]"]
+    private let texts = [0: "A", 1: "B", 2: "C", 3: "A\"", 4: "\"", 5: "]", 6: "matched"]
+    private var index: [Character: [Int]] {
+        SlotUniqueness.letterTokens(vocabSize: texts.count, letters: allowed, text: { self.texts[$0]! })
+    }
 
     func testNothingIsMaskedBeforeTheFirstLetter() {
-        XCTAssertEqual(SlotUniqueness.blockedTokens(legal: [10, 11, 12], text: { self.texts[$0]! }, emitted: [], allowed: allowed), [])
+        XCTAssertEqual(SlotUniqueness.blockedTokens(index: index, emitted: []), [])
     }
 
     func testEmittedLettersAreMaskedWhereverTheyAppear() {
-        // Token 13 ("A\"") would repeat A just as token 10 would.
-        XCTAssertEqual(
-            SlotUniqueness.blockedTokens(legal: [10, 11, 12, 13], text: { self.texts[$0]! }, emitted: ["A"], allowed: allowed),
-            [10, 13]
-        )
+        // Token 3 ("A\"") would repeat A just as token 0 would.
+        XCTAssertEqual(SlotUniqueness.blockedTokens(index: index, emitted: ["A"]), [0, 3])
     }
 
     func testStructuralTokensAndLowercaseAreNeverSlotLetters() {
         XCTAssertEqual(SlotUniqueness.slotLetters(in: "matched", allowed: allowed), [])
-        XCTAssertEqual(
-            SlotUniqueness.blockedTokens(legal: [14, 15], text: { self.texts[$0]! }, emitted: ["A", "B"], allowed: allowed),
-            []
-        )
+        let blocked = SlotUniqueness.blockedTokens(index: index, emitted: ["A", "B"])
+        XCTAssertFalse(blocked.contains(4))
+        XCTAssertFalse(blocked.contains(5))
+        XCTAssertFalse(blocked.contains(6))
+    }
+
+    /// The bug this index fixes: after `[` or `,` the legal set holds
+    /// whitespace runs as well as merged quote+letter tokens, so it is
+    /// larger than the readout cap. Masking must not depend on that cap.
+    func testMaskingHoldsWhenTheLegalSetExceedsTheReadoutCap() {
+        let whitespace = (0..<100).map { _ in " " }
+        let vocab = whitespace + ["\"A", "\"B", "\"C"]
+        let index = SlotUniqueness.letterTokens(vocabSize: vocab.count, letters: allowed, text: { vocab[$0] })
+        var mask = [Int32](repeating: 0, count: (vocab.count + 31) / 32)
+        for id in vocab.indices { mask[id / 32] |= Int32(bitPattern: 1 << UInt32(id % 32)) }
+        XCTAssertNil(DecisionReadout.legalTokens(mask: mask, vocabSize: vocab.count, limit: 64), "the readout gives up here")
+        let blocked = SlotUniqueness.blockedTokens(index: index, emitted: ["A", "B"])
+        XCTAssertEqual(blocked, [100, 101])
+        XCTAssertEqual(SlotUniqueness.legalCount(blocked, mask: mask), 2)
     }
 
     func testVariantIDNamesUniqueSlotsAndDecodesOldJSON() throws {

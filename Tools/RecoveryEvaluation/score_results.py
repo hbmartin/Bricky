@@ -782,6 +782,7 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
             "abstained": 0,
             "correct_complete": 0,
             "false_alarms": 0,
+            "negatives": 0,
         })
         entry["cases"] += 1
         entry["produced"][row["produced_verdict"]] += 1
@@ -792,6 +793,7 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
             entry["correct_complete"] += produced == "complete"
             entry["false_alarms"] += produced in {"incomplete", "misplaced"}
         else:
+            entry["negatives"] += 1
             entry["false_complete_cases"] += produced == "complete"
             entry["caught"] += produced in {"incomplete", "misplaced"}
     for entry in by_class.values():
@@ -845,9 +847,8 @@ def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
-        negatives = entry["cases"] - entry["correct_complete"] - entry["false_alarms"]
         suffix = " XFAIL" if entry["expected_failure"] else ""
-        lines.append(f"CHALLENGE_FALSE_COMPLETE {name} {entry['false_complete_cases']}/{negatives}{suffix}")
+        lines.append(f"CHALLENGE_FALSE_COMPLETE {name} {entry['false_complete_cases']}/{entry['negatives']}{suffix}")
     return lines
 
 

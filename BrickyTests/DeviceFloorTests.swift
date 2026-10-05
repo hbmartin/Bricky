@@ -57,4 +57,11 @@ final class DeviceFloorTests: XCTestCase {
         XCTAssertNil(DeviceFloor.iPhoneFamily("iPhoneX,1"))
         XCTAssertNil(DeviceFloor.iPhoneFamily("replay:iPhone18,1"))
     }
+
+    /// The built app must declare iPhone only. XcodeGen's iOS preset sets
+    /// "1,2" per target, which silently overrode the project setting.
+    func testAppDeclaresIPhoneOnly() {
+        let family = Bundle.main.object(forInfoDictionaryKey: "UIDeviceFamily") as? [Int]
+        XCTAssertEqual(family, [1])
+    }
 }

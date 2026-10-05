@@ -78,9 +78,16 @@ amendment first.
 (`ledger_phys_footprint_peak` less the footprint before load) of a
 production-shaped warm-up and recovery with AR, scene mesh, and ICP running,
 plus 25%. Every admission records the inputs (`AdmissionSnapshot`:
-footprint before load, warm-up lifetime peak) on evidence sessions. Until
-Phase 1 measures it on an iPhone 17 Pro, the 5.5 GB floor stays
-🟡 RECONSTRUCTED.
+footprint before load, the lifetime peak before load, and the warm-up
+lifetime peak) on evidence sessions.
+
+`ledger_phys_footprint_peak` is a lifetime value and never resets. A sample
+counts only when the warm-up peak is above the peak before load
+(`AdmissionSnapshot.modelPeakCostBytes`). Otherwise an earlier load (for
+example, before an idle unload) or an AR spike set the peak, and the sample
+is masked (`isPeakMasked`). Profile in a fresh process: launch, start AR,
+then load. Until Phase 1 measures this on an iPhone 17 Pro, the 5.5 GB floor
+stays 🟡 RECONSTRUCTED.
 
 ## Amendment (2026-09-25): background delivery
 

@@ -40,6 +40,12 @@ final class InferenceArmSchedulerTests: XCTestCase {
         XCTAssertEqual(arms.next(evidenceEnabled: true).id, "decode=feed_all,unique_slots")
     }
 
+    func testAnInvalidVariantRunsTheUnlabelledBaseline() {
+        let arms = InferenceArmScheduler(defaults: defaults)
+        arms.plan = .init(mode: .single, variant: RecoveryInferenceVariant(vote: .logprob))
+        XCTAssertEqual(arms.next(evidenceEnabled: true), .baseline, "logprob without probe would measure nothing")
+    }
+
     func testOffIsBaselineAndThePlanPersists() {
         XCTAssertEqual(scheduler(.off).next(evidenceEnabled: true), .baseline)
         XCTAssertEqual(InferenceArmScheduler(defaults: defaults).plan.mode, .off)

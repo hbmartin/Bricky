@@ -43,7 +43,13 @@ EXACT = "exact"
 DIRECTIONS = {LOWER_IS_BETTER, HIGHER_IS_BETTER, EXACT}
 
 # Failure counts: fewer is an improvement, not a change of corpus shape.
-FAILURE_COUNT_LEAVES = {"false_complete_cases", "undetectable_false_completes"}
+# The expected-failure total belongs here too: when the RGB term fixes the
+# colour swap, its false completes fall, and that must read as a win.
+FAILURE_COUNT_LEAVES = {
+    "false_complete_cases",
+    "undetectable_false_completes",
+    "expected_failure_false_complete_cases",
+}
 
 
 def auto_guard(metric: str) -> dict[str, object] | None:
