@@ -84,6 +84,7 @@ targets:
       - Bricky/Domain/InstructionDomain.swift
       - Bricky/Domain/RegistrationDomain.swift
       - Bricky/Domain/VerificationDomain.swift
+      - Bricky/Domain/VerificationEvidenceReplay.swift
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
@@ -122,6 +123,8 @@ targets:
       - BrickyTests/RecoveryCaptureTests.swift
       - BrickyTests/RecoveryBenchmarkWriterTests.swift
       - BrickyTests/VLMCheckRowWriterTests.swift
+      - BrickyTests/ColourGridSamplerTests.swift
+      - BrickyTests/VerificationWindowBufferTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

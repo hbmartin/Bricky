@@ -154,6 +154,66 @@ final class GeometricStepVerifierTests: XCTestCase {
         return try XCTUnwrap(last)
     }
 
+    /// A window recorded on device must replay to the verdict the device
+    /// published: planes, poses and registration survive the round trip.
+    func testRecordedWindowReplaysToTheSameVerdict() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("window-replay-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let recorder = RecoveryEvidenceRecorder(
+            root: root, instructionSHA256: String(repeating: "0", count: 64), authoredModelID: UUID(),
+            modelTitle: "Window", stepCount: 5, staged: nil
+        )
+        let verifier = try GeometricStepVerifier()
+        await verifier.begin(stepID: "<root>#5", completedSnapshot: completedSnapshot, deltaSnapshot: deltaSnapshot)
+        var samples: [VerificationWindowSample] = []
+        var published: StepVerification?
+        for index in 0..<8 {
+            let frame = try observedFrame(
+                sceneBuffers: completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)],
+                timestamp: TimeInterval(index) * 0.1
+            )
+            let registration = lockedRegistration(timestamp: frame.timestamp)
+            let result = try await verifier.ingest(frame: frame, registration: registration)
+            samples.append(VerificationWindowSample(
+                frameID: UUID(), frame: frame, registration: registration, result: result, ingestMilliseconds: 1
+            ))
+            published = result
+        }
+        let devicePublished = try XCTUnwrap(published)
+        let windowID = UUID()
+        await recorder.record(VerificationWindowCapture(
+            windowID: windowID, stepID: "<root>#5", stepIndex: 4, trigger: .verdictChange, samples: samples,
+            verification: devicePublished, staged: nil, ingestMillisecondsSinceBegin: 8, createdAt: .now
+        ))
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let decoder = EvidenceSchema.decoder()
+        let window = try decoder.decode(
+            VerificationWindowRecord.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("windows/\(windowID.uuidString).json"))
+        )
+        XCTAssertEqual(window.verdict, devicePublished.verdict.evidenceName)
+        let replay = try GeometricStepVerifier()
+        await replay.begin(stepID: "<root>#5", completedSnapshot: completedSnapshot, deltaSnapshot: deltaSnapshot)
+        var replayed: StepVerification?
+        for frame in window.frames {
+            let record = try decoder.decode(
+                EvidenceDepthFrameRecord.self,
+                from: Data(contentsOf: sessionDirectory.appendingPathComponent("windows/frames/\(frame.frameID.uuidString).json"))
+            )
+            let planes = try EvidenceDepthPlanes.load(record, in: sessionDirectory)
+            replayed = try await replay.ingest(
+                frame: RegistrationFrameInput(record: record, planes: planes),
+                registration: ModelRegistration(windowFrame: frame, stepIndex: 4, timestamp: record.timestamp)
+            )
+        }
+        XCTAssertEqual(replayed?.verdict, devicePublished.verdict)
+        XCTAssertEqual(replayed?.deltaPixels, devicePublished.deltaPixels)
+    }
+
     func testCompletePlacementReadsComplete() async throws {
         let verification = try await runVerifier(
             sceneBuffers: completedSnapshot.buffers + [deltaBuffer()]

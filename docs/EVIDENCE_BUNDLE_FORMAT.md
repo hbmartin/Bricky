@@ -48,6 +48,12 @@ Evidence/<session-uuid>/
   fits.ndjson           # one GeometricFitRecord per scored candidate (optional)
   benchmark.ndjson      # 0 or 1 RecoveryBenchmarkV1 rows (labeled sessions)
   check.ndjson          # one VLMCheckRowV1 per check call (labeled sessions with checks)
+  verification.ndjson   # one VerificationRowV1 per closed staged verification (AR guide)
+  windows/<window-uuid>.json           # VerificationWindowRecord
+  windows/frames/<frame-uuid>.json     # EvidenceDepthFrameRecord for one judged frame
+  windows/frames/<frame-uuid>.{depth,confidence,raw-depth,raw-confidence}
+  windows/frames/<frame-uuid>.colour   # uint8 RGB, interleaved, on the depth grid (optional)
+  windows/frames/<frame-uuid>.occluder # uint8 0/1 person mask on the depth grid (optional)
   captures/<capture-uuid>.jpg          # the 3 guided AR photos (copies)
   boards/<trace-uuid>.jpg              # exact board image the model saw
   tiles/<trace-uuid>/<slot>.jpg        # per-candidate renders, JPEG q0.9
@@ -177,6 +183,67 @@ what keeps it from winning, and it cannot also carry the reason.
 | `memory_footprint_bytes` | int64? | `phys_footprint` at record time |
 | `model_revision` | string | |
 | `created_at` | ISO-8601 | |
+
+## Verification windows — `windows/`
+
+Recorded by the AR guide while evidence capture is on (ADR 0007 amendment 2).
+A `VerificationWindowRecord` holds:
+- `window_id`, `session_id`, `step_id` and `step_index` (the plan index);
+- `trigger`: `verdict_change`, `confirm`, `override` or `step_exit`;
+- `created_at`;
+- the published verdict when the window closed: `verdict`, `offset_studs`,
+  `uncertain_reason`, `detectability`, `delta_pixels`, `frames_used` and
+  both fractions. `frames_used` counts every frame since the step began,
+  not only the window's;
+- `staged`: the declared truth, or null;
+- `frames`, oldest first.
+
+Each entry in `frames` has `frame_id`, `registration_state`,
+`world_from_model` (row-major 4x4), `rms_residual`, `inlier_fraction`,
+`lattice_margin`, `verdict_after` and `ingest_ms`.
+
+Each frame's planes sit under `windows/frames/`, named by an
+`EvidenceDepthFrameRecord` sidecar whose `capture_id` is the frame id.
+Frames shared by overlapping windows are written once. The sidecar's
+optional `colour_relative_path` (RGB8, `width * height * 3` bytes) and
+`occluder_mask_relative_path` (one byte per pixel) are new. So is
+`colour_encoding` (e.g. `rgb8_bt709_full`): the colour is averaged in
+Y′CbCr per depth cell, then converted with the buffer's matrix and range.
+
+A `StagedVerificationDeclaration` has these fields:
+- `scenario`: `complete`, `missing`, `shifted_one_stud`, `rotated`,
+  `wrong_colour`, `plate_offset` or `hand_occluding`;
+- `shift_direction_user`;
+- `lighting`, `occlusion`, `physical_case` and `legal_use_confirmed`.
+
+Each scenario implies an expected verdict:
+
+| Scenario | Expected verdict | Notes |
+|---|---|---|
+| `complete`, `hand_occluding` | complete | |
+| `shifted_one_stud` | misplaced | |
+| `missing` | incomplete | |
+| `rotated`, `wrong_colour`, `plate_offset` | incomplete | Challenge classes. `rotated` and `wrong_colour` are also expected failures. |
+
+## `verification.ndjson` — VerificationRowV1
+
+When a staged declaration closes (a confirm, an override, or leaving the
+step), the closing window writes one `verification` row.
+
+Its fields are:
+- `fixture_id`: the window id;
+- `expected_verdict` and `produced_verdict`;
+- `detectability`;
+- `latency_ms`: the verifier's compute time since the step began, with
+  `latency_scope: verifier_compute_since_step_begin`;
+- `device_model`, `authored_model_id` and `step_index`;
+- `delta_pixels`, `frames_used` and `window_trigger`;
+- the declaration's conditions;
+- `challenge_class` and `expected_failure`, only for scenarios outside the
+  release taxonomy.
+
+SyntheticRGBD `--replay-bundle` writes the same row with `provenance: replay`,
+`device_verdict` and `matches_device`.
 
 ## `check.ndjson` — VLMCheckRowV1
 

@@ -57,6 +57,28 @@ final class StepVerificationControllerTests: XCTestCase {
         }
     }
 
+    /// Returns the scripted verdicts in order, one per ingest, then repeats
+    /// the last.
+    private actor ScriptedVerifier: StepVerifying {
+        private var verdicts: [StepVerdict]
+        init(_ verdicts: [StepVerdict]) { self.verdicts = verdicts }
+        func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot) {}
+        func resetEvidence() {}
+        func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification {
+            let verdict = verdicts.count > 1 ? verdicts.removeFirst() : verdicts[0]
+            return StepVerification(
+                stepID: "step", verdict: verdict, detectability: .strong, deltaPixels: 100, framesUsed: 1,
+                completeFraction: 0, incompleteFraction: 0, registrationQuality: registration.quality,
+                timestamp: frame.timestamp
+            )
+        }
+    }
+
+    private actor WindowCollector: VerificationWindowSink {
+        private(set) var windows: [VerificationWindowCapture] = []
+        func record(_ window: VerificationWindowCapture) async { windows.append(window) }
+    }
+
     private let emptySnapshot = InstructionGeometrySnapshot(buffers: [], bounds: nil)
 
     private func frame(at timestamp: TimeInterval) -> RegistrationFrameInput {
@@ -87,6 +109,67 @@ final class StepVerificationControllerTests: XCTestCase {
         for _ in 0..<1_000 where await verifier.ingested.count < count {
             await Task.yield()
         }
+    }
+
+    /// Submits a frame and waits until the controller has published it.
+    private func judge(_ controller: StepVerificationController, at timestamp: TimeInterval) async {
+        controller.submit(frame: frame(at: timestamp), registration: registration)
+        for _ in 0..<1_000 where controller.verification?.timestamp != timestamp {
+            await Task.yield()
+        }
+    }
+
+    private func windows(_ collector: WindowCollector, count: Int) async -> [VerificationWindowCapture] {
+        for _ in 0..<1_000 where await collector.windows.count < count {
+            await Task.yield()
+        }
+        return await collector.windows
+    }
+
+    func testWindowOnVerdictChangeOnlyWhenRecording() async {
+        let collector = WindowCollector()
+        let controller = StepVerificationController(makeVerifier: { ScriptedVerifier([.incomplete, .incomplete, .complete]) })
+        await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot, stepIndex: 3)
+        controller.setWindowSink(collector)
+        let staged = StagedVerificationDeclaration(
+            scenario: .complete, lighting: .bright, occlusion: .none, physicalCase: true, legalUseConfirmed: true
+        )
+        controller.setStagedVerification(staged)
+        await judge(controller, at: 1.0)
+        await judge(controller, at: 2.0)
+        await judge(controller, at: 6.0)
+        let changed = await windows(collector, count: 1)
+        XCTAssertEqual(changed.count, 1)
+        XCTAssertEqual(changed.first?.trigger, .verdictChange)
+        XCTAssertEqual(changed.first?.samples.map(\.frame.timestamp), [1.0, 2.0, 6.0])
+        XCTAssertEqual(changed.first?.verification.verdict, .complete)
+        XCTAssertEqual(changed.first?.stepIndex, 3)
+        XCTAssertEqual(changed.first?.staged, staged)
+
+        controller.recordWindow(trigger: .confirm)
+        let confirmed = await windows(collector, count: 2)
+        XCTAssertEqual(confirmed.last?.trigger, .confirm)
+
+        // Without a sink nothing is buffered or sent.
+        controller.setWindowSink(nil)
+        controller.recordWindow(trigger: .stepExit)
+        await Task.yield()
+        let after = await collector.windows
+        XCTAssertEqual(after.count, 2)
+    }
+
+    func testStopEmptiesTheWindow() async {
+        let collector = WindowCollector()
+        let controller = StepVerificationController(makeVerifier: { ScriptedVerifier([.incomplete]) })
+        await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot)
+        controller.setWindowSink(collector)
+        await judge(controller, at: 1.0)
+        controller.stop()
+        // After a stop there is no verdict and no buffered frame to keep.
+        controller.recordWindow(trigger: .stepExit)
+        await Task.yield()
+        let collected = await collector.windows
+        XCTAssertTrue(collected.isEmpty)
     }
 
     func testOnlyTheNewestWaitingFrameIsJudged() async {

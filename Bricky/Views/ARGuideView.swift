@@ -29,6 +29,11 @@ struct ARGuideView: View {
     @State private var photoCheckStaged: StagedFixtureDeclaration?
     @State private var photoCheckStep: AuthoredStep?
     @State private var photoCheckTask: Task<Void, Never>?
+    /// Verification evidence for this AR visit (ADR 0007 amendment 2):
+    /// exists only while evidence capture is on.
+    @State private var verificationRecorder: RecoveryEvidenceRecorder?
+    @State private var stagedVerification: StagedVerificationDeclaration?
+    @State private var showStagedVerificationSetup = false
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -77,6 +82,18 @@ struct ARGuideView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
                     }
+                    if evidenceCaptureEnabled, corpusCollectionEnabled {
+                        Button {
+                            showStagedVerificationSetup = true
+                        } label: {
+                            Label(
+                                stagedVerification.map { "Staged: \($0.scenario.rawValue)" } ?? "Stage This Step",
+                                systemImage: "tag"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.caption)
+                    }
                     Spacer()
                     photoCheckSection
                     if verification.isStablyComplete, photoCheck.state == .idle {
@@ -99,6 +116,7 @@ struct ARGuideView: View {
             }
             .task {
                 camera.checkPermissions()
+                startVerificationEvidence()
                 registration.frameObserver = { [weak verification] frame, update in
                     verification?.submit(frame: frame, registration: update)
                 }
@@ -109,6 +127,8 @@ struct ARGuideView: View {
             }
             .onDisappear {
                 endPhotoCheck(confirmed: false)
+                verification.recordWindow(trigger: .stepExit)
+                endVerificationEvidence()
                 verification.stop()
                 registration.stop()
                 camera.stopSession()
@@ -133,6 +153,12 @@ struct ARGuideView: View {
         } message: { Text(error ?? "") }
         .sheet(isPresented: $showStagedSetup) {
             StagedFixtureSetupView(plan: plan, declaration: $stagedDeclaration)
+        }
+        .sheet(isPresented: $showStagedVerificationSetup) {
+            StagedVerificationSetupView(declaration: $stagedVerification, stepIndex: step.index)
+        }
+        .onChange(of: stagedVerification) { _, declaration in
+            verification.setStagedVerification(declaration)
         }
     }
 
@@ -242,6 +268,8 @@ struct ARGuideView: View {
         guard !isAdvancing else { return }
         endPhotoCheck(confirmed: true)
         isAdvancing = true
+        verification.recordWindow(trigger: .confirm)
+        stagedVerification = nil
         verification.stop()
         session.confirm(step, source: .photoCheck)
         guard step.index < plan.steps.count else {
@@ -274,6 +302,32 @@ struct ARGuideView: View {
         }
     }
 
+    /// With evidence on, records verification windows for this visit and
+    /// asks the relay for the colour and occluder channels they keep.
+    private func startVerificationEvidence() {
+        guard evidenceCaptureEnabled, verificationRecorder == nil,
+              let recorder = makePhotoCheckRecorder(staged: nil) else {
+            camera.registrationRelay.setAuxiliaryChannels([])
+            return
+        }
+        verificationRecorder = recorder
+        verification.setWindowSink(recorder)
+        camera.registrationRelay.setAuxiliaryChannels([.colour, .occluderMask])
+    }
+
+    private func endVerificationEvidence() {
+        camera.registrationRelay.setAuxiliaryChannels([])
+        verification.setWindowSink(nil)
+        guard let recorder = verificationRecorder else { return }
+        verificationRecorder = nil
+        Task.detached(priority: .utility) {
+            // Session metadata only: a verification visit carries its ground
+            // truth on each window, not as a step count.
+            guard await recorder.verificationWindowCount > 0 else { return }
+            await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+        }
+    }
+
     private func makePhotoCheckRecorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder? {
         guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
         return RecoveryEvidenceRecorder(
@@ -293,6 +347,8 @@ struct ARGuideView: View {
     private func confirmAndAdvance() {
         guard !isAdvancing else { return }
         isAdvancing = true
+        verification.recordWindow(trigger: .confirm)
+        stagedVerification = nil
         // Dropping the verdict hides the confirm affordance immediately, so
         // one physical step cannot be confirmed twice before the next loads.
         verification.stop()
@@ -313,6 +369,10 @@ struct ARGuideView: View {
             isAdvancing = false
             return
         }
+        // Moving on without a complete verdict is the user overriding the
+        // verifier; after a confirm the window is already written.
+        verification.recordWindow(trigger: verification.isComplete ? .stepExit : .override)
+        stagedVerification = nil
         verification.stop()
         step = next
         Task {
@@ -355,7 +415,8 @@ struct ARGuideView: View {
             await verification.begin(
                 stepID: step.id,
                 completedSnapshot: completedSnapshot,
-                deltaSnapshot: additionSnapshot
+                deltaSnapshot: additionSnapshot,
+                stepIndex: step.index - 1
             )
         } catch { self.error = error.localizedDescription }
     }

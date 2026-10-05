@@ -73,3 +73,57 @@ Geometric candidate fits are likewise recorded, as `fits.ndjson`. They are
 derived data rather than a new modality and raise no additional exposure, but
 they are named here so the bundle's contents are fully enumerated in one
 place.
+
+## Amendment 2 (2026-10-05): verification evidence windows
+
+The 2026-08-07 amendment said that keeping depth from frames the user never
+chose to capture would need a fresh decision. This is that decision, taken
+with the iOS 27 roadmap's Phase 2 plan (M2.2).
+
+**What is retained.** While evidence capture is on, the AR guide keeps the
+last 8 frames the step verifier judged, about 1.6 s. They are written as a
+window when:
+- the published verdict changes kind (at least 3 s apart);
+- the user confirms the step;
+- the step changes while the verdict is not complete (an override);
+- the user leaves the step.
+
+Each frame keeps:
+- the depth and confidence planes, as for recovery;
+- the registration it was judged under;
+- the verdict after it;
+- two new channels on the 256×192 depth grid: the camera image
+  box-filtered to RGB8, and ARKit's person-segmentation mask as 0/1.
+
+Layout: `windows/<window-id>.json`, plus `windows/frames/` for the planes,
+which are shared between overlapping windows. A staged verification
+declaration made before the step closes adds one `verification` row to
+`verification.ndjson` (provenance `device`).
+
+**Why.** Today a verifier verdict on device leaves no trace. Its
+false-complete rate and the per-placement build diff (M2.3) can only be
+measured on real frames if those frames are kept. The colour plane is the
+input the RGB term (ADR 0008) will need. The mask lets a hand in view be
+recognised as an occluder later.
+
+**Exposure.**
+- The colour plane is a 256×192 image of what the camera saw. It is lower
+  resolution than the capture JPEGs a bundle already holds, but it comes
+  from frames the user did not choose.
+- The mask outlines the user's hands or body.
+- Neither channel feeds any verdict yet. The mask stays unused until its
+  quality is checked on device (Phase 1).
+- Consent and egress are unchanged: the same off-by-default developer toggle
+  gates recording, and the manual share-sheet export remains the only way
+  anything leaves the device.
+
+**Limits.**
+- At most 48 windows per session (about 265 MB).
+- No windows when the volume has less than 2 GB free.
+- The existing 40-session / 2 GB purge still applies.
+
+**Replay.** `SyntheticRGBD <model> --ldraw-root <pack> --replay-bundle
+<bundle> --out <rows>` replays each window through the app's verifier. A
+fresh verifier sees only the window's frames, while the device's had been
+accumulating since the step began, so disagreement with the device's verdict
+is reported, not treated as a defect.

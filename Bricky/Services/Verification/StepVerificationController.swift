@@ -53,6 +53,19 @@ final class StepVerificationController: ObservableObject {
     /// evidence budget.
     private let minimumInterval: TimeInterval = 0.2
 
+    // Evidence windows (ADR 0007 amendment 2): only while a sink is set.
+    private var windowSink: (any VerificationWindowSink)?
+    private var windowBuffer = VerificationWindowBuffer(capacity: 8)
+    private var stepID = ""
+    private var stepIndex = 0
+    private var stagedVerification: StagedVerificationDeclaration?
+    private var lastVerdictKind: String?
+    private var lastWindowAt: TimeInterval = -.infinity
+    private var ingestMillisecondsSinceBegin = 0
+    /// Verdict-change windows closer together than this would mostly
+    /// repeat the same frames.
+    private let windowSpacing: TimeInterval = 3
+
     init(makeVerifier: @escaping () throws -> any StepVerifying = { try GeometricStepVerifier() }) {
         self.makeVerifier = makeVerifier
     }
@@ -87,7 +100,8 @@ final class StepVerificationController: ObservableObject {
     func begin(
         stepID: String,
         completedSnapshot: InstructionGeometrySnapshot,
-        deltaSnapshot: InstructionGeometrySnapshot
+        deltaSnapshot: InstructionGeometrySnapshot,
+        stepIndex: Int = 0
     ) async {
         generation += 1
         let beginGeneration = generation
@@ -97,6 +111,9 @@ final class StepVerificationController: ObservableObject {
         isStablyComplete = false
         completeSince = nil
         lastIngestTimestamp = -.infinity
+        self.stepID = stepID
+        self.stepIndex = stepIndex
+        resetWindow()
         do {
             let verifier = try verifier ?? makeVerifier()
             self.verifier = verifier
@@ -135,11 +152,21 @@ final class StepVerificationController: ObservableObject {
         while let next = pending, let verifier, acceptingFrames, !isSuspended {
             pending = nil
             let ingestGeneration = generation
+            let started = ContinuousClock.now
             let result = try? await verifier.ingest(frame: next.frame, registration: next.registration)
             // A begin() or stop() while this ingest was in flight makes the
             // result stale; a suspension means the user is looking at a
             // photo check, and stability must be re-earned after it.
             guard let result, ingestGeneration == generation, !isSuspended else { continue }
+            let elapsed = started.duration(to: .now).components
+            let milliseconds = Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000)
+            ingestMillisecondsSinceBegin += milliseconds
+            if windowSink != nil {
+                windowBuffer.append(VerificationWindowSample(
+                    frameID: UUID(), frame: next.frame, registration: next.registration,
+                    result: result, ingestMilliseconds: milliseconds
+                ))
+            }
             publish(result, at: next.frame.timestamp)
         }
         worker = nil
@@ -147,6 +174,12 @@ final class StepVerificationController: ObservableObject {
 
     private func publish(_ result: StepVerification, at timestamp: TimeInterval) {
         verification = result
+        let kind = result.verdict.evidenceName
+        if let previous = lastVerdictKind, previous != kind, timestamp - lastWindowAt >= windowSpacing {
+            lastWindowAt = timestamp
+            recordWindow(trigger: .verdictChange)
+        }
+        lastVerdictKind = kind
         if result.verdict.isComplete {
             let since = completeSince ?? timestamp
             completeSince = since
@@ -174,6 +207,42 @@ final class StepVerificationController: ObservableObject {
         lastIngestTimestamp = -.infinity
     }
 
+    /// Starts or stops evidence windows. Off unless evidence capture is on.
+    func setWindowSink(_ sink: (any VerificationWindowSink)?) {
+        windowSink = sink
+        if sink == nil { windowBuffer.removeAll() }
+    }
+
+    /// The declared physical state of the step being verified, or nil.
+    func setStagedVerification(_ declaration: StagedVerificationDeclaration?) {
+        stagedVerification = declaration
+    }
+
+    /// Sends the buffered frames and the current verdict to the sink. A
+    /// no-op without a sink, a verdict, or frames: there is nothing to keep.
+    func recordWindow(trigger: VerificationWindowRecord.Trigger) {
+        guard let windowSink, let verification, !windowBuffer.samples.isEmpty else { return }
+        let capture = VerificationWindowCapture(
+            windowID: UUID(),
+            stepID: stepID,
+            stepIndex: stepIndex,
+            trigger: trigger,
+            samples: windowBuffer.samples,
+            verification: verification,
+            staged: stagedVerification,
+            ingestMillisecondsSinceBegin: ingestMillisecondsSinceBegin,
+            createdAt: .now
+        )
+        Task { await windowSink.record(capture) }
+    }
+
+    private func resetWindow() {
+        windowBuffer.removeAll()
+        lastVerdictKind = nil
+        lastWindowAt = -.infinity
+        ingestMillisecondsSinceBegin = 0
+    }
+
     func stop() {
         // Invalidates any in-flight ingest first, so a result landing after
         // this stop cannot repopulate the cleared verification.
@@ -184,6 +253,7 @@ final class StepVerificationController: ObservableObject {
         isStablyComplete = false
         completeSince = nil
         lastIngestTimestamp = -.infinity
+        resetWindow()
         if let verifier {
             Task { await verifier.resetEvidence() }
         }

@@ -8,6 +8,16 @@ import os
 /// frames are extracted only while a consumer is attached, and at a bounded
 /// rate rather than the session's full frame rate.
 final class RegistrationFrameRelay: @unchecked Sendable {
+    /// Evidence-only channels a frame can also carry. Off unless evidence
+    /// capture is on: tracking and verdicts never read them.
+    struct AuxiliaryChannels: OptionSet, Sendable {
+        let rawValue: Int
+        /// The camera image box-filtered onto the depth grid.
+        static let colour = AuxiliaryChannels(rawValue: 1 << 0)
+        /// Person segmentation resampled onto the depth grid.
+        static let occluderMask = AuxiliaryChannels(rawValue: 1 << 1)
+    }
+
     /// The tracker solves at ~10 Hz; feeding it faster only wastes copies.
     private static let minimumInterval: TimeInterval = 1.0 / 15.0
 
@@ -18,6 +28,11 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     /// replacement out from under a new consumer.
     private var generation = 0
     private var lastYieldTimestamp: TimeInterval = -.infinity
+    private var channels: AuxiliaryChannels = []
+
+    func setAuxiliaryChannels(_ channels: AuxiliaryChannels) {
+        lock.withLock { self.channels = channels }
+    }
 
     /// One consumer at a time: starting a new stream finishes the previous
     /// one, matching the single-tracker design.
@@ -54,11 +69,11 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     /// Called from the ARSession delegate queue for every frame; cheap when
     /// no consumer is attached or the rate gate has not elapsed.
     func ingest(_ frame: ARFrame) {
-        let shouldExtract: Bool = lock.withLock {
-            guard continuation != nil else { return false }
-            return frame.timestamp - lastYieldTimestamp >= Self.minimumInterval
+        let (shouldExtract, channels): (Bool, AuxiliaryChannels) = lock.withLock {
+            guard continuation != nil else { return (false, []) }
+            return (frame.timestamp - lastYieldTimestamp >= Self.minimumInterval, self.channels)
         }
-        guard shouldExtract, let input = Self.extract(frame) else { return }
+        guard shouldExtract, let input = Self.extract(frame, channels: channels) else { return }
         // Commit the rate gate only after extraction succeeds so a failed
         // extraction does not burn the interval slot.
         let current: AsyncStream<RegistrationFrameInput>.Continuation? = lock.withLock {
@@ -78,7 +93,7 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     /// Copies scene depth out of the frame: the smoothed variant is the ICP
     /// tracking input (ADR 0009), the raw variant is the verifier's per-frame
     /// evidence because smoothing lags freshly placed bricks.
-    private static func extract(_ frame: ARFrame) -> RegistrationFrameInput? {
+    private static func extract(_ frame: ARFrame, channels: AuxiliaryChannels = []) -> RegistrationFrameInput? {
         guard let smoothed = frame.smoothedSceneDepth ?? frame.sceneDepth,
               let tracking = copy(depthData: smoothed) else { return nil }
         // Only pay for a second copy when raw depth is a distinct buffer of
@@ -101,7 +116,7 @@ final class RegistrationFrameRelay: @unchecked Sendable {
         intrinsics[1][1] *= scaleY
         intrinsics[2][1] *= scaleY
 
-        return RegistrationFrameInput(
+        var input = RegistrationFrameInput(
             depth: tracking.depth,
             confidence: tracking.confidence,
             rawDepth: raw?.depth,
@@ -112,6 +127,17 @@ final class RegistrationFrameRelay: @unchecked Sendable {
             worldFromCamera: frame.camera.transform,
             timestamp: frame.timestamp
         )
+        if channels.contains(.colour),
+           let sampled = ColourGridSampler.sample(frame.capturedImage, gridWidth: tracking.width, gridHeight: tracking.height) {
+            input.colour = sampled.rgb
+            input.colourEncoding = sampled.encoding
+        }
+        if channels.contains(.occluderMask), let segmentation = frame.segmentationBuffer {
+            input.occluderMask = ColourGridSampler.occluderMask(
+                segmentation, gridWidth: tracking.width, gridHeight: tracking.height
+            )
+        }
+        return input
     }
 
     private static func copy(

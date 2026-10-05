@@ -227,14 +227,7 @@ actor InstructionModelImporter: InstructionModelImporting {
     }
 
     private static func identity(of files: [PreparedFile]) -> String {
-        var hasher = SHA256()
-        for file in files.sorted(by: { $0.relativePath < $1.relativePath }) {
-            hasher.update(data: Data(file.relativePath.utf8))
-            hasher.update(data: Data([0]))
-            hasher.update(data: file.data)
-            hasher.update(data: Data([0]))
-        }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        InstructionSourceIdentity.sha256(of: files.map { InstructionSourceFile(relativePath: $0.relativePath, data: $0.data) })
     }
 
     /// The namespace root. Backup inclusion is decided per area by

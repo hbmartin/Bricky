@@ -55,12 +55,15 @@ struct SyntheticRGBDMain {
         var seed: UInt64 = 42
         var sampledSteps = 6
         var suite = Suite.regression
+        /// Replays an evidence bundle's verification windows instead of
+        /// generating synthetic scenes.
+        var replayBundle: String?
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle>]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -81,6 +84,7 @@ struct SyntheticRGBDMain {
             case "--suite":
                 guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
                 options.suite = suite
+            case "--replay-bundle": options.replayBundle = value
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
@@ -123,6 +127,21 @@ struct SyntheticRGBDMain {
             partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
         )
         let renderer = try ExpectedDepthRenderer()
+        if let bundle = options.replayBundle {
+            // The model's directory must hold exactly the files that were
+            // imported, so its identity matches the bundle's sessions.
+            let (rows, summary) = try await WindowReplay.run(
+                bundle: URL(fileURLWithPath: bundle),
+                plan: plan,
+                sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles),
+                engine: engine,
+                renderer: renderer
+            )
+            try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
+                .write(toFile: options.outPath, atomically: true, encoding: .utf8)
+            print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.matches) match the device verdict; \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
+            return
+        }
         if options.suite == .challenge {
             try await runChallenge(
                 plan: plan, engine: engine, renderer: renderer, fixtureStem: fixtureStem, options: options

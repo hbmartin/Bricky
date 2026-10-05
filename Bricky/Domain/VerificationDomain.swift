@@ -52,3 +52,15 @@ struct StepVerification: Sendable {
     let registrationQuality: RegistrationQuality
     let timestamp: TimeInterval
 }
+
+extension StepVerdict {
+    /// The verdict's name in evidence rows and windows.
+    var evidenceName: String {
+        switch self {
+        case .complete: "complete"
+        case .incomplete: "incomplete"
+        case .misplaced: "misplaced"
+        case .uncertain: "uncertain"
+        }
+    }
+}

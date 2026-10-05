@@ -190,6 +190,81 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 48") })
     }
 
+    func testReaderLoadsWindowsAndRejectsTruncatedColour() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        let frames = session.directory.appendingPathComponent("windows/frames", isDirectory: true)
+        try FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true)
+        let frameID = UUID()
+        let stem = "windows/frames/\(frameID.uuidString)"
+        func plane(_ bytes: Int, _ suffix: String) throws {
+            try Data(count: bytes).write(to: session.directory.appendingPathComponent("\(stem).\(suffix)"))
+        }
+        try plane(48, "depth")
+        try plane(12, "confidence")
+        try plane(36, "colour")
+        let record = EvidenceDepthFrameRecord(
+            depthVersion: EvidenceSchema.depthVersion, captureID: frameID, width: 4, height: 3,
+            depthIntrinsics: Array(repeating: 1, count: 9), worldFromCamera: Array(repeating: 0, count: 16),
+            timestamp: 3, depthRelativePath: "\(stem).depth", confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: nil, rawConfidenceRelativePath: nil,
+            colourRelativePath: "\(stem).colour", occluderMaskRelativePath: nil, colourEncoding: "rgb8_bt709_full"
+        )
+        let encoder = EvidenceSchema.encoder(prettyPrinted: true)
+        try encoder.encode(record).write(to: session.directory.appendingPathComponent("\(stem).json"))
+        let window = VerificationWindowRecord(
+            windowID: UUID(), sessionID: session.file.sessionID, stepID: "main.ldr#3", stepIndex: 2,
+            trigger: .confirm, createdAt: Date(timeIntervalSince1970: 1_790_000_000),
+            frames: [VerificationWindowFrame(
+                frameID: frameID, registrationState: "locked", worldFromModel: Array(repeating: 0, count: 16),
+                rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 2, verdictAfter: "complete", ingestMilliseconds: 9
+            )],
+            verdict: "complete", offsetStuds: nil, uncertainReason: nil, detectability: "strong", deltaPixels: 120,
+            framesUsed: 14, completeFraction: 0.9, incompleteFraction: 0.02,
+            staged: StagedVerificationDeclaration(
+                scenario: .complete, lighting: .bright, occlusion: .none, physicalCase: true, legalUseConfirmed: true
+            )
+        )
+        try encoder.encode(window)
+            .write(to: session.directory.appendingPathComponent("windows/\(window.windowID.uuidString).json"))
+
+        XCTAssertEqual(reader.validate(), [])
+        let loaded = try reader.loadSessions()[0]
+        XCTAssertEqual(loaded.verificationWindows, [window])
+        let planes = try EvidenceDepthPlanes.load(try XCTUnwrap(loaded.windowFrames[frameID]), in: loaded.directory)
+        XCTAssertEqual(planes.colour?.count, 36)
+        XCTAssertNil(planes.occluderMask)
+
+        // A colour plane one row short reshapes into the wrong pixels.
+        try plane(33, "colour")
+        XCTAssertTrue(reader.validate().contains { $0.contains("expected 36") })
+        XCTAssertThrowsError(try EvidenceDepthPlanes.load(record, in: loaded.directory))
+    }
+
+    func testStagedVerificationTruth() {
+        func declared(_ scenario: StagedVerificationDeclaration.Scenario) -> StagedVerificationDeclaration {
+            StagedVerificationDeclaration(scenario: scenario, lighting: .dim, occlusion: .partial, physicalCase: true, legalUseConfirmed: true)
+        }
+        XCTAssertEqual(declared(.missing).expectedVerdict, "incomplete")
+        XCTAssertEqual(declared(.shiftedOneStud).expectedVerdict, "misplaced")
+        XCTAssertEqual(declared(.handOccluding).expectedVerdict, "complete")
+        XCTAssertTrue(declared(.wrongColour).isExpectedFailure)
+        XCTAssertEqual(declared(.plateOffset).challengeClass, "plate_offset")
+        XCTAssertNil(declared(.missing).challengeClass)
+        let row = VerificationRowV1(
+            provenance: "device", fixtureID: "w", expectedVerdict: "complete", producedVerdict: "complete",
+            detectability: "strong", latencyMilliseconds: 40, latencyScope: "x", deviceModel: "iPhone18,1",
+            authoredModelID: "m", stepIndex: 1, deltaPixels: 90, framesUsed: 12, windowTrigger: "confirm",
+            staged: declared(.complete)
+        )
+        // Release-eligible rows must not carry the keys the preflight refuses.
+        let raw = String(decoding: try! JSONEncoder().encode(row), as: UTF8.self)
+        XCTAssertFalse(raw.contains("challenge_class"))
+        XCTAssertFalse(raw.contains("expected_failure"))
+        XCTAssertTrue(raw.contains("\"provenance\":\"device\""))
+    }
+
     func testReaderRejectsUnsupportedDepthVersion() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)

@@ -24,6 +24,14 @@ struct RegistrationFrameInput: Sendable {
     let depthIntrinsics: simd_float3x3
     let worldFromCamera: simd_float4x4
     let timestamp: TimeInterval
+    /// Evidence-only channels, filled only while evidence capture is on and
+    /// never read by tracking or verdicts (ADR 0007 amendment 2). RGB8,
+    /// interleaved, the camera image box-filtered onto the depth grid.
+    var colour: [UInt8]? = nil
+    /// How `colour` was converted, e.g. `rgb8_bt709_full`.
+    var colourEncoding: String? = nil
+    /// 1 where person segmentation marks an occluder (a hand), else 0.
+    var occluderMask: [UInt8]? = nil
 }
 
 /// An oriented point sample of the cumulative expected model surface, in the
