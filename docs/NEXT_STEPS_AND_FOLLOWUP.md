@@ -45,10 +45,11 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
    per-trace rankings.
 4. **Admission-floor profiling (ADR 0003 / CONTEXT gap).** The 5.5 GB
    admission threshold is still the conservative placeholder. Profile the
-   production-sized warm-up with AR, scene mesh, and the ICP tracker active;
-   set the floor to measured worst-case `phys_footprint` peak + 25%. The
-   evidence rows' `memory_footprint_bytes` now provide exactly this number
-   per inference call.
+   production-sized warm-up with AR, scene mesh, and the ICP tracker active,
+   in a fresh process (launch, start AR, then load the model). Set the floor
+   to the worst-case `AdmissionSnapshot.modelPeakCostBytes` + 25%. Discard
+   samples where `isPeakMasked` is true: the lifetime peak never resets, so
+   an earlier load or spike hides the model's own peak.
 
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 

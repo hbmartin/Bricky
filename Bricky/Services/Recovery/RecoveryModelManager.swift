@@ -392,11 +392,13 @@ final class RecoveryModelManager: ObservableObject {
             }
             guard let directory = modelDirectory else { throw CocoaError(.fileNoSuchFile) }
             let board = try Self.makeWarmUpBoard(in: directory)
-            let footprintBeforeLoad = ProcessMemorySnapshot.current()?.footprintBytes
+            let beforeLoad = ProcessMemorySnapshot.current()
+            let footprintBeforeLoad = beforeLoad?.footprintBytes
             var snapshot = AdmissionSnapshot(
                 floorBytes: Int64(governor.floorBytes),
                 availableBytesAtCheck: Int64(budget.availableBytes),
-                footprintBeforeLoadBytes: footprintBeforeLoad
+                footprintBeforeLoadBytes: footprintBeforeLoad,
+                lifetimePeakBeforeLoadBytes: beforeLoad?.lifetimePeakBytes
             )
             let loadStarted = ContinuousClock.now
             try await runtime.load(modelDirectory: directory)

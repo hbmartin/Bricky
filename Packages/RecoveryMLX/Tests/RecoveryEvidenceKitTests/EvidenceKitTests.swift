@@ -399,6 +399,37 @@ final class EvidenceKitTests: XCTestCase {
         }
     }
 
+    func testModelPeakCostIsMaskedByAnEarlierPeak() throws {
+        // A fresh process: loading raised the peak, so the cost is the
+        // warm-up peak less the footprint before load.
+        let fresh = AdmissionSnapshot(
+            floorBytes: 1, footprintBeforeLoadBytes: 1_000, warmUpPeakBytes: 5_000,
+            lifetimePeakBeforeLoadBytes: 1_200
+        )
+        XCTAssertEqual(fresh.modelPeakCostBytes, 4_000)
+        XCTAssertFalse(fresh.isPeakMasked)
+
+        // A reload after an idle unload: the earlier load already set the
+        // lifetime peak, so the after-warm-up peak is not this load's.
+        let reload = AdmissionSnapshot(
+            floorBytes: 1, footprintBeforeLoadBytes: 1_000, warmUpPeakBytes: 5_000,
+            lifetimePeakBeforeLoadBytes: 5_000
+        )
+        XCTAssertNil(reload.modelPeakCostBytes)
+        XCTAssertTrue(reload.isPeakMasked)
+
+        // Rows written before the field existed decode and claim nothing.
+        let legacy = try EvidenceSchema.decoder().decode(
+            AdmissionSnapshot.self,
+            from: Data(#"{"floor_bytes":1,"footprint_before_load_bytes":1000,"warm_up_peak_bytes":5000}"#.utf8)
+        )
+        XCTAssertNil(legacy.lifetimePeakBeforeLoadBytes)
+        XCTAssertNil(legacy.modelPeakCostBytes)
+        XCTAssertFalse(legacy.isPeakMasked)
+        let raw = String(decoding: try EvidenceSchema.encoder().encode(reload), as: UTF8.self)
+        XCTAssertTrue(raw.contains("\"lifetime_peak_before_load_bytes\""))
+    }
+
     // MARK: - Fixtures
 
     private func solidImage(width: Int, height: Int) throws -> CGImage {
