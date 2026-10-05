@@ -1,16 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// What the controller needs from a step verifier; `GeometricStepVerifier`
-/// in the app, a fake in tests.
-protocol StepVerifying: Actor {
-    func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot)
-    func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification
-    func resetEvidence()
-}
-
-extension GeometricStepVerifier: StepVerifying {}
-
 /// Drives live geometric verification for the step being built. Frames and
 /// registrations arrive through `RegistrationController.frameObserver`; the
 /// verifier only ever judges under a locked registration, and its output is
@@ -35,8 +25,8 @@ final class StepVerificationController: ObservableObject {
     /// share the GPU with inference, so it pauses instead (ADR 0003).
     @Published private(set) var isSuspended = false
 
-    private let makeVerifier: () throws -> any StepVerifying
-    private var verifier: (any StepVerifying)?
+    private let makeVerifier: () throws -> any StepJudging
+    private var verifier: (any StepJudging)?
     /// Bumped on every `begin` and `stop`: a frame in flight across the step
     /// boundary must not publish into the new step's verification.
     private var generation = 0
@@ -66,7 +56,7 @@ final class StepVerificationController: ObservableObject {
     /// repeat the same frames.
     private let windowSpacing: TimeInterval = 3
 
-    init(makeVerifier: @escaping () throws -> any StepVerifying = { try GeometricStepVerifier() }) {
+    init(makeVerifier: @escaping () throws -> any StepJudging = { try GeometricStepVerifier() }) {
         self.makeVerifier = makeVerifier
     }
 
@@ -103,6 +93,14 @@ final class StepVerificationController: ObservableObject {
         deltaSnapshot: InstructionGeometrySnapshot,
         stepIndex: Int = 0
     ) async {
+        await begin(
+            stepID: stepID,
+            geometry: StepGeometry(completedSnapshot: completedSnapshot, deltaSnapshot: deltaSnapshot),
+            stepIndex: stepIndex
+        )
+    }
+
+    func begin(stepID: String, geometry: StepGeometry, stepIndex: Int = 0) async {
         generation += 1
         let beginGeneration = generation
         acceptingFrames = false
@@ -120,11 +118,7 @@ final class StepVerificationController: ObservableObject {
             unavailableReason = nil
             // Awaited, with frames refused until it returns, so no frame can
             // reach the verifier before it holds this step's snapshots.
-            await verifier.begin(
-                stepID: stepID,
-                completedSnapshot: completedSnapshot,
-                deltaSnapshot: deltaSnapshot
-            )
+            await verifier.begin(stepID: stepID, geometry: geometry)
             // A later begin() or stop() owns the state now.
             if beginGeneration == generation {
                 acceptingFrames = true

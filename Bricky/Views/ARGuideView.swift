@@ -400,7 +400,8 @@ struct ARGuideView: View {
             // ADR 0008 design-around.
             let completed = plan.completedPlacements(before: step)
             let container = Entity()
-            let completedSnapshot = geometry.completedSnapshot(before: step)
+            let stepGeometry = StepGeometry(step: step, geometry: geometry)
+            let completedSnapshot = stepGeometry.completedSnapshot
             if !completed.isEmpty {
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;
@@ -413,13 +414,12 @@ struct ARGuideView: View {
             } else {
                 registration.setFitSample(nil)
             }
-            let additionSnapshot = geometry.deltaSnapshot(for: step)
+            let additionSnapshot = stepGeometry.deltaSnapshot
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
             entity = container
             await verification.begin(
                 stepID: step.id,
-                completedSnapshot: completedSnapshot,
-                deltaSnapshot: additionSnapshot,
+                geometry: stepGeometry,
                 stepIndex: step.index - 1
             )
         } catch { self.error = error.localizedDescription }

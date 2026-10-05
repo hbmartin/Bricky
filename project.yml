@@ -98,6 +98,7 @@ targets:
       - Bricky/Services/Registration/GeometrySignposts.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
+      - Bricky/Services/Verification/StepJudging.swift
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift

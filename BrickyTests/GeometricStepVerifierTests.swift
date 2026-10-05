@@ -135,21 +135,34 @@ final class GeometricStepVerifierTests: XCTestCase {
         )
     }
 
+    /// Every judge must pass the same verdict contract. The geometric
+    /// verifier is the oracle; the shadow build diff (M2.3) joins it here.
+    private var judges: [(name: String, make: () throws -> any StepJudging)] {
+        [("verifier", { try GeometricStepVerifier() })]
+    }
+
+    /// The step as a two-placement plan: the base, then the delta.
+    private func stepGeometry(delta: InstructionGeometrySnapshot) -> StepGeometry {
+        let segments = SegmentedGeometry(segments: [completedSnapshot.buffers, delta.buffers])
+        return StepGeometry(
+            completedSnapshot: completedSnapshot, deltaSnapshot: delta, segments: segments,
+            index: PlacementGeometryIndex.build(transforms: [LDrawTransform(), LDrawTransform()], segments: segments),
+            completedPlacements: 0..<1, deltaPlacements: 1..<2
+        )
+    }
+
     private func runVerifier(
+        judge make: () throws -> any StepJudging,
         sceneBuffers: [LDrawGeometryBuffer],
         delta: InstructionGeometrySnapshot? = nil,
         frames: Int = 10
     ) async throws -> StepVerification {
-        let verifier = try GeometricStepVerifier()
-        await verifier.begin(
-            stepID: "<root>#5",
-            completedSnapshot: completedSnapshot,
-            deltaSnapshot: delta ?? deltaSnapshot
-        )
+        let judge = try make()
+        await judge.begin(stepID: "<root>#5", geometry: stepGeometry(delta: delta ?? deltaSnapshot))
         var last: StepVerification?
         for index in 0..<frames {
             let frame = try observedFrame(sceneBuffers: sceneBuffers, timestamp: TimeInterval(index) * 0.1)
-            last = try await verifier.ingest(frame: frame, registration: lockedRegistration())
+            last = try await judge.ingest(frame: frame, registration: lockedRegistration())
         }
         return try XCTUnwrap(last)
     }
@@ -215,66 +228,65 @@ final class GeometricStepVerifierTests: XCTestCase {
     }
 
     func testCompletePlacementReadsComplete() async throws {
-        let verification = try await runVerifier(
-            sceneBuffers: completedSnapshot.buffers + [deltaBuffer()]
-        )
-        XCTAssertEqual(verification.verdict, .complete)
-        XCTAssertEqual(verification.detectability, .strong)
-        XCTAssertGreaterThanOrEqual(verification.framesUsed, 8)
+        for judge in judges {
+            let verification = try await runVerifier(
+                judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer()]
+            )
+            XCTAssertEqual(verification.verdict, .complete, judge.name)
+            XCTAssertEqual(verification.detectability, .strong, judge.name)
+            XCTAssertGreaterThanOrEqual(verification.framesUsed, 8, judge.name)
+        }
     }
 
     func testMissingPlacementReadsIncomplete() async throws {
-        let verification = try await runVerifier(sceneBuffers: completedSnapshot.buffers)
-        XCTAssertEqual(verification.verdict, .incomplete)
+        for judge in judges {
+            let verification = try await runVerifier(judge: judge.make, sceneBuffers: completedSnapshot.buffers)
+            XCTAssertEqual(verification.verdict, .incomplete, judge.name)
+        }
     }
 
     func testStudOffsetPlacementReadsMisplacedWithOffset() async throws {
-        let verification = try await runVerifier(
-            sceneBuffers: completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)]
-        )
-        XCTAssertEqual(verification.verdict, .misplaced(offsetStuds: SIMD2(1, 0)))
+        for judge in judges {
+            let verification = try await runVerifier(
+                judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)]
+            )
+            XCTAssertEqual(verification.verdict, .misplaced(offsetStuds: SIMD2(1, 0)), judge.name)
+        }
     }
 
     func testFlatTileDeltaAbstainsAsUndetectable() async throws {
-        let tile = InstructionGeometrySnapshot(
-            buffers: [deltaBuffer(height: 0.001)],
-            bounds: nil
-        )
-        let verification = try await runVerifier(
-            sceneBuffers: completedSnapshot.buffers + [deltaBuffer(height: 0.001)],
-            delta: tile
-        )
-        XCTAssertEqual(verification.verdict, .uncertain(.deltaUndetectable))
-        XCTAssertEqual(verification.detectability, .undetectable)
+        let tile = InstructionGeometrySnapshot(buffers: [deltaBuffer(height: 0.001)], bounds: nil)
+        for judge in judges {
+            let verification = try await runVerifier(
+                judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer(height: 0.001)], delta: tile
+            )
+            XCTAssertEqual(verification.verdict, .uncertain(.deltaUndetectable), judge.name)
+            XCTAssertEqual(verification.detectability, .undetectable, judge.name)
+        }
     }
 
     func testUnlockedRegistrationRefusesToJudge() async throws {
-        let verifier = try GeometricStepVerifier()
-        await verifier.begin(
-            stepID: "<root>#5",
-            completedSnapshot: completedSnapshot,
-            deltaSnapshot: deltaSnapshot
-        )
         let frame = try observedFrame(sceneBuffers: completedSnapshot.buffers + [deltaBuffer()])
-        var registration = lockedRegistration()
-        registration = ModelRegistration(
-            alignmentID: registration.alignmentID,
-            worldFromModel: registration.worldFromModel,
-            state: .refining,
-            quality: registration.quality,
-            fittedStepIndex: registration.fittedStepIndex,
-            timestamp: registration.timestamp
+        let locked = lockedRegistration()
+        let refining = ModelRegistration(
+            alignmentID: locked.alignmentID, worldFromModel: locked.worldFromModel, state: .refining,
+            quality: locked.quality, fittedStepIndex: locked.fittedStepIndex, timestamp: locked.timestamp
         )
-        let verification = try await verifier.ingest(frame: frame, registration: registration)
-        XCTAssertEqual(verification.verdict, .uncertain(.registrationNotLocked))
+        for judge in judges {
+            let judging = try judge.make()
+            await judging.begin(stepID: "<root>#5", geometry: stepGeometry(delta: deltaSnapshot))
+            let verification = try await judging.ingest(frame: frame, registration: refining)
+            XCTAssertEqual(verification.verdict, .uncertain(.registrationNotLocked), judge.name)
+        }
     }
 
     func testThinEvidenceStaysUncertainAndNeverComplete() async throws {
         // Two frames are below the evidence budget even with a perfect scene.
-        let verification = try await runVerifier(
-            sceneBuffers: completedSnapshot.buffers + [deltaBuffer()],
-            frames: 2
-        )
-        XCTAssertEqual(verification.verdict, .uncertain(.insufficientEvidence))
+        for judge in judges {
+            let verification = try await runVerifier(
+                judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer()], frames: 2
+            )
+            XCTAssertEqual(verification.verdict, .uncertain(.insufficientEvidence), judge.name)
+        }
     }
 }

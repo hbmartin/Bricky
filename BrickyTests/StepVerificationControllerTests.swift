@@ -9,7 +9,7 @@ import simd
 final class StepVerificationControllerTests: XCTestCase {
     /// Records every ingested timestamp and holds the first ingest open
     /// until released, so tests can submit while the verifier is busy.
-    private actor GatedVerifier: StepVerifying {
+    private actor GatedVerifier: StepJudging {
         private(set) var ingested: [TimeInterval] = []
         private(set) var begins = 0
         private var holdNext = true
@@ -17,7 +17,7 @@ final class StepVerificationControllerTests: XCTestCase {
         private var arrival: CheckedContinuation<Void, Never>?
         private var hasArrived = false
 
-        func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot) {
+        func begin(stepID: String, geometry: StepGeometry) {
             begins += 1
         }
 
@@ -59,10 +59,10 @@ final class StepVerificationControllerTests: XCTestCase {
 
     /// Returns the scripted verdicts in order, one per ingest, then repeats
     /// the last.
-    private actor ScriptedVerifier: StepVerifying {
+    private actor ScriptedVerifier: StepJudging {
         private var verdicts: [StepVerdict]
         init(_ verdicts: [StepVerdict]) { self.verdicts = verdicts }
-        func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot) {}
+        func begin(stepID: String, geometry: StepGeometry) {}
         func resetEvidence() {}
         func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification {
             let verdict = verdicts.count > 1 ? verdicts.removeFirst() : verdicts[0]
