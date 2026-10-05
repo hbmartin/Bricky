@@ -78,14 +78,20 @@ final class BuildSessionController {
         cursorIndex = min(max(0, cursorIndex + delta), plan.steps.count - 1)
     }
 
-    /// Records `step` as done and moves the cursor to the next step.
+    /// Records `step` as done and moves the cursor to the step after it.
+    /// Progress only moves forward here: confirming a step the user browsed
+    /// back to acts as browsing forward, so saved progress is never lost.
+    /// Deliberate rewinds go through `setCompletedCount` (recovery).
     func confirm(_ step: AuthoredStep, source: ConfirmationSource) {
         guard let model, let plan else { return }
-        model.confirmedLastCompletedStepID = step.id
-        model.currentStepIndex = min(plan.steps.count, step.index)
+        let done = min(plan.steps.count, step.index)
+        if done > model.currentStepIndex {
+            model.confirmedLastCompletedStepID = step.id
+            model.currentStepIndex = done
+        }
         model.lastOpenedAt = .now
         lastConfirmationSource = source
-        cursorIndex = Self.cursor(forCompleted: model.currentStepIndex, in: plan)
+        cursorIndex = Self.cursor(forCompleted: done, in: plan)
         save()
     }
 
