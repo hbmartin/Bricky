@@ -43,7 +43,7 @@ xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
 ```
 
 AR recovery, the production VLM warm-up, memory admission, and performance gates
-must be validated on physical iPhone/iPad hardware. The deterministic guide can
+must be validated on a physical iPhone 17 Pro or Pro Max. The deterministic guide can
 be developed in the simulator.
 
 ## Licenses
