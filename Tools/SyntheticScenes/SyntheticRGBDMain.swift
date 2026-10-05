@@ -58,18 +58,26 @@ struct SyntheticRGBDMain {
         /// Replays an evidence bundle's verification windows instead of
         /// generating synthetic scenes.
         var replayBundle: String?
+        /// Prints colour-order vs timeline-order render differences per step
+        /// and exits (M2.0 diagnostic).
+        var checkRenderOrder = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle>]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge] [--replay-bundle <unzipped bundle>] [--check-render-order]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
         var index = 0
         while index < arguments.count {
             let flag = arguments[index]
+            if flag == "--check-render-order" {
+                options.checkRenderOrder = true
+                index += 1
+                continue
+            }
             guard index + 1 < arguments.count else { throw CLIError("missing value for \(flag)") }
             let value = arguments[index + 1]
             switch flag {
@@ -127,6 +135,10 @@ struct SyntheticRGBDMain {
             partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
         )
         let renderer = try ExpectedDepthRenderer()
+        if options.checkRenderOrder {
+            try await RenderOrderCheck.run(plan: plan, engine: engine, renderer: renderer)
+            return
+        }
         if let bundle = options.replayBundle {
             // The model's directory must hold exactly the files that were
             // imported, so its identity matches the bundle's sessions.

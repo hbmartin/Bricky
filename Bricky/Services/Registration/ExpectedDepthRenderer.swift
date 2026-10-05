@@ -35,6 +35,11 @@ struct DepthRenderRequest: @unchecked Sendable {
     let geometry: DepthGeometry
     let viewFromModel: simd_float4x4
     var surface: ExpectedDepthRenderer.Surface = .nearest
+    /// Vertex ranges to draw, each its own draw call in the same pass. Nil
+    /// draws all of `geometry`, exactly as before ranges existed; an empty
+    /// list draws nothing. Meaningful on geometry prepared from
+    /// `SegmentedGeometry`, whose ranges are placements (M2.0).
+    var ranges: [Range<Int>]? = nil
 }
 
 /// Rasterizes an `InstructionGeometrySnapshot` to linear depth at LiDAR
@@ -200,6 +205,23 @@ final class ExpectedDepthRenderer: @unchecked Sendable {
         return DepthGeometry(buffer: buffer, vertexCount: vertexCount)
     }
 
+    /// Uploads segmented geometry in timeline order, so placement vertex
+    /// ranges index straight into it. Only new per-placement code draws
+    /// this layout: existing consumers keep colour-merged geometry, whose
+    /// draw order they were validated on.
+    func prepare(_ segments: SegmentedGeometry) -> DepthGeometry {
+        guard segments.vertexCount > 0 else { return DepthGeometry(buffer: nil, vertexCount: 0) }
+        var packed = [Float32]()
+        packed.reserveCapacity(segments.vertexCount * 3)
+        for vertex in segments.positions {
+            packed.append(vertex.x)
+            packed.append(vertex.y)
+            packed.append(vertex.z)
+        }
+        let buffer = device.makeBuffer(bytes: packed, length: packed.count * MemoryLayout<Float32>.stride)
+        return DepthGeometry(buffer: buffer, vertexCount: segments.vertexCount)
+    }
+
     /// Renders the snapshot's linear depth from the given camera pose.
     /// `viewFromModel` maps model-frame points into ARKit camera space;
     /// `intrinsics` must already be scaled to `width x height` (the relay
@@ -264,6 +286,12 @@ final class ExpectedDepthRenderer: @unchecked Sendable {
         for request in requests where request.geometry.vertexCount > 0 && request.geometry.buffer == nil {
             throw RendererError.renderFailed
         }
+        // A range outside the geometry would read past the vertex buffer.
+        for request in requests {
+            for range in request.ranges ?? [] where range.lowerBound < 0 || range.upperBound > request.geometry.vertexCount {
+                throw RendererError.renderFailed
+            }
+        }
         let signpost = GeometrySignposts.signposter.beginInterval(
             "DepthRenderBatch", id: GeometrySignposts.signposter.makeSignpostID(), "\(requests.count) passes"
         )
@@ -306,7 +334,13 @@ final class ExpectedDepthRenderer: @unchecked Sendable {
                 encoder.setCullMode(.none)
                 encoder.setVertexBuffer(buffer, offset: 0, index: 0)
                 encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
-                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: request.geometry.vertexCount)
+                if let ranges = request.ranges {
+                    for range in ranges where !range.isEmpty {
+                        encoder.drawPrimitives(type: .triangle, vertexStart: range.lowerBound, vertexCount: range.count)
+                    }
+                } else {
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: request.geometry.vertexCount)
+                }
             }
             encoder.endEncoding()
         }

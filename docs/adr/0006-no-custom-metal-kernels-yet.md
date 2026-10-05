@@ -33,6 +33,13 @@ asynchronously; its batches are bit-identical to single renders. Geometry
 signposts (`com.bricky.app` / `Geometry`) exist so the device profiling
 this ADR demands can attribute time before anything else moves to the GPU.
 
+Note, 2026-10-05: a request may draw vertex ranges of its geometry, as
+separate draw calls in the same pass (M2.0). Geometry prepared from
+`SegmentedGeometry` is packed in timeline order, so placement ranges index
+into it directly. This is still the same render pipeline. The
+placement-ID attachment, the peel pass and instanced hypothesis draws
+(M2.1) remain the amendment to come, gated on the device verifier trace.
+
 ## Consequences
 
 The `apple-metal-tensorops` review does not cause speculative kernel work. The

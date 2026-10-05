@@ -248,6 +248,114 @@ final class ExpectedDepthRendererTests: XCTestCase {
         }
     }
 
+    // MARK: - Range draws (M2.0)
+
+    /// Three placements: quads at different depths and positions, one
+    /// overlapping another, each its own segment.
+    private var segments: SegmentedGeometry {
+        func quad(x: Float, distance: Float, colour: Int) -> LDrawGeometryBuffer {
+            let z = -distance
+            let a = SIMD3<Float>(x - 0.03, -0.03, z), b = SIMD3<Float>(x + 0.03, -0.03, z)
+            let c = SIMD3<Float>(x + 0.03, 0.03, z), d = SIMD3<Float>(x - 0.03, 0.03, z)
+            return LDrawGeometryBuffer(
+                colorCode: colour, positions: [a, b, c, a, c, d],
+                normals: Array(repeating: SIMD3(0, 0, 1), count: 6), indices: [0, 1, 2, 3, 4, 5]
+            )
+        }
+        return SegmentedGeometry(segments: [
+            [quad(x: -0.05, distance: 0.3, colour: 4)],
+            [quad(x: 0.0, distance: 0.4, colour: 1)],
+            [quad(x: 0.02, distance: 0.35, colour: 4)]
+        ])
+    }
+
+    private func render(_ renderer: ExpectedDepthRenderer, _ requests: [DepthRenderRequest]) async throws -> [ExpectedDepthMap] {
+        try await renderer.render(requests, intrinsics: intrinsics, width: width, height: height)
+    }
+
+    func testNilRangesMatchWholeDraw() async throws {
+        let renderer = try makeRenderer()
+        let geometry = renderer.prepare(segments)
+        let whole = try await render(renderer, [DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4)])
+        let ranged = try await render(renderer, [DepthRenderRequest(
+            geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: [0..<geometry.vertexCount]
+        )])
+        XCTAssertEqual(whole[0].depth, ranged[0].depth)
+        let none = try await render(renderer, [DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: [])])
+        XCTAssertTrue(none[0].depth.allSatisfy { $0 == 0 }, "an empty range list draws nothing")
+    }
+
+    func testRangeMatchesSubsetSnapshot() async throws {
+        let renderer = try makeRenderer()
+        let segments = segments
+        let ranged = try await render(renderer, [DepthRenderRequest(
+            geometry: renderer.prepare(segments), viewFromModel: matrix_identity_float4x4,
+            ranges: [segments.vertexRange(1)]
+        )])
+        let subset = try renderer.render(
+            snapshot: segments.mergedByColour(1..<2), viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics, width: width, height: height
+        )
+        XCTAssertEqual(ranged[0].depth, subset.depth)
+    }
+
+    func testExcludingRangesMatchConcatenation() async throws {
+        let renderer = try makeRenderer()
+        let segments = segments
+        let excluded = try await render(renderer, [DepthRenderRequest(
+            geometry: renderer.prepare(segments), viewFromModel: matrix_identity_float4x4,
+            ranges: segments.vertexRanges(0..<3, excluding: 1)
+        )])
+        let others = InstructionGeometrySnapshot(
+            buffers: segments.mergedByColour(0..<1).buffers + segments.mergedByColour(2..<3).buffers, bounds: nil
+        )
+        let concatenated = try renderer.render(
+            snapshot: others, viewFromModel: matrix_identity_float4x4, intrinsics: intrinsics, width: width, height: height
+        )
+        XCTAssertEqual(excluded[0].depth, concatenated.depth)
+    }
+
+    func testOutOfBoundsRangeFails() async throws {
+        let renderer = try makeRenderer()
+        let geometry = renderer.prepare(segments)
+        do {
+            _ = try await render(renderer, [DepthRenderRequest(
+                geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: [0..<(geometry.vertexCount + 3)]
+            )])
+            XCTFail("a range past the vertex buffer must fail")
+        } catch {}
+    }
+
+    func testBatchWithRangesBitIdenticalToSingles() async throws {
+        let renderer = try makeRenderer()
+        let segments = segments
+        let geometry = renderer.prepare(segments)
+        let requests = [
+            DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: [segments.vertexRange(0)]),
+            DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4, surface: .farthest),
+            DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: segments.vertexRanges(0..<3, excluding: 2))
+        ]
+        let batch = try await render(renderer, requests)
+        for (index, request) in requests.enumerated() {
+            let single = try await render(renderer, [request])
+            XCTAssertEqual(batch[index].depth, single[0].depth, "request \(index)")
+        }
+    }
+
+    /// Empirical, not a guarantee: on geometry without exact depth ties
+    /// between differently coloured triangles, timeline order and colour
+    /// order rasterize identically. Existing consumers keep colour order.
+    func testTimelineOrderMatchesColourOrderOnFixtures() async throws {
+        let renderer = try makeRenderer()
+        let segments = segments
+        let timeline = try await render(renderer, [DepthRenderRequest(geometry: renderer.prepare(segments), viewFromModel: matrix_identity_float4x4)])
+        let colour = try renderer.render(
+            snapshot: segments.mergedByColour(prefix: 3), viewFromModel: matrix_identity_float4x4,
+            intrinsics: intrinsics, width: width, height: height
+        )
+        XCTAssertEqual(timeline[0].depth, colour.depth)
+    }
+
     func testSharedRendererIsOneInstance() throws {
         do {
             let first = try ExpectedDepthRenderer.shared()

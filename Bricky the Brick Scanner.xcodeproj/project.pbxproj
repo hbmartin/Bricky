@@ -15,6 +15,7 @@
 		080E5FE0E65857D82A734117 /* VLMStepCheckServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */; };
 		0C942BD7361D1F3B543F4367 /* PhotoCheckController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
+		133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1A5FCBEABA863BC103FB9EB4 /* InferenceArmSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */; };
 		1B6D88CB3647FEE92E9CD004 /* BrickyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDAFC5DC122BC97CFF8F624A /* BrickyUITests.swift */; };
@@ -277,6 +278,7 @@
 		F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedGeometryTests.swift; sourceTree = "<group>"; };
 		F61283C0C4E15D404920ED28 /* PartDescriptionIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartDescriptionIndex.swift; sourceTree = "<group>"; };
 		F7CB3B19DC650028E2476257 /* RecoveryBenchmarkWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriterTests.swift; sourceTree = "<group>"; };
+		F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderOrderCheck.swift; sourceTree = "<group>"; };
 		F8C8F4A48194A403A44D05E3 /* RecoveryBoardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBoardRenderer.swift; sourceTree = "<group>"; };
 		F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimator.swift; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
@@ -384,6 +386,7 @@
 			isa = PBXGroup;
 			children = (
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
+				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
 				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
 				5E5EA1EFFD9AB9F835837462 /* WindowReplay.swift */,
@@ -756,6 +759,7 @@
 				B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */,
 				66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */,
 				A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */,
+				133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */,
 				2C7628A53E2FBBBFBA76F85D /* SegmentedGeometry.swift in Sources */,
 				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
 				7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */,
