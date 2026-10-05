@@ -100,17 +100,7 @@ struct GuideView: View {
     /// One index per model and pack, so descriptions stay cached across
     /// steps.
     private func descriptionIndex(for plan: InstructionPlan) -> PartDescriptionIndex? {
-        guard let pack = partPack.readyLibraryURL, let root = try? InstructionModelImporter.applicationSupportRoot() else {
-            return nil
-        }
-        let key = "\(plan.sourceSHA256)|\(pack.path)"
-        if let existing = PartDescriptionIndexCache.shared[key] { return existing }
-        let index = PartDescriptionIndex(
-            modelSourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
-            partPackRoot: pack
-        )
-        PartDescriptionIndexCache.shared[key] = index
-        return index
+        partPack.readyLibraryURL.flatMap { PartDescriptionIndexCache.index(for: plan, partPackRoot: $0) }
     }
 
     private func load() {
@@ -121,11 +111,6 @@ struct GuideView: View {
             loadError = error.localizedDescription
         }
     }
-}
-
-@MainActor
-private enum PartDescriptionIndexCache {
-    static var shared: [String: PartDescriptionIndex] = [:]
 }
 
 private struct NewPartsCard: View {

@@ -1,0 +1,236 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Add the %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add the %@."
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        }
+      }
+    },
+    "Move the %@ back to where the guide shows it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ back to where the guide shows it."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud away from you.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud away from you."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to the left on screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to the left on screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to the right on screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to the right on screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to your left.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to your left."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to your right.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to your right."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward the bottom of the screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward the bottom of the screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward the top of the screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward the top of the screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward you.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward you."
+          }
+        }
+      }
+    },
+    "Move to see this step's parts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to see this step's parts"
+          }
+        }
+      }
+    },
+    "Parts too small to verify by depth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parts too small to verify by depth"
+          }
+        }
+      }
+    },
+    "Put the %@ back.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put the %@ back."
+          }
+        }
+      }
+    },
+    "Step looks complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step looks complete"
+          }
+        }
+      }
+    },
+    "Step not complete yet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step not complete yet"
+          }
+        }
+      }
+    },
+    "Swap the %@ for the colour the guide shows.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap the %@ for the colour the guide shows."
+          }
+        }
+      }
+    },
+    "Take off the %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take off the %@."
+          }
+        }
+      }
+    },
+    "This step's parts look shifted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This step's parts look shifted"
+          }
+        }
+      }
+    },
+    "Turn the %@ a quarter turn.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn the %@ a quarter turn."
+          }
+        }
+      }
+    },
+    "Turn the %@ around.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn the %@ around."
+          }
+        }
+      }
+    },
+    "part": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "part"
+          }
+        }
+      }
+    },
+    "parts from this step": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parts from this step"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

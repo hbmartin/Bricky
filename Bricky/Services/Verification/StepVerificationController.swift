@@ -83,23 +83,24 @@ final class StepVerificationController: ObservableObject {
         guard let verification else { return unavailableReason }
         switch verification.verdict {
         case .complete:
-            return "Step looks complete"
+            return String(localized: "Step looks complete")
         case .incomplete:
-            return "Step not complete yet"
+            return String(localized: "Step not complete yet")
         case .misplaced:
-            // Model-space axes mean nothing to the user; the offset stays in
-            // the verdict for diagnostics only.
-            return "Brick looks misplaced by about one stud"
+            // Which way to move is a repair sentence (RepairPhrasebook),
+            // worded from the poses; this is the fallback when the guide has
+            // no repair to show.
+            return String(localized: "This step's parts look shifted")
         case .uncertain(let reason):
             switch reason {
             case .registrationNotLocked, .poseAmbiguous:
                 return nil
             case .deltaUndetectable:
-                return "Parts too small to verify by depth"
+                return String(localized: "Parts too small to verify by depth")
             case .occludedView:
-                return "Move to see this step's parts"
+                return String(localized: "Move to see this step's parts")
             case .insufficientEvidence:
-                return "Checking…"
+                return String(localized: "Checking…")
             }
         }
     }

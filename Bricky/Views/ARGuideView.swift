@@ -34,6 +34,12 @@ struct ARGuideView: View {
     @State private var verificationRecorder: RecoveryEvidenceRecorder?
     @State private var stagedVerification: StagedVerificationDeclaration?
     @State private var showStagedVerificationSetup = false
+    /// The current step's parts in sentence form ("red Brick 2 x 4"), by
+    /// placement index, for repair wording.
+    @State private var partLabels: [Int: String] = [:]
+    @State private var directionStabilizer = DirectionStabilizer()
+    /// What to do about a misplaced step, worded from the poses (ADR 0015).
+    @State private var repairLine: String?
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -71,9 +77,9 @@ struct ARGuideView: View {
                         Button("Reset") { alignment.reset() }
                     }
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
-                    if let verdictLabel = verification.statusLabel {
+                    if let verdictLabel = repairLine ?? verification.statusLabel {
                         HStack(spacing: 6) {
-                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : "eye")
+                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : (repairLine == nil ? "eye" : "arrow.uturn.backward"))
                             Text(verdictLabel)
                         }
                         .font(.callout.weight(.semibold))
@@ -145,6 +151,9 @@ struct ARGuideView: View {
             }
             .onChange(of: session.cursorStep?.id) { _, _ in
                 follow(session.cursorStep)
+            }
+            .onChange(of: verification.verification?.timestamp) { _, _ in
+                updateRepairLine()
             }
         }
         .navigationTitle("AR Step \(step.index)")
@@ -303,6 +312,48 @@ struct ARGuideView: View {
         }
     }
 
+    /// Words a repair for a misplaced step: which part, and which way from
+    /// where the user stands once the direction holds steady. Text only; no
+    /// arrow (ADR 0015).
+    private func updateRepairLine() {
+        guard let current = verification.verification, case .misplaced = current.verdict,
+              let repair = RepairPlanner.plan(verdict: current.verdict, context: RepairPlanner.context(plan: plan, step: step)),
+              let first = repair.actions.first else {
+            repairLine = nil
+            return
+        }
+        var direction: RelativeDirection?
+        if case .move(_, let by) = first, let worldFromModel = current.worldFromModel, let worldFromCamera = current.worldFromCamera {
+            direction = directionStabilizer.update(
+                bearing: CameraRelativeDirection.bearingDegrees(
+                    correction: CameraRelativeDirection.worldCorrection(by, worldFromModel: worldFromModel),
+                    worldFromCamera: worldFromCamera,
+                    rotation: ARCameraManager.screenRotation()
+                ),
+                pitchDegrees: CameraRelativeDirection.pitchDegrees(worldFromCamera: worldFromCamera),
+                at: current.timestamp
+            )
+        }
+        repairLine = RepairPhrasebook.sentence(for: repair.actions, direction: direction, labels: partLabels)
+    }
+
+    /// The step's parts in sentence form, from the pack's descriptions.
+    private func loadPartLabels(for step: AuthoredStep) async {
+        guard let pack = partPack.readyLibraryURL, let index = PartDescriptionIndexCache.index(for: plan, partPackRoot: pack) else {
+            partLabels = [:]
+            return
+        }
+        var labels: [Int: String] = [:]
+        let lower = min(max(0, step.addedPlacementRange.lowerBound), plan.placementTimeline.count)
+        let upper = min(max(lower, step.addedPlacementRange.upperBound), plan.placementTimeline.count)
+        for placementIndex in lower..<upper {
+            let placement = plan.placementTimeline[placementIndex]
+            let colour = PartNaming.colourName(code: placement.colorCode, definitionName: LDrawPalette.definition(placement.colorCode)?.name)
+            labels[placementIndex] = PartNaming.inSentence(colour: colour, part: await index.description(for: placement.partReference))
+        }
+        partLabels = labels
+    }
+
     /// With evidence on, records verification windows for this visit and
     /// asks the relay for the colour and occluder channels they keep.
     private func startVerificationEvidence() {
@@ -375,6 +426,8 @@ struct ARGuideView: View {
         verification.recordWindow(trigger: verification.isComplete ? .stepExit : .override)
         stagedVerification = nil
         verification.stop()
+        repairLine = nil
+        directionStabilizer = DirectionStabilizer()
         step = next
         Task {
             await loadEntity()
@@ -422,6 +475,7 @@ struct ARGuideView: View {
                 geometry: stepGeometry,
                 stepIndex: step.index - 1
             )
+            await loadPartLabels(for: step)
         } catch { self.error = error.localizedDescription }
     }
 }

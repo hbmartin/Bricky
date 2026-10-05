@@ -109,3 +109,7 @@ may only take a "complete" away, and is logged and recorded
 - at least 20 replayed real verification windows with no paired regression;
 - 0 false present on the challenge set;
 - false-complete still 0.
+
+Note (2026-10-05): repair wording is text only (ADR 0015). Any AR arrow or
+pointing overlay needs a US11393153B2 design-around review before it is built,
+for the same reason ghosts here are never wireframe.

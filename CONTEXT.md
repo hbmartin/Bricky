@@ -29,7 +29,11 @@ game, subscription, or set-identification product.
    consented frame (ADR 0011).
 
 PDF input, inferred/synthesized steps, automatic set identification, and
-teardown diagnosis are outside the product boundary. Steps 3–6 are built
+teardown diagnosis are outside the product boundary. Repair inside the
+current step is in: a deterministic plan, derived from measurements and that
+step's authored placements, says which part to add, move or turn, and which
+way from where the user stands (ADR 0015). Cross-step "remove and re-add"
+plans are proposed, not accepted. Steps 3–6 are built
 (the triad program, ADRs 0008–0013), but none of their release gates has
 device evidence yet: every rate and latency below is unmeasured on an
 iPhone 17 Pro until the Phase 1 corpus exists ([IOS27_ROADMAP.md](docs/IOS27_ROADMAP.md)).

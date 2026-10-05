@@ -21,4 +21,6 @@ references, unsafe paths, and configured resource limits.
 
 Bricky never invents or repairs an instruction sequence. Recovery estimates and
 step checks can only select or assess authored steps, and users always retain
-the final choice.
+the final choice. A repair of the current step's parts (ADR 0015) is a fix to
+the physical build, not to the sequence: it names only that step's authored
+placements and never adds, removes or reorders a step.

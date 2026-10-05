@@ -5,6 +5,7 @@ options:
     iOS: "27.0"
   xcodeVersion: "27.0"
   groupSortPosition: top
+  developmentLanguage: en
 packages:
   RecoveryMLX:
     path: Packages/RecoveryMLX
@@ -50,6 +51,9 @@ targets:
         buildPhase: resources
       - path: Bricky/Resources/LDRAW_ATTRIBUTION.txt
         buildPhase: resources
+      # Repair wording and verifier labels (ADR 0015).
+      - path: Bricky/Resources/Localizable.xcstrings
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bricky.app
@@ -62,6 +66,8 @@ targets:
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Bricky/Resources/Info.plist
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_ENTITLEMENTS: Bricky/Resources/App.entitlements
     dependencies:
       - package: RecoveryMLX
@@ -140,6 +146,7 @@ targets:
       - BrickyTests/PlacementGeometryStoreTests.swift
       - BrickyTests/PlacementGeometryIndexTests.swift
       - BrickyTests/RepairPlanningTests.swift
+      - BrickyTests/RepairPhrasebookTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

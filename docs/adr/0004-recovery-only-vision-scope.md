@@ -22,3 +22,6 @@ estimate and advance after uncertainty.
 
 No image or model leaves the device. Automatic set identification, synthesized
 steps, missing-part diagnosis, and teardown repair remain outside v1.
+
+Note, 2026-10-05: in-step repair of the current step's parts is accepted by
+ADR 0015. Teardown (cross-step) repair is proposed there, not accepted.
