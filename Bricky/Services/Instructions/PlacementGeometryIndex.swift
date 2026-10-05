@@ -57,6 +57,9 @@ struct PlacementGeometryIndex: Sendable {
     static let contactTolerance: Double = 1
 
     let status: [LatticeStatus]
+    /// Each placement's origin in the engine's model frame (metres, y up):
+    /// the point a builder turns the part about.
+    let origins: [SIMD3<Float>]
     /// Placements covering each stud column.
     let occupancy: [SIMD2<Int>: [Int]]
     /// `supports[p]`: placements resting directly on p.
@@ -158,6 +161,7 @@ struct PlacementGeometryIndex: Sendable {
         }
         return PlacementGeometryIndex(
             status: status,
+            origins: transforms.prefix(count).map { SIMD3(Float($0.x), Float(-$0.y), Float($0.z)) * 0.0004 },
             occupancy: occupancy,
             supports: supports.map { $0.sorted() },
             supportedBy: supportedBy.map { $0.sorted() }

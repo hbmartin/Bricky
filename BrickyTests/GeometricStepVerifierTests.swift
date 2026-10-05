@@ -138,7 +138,7 @@ final class GeometricStepVerifierTests: XCTestCase {
     /// Every judge must pass the same verdict contract. The geometric
     /// verifier is the oracle; the shadow build diff (M2.3) joins it here.
     private var judges: [(name: String, make: () throws -> any StepJudging)] {
-        [("verifier", { try GeometricStepVerifier() })]
+        [("verifier", { try GeometricStepVerifier() }), ("build diff", { try BuildDiffEngine() })]
     }
 
     /// The step as a two-placement plan: the base, then the delta.
@@ -288,5 +288,184 @@ final class GeometricStepVerifierTests: XCTestCase {
             )
             XCTAssertEqual(verification.verdict, .uncertain(.insufficientEvidence), judge.name)
         }
+    }
+
+    // MARK: - Build diff (M2.3)
+
+    private func fields(_ v: StepVerification) -> [String] {
+        [
+            "\(v.verdict)", "\(v.detectability)", "\(v.deltaPixels)", "\(v.framesUsed)",
+            "\(v.completeFraction.bitPattern)", "\(v.incompleteFraction.bitPattern)",
+            "\(v.registrationQuality)", "\(v.timestamp)"
+        ]
+    }
+
+    private func registration(_ state: RegistrationState, timestamp: TimeInterval) -> ModelRegistration {
+        let locked = lockedRegistration(timestamp: timestamp)
+        return ModelRegistration(
+            alignmentID: locked.alignmentID, worldFromModel: locked.worldFromModel, state: state,
+            quality: locked.quality, fittedStepIndex: locked.fittedStepIndex, timestamp: timestamp
+        )
+    }
+
+    /// Under `.legacyEquivalent` the diff's verdict is the verifier's, field
+    /// for field, after every frame: complete, missing, shifted, a flat
+    /// tile, unlocked and ambiguous poses, an occluded frame, and a step
+    /// change mid-stream.
+    func testLegacyAdapterMatchesVerifierFrameByFrame() async throws {
+        let blank = try observedFrame(sceneBuffers: [])
+        let empty = RegistrationFrameInput(
+            depth: .init(repeating: 0, count: width * height), confidence: .init(repeating: 2, count: width * height),
+            rawDepth: nil, rawConfidence: nil, width: width, height: height,
+            depthIntrinsics: intrinsics, worldFromCamera: blank.worldFromCamera, timestamp: 0
+        )
+        let tile = InstructionGeometrySnapshot(buffers: [deltaBuffer(height: 0.001)], bounds: nil)
+        let scenes: [(String, [LDrawGeometryBuffer], InstructionGeometrySnapshot)] = [
+            ("complete", completedSnapshot.buffers + [deltaBuffer()], deltaSnapshot),
+            ("missing", completedSnapshot.buffers, deltaSnapshot),
+            ("shifted", completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)], deltaSnapshot),
+            ("tile", completedSnapshot.buffers + [deltaBuffer(height: 0.001)], tile)
+        ]
+        for (name, buffers, delta) in scenes {
+            let verifier = try GeometricStepVerifier()
+            let diff = try BuildDiffEngine()
+            await verifier.begin(stepID: "<root>#5", geometry: stepGeometry(delta: delta))
+            await diff.begin(stepID: "<root>#5", geometry: stepGeometry(delta: delta))
+            for index in 0..<12 {
+                let timestamp = TimeInterval(index) * 0.1
+                var frame = try observedFrame(sceneBuffers: buffers, timestamp: timestamp)
+                var pose = lockedRegistration(timestamp: timestamp)
+                switch index {
+                case 2: pose = registration(.refining, timestamp: timestamp)
+                case 3: pose = registration(.ambiguous, timestamp: timestamp)
+                case 5: frame = empty
+                default: break
+                }
+                if index == 9 {
+                    // A step change: both start over on the same step.
+                    await verifier.begin(stepID: "<root>#5", geometry: stepGeometry(delta: delta))
+                    await diff.begin(stepID: "<root>#5", geometry: stepGeometry(delta: delta))
+                }
+                let expected = try await verifier.ingest(frame: frame, registration: pose)
+                let actual = try await diff.ingest(frame: frame, registration: pose)
+                XCTAssertEqual(fields(actual), fields(expected), "\(name) frame \(index)")
+            }
+        }
+    }
+
+    /// Runs the build diff over 10 frames of `buffers` and returns the
+    /// delta placement's observation.
+    private func diffObservation(
+        buffers: [LDrawGeometryBuffer], geometry: StepGeometry
+    ) async throws -> (PlacementObservation, StepVerification) {
+        let diff = try BuildDiffEngine()
+        await diff.begin(stepID: "<root>#5", geometry: geometry)
+        var last: StepVerification?
+        for index in 0..<10 {
+            let frame = try observedFrame(sceneBuffers: buffers, timestamp: TimeInterval(index) * 0.1)
+            last = try await diff.ingest(frame: frame, registration: lockedRegistration())
+        }
+        let lastDiff = await diff.lastDiff
+        let observation = try XCTUnwrap(lastDiff?.observations.first)
+        return (observation, try XCTUnwrap(last))
+    }
+
+    func testAbsentPlacementReadsAbsent() async throws {
+        let (observation, _) = try await diffObservation(
+            buffers: completedSnapshot.buffers, geometry: stepGeometry(delta: deltaSnapshot)
+        )
+        XCTAssertEqual(observation.state, .absent)
+    }
+
+    func testDisplacedPlacementNamesItsOffset() async throws {
+        let (observation, verdict) = try await diffObservation(
+            buffers: completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)], geometry: stepGeometry(delta: deltaSnapshot)
+        )
+        XCTAssertEqual(observation.state, .displaced(LatticeOffset(dx: 1)))
+        XCTAssertEqual(verdict.verdict, .misplaced(offsetStuds: SIMD2(1, 0)), "the group verdict is the verifier's")
+    }
+
+    /// An oblong delta, its origin at its centre, as the index sees it.
+    private func oblongGeometry() -> StepGeometry {
+        let oblong = boxBuffer(min: SIMD3(0.040, 0.0384, 0.024), max: SIMD3(0.088, 0.0576, 0.040), colorCode: 1)
+        let segments = SegmentedGeometry(segments: [completedSnapshot.buffers, [oblong]])
+        return StepGeometry(
+            completedSnapshot: completedSnapshot,
+            deltaSnapshot: InstructionGeometrySnapshot(buffers: [oblong], bounds: nil),
+            segments: segments,
+            index: PlacementGeometryIndex.build(transforms: [LDrawTransform(), LDrawTransform(x: 160, z: 80)], segments: segments),
+            completedPlacements: 0..<1, deltaPlacements: 1..<2
+        )
+    }
+
+    func testRotatedAsymmetricPlacementReadsRotated() async throws {
+        // The oblong built a quarter turn round, about its centre.
+        let turned = boxBuffer(min: SIMD3(0.056, 0.0384, 0.008), max: SIMD3(0.072, 0.0576, 0.056), colorCode: 1)
+        let (observation, _) = try await diffObservation(
+            buffers: completedSnapshot.buffers + [turned], geometry: oblongGeometry()
+        )
+        XCTAssertEqual(observation.state, .rotated(quarterTurns: 1))
+    }
+
+    func testSymmetricRotationReadsPresent() async throws {
+        // A half turn of the oblong is the oblong: nothing to see.
+        let oblong = boxBuffer(min: SIMD3(0.040, 0.0384, 0.024), max: SIMD3(0.088, 0.0576, 0.040), colorCode: 1)
+        let (observation, _) = try await diffObservation(
+            buffers: completedSnapshot.buffers + [oblong], geometry: oblongGeometry()
+        )
+        XCTAssertEqual(observation.state, .present)
+        let half = observation.evidence.tallies.first { $0.offset == LatticeOffset(quarterTurns: 2) }
+        XCTAssertEqual(half?.winsAlternative, 0, "an identical prediction gathers no evidence")
+    }
+
+    func testPlateOffsetIsObserveOnly() async throws {
+        let raised = boxBuffer(min: SIMD3(0.048, 0.0416, 0.016), max: SIMD3(0.080, 0.0608, 0.048), colorCode: 1)
+        let verifierVerdict = try await runVerifier(
+            judge: { try GeometricStepVerifier() }, sceneBuffers: completedSnapshot.buffers + [raised]
+        )
+        let (observation, verdict) = try await diffObservation(
+            buffers: completedSnapshot.buffers + [raised], geometry: stepGeometry(delta: deltaSnapshot)
+        )
+        if case .displaced(let offset) = observation.state { XCTAssertFalse(offset.isVertical, "plate steps are never concluded") }
+        XCTAssertEqual(verdict.verdict, verifierVerdict.verdict)
+        XCTAssertNotNil(observation.evidence.tallies.first { $0.offset == LatticeOffset(dy: 1) }, "but they are tallied")
+    }
+
+    func testUnseenPlacementIsNotObservable() async throws {
+        let diff = try BuildDiffEngine()
+        await diff.begin(stepID: "<root>#5", geometry: stepGeometry(delta: deltaSnapshot))
+        let frame = try observedFrame(sceneBuffers: completedSnapshot.buffers + [deltaBuffer()])
+        _ = try await diff.ingest(frame: frame, registration: registration(.refining, timestamp: 0))
+        let lastDiff = await diff.lastDiff
+        let observation = try XCTUnwrap(lastDiff?.observations.first)
+        XCTAssertEqual(observation.state, .notObservable(.occluded))
+    }
+
+    func testRenderBudgetHoldsForMultiPartSteps() async throws {
+        let parts = [
+            boxBuffer(min: SIMD3(0.008, 0.0384, 0.016), max: SIMD3(0.040, 0.0576, 0.048), colorCode: 1),
+            boxBuffer(min: SIMD3(0.048, 0.0384, 0.016), max: SIMD3(0.080, 0.0576, 0.048), colorCode: 2),
+            boxBuffer(min: SIMD3(0.088, 0.0384, 0.016), max: SIMD3(0.120, 0.0576, 0.048), colorCode: 14)
+        ]
+        let segments = SegmentedGeometry(segments: [completedSnapshot.buffers] + parts.map { [$0] })
+        let geometry = StepGeometry(
+            completedSnapshot: completedSnapshot,
+            deltaSnapshot: InstructionGeometrySnapshot(buffers: parts, bounds: nil),
+            segments: segments,
+            index: PlacementGeometryIndex.build(transforms: Array(repeating: LDrawTransform(), count: 4), segments: segments),
+            completedPlacements: 0..<1, deltaPlacements: 1..<4
+        )
+        let diff = try BuildDiffEngine()
+        await diff.begin(stepID: "<root>#5", geometry: geometry)
+        for index in 0..<8 {
+            let frame = try observedFrame(sceneBuffers: completedSnapshot.buffers + parts, timestamp: TimeInterval(index) * 0.1)
+            _ = try await diff.ingest(frame: frame, registration: lockedRegistration())
+            let renders = await diff.lastPassRenders
+            XCTAssertLessThanOrEqual(renders, 16)
+        }
+        let lastDiff = await diff.lastDiff
+        let observations = try XCTUnwrap(lastDiff?.observations)
+        XCTAssertEqual(observations.count, 3)
+        XCTAssertTrue(observations.contains { $0.state == .present }, "round-robin reaches the parts")
     }
 }

@@ -85,6 +85,7 @@ targets:
       - Bricky/Domain/RegistrationDomain.swift
       - Bricky/Domain/VerificationDomain.swift
       - Bricky/Domain/VerificationEvidenceReplay.swift
+      - Bricky/Domain/BuildDiffDomain.swift
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
@@ -99,6 +100,7 @@ targets:
       - Bricky/Services/Registration/DepthICPTracker.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
       - Bricky/Services/Verification/StepJudging.swift
+      - Bricky/Services/Verification/BuildDiffEngine.swift
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift

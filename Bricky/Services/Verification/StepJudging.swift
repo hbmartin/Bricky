@@ -53,9 +53,9 @@ struct StepGeometry: Sendable {
 /// geometric verifier, the shadow build diff (M2.3), and test fakes. Kept
 /// free of SwiftUI so SyntheticRGBD compiles it.
 protocol StepJudging: Actor {
-    func begin(stepID: String, geometry: StepGeometry)
+    func begin(stepID: String, geometry: StepGeometry) async
     func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification
-    func resetEvidence()
+    func resetEvidence() async
 }
 
 extension GeometricStepVerifier: StepJudging {
