@@ -48,6 +48,15 @@ struct SyntheticRGBDMain {
         case challenge
         /// Repair plans and their camera-relative wording (M2.4).
         case repair
+        /// Geometric recovery on mid-build states (M2.6).
+        case recovery
+    }
+
+    /// Which recovery configuration the suite runs: the control, or the
+    /// placement-consistency tie-break (M2.6).
+    enum RecoveryArm: String {
+        case control
+        case tiebreak
     }
 
     struct Options {
@@ -61,6 +70,7 @@ struct SyntheticRGBDMain {
         /// generating synthetic scenes.
         var replayBundle: String?
         var replayJudge = WindowReplay.Judge.verifier
+        var recoveryArm = RecoveryArm.control
         /// Prints colour-order vs timeline-order render differences per step
         /// and exits (M2.0 diagnostic).
         var checkRenderOrder = false
@@ -69,7 +79,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -96,6 +106,9 @@ struct SyntheticRGBDMain {
                 guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
                 options.suite = suite
             case "--replay-bundle": options.replayBundle = value
+            case "--recovery-arm":
+                guard let arm = RecoveryArm(rawValue: value) else { throw CLIError("invalid value for --recovery-arm: \(value)") }
+                options.recoveryArm = arm
             case "--judge":
                 guard let judge = WindowReplay.Judge(rawValue: value) else { throw CLIError("invalid value for --judge: \(value)") }
                 options.replayJudge = judge
@@ -161,6 +174,11 @@ struct SyntheticRGBDMain {
             try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
                 .write(toFile: options.outPath, atomically: true, encoding: .utf8)
             print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.matches) match the device verdict; \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
+            return
+        }
+        if options.suite == .recovery {
+            guard options.recoveryArm == .control else { throw CLIError("the tiebreak arm needs the placement-consistency tie-break") }
+            try await runRecovery(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
             return
         }
         if options.suite == .repair {

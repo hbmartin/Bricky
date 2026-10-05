@@ -30,6 +30,7 @@ from score_results import (
     score_challenge,
     score_placement,
     score_repair,
+    score_geometric_recovery,
 )
 
 RELEASE_ROWS = 60
@@ -313,6 +314,29 @@ def repair_row(harmful: int = 0, **extra: object) -> dict[str, object]:
                               "expected_direction": "your_left", "produced_direction": "your_left"}
     row.update(extra)
     return row
+
+
+def recovery_row(scenario: str, expected: str, ranked: list[str], certainty: str = "high") -> dict[str, object]:
+    return {"kind": "geometric_recovery", "schema_version": 1, "provenance": "synthetic", "fixture_id": f"g-{scenario}-{expected}",
+            "scenario_class": scenario, "expected_step_id": expected, "ranked_step_ids": ranked, "certainty": certainty}
+
+
+class GeometricRecoveryScoringTests(unittest.TestCase):
+    def test_scores_per_class(self) -> None:
+        rows = [
+            recovery_row("exact", "m#3", ["m#3", "m#2"]),
+            recovery_row("minus_part_current", "m#4", ["m#3", "m#4"]),
+            recovery_row("minus_part_current", "m#5", [], certainty="insufficient"),
+        ]
+        report = score_geometric_recovery(rows)
+        self.assertEqual(report["top1_cases"], 1)
+        self.assertEqual(report["by_class"]["minus_part_current"]["top3_cases"], 1)
+        self.assertEqual(report["by_class"]["minus_part_current"]["insufficient_cases"], 1)
+
+    def test_geometric_recovery_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main([recovery_row("exact", "m#3", ["m#3"])], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
 
 
 class RepairScoringTests(unittest.TestCase):

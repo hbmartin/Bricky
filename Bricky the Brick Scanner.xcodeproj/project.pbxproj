@@ -53,6 +53,7 @@
 		493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */; };
 		4B8DD54FB4173087F91ADF63 /* RepairPhrasebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = E525FA894732754A4DAB64BC /* RepairPhrasebook.swift */; };
 		4C6F6F15D3E55156CF376E62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F2F2BE886FE2E5676C77AE15 /* Assets.xcassets */; };
+		4FD16722C51C4ABA0CA50337 /* RecoveryScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */; };
 		4FDDA08FE65E83E0BDC34FC0 /* VerificationWindowBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59AADE68549F7806130D18F6 /* VerificationWindowBuffer.swift */; };
 		5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */; };
 		5107765EB76F417AE2907EC5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */; };
@@ -248,6 +249,7 @@
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
 		7D75275F92B067A38B70821C /* BuildDiffDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDiffDomain.swift; sourceTree = "<group>"; };
 		7F0B75DC6220349A5907258E /* SegmentedGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedGeometry.swift; sourceTree = "<group>"; };
+		854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryScenario.swift; sourceTree = "<group>"; };
 		85778E2B3323B8DD913494D2 /* DeviceFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloor.swift; sourceTree = "<group>"; };
 		868429598B01C6397EDFA9F1 /* RepairPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPlanner.swift; sourceTree = "<group>"; };
 		89E271521248A9118A672048 /* PartSymmetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartSymmetry.swift; sourceTree = "<group>"; };
@@ -443,6 +445,7 @@
 			isa = PBXGroup;
 			children = (
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
+				854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
 				F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
@@ -831,6 +834,7 @@
 				C15523B38D9128BAE05738E3 /* PlacementGeometryStore.swift in Sources */,
 				B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */,
 				66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */,
+				4FD16722C51C4ABA0CA50337 /* RecoveryScenario.swift in Sources */,
 				A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */,
 				133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */,
 				60E27187389AA678D8117CC9 /* RepairDomain.swift in Sources */,

@@ -85,6 +85,18 @@ class ComparisonTests(unittest.TestCase):
         )
         self.assertIn("UNDERPOWERED", compare(control, [variant])[0].decision)
 
+    def test_session_primary_decision(self) -> None:
+        # Geometric recovery arms have sessions and no passes.
+        control, variant = self.arms(
+            [], [],
+            control_sessions=[session_row(i, i >= 6) for i in range(20)],
+            variant_sessions=[session_row(i, True) for i in range(20)],
+        )
+        self.assertIn("UNMEASURED", compare(control, [variant])[0].decision, "no passes to judge by default")
+        verdict = compare(control, [variant], primary="session_top1")[0]
+        self.assertEqual((verdict.accuracy["session_top1"].wins, verdict.accuracy["session_top1"].losses), (6, 0))
+        self.assertIn("FLIP CANDIDATE: accuracy win", verdict.decision)
+
     def test_slot_histogram_exposes_positional_bias(self) -> None:
         control, _ = self.arms(
             [pass_row(0, False, chosen="B", truth="A"), pass_row(1, True, chosen="B", truth="B"),

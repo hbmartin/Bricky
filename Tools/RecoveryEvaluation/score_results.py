@@ -66,6 +66,10 @@ PLACEMENT_FALSE_PRESENT_CEILING = 0.02
 # Synthetic repair plans (M2.4): deterministic actions from a verdict. A
 # harmful action (one that would make the build worse) must never happen.
 REPAIR_KIND = "repair_plan"
+# Synthetic geometric recovery (M2.6): the real estimator on rendered,
+# degraded scenes, including steps built short of a part. Never release
+# evidence: device recovery rows are kind "recovery".
+GEOMETRIC_RECOVERY_KIND = "geometric_recovery"
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -946,6 +950,33 @@ def score_repair(rows: list[dict[str, object]]) -> tuple[dict[str, object], list
     return report, [gate]
 
 
+def score_geometric_recovery(rows: list[dict[str, object]]) -> dict[str, object]:
+    for index, row in enumerate(rows, start=1):
+        missing = sorted({"fixture_id", "scenario_class", "expected_step_id", "ranked_step_ids", "certainty"} - row.keys())
+        if missing:
+            raise SystemExit(f"geometric_recovery row {index} missing fields: {', '.join(missing)}")
+
+    def summary(group: list[dict[str, object]]) -> dict[str, object]:
+        top1 = sum(bool(r["ranked_step_ids"]) and r["ranked_step_ids"][0] == r["expected_step_id"] for r in group)
+        top3 = sum(r["expected_step_id"] in r["ranked_step_ids"][:3] for r in group)
+        insufficient = sum(r["certainty"] == "insufficient" for r in group)
+        return {
+            "cases": len(group),
+            "top1_cases": top1,
+            "top3_cases": top3,
+            "insufficient_cases": insufficient,
+            "tie_break_cases": sum(bool(r.get("tie_break_applied")) for r in group),
+            "top1_rate": top1 / len(group) if group else None,
+        }
+
+    by_class: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        by_class.setdefault(str(row["scenario_class"]), []).append(row)
+    report = summary(rows)
+    report["by_class"] = {name: summary(group) for name, group in sorted(by_class.items())}
+    return report
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -959,7 +990,9 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
-        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND)
+        kind: [] for kind in KINDS + SUMMARY_KINDS + (
+            CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND
+        )
     }
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
@@ -1070,6 +1103,8 @@ def main(
             raise SystemExit(f"{PLACEMENT_KIND} rows other than device rows are not release evidence")
         if kinds[REPAIR_KIND]:
             raise SystemExit(f"{REPAIR_KIND} rows are synthetic and are not release evidence")
+        if kinds[GEOMETRIC_RECOVERY_KIND]:
+            raise SystemExit(f"{GEOMETRIC_RECOVERY_KIND} rows are synthetic and are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -1096,6 +1131,13 @@ def main(
     repair_gates: list[Gate] = []
     if kinds[REPAIR_KIND]:
         report[REPAIR_KIND], repair_gates = score_repair(kinds[REPAIR_KIND])
+    if kinds[GEOMETRIC_RECOVERY_KIND]:
+        report[GEOMETRIC_RECOVERY_KIND] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
+        for name, entry in report[GEOMETRIC_RECOVERY_KIND]["by_class"].items():
+            print(
+                f"GEOMETRIC_RECOVERY {name} top1 {entry['top1_cases']}/{entry['cases']} "
+                f"top3 {entry['top3_cases']}/{entry['cases']} insufficient {entry['insufficient_cases']}"
+            )
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.

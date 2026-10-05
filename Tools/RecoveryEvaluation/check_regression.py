@@ -37,10 +37,12 @@ from score_results import (
     CHALLENGE_KIND,
     PLACEMENT_KIND,
     REPAIR_KIND,
+    GEOMETRIC_RECOVERY_KIND,
     partition,
     score_challenge,
     score_placement,
     score_repair,
+    score_geometric_recovery,
     score_registration,
     score_verification,
 )
@@ -121,6 +123,8 @@ def measure(path: Path) -> dict[str, float]:
         report["placement"], _ = score_placement(kinds[PLACEMENT_KIND])
     if kinds[REPAIR_KIND]:
         report["repair_plan"], _ = score_repair(kinds[REPAIR_KIND])
+    if kinds[GEOMETRIC_RECOVERY_KIND]:
+        report["geometric_recovery"] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
     return flatten(report)
 
 
