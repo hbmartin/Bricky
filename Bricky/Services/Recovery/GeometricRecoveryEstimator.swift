@@ -33,6 +33,13 @@ actor GeometricRecoveryEstimator {
         var minimumConfidence: UInt8 = 1
         var refinementPasses = 3
         var candidatesPerPass = 8
+        /// Break an inconclusive ranking by per-placement consistency
+        /// (M2.6). Off until device replays show it helps (ADR 0010).
+        var consistencyTieBreak = false
+        /// The leader's fit must at least reach this score for the
+        /// tie-break to trust its pose.
+        var tieBreakMinimumScore: Float = 0.3
+        var tieBreak = PlacementConsistencyScorer.Configuration()
     }
 
     struct CandidateScore: Sendable {
@@ -81,6 +88,30 @@ actor GeometricRecoveryEstimator {
         self.recorder = recorder
         self.renderer = try renderer ?? ExpectedDepthRenderer.shared()
         self.geometry = geometry
+    }
+
+    /// The placement-consistency winner for an inconclusive ranking, when
+    /// the tie-break is on and the leader's fit is sound enough to judge
+    /// placements from its pose.
+    private func tieBreak(ranked: [CandidateScore], plan: InstructionPlan, geometry: PlacementGeometry) async throws -> Int? {
+        guard configuration.consistencyTieBreak, let leader = ranked.first,
+              leader.disqualification == .none,
+              leader.quality.rmsResidual <= configuration.maxFitRMS,
+              leader.score >= configuration.tieBreakMinimumScore else { return nil }
+        return try await PlacementConsistencyScorer.tieBreak(
+            leader: leader.index,
+            leaderWorldFromModel: leader.worldFromModel,
+            plan: plan,
+            geometry: geometry,
+            frame: frame,
+            renderer: renderer,
+            configuration: configuration.tieBreak
+        )
+    }
+
+    private static func milliseconds(since start: ContinuousClock.Instant) -> Int {
+        let duration = start.duration(to: .now)
+        return Int(duration.components.seconds) * 1_000 + Int(duration.components.attoseconds / 1_000_000_000_000_000)
     }
 
     /// Returns a conclusive estimate or nil. Step zero (nothing built) has no
@@ -141,6 +172,19 @@ actor GeometricRecoveryEstimator {
         let ranked = scored.values.sorted { $0.score > $1.score }
         guard let best = ranked.first,
               Self.isConclusive(best: best, runnerUp: ranked.dropFirst().first, configuration: configuration) else {
+            if let winner = try await tieBreak(ranked: ranked, plan: plan, geometry: geometry) {
+                await recordFits(scored: scored, passIndices: passIndexByCandidate, plan: plan, conclusiveIndex: winner)
+                let others = ranked.filter { $0.index != winner }.prefix(2)
+                return RecoveryEstimate(
+                    rankedStepIDs: ([winner] + others.map(\.index)).map { RecoveryIndexing.stepID(forIndex: $0, plan: plan) },
+                    certainty: .medium,
+                    modelRevision: "depth-icp-geometric-v1+pcs1",
+                    latencyMilliseconds: Self.milliseconds(since: started),
+                    captureIDs: captureIDs,
+                    insufficiencyCause: nil,
+                    method: .geometric
+                )
+            }
             // An inconclusive attempt is the interesting one — it is what
             // sent the recovery to the VLM — so it is recorded too.
             await recordFits(scored: scored, passIndices: passIndexByCandidate, plan: plan, conclusiveIndex: nil)

@@ -114,6 +114,7 @@ targets:
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
+      - Bricky/Services/Recovery/PlacementConsistencyScorer.swift
     dependencies:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
@@ -147,6 +148,7 @@ targets:
       - BrickyTests/PlacementGeometryIndexTests.swift
       - BrickyTests/RepairPlanningTests.swift
       - BrickyTests/RepairPhrasebookTests.swift
+      - BrickyTests/PlacementConsistencyScorerTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

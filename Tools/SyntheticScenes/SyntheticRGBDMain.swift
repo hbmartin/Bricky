@@ -177,7 +177,6 @@ struct SyntheticRGBDMain {
             return
         }
         if options.suite == .recovery {
-            guard options.recoveryArm == .control else { throw CLIError("the tiebreak arm needs the placement-consistency tie-break") }
             try await runRecovery(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
             return
         }

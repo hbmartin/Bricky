@@ -1,0 +1,121 @@
+{
+  "_comment": [
+    "Regression baseline for the recovery suite's tie-break arm (SyntheticRGBD",
+    "--suite recovery --recovery-arm tiebreak, fixture challenge.ldr, seed 7).",
+    "The placement-consistency tie-break (M2.6) runs only when the leader's",
+    "fit scores at least 0.3. Under the synthetic sensor model leaders score",
+    "about 0.2, so on 2026-10-05 it never ran and this arm equals the control.",
+    "The baseline guards that it never starts concluding wrongly; the flip",
+    "needs device replay rows (ADR 0010)."
+  ],
+  "fixture": "fixtures/challenge/challenge.ldr",
+  "generated": "2026-10-05",
+  "metrics": {
+    "geometric_recovery.by_class.exact.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 7.0
+    },
+    "geometric_recovery.by_class.exact.insufficient_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 7.0
+    },
+    "geometric_recovery.by_class.exact.tie_break_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.exact.top1_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.exact.top3_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_current.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "geometric_recovery.by_class.minus_part_current.insufficient_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "geometric_recovery.by_class.minus_part_current.tie_break_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_current.top1_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_current.top3_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_earlier.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "geometric_recovery.by_class.minus_part_earlier.insufficient_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "geometric_recovery.by_class.minus_part_earlier.tie_break_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_earlier.top1_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.by_class.minus_part_earlier.top3_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 14.0
+    },
+    "geometric_recovery.insufficient_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 14.0
+    },
+    "geometric_recovery.tie_break_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.top1_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "geometric_recovery.top3_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "synthetic_summary.recovery.generated_recovery_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 14.0
+    }
+  },
+  "seed": 7
+}
