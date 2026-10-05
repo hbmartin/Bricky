@@ -105,6 +105,11 @@ struct Replay: AsyncParsableCommand {
             resolved = try JSONDecoder().decode(RecoveryInferenceVariant.self, from: Data(variant.utf8))
             if resolved.armID == nil { resolved.armID = arm }
         }
+        do {
+            try resolved.validate()
+        } catch {
+            throw ValidationError("\(error)")
+        }
         return resolved
     }
 
@@ -142,7 +147,7 @@ struct Replay: AsyncParsableCommand {
             var finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?, probe: ProbeReadout?)] = []
             // Every replayed call counts: with --all-passes this is the whole
             // hierarchy's inference cost, as the device's wall clock is.
-            var replayLatency = 0
+            var tally = ReplayAggregation.CallTally()
             for recordedRow in rankRows {
                 // Rotation reassigns the recorded tiles to new slots; the
                 // remapped row is what the model sees and what is scored.
@@ -150,9 +155,10 @@ struct Replay: AsyncParsableCommand {
                     ? recordedRow.withSlotsRotated(viewIndex: recordedRow.passIndex)
                     : recordedRow
                 let board = try boardURL(for: row, in: session, variant: variant)
-                let prompt = promptStyle == nil
-                    ? (promptOverride ?? row.prompt)
-                    : RecoveryPrompts.rank(slotCount: row.candidateStepIDs.count, style: variant.promptStyle)
+                let prompt = RecoveryPrompts.replayRank(
+                    recorded: row.prompt, override: promptOverride, explicitStyle: promptStyle,
+                    variant: variant, slotCount: row.candidateStepIDs.count
+                )
                 let response = try await runtime.rankWithTrace(
                     imageURL: board,
                     prompt: prompt,
@@ -164,7 +170,7 @@ struct Replay: AsyncParsableCommand {
                     scoring: variant.scoring,
                     imageSide: variant.imageSide
                 )
-                replayLatency += response.trace.latencyMilliseconds
+                tally.add(latencyMilliseconds: response.trace.latencyMilliseconds)
                 if row.pass == .finalist {
                     finalistReplays.append((row, response.output, response.trace.probe))
                 }
@@ -191,9 +197,7 @@ struct Replay: AsyncParsableCommand {
                     }
                     let response = try await runtime.checkStepWithTrace(
                         imageURL: try boardURL(for: row, in: session, variant: variant),
-                        prompt: promptStyle == nil && variant.boardLayout == .v1
-                            ? row.prompt
-                            : RecoveryPrompts.check(style: variant.promptStyle, layout: variant.boardLayout),
+                        prompt: RecoveryPrompts.replayCheck(recorded: row.prompt, explicitStyle: promptStyle, variant: variant),
                         modelDirectory: modelURL,
                         decode: variant.decode,
                         scoring: variant.scoring,
@@ -213,7 +217,7 @@ struct Replay: AsyncParsableCommand {
                 }
             }
             if let rowData = try benchmarkRow(session: session, finalistReplays: finalistReplays,
-                                              replayLatency: replayLatency, replayModelRevision: modelRevision,
+                                              tally: tally, replayModelRevision: modelRevision,
                                               variant: variant) {
                 benchmarkLines.append(rowData)
             } else if session.file.groundTruth.kind == .unlabeled {
@@ -251,7 +255,7 @@ struct Replay: AsyncParsableCommand {
     private func benchmarkRow(
         session: EvidenceBundleReader.Session,
         finalistReplays: [(row: EvidenceTraceRow, output: MLXRankOutput?, probe: ProbeReadout?)],
-        replayLatency: Int,
+        tally: ReplayAggregation.CallTally,
         replayModelRevision: String,
         variant: RecoveryInferenceVariant
     ) throws -> Data? {
@@ -296,7 +300,7 @@ struct Replay: AsyncParsableCommand {
             // Replay rows must never enter a release corpus as device rows.
             deviceModel: "replay:\(DeviceIdentity.modelIdentifier)",
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
-            latencyMilliseconds: replayLatency,
+            latencyMilliseconds: tally.latencyMilliseconds,
             // The kernel's lifetime peak, not whatever the footprint happens
             // to be when the row is written.
             memoryPeakBytes: ProcessMemorySnapshot.current()?.lifetimePeakBytes ?? ProcessFootprint.currentBytes() ?? 0,
@@ -311,7 +315,7 @@ struct Replay: AsyncParsableCommand {
             variantID: variant.id,
             osBuild: DeviceIdentity.osBuild,
             gpuArchitecture: DeviceIdentity.gpuArchitecture,
-            vlmCalls: finalistReplays.count,
+            vlmCalls: tally.calls,
             latencyScope: (allPasses ? ReplayAggregation.LatencyScope.allPasses : .finalistsOnly).rawValue
         )
         return try EvidenceSchema.encoder().encode(row)

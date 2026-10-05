@@ -48,6 +48,9 @@ struct InferenceArmScheduler {
     func next(evidenceEnabled: Bool) -> RecoveryInferenceVariant {
         let plan = plan
         guard evidenceEnabled, plan.mode != .off else { return .baseline }
+        // An invalid variant would record rows that measure nothing under
+        // its id; run the unlabelled baseline instead (the picker warns).
+        guard (try? plan.variant.validate()) != nil else { return .baseline }
         switch plan.mode {
         case .off:
             return .baseline

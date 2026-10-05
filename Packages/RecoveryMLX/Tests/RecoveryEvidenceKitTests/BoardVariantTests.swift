@@ -33,6 +33,23 @@ final class BoardVariantTests: XCTestCase {
         XCTAssertEqual(RecoveryPrompts.check(style: .baseline), RecoveryPrompts.baselineCheck)
     }
 
+    func testReplayPromptFollowsTheResolvedVariant() {
+        let recorded = "recorded rank prompt"
+        // Nothing restyles: the recorded prompt (or an override) replays.
+        XCTAssertEqual(RecoveryPrompts.replayRank(recorded: recorded, override: nil, explicitStyle: nil, variant: .baseline, slotCount: 3), recorded)
+        XCTAssertEqual(RecoveryPrompts.replayRank(recorded: recorded, override: "o", explicitStyle: nil, variant: .baseline, slotCount: 3), "o")
+        // A style named only in --variant JSON is what the model sees.
+        let dynamic = RecoveryInferenceVariant(promptStyle: .dynamicRange)
+        XCTAssertTrue(RecoveryPrompts.replayRank(recorded: recorded, override: nil, explicitStyle: nil, variant: dynamic, slotCount: 3).contains("renders A–C"))
+        // An explicit --prompt-style baseline regenerates the template.
+        XCTAssertEqual(RecoveryPrompts.replayRank(recorded: recorded, override: nil, explicitStyle: .baseline, variant: .baseline, slotCount: 3), RecoveryPrompts.baselineRank)
+
+        XCTAssertEqual(RecoveryPrompts.replayCheck(recorded: recorded, explicitStyle: nil, variant: .baseline), recorded)
+        XCTAssertEqual(RecoveryPrompts.replayCheck(recorded: recorded, explicitStyle: nil, variant: dynamic), RecoveryPrompts.baselineCheck)
+        let v2 = RecoveryInferenceVariant(boardLayout: .v2)
+        XCTAssertTrue(RecoveryPrompts.replayCheck(recorded: recorded, explicitStyle: nil, variant: v2).hasPrefix("The left image"))
+    }
+
     func testLabelStyles() {
         XCTAssertEqual(TileLabelStyle.slotAndStep.label(slot: "B", stepNumber: 12), "B · Step 12")
         XCTAssertEqual(TileLabelStyle.slotOnly.label(slot: "B", stepNumber: 12), "B")

@@ -416,6 +416,21 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
 
     public static let baseline = RecoveryInferenceVariant()
 
+    /// A combination no call can honour.
+    public struct InvalidCombination: Error, Equatable, CustomStringConvertible {
+        public let description: String
+    }
+
+    /// Throws for combinations that would run but measure nothing. A
+    /// log-probability vote reads each view's slot distribution, which only
+    /// probe scoring produces; with generated calls no view votes, and every
+    /// session would quietly come out insufficient under this arm's id.
+    public func validate() throws {
+        if vote == .logprob, scoring != .probe {
+            throw InvalidCombination(description: "vote=logprob needs scoring=probe: generated calls carry no slot probabilities")
+        }
+    }
+
     public var id: String {
         var parts: [String] = []
         if decode != .legacy { parts.append("decode=\(decode.rawValue)") }

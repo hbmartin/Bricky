@@ -142,6 +142,10 @@ struct StorageAndAttributionView: View {
                             ForEach(CheckTarget.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }
                         LabeledContent("Variant ID", value: armPlan.variant.id)
+                        if let problem = Self.variantProblem(armPlan.variant) {
+                            Label("\(problem). Recoveries run the baseline until this is fixed.", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
             } header: {
@@ -166,6 +170,15 @@ struct StorageAndAttributionView: View {
         case .warming: Label("Ready for AR warm-up", systemImage: "flame")
         case .admitted: Label("Recovery admitted", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
         case .rejected(let reason): Label(reason, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        }
+    }
+
+    private static func variantProblem(_ variant: RecoveryInferenceVariant) -> String? {
+        do {
+            try variant.validate()
+            return nil
+        } catch {
+            return "\(error)"
         }
     }
 }

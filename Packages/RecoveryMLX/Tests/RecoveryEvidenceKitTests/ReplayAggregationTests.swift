@@ -74,6 +74,13 @@ final class ReplayAggregationTests: XCTestCase {
         XCTAssertNil(ReplayAggregation.passOutcome(row: finalists, decision: matchedB, expectedStepID: nil).truthInCandidates)
     }
 
+    func testCallTallyCountsEveryCallItsLatencySums() {
+        var tally = ReplayAggregation.CallTally()
+        for latency in [120, 80, 300] { tally.add(latencyMilliseconds: latency) }
+        XCTAssertEqual(tally.latencyMilliseconds, 500)
+        XCTAssertEqual(tally.calls, 3)
+    }
+
     func testExpectedCheckVerdictUsesPlanIndices() {
         // Plan index 4 is the fifth step: complete once five steps are.
         let check = row(slots: ["A": "m#5"], indices: ["A": 4], pass: .check)
