@@ -20,6 +20,11 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
         var destinations: [String: URL] = [:]
         /// Descriptions that stay in flight until `finish` is called.
         var holding: Set<String> = []
+        /// Rounds a description pauses with resume data before landing,
+        /// writing `pauseBytes` each time; -1 pauses forever.
+        var pauses: [String: Int] = [:]
+        var pauseBytes: Int64 = 0
+        private var written: [String: Int64] = [:]
 
         func activeDescriptions() async -> Set<String> {
             lock.lock(); defer { lock.unlock() }
@@ -37,6 +42,14 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
         }
 
         private func land(_ description: String) {
+            if let remaining = pauses[description], remaining != 0 {
+                pauses[description] = remaining - 1
+                lock.lock(); written[description] = pauseBytes; lock.unlock()
+                if let destination = destinations[description] {
+                    try? Data("resume".utf8).write(to: BackgroundURLSessionDelivery.resumeDataURL(for: destination))
+                }
+                return
+            }
             if holding.contains(description) {
                 lock.lock(); active.insert(description); lock.unlock()
                 return
@@ -62,7 +75,10 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
             return failures.removeValue(forKey: description)
         }
 
-        func bytesWritten(_ description: String) -> Int64 { 0 }
+        func bytesWritten(_ description: String) -> Int64 {
+            lock.lock(); defer { lock.unlock() }
+            return written[description] ?? 0
+        }
 
         func cancel(_ descriptions: Set<String>) async {
             lock.lock(); cancelled.formUnion(descriptions); active.subtract(descriptions); lock.unlock()
@@ -197,8 +213,40 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
             try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in }
             XCTFail("a file that never verifies must not loop forever")
         } catch {
+            XCTAssertTrue(error is VerifiedAssetError, "the cause is the failed check: \(error)")
             XCTAssertEqual(transfer.started.count, 3)
             XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("model.safetensors").path))
+        }
+    }
+
+    func testPausesThatMakeProgressDoNotSpendTheRetryBudget() async throws {
+        let weights = Data("weights".utf8)
+        let weightsAsset = asset("model.safetensors", weights)
+        let subject = manifest([weightsAsset])
+        let transfer = FakeTransfer()
+        wire(transfer, subject, payloads: ["model.safetensors": weights])
+        // More pauses than `maximumAttempts`, each one writing more bytes.
+        transfer.pauses["rev1/model.safetensors"] = 5
+        transfer.pauseBytes = 1_024
+        try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in }
+        XCTAssertEqual(transfer.started, ["rev1/model.safetensors"])
+        XCTAssertEqual(transfer.resumed.count, 5)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("model.safetensors")), weights)
+    }
+
+    func testAStalledTransferGivesUpWithAStallNotAHashError() async throws {
+        let weightsAsset = asset("model.safetensors", Data("weights".utf8))
+        let subject = manifest([weightsAsset])
+        let transfer = FakeTransfer()
+        wire(transfer, subject, payloads: ["model.safetensors": Data("weights".utf8)])
+        transfer.pauses["rev1/model.safetensors"] = -1
+        do {
+            try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in }
+            XCTFail("a transfer that never writes must not resume forever")
+        } catch {
+            XCTAssertEqual(error as? ModelTransferError, .stalled(asset: "model.safetensors"))
+            XCTAssertEqual(transfer.started.count, 1)
+            XCTAssertEqual(transfer.resumed.count, 3)
         }
     }
 
