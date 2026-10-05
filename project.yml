@@ -89,6 +89,7 @@ targets:
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
       - Bricky/Services/Instructions/SegmentedGeometry.swift
+      - Bricky/Services/Instructions/PlacementGeometryStore.swift
       - Bricky/Services/Instructions/LDConfigPalette.swift
       - Bricky/Services/Registration/ModelSurfaceSampler.swift
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
@@ -127,6 +128,7 @@ targets:
       - BrickyTests/ColourGridSamplerTests.swift
       - BrickyTests/VerificationWindowBufferTests.swift
       - BrickyTests/SegmentedGeometryTests.swift
+      - BrickyTests/PlacementGeometryStoreTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

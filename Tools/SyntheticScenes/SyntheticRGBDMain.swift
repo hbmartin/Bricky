@@ -171,11 +171,16 @@ struct SyntheticRGBDMain {
             range: 0..<plan.steps.count
         )
 
+        // One flatten for the corpus; each step's geometry is a range of it,
+        // identical to a per-step snapshot (M2.0).
+        let geometry = try await PlacementGeometryStore.shared.geometry(
+            for: plan, sourceRoot: sourceDirectory, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
+        )
         for stepIndex in stepIndices {
             let step = plan.steps[stepIndex]
-            let completed = try await engine.snapshot(placements: Array(plan.completedPlacements(before: step)))
-            let delta = try await engine.snapshot(placements: Array(plan.addedPlacements(for: step)))
-            let full = try await engine.snapshot(placements: Array(plan.cumulativePlacements(through: step)))
+            let completed = geometry.completedSnapshot(before: step)
+            let delta = geometry.deltaSnapshot(for: step)
+            let full = geometry.cumulativeSnapshot(through: step)
             guard !full.buffers.isEmpty else { continue }
 
             let scene = SyntheticScene(renderer: renderer, model: full)

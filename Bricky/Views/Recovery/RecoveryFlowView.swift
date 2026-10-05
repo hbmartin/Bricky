@@ -344,11 +344,17 @@ struct RecoveryFlowView: View {
                 var geometric: GeometricRecoveryEstimator?
                 if let depthFrame = centerDepthFrame,
                    let root = try? InstructionModelImporter.applicationSupportRoot() {
+                    let sourceRoot = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
+                    // Nil on failure: the estimator then flattens for itself.
+                    let geometry = try? await PlacementGeometryStore.shared.geometry(
+                        for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
+                    )
                     geometric = try? GeometricRecoveryEstimator(
                         frame: depthFrame,
-                        sourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
+                        sourceRoot: sourceRoot,
                         partPackRoot: partPackRoot,
-                        recorder: sessionRecorder
+                        recorder: sessionRecorder,
+                        geometry: geometry
                     )
                 }
                 let estimator = CompositeRecoveryEstimator(geometric: geometric, fallback: vlmEstimator)

@@ -62,6 +62,8 @@ actor GeometricRecoveryEstimator {
     /// estimate (ADR 0007). Typed as the protocol so this file compiles into
     /// the macOS SyntheticRGBD tool, which cannot link the MLX-backed recorder.
     private let recorder: (any GeometricFitRecording)?
+    /// The plan's flattened timeline, when the caller already holds it.
+    private let geometry: PlacementGeometry?
 
     init(
         frame: RegistrationFrameInput,
@@ -69,7 +71,8 @@ actor GeometricRecoveryEstimator {
         partPackRoot: URL,
         configuration: Configuration = Configuration(),
         recorder: (any GeometricFitRecording)? = nil,
-        renderer: ExpectedDepthRenderer? = nil
+        renderer: ExpectedDepthRenderer? = nil,
+        geometry: PlacementGeometry? = nil
     ) throws {
         self.frame = frame
         self.sourceRoot = sourceRoot
@@ -77,6 +80,7 @@ actor GeometricRecoveryEstimator {
         self.configuration = configuration
         self.recorder = recorder
         self.renderer = try renderer ?? ExpectedDepthRenderer.shared()
+        self.geometry = geometry
     }
 
     /// Returns a conclusive estimate or nil. Step zero (nothing built) has no
@@ -88,7 +92,16 @@ actor GeometricRecoveryEstimator {
     ) async throws -> RecoveryEstimate? {
         guard !plan.steps.isEmpty else { return nil }
         let started = ContinuousClock.now
-        let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        // One flatten per estimate: every candidate's cumulative geometry is
+        // a prefix of it (M2.0), merged exactly as a per-candidate snapshot
+        // used to be, so the scores are unchanged.
+        let geometry: PlacementGeometry
+        if let provided = self.geometry, provided.segments.placementCount == plan.placementTimeline.count {
+            geometry = provided
+        } else {
+            let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+            geometry = PlacementGeometry(segments: try await engine.segmented(placements: plan.placementTimeline))
+        }
 
         var scored: [Int: CandidateScore] = [:]
         // Which refinement pass first scored each candidate, so a fit record
@@ -103,8 +116,7 @@ actor GeometricRecoveryEstimator {
             var fresh: [(index: Int, snapshot: InstructionGeometrySnapshot)] = []
             for index in indices where scored[index] == nil {
                 try Task.checkCancellation()
-                let placements = Array(plan.cumulativePlacements(through: plan.steps[index]))
-                fresh.append((index, try await engine.snapshot(placements: placements)))
+                fresh.append((index, geometry.cumulativeSnapshot(through: plan.steps[index])))
             }
             for score in try await Self.scoreCandidates(
                 candidates: fresh,

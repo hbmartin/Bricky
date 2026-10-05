@@ -130,6 +130,7 @@ struct ARGuideView: View {
                 verification.recordWindow(trigger: .stepExit)
                 endVerificationEvidence()
                 verification.stop()
+                Task { await PlacementGeometryStore.shared.purge() }
                 registration.stop()
                 camera.stopSession()
                 // Re-entry re-runs the session with reset options, which
@@ -388,15 +389,18 @@ struct ARGuideView: View {
         do {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
-            let engine = LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPackRoot)
+            // One flatten for the whole visit: each step's geometry is a
+            // range of it (M2.0), identical to a per-step snapshot.
+            let geometry = try await PlacementGeometryStore.shared.geometry(
+                for: plan, sourceRoot: source, partPackRoot: partPackRoot
+            )
             // Same completed/new treatment as the on-screen guide: dimmed
             // prior work under a full-opacity ghost of this step's additions.
             // Both stay solid translucent renders — never wireframe — per the
             // ADR 0008 design-around.
-            let completed = Array(plan.completedPlacements(before: step))
-            let additions = Array(plan.addedPlacements(for: step))
+            let completed = plan.completedPlacements(before: step)
             let container = Entity()
-            let completedSnapshot = try await engine.snapshot(placements: completed)
+            let completedSnapshot = geometry.completedSnapshot(before: step)
             if !completed.isEmpty {
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;
@@ -409,7 +413,7 @@ struct ARGuideView: View {
             } else {
                 registration.setFitSample(nil)
             }
-            let additionSnapshot = try await engine.snapshot(placements: additions)
+            let additionSnapshot = geometry.deltaSnapshot(for: step)
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
             entity = container
             await verification.begin(
