@@ -4,11 +4,13 @@ import SwiftUI
 
 struct GuideView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var library: InstructionLibraryController
     @EnvironmentObject private var partPack: LDrawPartPackManager
     let model: StoredInstructionModel
     @State private var loadError: String?
+    @State private var isVisible = false
 
     /// The session's plan, once it holds this model.
     private var plan: InstructionPlan? {
@@ -95,6 +97,21 @@ struct GuideView: View {
         // photo check) keeps the browsing position, while a confirm made
         // anywhere else already moved the shared cursor.
         .task { load() }
+        .onAppear {
+            isVisible = true
+            updateAttendance()
+        }
+        .onDisappear {
+            isVisible = false
+            updateAttendance()
+        }
+        .onChange(of: scenePhase) { _, _ in updateAttendance() }
+    }
+
+    /// Someone is at the guide while it is on screen and the app is not in
+    /// the background: Siri's "next" may then act (ADR 0016).
+    private func updateAttendance() {
+        session.setAttending(isVisible && scenePhase != .background, by: "guide")
     }
 
     /// One index per model and pack, so descriptions stay cached across

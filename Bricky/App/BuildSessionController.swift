@@ -48,6 +48,8 @@ final class BuildSessionController {
     private var attendingGuides: Set<String> = []
 
     var isAttended: Bool { !attendingGuides.isEmpty }
+    private(set) var reportedVerification: StepVerification?
+    private(set) var reportedRepairSentence: String?
 
     var cursorStep: AuthoredStep? {
         guard let plan, plan.steps.indices.contains(cursorIndex) else { return nil }
@@ -106,10 +108,27 @@ final class BuildSessionController {
     func requestAdvance(
         _ request: AdvanceRequest, source: ConfirmationSource, verification: StepVerification?
     ) -> AdvanceDecision {
+        let decision = previewAdvance(request, source: source, verification: verification)
+        switch decision {
+        case .advance:
+            if let step = cursorStep { confirm(step, source: source) }
+        case .browseForward:
+            browse(by: 1)
+        case .holdAndSpeak, .refuse:
+            break
+        }
+        return decision
+    }
+
+    /// What `requestAdvance` would do now, changing nothing: Siri asks the
+    /// user to confirm exactly this before anything moves.
+    func previewAdvance(
+        _ request: AdvanceRequest, source: ConfirmationSource, verification: StepVerification?
+    ) -> AdvanceDecision {
         guard let plan, let step = cursorStep else { return .refuse(.noSession) }
         let verdict = verification?.stepID == step.id ? verification?.verdict : nil
         let repair = verdict.flatMap { RepairPlanner.plan(verdict: $0, context: RepairPlanner.context(plan: plan, step: step)) }
-        let decision = AdvancePolicy.decide(
+        return AdvancePolicy.decide(
             request: request,
             source: source,
             verdict: verdict,
@@ -118,15 +137,13 @@ final class BuildSessionController {
             cursorIsFrontier: cursorIndex == Self.cursor(forCompleted: completedCount, in: plan),
             finished: isFinished
         )
-        switch decision {
-        case .advance:
-            confirm(step, source: source)
-        case .browseForward:
-            browse(by: 1)
-        case .holdAndSpeak, .refuse:
-            break
-        }
-        return decision
+    }
+
+    /// The AR guide's latest check and its worded repair, so a request that
+    /// arrives without a view (Siri) judges by what the screen shows.
+    func reportVerification(_ verification: StepVerification?, repairSentence: String?) {
+        reportedVerification = verification
+        reportedRepairSentence = repairSentence
     }
 
     /// Marks a guide as on screen in the foreground (`true`) or not. A

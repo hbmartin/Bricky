@@ -160,7 +160,7 @@ struct ARGuideView: View {
                 registration.frameObserver = { [weak verification] frame, update in
                     verification?.submit(frame: frame, registration: update)
                 }
-                session.setAttending(scenePhase == .active, by: Self.attendanceID)
+                session.setAttending(scenePhase != .background, by: Self.attendanceID)
                 startHandsFree()
                 await loadEntity()
                 // Placement can precede the fit sample when geometry loads
@@ -169,6 +169,7 @@ struct ARGuideView: View {
             }
             .onDisappear {
                 session.setAttending(false, by: Self.attendanceID)
+                session.reportVerification(nil, repairSentence: nil)
                 stopHandsFree()
                 endPhotoCheck(confirmed: false)
                 verification.recordWindow(trigger: .stepExit)
@@ -192,11 +193,13 @@ struct ARGuideView: View {
             }
             .onChange(of: verification.verification?.timestamp) { _, _ in
                 updateRepairLine()
+                session.reportVerification(verification.verification, repairSentence: repairLine)
             }
             .onChange(of: scenePhase) { _, phase in
-                // Nobody confirms from the background, and the microphone
-                // stays off there (ADR 0016).
-                session.setAttending(phase == .active, by: Self.attendanceID)
+                // Nobody confirms from the background (ADR 0016). Inactive
+                // still counts as attended: Siri's own overlay makes the app
+                // inactive. The microphone listens only while active.
+                session.setAttending(phase != .background, by: Self.attendanceID)
                 if phase == .active {
                     startHandsFree()
                 } else {

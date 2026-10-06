@@ -40,6 +40,7 @@ targets:
       - Bricky/Services/Cloud
       - Bricky/Services/Repair
       - Bricky/Services/Voice
+      - Bricky/Intents
       - Bricky/Views/EvidenceSessionsView.swift
       - Bricky/Views/LibraryView.swift
       - Bricky/Views/StorageAndAttributionView.swift
@@ -153,6 +154,8 @@ targets:
       - BrickyTests/RepairPhrasebookTests.swift
       - BrickyTests/AdvancePolicyTests.swift
       - BrickyTests/VoiceCommandGrammarTests.swift
+      - BrickyTests/NextStepIntentTests.swift
+      - BrickyTests/InstructionModelEntityTests.swift
       - BrickyTests/PlacementConsistencyScorerTests.swift
       - BrickyTests/SuggestedPlacementTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift

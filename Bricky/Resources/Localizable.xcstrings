@@ -1,6 +1,28 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%lld steps": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld step"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld steps"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Add %lld parts.": {
       "localizations": {
         "en": {
@@ -63,6 +85,16 @@
         }
       }
     },
+    "Go on anyway?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go on anyway?"
+          }
+        }
+      }
+    },
     "Hands-free in the AR guide": {
       "localizations": {
         "en": {
@@ -79,6 +111,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Listening for “next”"
+          }
+        }
+      }
+    },
+    "Mark step %lld done and finish the build?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark step %lld done and finish the build?"
+          }
+        }
+      }
+    },
+    "Mark step %lld done and show step %lld?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark step %lld done and show step %lld?"
           }
         }
       }
@@ -193,6 +245,16 @@
         }
       }
     },
+    "Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry."
+          }
+        }
+      }
+    },
     "Open the build guide to go on.": {
       "localizations": {
         "en": {
@@ -249,6 +311,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Say “next anyway” to go on."
+          }
+        }
+      }
+    },
+    "Show models in Spotlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show models in Spotlight"
+          }
+        }
+      }
+    },
+    "Show step %lld?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show step %lld?"
           }
         }
       }
@@ -349,6 +431,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "That was the last step. The build is done."
+          }
+        }
+      }
+    },
+    "The guide moved on, so nothing changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The guide moved on, so nothing changed."
           }
         }
       }

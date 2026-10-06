@@ -1,6 +1,7 @@
-# ADR 0016: Hands-free "next" follows one advance policy
+# ADR 0016: Hands-free "next" follows one advance policy; Spotlight is opt-in
 
-- Status: Accepted (behind a developer flag until the Phase 1 hands-free checks pass)
+- Status: Accepted. Voice stays behind a developer flag until the Phase 1
+  hands-free checks pass; Siri asks every time; Spotlight is opt-in.
 - Date: 2026-10-05
 
 ## Context
@@ -85,14 +86,49 @@ checklist passes on an iPhone 17 Pro class device:
 - it works with Speech Recognition denied in Settings (G21);
 - thermals and memory hold with AR, speech and the VLM together.
 
+**Siri and Shortcuts go through the same policy and always ask first.**
+`NextStepIntent` ("Next step in Bricky") has `supportedModes = .background`:
+it never opens the app.
+- Attendance: a guide must be on screen while the app is not in the
+  background. Inactive still counts, because Siri's own overlay makes the
+  app inactive. Locked or backgrounded, the intent refuses without asking.
+- It always calls `requestConfirmation` before anything moves, and the
+  prompt says exactly what will happen ("Mark step 4 done and show step
+  5?").
+- When the AR guide's check says the step is unfinished, the prompt leads
+  with the repair sentence and asks "Go on anyway?". Confirming is the
+  user's "next anyway".
+- Declining throws and changes nothing. If the guide moved while the
+  prompt was up, nothing changes either.
+- The AR guide reports its latest check and worded repair to the session
+  (`reportVerification`), so Siri judges by what the screen shows.
+
+**Spotlight holds models only when the user asks.**
+- `InstructionModelEntity` is an `AppEntity` and an `IndexedEntity`
+  carrying a title and a step count. It never carries progress, photos or
+  evidence.
+- Indexing happens only while "Show models in Spotlight" (Settings,
+  Privacy) is on. It is off by default.
+- Every sync first empties the app's named index
+  (`deleteAppEntities(ofType:)`). With the setting off, that is all it
+  does. With it on, it rewrites the whole set, so a replaced model never
+  lingers.
+- Syncs run at launch, after an import, and when the setting changes.
+- Nothing leaves the device: this is the on-device Spotlight index.
+- A Spotlight result opens the app. It does not open a model; that would
+  need an `OpenIntent`, which is not built.
+
 ## Consequences
 
 - Voice and Siri cannot advance a step the check says is unfinished without
   the words "next anyway". They cannot advance anything from the background.
 - A voice advance during verification writes an `override` window when the
   verdict was not complete, the same as any other move past the verifier.
-- Siri, App Intents and Spotlight (M2.8b) reuse `requestAdvance`. Their
-  privacy rules are a section to add here.
+- Siri and the voice service reuse `requestAdvance`. Unlike voice, Siri
+  is not behind the hands-free flag: it refuses unless a guide is on screen,
+  and it asks every time.
+- The Phase 1 checklist adds: Siri refuses when the app is backgrounded or
+  locked, and Spotlight entries disappear when the setting is turned off.
 - `.frequentFinalization` with the `phrase` preset is a guess at the
   fastest finalization for short commands. Its latency on the dictation
   models is a Phase 1 measurement.
