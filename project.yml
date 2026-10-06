@@ -112,6 +112,9 @@ targets:
       - Bricky/Services/Verification/GeometricStepVerifier.swift
       - Bricky/Services/Verification/StepJudging.swift
       - Bricky/Services/Verification/BuildDiffEngine.swift
+      # The RGB term (ADR 0008, M3.1/M3.2): Foundation and simd only.
+      - Bricky/Services/Verification/ColourTable.swift
+      - Bricky/Services/Verification/SceneColourCalibration.swift
       - Bricky/Services/Repair/CameraRelativeDirection.swift
       - Bricky/Services/Repair/RepairPlanner.swift
       - Bricky/Services/Repair/CrossStepRepairPlanner.swift
@@ -176,6 +179,8 @@ targets:
       - BrickyTests/PhotoCheckControllerTests.swift
       - BrickyTests/VLMStepCheckServiceTests.swift
       - BrickyTests/CheckCropGeometryTests.swift
+      - BrickyTests/ColourTableTests.swift
+      - BrickyTests/SceneColourCalibrationTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:
