@@ -89,12 +89,21 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
     /// Absent when the session provided no distinct raw buffer.
     public let rawDepthRelativePath: String?
     public let rawConfidenceRelativePath: String?
+    /// `uint8` RGB, interleaved, the camera image box-filtered onto the depth
+    /// grid. Recorded for verification windows only, while evidence is on.
+    public let colourRelativePath: String?
+    /// `uint8`, 1 where person segmentation marks an occluder. Recorded, not
+    /// yet used by any verdict (ADR 0007 amendment 2).
+    public let occluderMaskRelativePath: String?
+    /// How `colour` was converted, e.g. `rgb8_bt709_full`.
+    public let colourEncoding: String?
 
     public init(
         depthVersion: Int, captureID: UUID, width: Int, height: Int,
         depthIntrinsics: [Float], worldFromCamera: [Float], timestamp: TimeInterval,
         depthRelativePath: String, confidenceRelativePath: String,
-        rawDepthRelativePath: String?, rawConfidenceRelativePath: String?
+        rawDepthRelativePath: String?, rawConfidenceRelativePath: String?,
+        colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil
     ) {
         self.depthVersion = depthVersion
         self.captureID = captureID
@@ -107,6 +116,9 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         self.confidenceRelativePath = confidenceRelativePath
         self.rawDepthRelativePath = rawDepthRelativePath
         self.rawConfidenceRelativePath = rawConfidenceRelativePath
+        self.colourRelativePath = colourRelativePath
+        self.occluderMaskRelativePath = occluderMaskRelativePath
+        self.colourEncoding = colourEncoding
     }
 
     enum CodingKeys: String, CodingKey {
@@ -121,6 +133,9 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         case confidenceRelativePath = "confidence_relative_path"
         case rawDepthRelativePath = "raw_depth_relative_path"
         case rawConfidenceRelativePath = "raw_confidence_relative_path"
+        case colourRelativePath = "colour_relative_path"
+        case occluderMaskRelativePath = "occluder_mask_relative_path"
+        case colourEncoding = "colour_encoding"
     }
 
     /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes

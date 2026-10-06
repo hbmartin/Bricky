@@ -111,4 +111,28 @@ enum PartNaming {
     static func label(colour: String, part: PartDescription) -> String {
         "\(colour) · \(part.title)"
     }
+
+    /// "red Brick 2 x 4", for the middle of a sentence.
+    static func inSentence(colour: String, part: PartDescription) -> String {
+        "\(colour.lowercased()) \(part.title)"
+    }
+}
+
+/// One description index per model and part pack, shared by the guide and
+/// the AR guide so descriptions stay cached across steps and screens.
+@MainActor
+enum PartDescriptionIndexCache {
+    private static var shared: [String: PartDescriptionIndex] = [:]
+
+    static func index(for plan: InstructionPlan, partPackRoot: URL) -> PartDescriptionIndex? {
+        guard let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
+        let key = "\(plan.sourceSHA256)|\(partPackRoot.path)"
+        if let existing = shared[key] { return existing }
+        let index = PartDescriptionIndex(
+            modelSourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
+            partPackRoot: partPackRoot
+        )
+        shared[key] = index
+        return index
+    }
 }

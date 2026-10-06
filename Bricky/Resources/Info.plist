@@ -15,6 +15,7 @@
 <dict><key>UTTypeConformsTo</key><array><string>public.plain-text</string></array><key>UTTypeDescription</key><string>LDraw Model</string><key>UTTypeIdentifier</key><string>org.ldraw.ldr</string><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>ldr</string></array></dict></dict>
 </array>
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
+<key>NSMicrophoneUsageDescription</key><string>With hands-free mode on, Bricky listens in the AR guide for “next”, “back” and “repeat”. Speech is transcribed on this iPhone and never stored.</string>
 <key>NSCameraUsageDescription</key><string>Bricky uses the camera to align authored 3D instructions and privately compare your physical build with its steps.</string>
 <key>UILaunchScreen</key><dict><key>UIColorName</key><string>AccentColor</string><key>UIImageName</key><string>AppIcon</string></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>

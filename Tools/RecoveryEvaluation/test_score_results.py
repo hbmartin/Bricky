@@ -28,6 +28,10 @@ from score_results import (
     validate_rows,
     validate_triad_release,
     score_challenge,
+    score_placement,
+    score_repair,
+    score_geometric_recovery,
+    score_placement_suggestion,
 )
 
 RELEASE_ROWS = 60
@@ -260,6 +264,131 @@ def challenge_row(challenge_class: str, expected: str, produced: str, *, expecte
         "detectability": "strong",
         "latency_ms": 900,
     }
+
+
+def placement_row(expected: str, produced: str, **extra: object) -> dict[str, object]:
+    row: dict[str, object] = {"kind": "placement", "schema_version": 1, "provenance": "synthetic",
+                              "fixture_id": f"p-{expected}-{produced}", "expected_state": expected,
+                              "produced_state": produced, "detectability": "strong"}
+    row.update(extra)
+    return row
+
+
+class PlacementScoringTests(unittest.TestCase):
+    def test_partition_accepts_placement(self) -> None:
+        kinds = partition([placement_row("present", "present")])
+        self.assertEqual(len(kinds["placement"]), 1)
+
+    def test_false_present_excludes_observe_only_and_expected_failures(self) -> None:
+        rows = [
+            placement_row("absent", "present"),
+            placement_row("displaced", "displaced"),
+            placement_row("displaced", "present", observe_only=True),
+            placement_row("colour_mismatch", "present", expected_failure=True),
+            placement_row("present", "present"),
+            placement_row("absent", "present", detectability="undetectable"),
+        ]
+        report, gates = score_placement(rows)
+        self.assertEqual(report["negatives"], 3)
+        self.assertEqual(report["false_present_cases"], 2)
+        self.assertEqual(report["undetectable_false_present_cases"], 1)
+        self.assertEqual(report["observe_only_cases"], 1)
+        self.assertEqual(report["present_recall"], 1.0)
+        self.assertFalse(gates[0].required, "informational until real windows exist")
+
+    def test_release_rejects_synthetic_placement(self) -> None:
+        code, output = MainTests.run_main([placement_row("present", "present")], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
+
+    def test_placement_headline_prints_and_never_fails(self) -> None:
+        code, output = MainTests.run_main([placement_row("absent", "present"), placement_row("absent", "absent")])
+        self.assertEqual(code, 0)
+        self.assertIn("PLACEMENT_FALSE_PRESENT 0.5000 (1/2 negatives", output)
+
+
+def repair_row(harmful: int = 0, **extra: object) -> dict[str, object]:
+    row: dict[str, object] = {"kind": "repair_plan", "schema_version": 1, "provenance": "synthetic",
+                              "fixture_id": "r", "harmful_actions": harmful,
+                              "expected_actions": [{"action": "move", "placement": 1, "offset": [-1, 0]}],
+                              "produced_actions": [{"action": "move", "placement": 1, "offset": [-1, 0]}],
+                              "expected_direction": "your_left", "produced_direction": "your_left"}
+    row.update(extra)
+    return row
+
+
+def recovery_row(scenario: str, expected: str, ranked: list[str], certainty: str = "high") -> dict[str, object]:
+    return {"kind": "geometric_recovery", "schema_version": 1, "provenance": "synthetic", "fixture_id": f"g-{scenario}-{expected}",
+            "scenario_class": scenario, "expected_step_id": expected, "ranked_step_ids": ranked, "certainty": certainty}
+
+
+class GeometricRecoveryScoringTests(unittest.TestCase):
+    def test_scores_per_class(self) -> None:
+        rows = [
+            recovery_row("exact", "m#3", ["m#3", "m#2"]),
+            recovery_row("minus_part_current", "m#4", ["m#3", "m#4"]),
+            recovery_row("minus_part_current", "m#5", [], certainty="insufficient"),
+        ]
+        report = score_geometric_recovery(rows)
+        self.assertEqual(report["top1_cases"], 1)
+        self.assertEqual(report["by_class"]["minus_part_current"]["top3_cases"], 1)
+        self.assertEqual(report["by_class"]["minus_part_current"]["insufficient_cases"], 1)
+
+    def test_geometric_recovery_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main([recovery_row("exact", "m#3", ["m#3"])], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
+
+
+class PlacementSuggestionScoringTests(unittest.TestCase):
+    @staticmethod
+    def row(outcome: str, scenario: str = "on_build") -> dict[str, object]:
+        return {"kind": "placement_suggestion", "schema_version": 1, "provenance": "synthetic",
+                "fixture_id": f"s-{scenario}-{outcome}", "scenario": scenario, "outcome": outcome}
+
+    def test_wrong_proposals_are_judged_on_proposals_made(self) -> None:
+        rows = [self.row("correct"), self.row("wrong", "distractor"), self.row("none", "off_build"), self.row("none")]
+        report, gates = score_placement_suggestion(rows)
+        self.assertEqual((report["proposal_cases"], report["wrong_proposal_cases"], report["no_proposal_cases"]), (2, 1, 2))
+        self.assertEqual(report["by_scenario"]["distractor"]["wrong"], 1)
+        self.assertFalse(gates[0].required)
+
+    def test_no_proposals_leave_the_rate_unmeasured(self) -> None:
+        report, _ = score_placement_suggestion([self.row("none")])
+        self.assertIsNone(report["wrong_proposal_rate"])
+
+
+class RepairScoringTests(unittest.TestCase):
+    def test_repair_plan_harmful_fails(self) -> None:
+        code, output = MainTests.run_main([repair_row(), repair_row(harmful=1)])
+        self.assertEqual(code, 1, "a harmful action fails even an informational run")
+        self.assertIn("REPAIR_HARMFUL_ACTIONS 1", output)
+
+    def test_clean_repairs_pass_and_report_direction(self) -> None:
+        rows = [repair_row(), repair_row(produced_direction="your_right"), repair_row(produced_direction="none")]
+        report, gates = score_repair(rows)
+        self.assertEqual(report["directed_cases"], 2)
+        self.assertEqual(report["direction_disagreement_cases"], 1)
+        self.assertEqual(report["plans_matching"], 3)
+        self.assertFalse(gates[0].fails(release=True))
+
+    def test_cross_step_rows_are_counted_and_a_withheld_plan_can_match(self) -> None:
+        withheld = repair_row(scope="cross_step", expected_actions=[], produced_actions=[],
+                              expected_direction="none", produced_direction="none")
+        wrong = repair_row(harmful=2, scope="cross_step",
+                           produced_actions=[{"action": "remove", "placement": 3}],
+                           expected_direction="none", produced_direction="none")
+        report, gates = score_repair([repair_row(), withheld, wrong])
+        self.assertEqual(report["cross_step_cases"], 2)
+        self.assertEqual(report["cross_step_matching_cases"], 1)
+        self.assertEqual(report["cross_step_harmful_actions"], 2)
+        self.assertEqual(report["directed_cases"], 1, "cross-step rows carry no direction")
+        self.assertTrue(gates[0].fails(release=False))
+
+    def test_repair_rows_are_not_release_evidence(self) -> None:
+        code, output = MainTests.run_main([repair_row()], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("not release evidence", output)
 
 
 class ChallengeScoringTests(unittest.TestCase):
@@ -599,10 +728,37 @@ class VLMCheckTests(unittest.TestCase):
         self.assertEqual(report["complete_recall"], 0.5)
         self.assertEqual(report["uncertain_rate"], 0.25)
 
-    def test_vlm_check_rows_are_not_release_evidence(self) -> None:
-        code, output = MainTests.run_main([self.check_row("incomplete", "incomplete")], informational=False)
+    @classmethod
+    def device_row(cls, fixture: str, **overrides: object) -> dict[str, object]:
+        row = cls.check_row("incomplete", "incomplete")
+        row.update({"fixture_id": fixture, "provenance": "device", "device_model": "iPhone18,1",
+                    "label_kind": "staged", "physical_case": True, "legal_use_confirmed": True,
+                    "authored_model_id": "model-1"})
+        row.update(overrides)
+        return row
+
+    def test_release_accepts_device_vlm_check(self) -> None:
+        rows = [self.device_row("a"), self.device_row("b", expected_verdict="complete", produced_verdict="complete")]
+        code, output = MainTests.run_main(rows, informational=False, require_kinds=set())
+        self.assertEqual(code, 0, output)
+        self.assertIn("VLM_CHECK_FALSE_COMPLETE 0.0000 (0/1 negatives", output)
+
+    def test_release_refuses_replay_and_confirmed_vlm_check(self) -> None:
+        cases = (
+            (self.check_row("incomplete", "incomplete") | {"provenance": "replay", "device_model": "replay:Mac16,1"},
+             "provenance 'replay'"),
+            (self.device_row("a", label_kind="confirmed"), "label_kind 'confirmed'"),
+            (self.device_row("a", device_model="iPhone17,1"), "below the device floor"),
+            (self.device_row("a", physical_case=None), "physical case"),
+        )
+        for row, message in cases:
+            code, output = MainTests.run_main([row], informational=False, require_kinds=set())
+            self.assertEqual(code, 1, message)
+            self.assertIn(message, output)
+        code, output = MainTests.run_main([self.device_row("a"), self.device_row("a")],
+                                          informational=False, require_kinds=set())
         self.assertEqual(code, 1)
-        self.assertIn("Mac replays", output)
+        self.assertIn("repeats fixture_id", output)
 
 
 class BenchmarkProtocolTests(unittest.TestCase):

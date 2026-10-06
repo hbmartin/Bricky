@@ -83,3 +83,26 @@ pack is now the only hard requirement:
 CONTEXT.md's "Geometric features are never admission-gated" is now true of
 recovery as well as verification.
 
+
+## Amendment (2026-10-05): a placement-consistency tie-break, default off
+
+When the geometric ranking is inconclusive, `PlacementConsistencyScorer`
+(M2.6) may break the tie before recovery falls through to the VLM. It
+renders each placement from the steps around the leader alone at the
+leader's solved pose, and asks which step the observed parts agree with:
+- the ranking is by contradictions, then explained exceptions (one
+  forgotten part that nothing observed rests on), then agreements;
+- it abstains unless one step is strictly best, and whenever a part seen
+  absent has a part seen in place resting on it;
+- it runs only when the leader's fit is undisqualified, within the RMS
+  bound, and scores at least 0.3.
+
+A win reports medium certainty and the revision `depth-icp-geometric-v1+pcs1`.
+
+It is off (`Configuration.consistencyTieBreak`). The synthetic recovery
+suite measures both arms. On 2026-10-05 its leaders scored about 0.2 under
+the synthetic sensor model, so the tie-break never ran and the arms were
+equal. The flip follows this ADR's variant rule:
+- a paired `compare_arms.py --primary session_top1` result on Mac replays of
+  real bundles;
+- then device rows.

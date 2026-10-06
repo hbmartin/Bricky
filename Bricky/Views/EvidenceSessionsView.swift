@@ -78,6 +78,10 @@ struct EvidenceSessionsView: View {
                     Image(systemName: "chart.bar.doc.horizontal")
                         .accessibilityLabel("Has benchmark row")
                 }
+                if session.hasCheckRows {
+                    Image(systemName: "checkmark.rectangle.stack")
+                        .accessibilityLabel("Has step-check rows")
+                }
                 Text(ByteCountFormatter.string(fromByteCount: session.byteCount, countStyle: .file))
             }
             .font(.caption)

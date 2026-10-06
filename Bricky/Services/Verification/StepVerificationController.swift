@@ -1,15 +1,6 @@
 import Foundation
+import OSLog
 import SwiftUI
-
-/// What the controller needs from a step verifier; `GeometricStepVerifier`
-/// in the app, a fake in tests.
-protocol StepVerifying: Actor {
-    func begin(stepID: String, completedSnapshot: InstructionGeometrySnapshot, deltaSnapshot: InstructionGeometrySnapshot)
-    func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification
-    func resetEvidence()
-}
-
-extension GeometricStepVerifier: StepVerifying {}
 
 /// Drives live geometric verification for the step being built. Frames and
 /// registrations arrive through `RegistrationController.frameObserver`; the
@@ -35,8 +26,18 @@ final class StepVerificationController: ObservableObject {
     /// share the GPU with inference, so it pauses instead (ADR 0003).
     @Published private(set) var isSuspended = false
 
-    private let makeVerifier: () throws -> any StepVerifying
-    private var verifier: (any StepVerifying)?
+    private let makeVerifier: () throws -> any StepJudging
+    private var verifier: (any StepJudging)?
+    /// The build diff in shadow (M2.3): judges the same frames after the
+    /// verifier, only while evidence capture is on, and is never published.
+    private let makeShadow: () throws -> any ShadowStepJudging
+    private let shadowEnabled: () -> Bool
+    private var shadow: (any ShadowStepJudging)?
+    /// The shadow's latest diff and its placement-aware verdict, for logs
+    /// and evidence windows. Deliberately not `@Published`.
+    private(set) var lastShadowDiff: BuildDiff?
+    private(set) var lastShadowVerdict: StepVerification?
+    private let logger = Logger(subsystem: AppConfig.bundleID, category: "BuildDiff")
     /// Bumped on every `begin` and `stop`: a frame in flight across the step
     /// boundary must not publish into the new step's verification.
     private var generation = 0
@@ -53,31 +54,53 @@ final class StepVerificationController: ObservableObject {
     /// evidence budget.
     private let minimumInterval: TimeInterval = 0.2
 
-    init(makeVerifier: @escaping () throws -> any StepVerifying = { try GeometricStepVerifier() }) {
+    // Evidence windows (ADR 0007 amendment 2): only while a sink is set.
+    private var windowSink: (any VerificationWindowSink)?
+    private var windowBuffer = VerificationWindowBuffer(capacity: 8)
+    private var stepID = ""
+    private var stepIndex = 0
+    private var stagedVerification: StagedVerificationDeclaration?
+    private var lastVerdictKind: String?
+    private var lastWindowAt: TimeInterval = -.infinity
+    private var ingestMillisecondsSinceBegin = 0
+    /// Verdict-change windows closer together than this would mostly
+    /// repeat the same frames.
+    private let windowSpacing: TimeInterval = 3
+
+    init(
+        makeVerifier: @escaping () throws -> any StepJudging = { try GeometricStepVerifier() },
+        makeShadow: @escaping () throws -> any ShadowStepJudging = { try BuildDiffEngine(policy: .placementAware) },
+        shadowEnabled: @escaping () -> Bool = {
+            UserDefaults.standard.bool(forKey: AppConfig.Defaults.evidenceCaptureEnabled)
+        }
+    ) {
         self.makeVerifier = makeVerifier
+        self.makeShadow = makeShadow
+        self.shadowEnabled = shadowEnabled
     }
 
     var statusLabel: String? {
         guard let verification else { return unavailableReason }
         switch verification.verdict {
         case .complete:
-            return "Step looks complete"
+            return String(localized: "Step looks complete")
         case .incomplete:
-            return "Step not complete yet"
+            return String(localized: "Step not complete yet")
         case .misplaced:
-            // Model-space axes mean nothing to the user; the offset stays in
-            // the verdict for diagnostics only.
-            return "Brick looks misplaced by about one stud"
+            // Which way to move is a repair sentence (RepairPhrasebook),
+            // worded from the poses; this is the fallback when the guide has
+            // no repair to show.
+            return String(localized: "This step's parts look shifted")
         case .uncertain(let reason):
             switch reason {
             case .registrationNotLocked, .poseAmbiguous:
                 return nil
             case .deltaUndetectable:
-                return "Parts too small to verify by depth"
+                return String(localized: "Parts too small to verify by depth")
             case .occludedView:
-                return "Move to see this step's parts"
+                return String(localized: "Move to see this step's parts")
             case .insufficientEvidence:
-                return "Checking…"
+                return String(localized: "Checking…")
             }
         }
     }
@@ -87,8 +110,17 @@ final class StepVerificationController: ObservableObject {
     func begin(
         stepID: String,
         completedSnapshot: InstructionGeometrySnapshot,
-        deltaSnapshot: InstructionGeometrySnapshot
+        deltaSnapshot: InstructionGeometrySnapshot,
+        stepIndex: Int = 0
     ) async {
+        await begin(
+            stepID: stepID,
+            geometry: StepGeometry(completedSnapshot: completedSnapshot, deltaSnapshot: deltaSnapshot),
+            stepIndex: stepIndex
+        )
+    }
+
+    func begin(stepID: String, geometry: StepGeometry, stepIndex: Int = 0) async {
         generation += 1
         let beginGeneration = generation
         acceptingFrames = false
@@ -97,17 +129,24 @@ final class StepVerificationController: ObservableObject {
         isStablyComplete = false
         completeSince = nil
         lastIngestTimestamp = -.infinity
+        self.stepID = stepID
+        self.stepIndex = stepIndex
+        resetWindow()
         do {
             let verifier = try verifier ?? makeVerifier()
             self.verifier = verifier
             unavailableReason = nil
             // Awaited, with frames refused until it returns, so no frame can
             // reach the verifier before it holds this step's snapshots.
-            await verifier.begin(
-                stepID: stepID,
-                completedSnapshot: completedSnapshot,
-                deltaSnapshot: deltaSnapshot
-            )
+            await verifier.begin(stepID: stepID, geometry: geometry)
+            lastShadowDiff = nil
+            lastShadowVerdict = nil
+            if shadowEnabled(), let judge = try? shadow ?? makeShadow() {
+                shadow = judge
+                await judge.begin(stepID: stepID, geometry: geometry)
+            } else {
+                shadow = nil
+            }
             // A later begin() or stop() owns the state now.
             if beginGeneration == generation {
                 acceptingFrames = true
@@ -135,18 +174,52 @@ final class StepVerificationController: ObservableObject {
         while let next = pending, let verifier, acceptingFrames, !isSuspended {
             pending = nil
             let ingestGeneration = generation
+            let started = ContinuousClock.now
             let result = try? await verifier.ingest(frame: next.frame, registration: next.registration)
             // A begin() or stop() while this ingest was in flight makes the
             // result stale; a suspension means the user is looking at a
             // photo check, and stability must be re-earned after it.
             guard let result, ingestGeneration == generation, !isSuspended else { continue }
+            let elapsed = started.duration(to: .now).components
+            let milliseconds = Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000)
+            ingestMillisecondsSinceBegin += milliseconds
+            if windowSink != nil {
+                windowBuffer.append(VerificationWindowSample(
+                    frameID: UUID(), frame: next.frame, registration: next.registration,
+                    result: result, ingestMilliseconds: milliseconds
+                ))
+            }
             publish(result, at: next.frame.timestamp)
+            await judgeInShadow(next.frame, next.registration, authoritative: result, generation: ingestGeneration)
         }
         worker = nil
     }
 
+    /// Runs the shadow on the frame the verifier just judged. Its errors are
+    /// ignored and its verdict is only logged: the shadow can never change
+    /// what the user sees.
+    private func judgeInShadow(
+        _ frame: RegistrationFrameInput, _ registration: ModelRegistration,
+        authoritative: StepVerification, generation ingestGeneration: Int
+    ) async {
+        guard let shadow, ingestGeneration == generation, !isSuspended else { return }
+        guard let verdict = try? await shadow.ingest(frame: frame, registration: registration),
+              ingestGeneration == generation, !isSuspended else { return }
+        lastShadowVerdict = verdict
+        lastShadowDiff = await shadow.latestDiff()
+        if verdict.verdict != authoritative.verdict {
+            logger.notice("Shadow diff disagrees: verifier \(authoritative.verdict.evidenceName, privacy: .public), placement-aware \(verdict.verdict.evidenceName, privacy: .public)")
+        }
+    }
+
     private func publish(_ result: StepVerification, at timestamp: TimeInterval) {
         verification = result
+        let kind = result.verdict.evidenceName
+        if let previous = lastVerdictKind, previous != kind, timestamp - lastWindowAt >= windowSpacing {
+            lastWindowAt = timestamp
+            recordWindow(trigger: .verdictChange)
+        }
+        lastVerdictKind = kind
         if result.verdict.isComplete {
             let since = completeSince ?? timestamp
             completeSince = since
@@ -174,6 +247,44 @@ final class StepVerificationController: ObservableObject {
         lastIngestTimestamp = -.infinity
     }
 
+    /// Starts or stops evidence windows. Off unless evidence capture is on.
+    func setWindowSink(_ sink: (any VerificationWindowSink)?) {
+        windowSink = sink
+        if sink == nil { windowBuffer.removeAll() }
+    }
+
+    /// The declared physical state of the step being verified, or nil.
+    func setStagedVerification(_ declaration: StagedVerificationDeclaration?) {
+        stagedVerification = declaration
+    }
+
+    /// Sends the buffered frames and the current verdict to the sink. A
+    /// no-op without a sink, a verdict, or frames: there is nothing to keep.
+    func recordWindow(trigger: VerificationWindowRecord.Trigger) {
+        guard let windowSink, let verification, !windowBuffer.samples.isEmpty else { return }
+        let capture = VerificationWindowCapture(
+            windowID: UUID(),
+            stepID: stepID,
+            stepIndex: stepIndex,
+            trigger: trigger,
+            samples: windowBuffer.samples,
+            verification: verification,
+            staged: stagedVerification,
+            ingestMillisecondsSinceBegin: ingestMillisecondsSinceBegin,
+            createdAt: .now,
+            shadowDiff: lastShadowDiff,
+            shadowVerdict: lastShadowVerdict
+        )
+        Task { await windowSink.record(capture) }
+    }
+
+    private func resetWindow() {
+        windowBuffer.removeAll()
+        lastVerdictKind = nil
+        lastWindowAt = -.infinity
+        ingestMillisecondsSinceBegin = 0
+    }
+
     func stop() {
         // Invalidates any in-flight ingest first, so a result landing after
         // this stop cannot repopulate the cleared verification.
@@ -184,8 +295,14 @@ final class StepVerificationController: ObservableObject {
         isStablyComplete = false
         completeSince = nil
         lastIngestTimestamp = -.infinity
+        resetWindow()
+        lastShadowDiff = nil
+        lastShadowVerdict = nil
         if let verifier {
             Task { await verifier.resetEvidence() }
+        }
+        if let shadow {
+            Task { await shadow.resetEvidence() }
         }
     }
 }

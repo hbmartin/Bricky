@@ -29,7 +29,11 @@ game, subscription, or set-identification product.
    consented frame (ADR 0011).
 
 PDF input, inferred/synthesized steps, automatic set identification, and
-teardown diagnosis are outside the product boundary. Steps 3–6 are built
+teardown diagnosis are outside the product boundary. Repair inside the
+current step is in: a deterministic plan, derived from measurements and that
+step's authored placements, says which part to add, move or turn, and which
+way from where the user stands (ADR 0015). Cross-step "remove and re-add"
+plans are proposed, not accepted. Steps 3–6 are built
 (the triad program, ADRs 0008–0013), but none of their release gates has
 device evidence yet: every rate and latency below is unmeasured on an
 iPhone 17 Pro until the Phase 1 corpus exists ([IOS27_ROADMAP.md](docs/IOS27_ROADMAP.md)).
@@ -103,6 +107,34 @@ default flips only on a paired A/B (ADR 0010 amendment).
   token it chose, so thresholds can be re-derived offline.
 - **Unmeasured gate** — a release gate with no rows to judge it. In release
   mode a required unmeasured gate fails; it is never read as zero.
+- **Build diff** — `BuildDiffEngine`'s judgement of the current step's
+  delta, placement by placement, against depth (M2.3). It returns
+  `BuildDiff`. Its legacy-equivalent verdict matches the verifier exactly.
+  It runs as a shadow judge until it has authority (ADR 0008 amendment).
+- **Placement state** — one placement's finding in a build diff
+  (`PlacementState`): present, absent, displaced by whole studs, rotated
+  (asymmetric parts only), or not observable. Plate-height offsets are
+  observe-only; colour waits for the RGB term.
+- **Shadow judge** — a second judge fed the same frames after the
+  authoritative one (`ShadowStepJudging`), only while evidence capture is
+  on. Logged and written to evidence (`diffs.ndjson`), never shown.
+- **Evidence window** — the verifier's last eight frames (about 1.6 s), with
+  their registrations and verdicts. Saved on a verdict change, a confirm,
+  an override and a step exit while evidence capture is on (ADR 0007
+  amendment 2). `SyntheticRGBD --replay-bundle` replays windows on a Mac.
+- **Repair plan** — `RepairPlanner`'s deterministic actions for the current
+  step's parts: add, move by whole studs, or turn (ADR 0015). Worded by
+  `RepairPhrasebook` from the String Catalog, with directions from poses,
+  never from a model. Cross-step plans (`CrossStepRepairPlanner`) are
+  Proposed and stay behind an off flag.
+- **Suggested placement** — a ghost pose fitted to the depth under the
+  reticle (`SuggestedPlacementEstimator`). Offered only behind a developer
+  flag, and registration starts from it only after the user taps "Use
+  Suggested Position" (ADR 0009 amendment).
+- **Advance policy** — `AdvancePolicy`: what "next" does by voice or Siri.
+  It holds on a negative check, advances on complete, uncertain or no
+  check, only browses off the frontier, and refuses when no guide is on
+  screen (ADR 0016).
 
 ## Source of truth
 
@@ -249,6 +281,35 @@ SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
   --ldraw-root /path/to/ldraw --out challenge.ndjson --seed 7 --suite challenge
 python3 check_regression.py challenge.ndjson \
   --baseline ../SyntheticScenes/fixtures/challenge/baseline.json
+
+# Repairs (in-step and cross-step), geometric recovery (control and tie-break
+# arms) and suggested placement, each against its own baseline:
+SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+  --ldraw-root /path/to/ldraw --out repair.ndjson --seed 7 --suite repair
+python3 check_regression.py repair.ndjson \
+  --baseline ../SyntheticScenes/fixtures/challenge/repair-baseline.json
+SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+  --ldraw-root /path/to/ldraw --out placement.ndjson --seed 7 --suite placement
+python3 check_regression.py placement.ndjson \
+  --baseline ../SyntheticScenes/fixtures/challenge/placement-suggestion-baseline.json
+for arm in control tiebreak; do
+  SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+    --ldraw-root /path/to/ldraw --out recovery-$arm.ndjson --seed 7 \
+    --suite recovery --recovery-arm $arm
+  python3 check_regression.py recovery-$arm.ndjson \
+    --baseline ../SyntheticScenes/fixtures/challenge/recovery-$arm-baseline.json
+done
+python3 compare_arms.py --control recovery-control.ndjson \
+  --variant recovery-tiebreak.ndjson --primary session_top1
+
+# Replay a device evidence bundle's verification windows on a Mac, judged
+# by the verifier or the build diff:
+SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --replay-bundle bundle \
+  --out replay.ndjson --judge diff
+
+# Pixels that differ between colour-ordered and timeline-ordered draws:
+SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --out order.ndjson \
+  --check-render-order
 ```
 
 ## Release gates still requiring physical assets or devices
@@ -279,6 +340,6 @@ python3 check_regression.py challenge.ndjson \
   measured peak (lifetime `phys_footprint` peak less the pre-load
   footprint, which every admission records) plus 25%, and confirm the
   device floor's memory threshold (ADR 0003 and ADR 0012 amendments).
-- 🔴 GAP — step-check false-complete is measurable only on Mac replay of
-  staged check sessions today; a device-side `vlm_check` row writer is owed
-  before it can become a release gate.
+- 🔴 GAP — step-check false-complete has a device producer
+  (`check.ndjson`, staged labels only) but no rows yet: Phase 1 must
+  collect staged check sessions, including negatives.

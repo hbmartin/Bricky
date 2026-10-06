@@ -14,6 +14,14 @@ public struct EvidenceBundleReader {
         public let fitRecords: [GeometricFitRecord]
         /// Retained LiDAR observations, one per `depth/<capture-id>.json`.
         public let depthFrames: [EvidenceDepthFrameRecord]
+        /// Verification evidence windows, one per `windows/<window-id>.json`,
+        /// oldest first. Empty for sessions without them.
+        public let verificationWindows: [VerificationWindowRecord]
+        /// The frames windows reference, by frame id, from
+        /// `windows/frames/<frame-id>.json`.
+        public let windowFrames: [UUID: EvidenceDepthFrameRecord]
+        /// The shadow build diff when each window closed, from `diffs.ndjson`.
+        public let diffRecords: [BuildDiffRecord]
     }
 
     public let bundleDirectory: URL
@@ -69,15 +77,52 @@ public struct EvidenceBundleReader {
                         EvidenceDepthFrameRecord.self, from: Data(contentsOf: url)
                     ))
                 }
+                var windows: [VerificationWindowRecord] = []
+                var windowFrames: [UUID: EvidenceDepthFrameRecord] = [:]
+                let windowDirectory = directory.appendingPathComponent("windows", isDirectory: true)
+                for url in Self.jsonFiles(in: windowDirectory) {
+                    windows.append(try decoder.decode(VerificationWindowRecord.self, from: Data(contentsOf: url)))
+                }
+                for url in Self.jsonFiles(in: windowDirectory.appendingPathComponent("frames", isDirectory: true)) {
+                    let record = try decoder.decode(EvidenceDepthFrameRecord.self, from: Data(contentsOf: url))
+                    windowFrames[record.captureID] = record
+                }
+                var diffs: [BuildDiffRecord] = []
+                if let data = try? Data(contentsOf: directory.appendingPathComponent("diffs.ndjson")) {
+                    diffs = try data.split(separator: UInt8(ascii: "\n")).map {
+                        try decoder.decode(BuildDiffRecord.self, from: Data($0))
+                    }
+                }
                 return Session(
                     directory: directory,
                     file: file,
                     traceRows: rows,
                     fitRecords: fits,
-                    depthFrames: depthFrames
+                    depthFrames: depthFrames,
+                    verificationWindows: windows.sorted { $0.createdAt < $1.createdAt },
+                    windowFrames: windowFrames,
+                    diffRecords: diffs
                 )
             }
             .sorted { $0.file.createdAt < $1.file.createdAt }
+    }
+
+    private static func jsonFiles(in directory: URL) -> [URL] {
+        ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Plane files a frame names, with the bytes per pixel each must hold.
+    private static func planes(of frame: EvidenceDepthFrameRecord) -> [(path: String?, bytesPerPixel: Int)] {
+        [
+            (frame.depthRelativePath, MemoryLayout<Float32>.size),
+            (frame.confidenceRelativePath, MemoryLayout<UInt8>.size),
+            (frame.rawDepthRelativePath, MemoryLayout<Float32>.size),
+            (frame.rawConfidenceRelativePath, MemoryLayout<UInt8>.size),
+            (frame.colourRelativePath, 3),
+            (frame.occluderMaskRelativePath, MemoryLayout<UInt8>.size),
+        ]
     }
 
     /// Structural validation: versions, decodability, and referenced files.
@@ -168,12 +213,7 @@ public struct EvidenceBundleReader {
                 // A truncated plane reshapes into silently wrong geometry, so
                 // size is checked rather than mere existence — the failure this
                 // whole harness exists to stop being invisible.
-                for (path, elementSize) in [
-                    (frame.depthRelativePath, MemoryLayout<Float32>.size),
-                    (frame.confidenceRelativePath, MemoryLayout<UInt8>.size),
-                    (frame.rawDepthRelativePath, MemoryLayout<Float32>.size),
-                    (frame.rawConfidenceRelativePath, MemoryLayout<UInt8>.size),
-                ] {
+                for (path, elementSize) in Self.planes(of: frame) {
                     guard let path else { continue }
                     let url = session.directory.appendingPathComponent(path)
                     guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
@@ -189,6 +229,35 @@ public struct EvidenceBundleReader {
                     }
                     if size != expected {
                         issues.append("\(name): depth plane \(path) is \(size) bytes, expected \(expected)")
+                    }
+                }
+            }
+            for window in session.verificationWindows {
+                if window.windowVersion != VerificationWindowRecord.version {
+                    issues.append("\(name): unsupported window_version \(window.windowVersion)")
+                }
+                for frame in window.frames where session.windowFrames[frame.frameID] == nil {
+                    issues.append("\(name): window \(window.windowID) references missing frame \(frame.frameID)")
+                }
+                for frame in window.frames where frame.worldFromModel.count != 16 {
+                    issues.append("\(name): window \(window.windowID) frame \(frame.frameID) has \(frame.worldFromModel.count) pose values, expected 16")
+                }
+            }
+            for (id, frame) in session.windowFrames.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+                guard frame.width > 0, frame.height > 0 else {
+                    issues.append("\(name): window frame \(id) has non-positive dimensions \(frame.width)x\(frame.height)")
+                    continue
+                }
+                for (path, bytesPerPixel) in Self.planes(of: frame) {
+                    guard let path else { continue }
+                    let size = (try? session.directory.appendingPathComponent(path)
+                        .resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+                    guard let size else {
+                        issues.append("\(name): missing window plane \(path)")
+                        continue
+                    }
+                    if let expected = frame.expectedBytes(elementSize: bytesPerPixel), size != expected {
+                        issues.append("\(name): window plane \(path) is \(size) bytes, expected \(expected)")
                     }
                 }
             }

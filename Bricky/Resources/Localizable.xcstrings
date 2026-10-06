@@ -1,0 +1,550 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld steps": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld step"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld steps"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Add %lld parts.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Add %lld part."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Add %lld parts."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Add the %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add the %@."
+          }
+        }
+      }
+    },
+    "Aim the center reticle at your build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aim the center reticle at your build."
+          }
+        }
+      }
+    },
+    "Allow the microphone in Settings to use voice commands.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow the microphone in Settings to use voice commands."
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        }
+      }
+    },
+    "Go on anyway?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go on anyway?"
+          }
+        }
+      }
+    },
+    "Hands-free in the AR guide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free in the AR guide"
+          }
+        }
+      }
+    },
+    "Listening for “next”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listening for “next”"
+          }
+        }
+      }
+    },
+    "Mark step %lld done and finish the build?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark step %lld done and finish the build?"
+          }
+        }
+      }
+    },
+    "Mark step %lld done and show step %lld?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark step %lld done and show step %lld?"
+          }
+        }
+      }
+    },
+    "Move the %@ back to where the guide shows it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ back to where the guide shows it."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud away from you.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud away from you."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to the left on screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to the left on screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to the right on screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to the right on screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to your left.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to your left."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud to your right.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud to your right."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward the bottom of the screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward the bottom of the screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward the top of the screen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward the top of the screen."
+          }
+        }
+      }
+    },
+    "Move the %@ one stud toward you.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the %@ one stud toward you."
+          }
+        }
+      }
+    },
+    "Move to see this step's parts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to see this step's parts"
+          }
+        }
+      }
+    },
+    "No position to suggest here. Place the ghost yourself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No position to suggest here. Place the ghost yourself."
+          }
+        }
+      }
+    },
+    "Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry."
+          }
+        }
+      }
+    },
+    "Open the build guide to go on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the build guide to go on."
+          }
+        }
+      }
+    },
+    "Parts too small to verify by depth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parts too small to verify by depth"
+          }
+        }
+      }
+    },
+    "Place Manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place Manually"
+          }
+        }
+      }
+    },
+    "Preparing voice commands…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing voice commands…"
+          }
+        }
+      }
+    },
+    "Put the %@ back.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put the %@ back."
+          }
+        }
+      }
+    },
+    "Say “next anyway” to go on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say “next anyway” to go on."
+          }
+        }
+      }
+    },
+    "Show models in Spotlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show models in Spotlight"
+          }
+        }
+      }
+    },
+    "Show step %lld?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show step %lld?"
+          }
+        }
+      }
+    },
+    "Speaking": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaking"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld of %lld."
+          }
+        }
+      }
+    },
+    "Step looks complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step looks complete"
+          }
+        }
+      }
+    },
+    "Step not complete yet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step not complete yet"
+          }
+        }
+      }
+    },
+    "Suggest Position": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest Position"
+          }
+        }
+      }
+    },
+    "Suggested position. Check it lines up with your build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggested position. Check it lines up with your build."
+          }
+        }
+      }
+    },
+    "Swap the %@ for the colour the guide shows.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap the %@ for the colour the guide shows."
+          }
+        }
+      }
+    },
+    "Take off the %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take off the %@."
+          }
+        }
+      }
+    },
+    "That was the last step.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That was the last step."
+          }
+        }
+      }
+    },
+    "That was the last step. The build is done.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That was the last step. The build is done."
+          }
+        }
+      }
+    },
+    "The guide moved on, so nothing changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The guide moved on, so nothing changed."
+          }
+        }
+      }
+    },
+    "This step doesn't look complete yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This step doesn't look complete yet."
+          }
+        }
+      }
+    },
+    "This step's parts look shifted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This step's parts look shifted"
+          }
+        }
+      }
+    },
+    "Turn the %@ a quarter turn.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn the %@ a quarter turn."
+          }
+        }
+      }
+    },
+    "Turn the %@ around.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn the %@ around."
+          }
+        }
+      }
+    },
+    "Use Suggested Position": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Suggested Position"
+          }
+        }
+      }
+    },
+    "Voice commands are available in English only.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands are available in English only."
+          }
+        }
+      }
+    },
+    "Voice commands aren't ready on this iPhone yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands aren't ready on this iPhone yet."
+          }
+        }
+      }
+    },
+    "Voice commands stopped: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands stopped: %@"
+          }
+        }
+      }
+    },
+    "part": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "part"
+          }
+        }
+      }
+    },
+    "parts from this step": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parts from this step"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

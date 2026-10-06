@@ -212,6 +212,105 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(record.rawConfidenceRelativePath)
     }
 
+    func testWindowFramesAreDeduplicatedAndStagedClosesWriteARow() async throws {
+        let recorder = makeRecorder()
+        let samples = (0..<4).map { index in windowSample(timestamp: TimeInterval(index)) }
+        let staged = StagedVerificationDeclaration(
+            scenario: .missing, lighting: .bright, occlusion: .none, physicalCase: true, legalUseConfirmed: true
+        )
+        // Two overlapping windows share frames 1–2; the verdict-change one
+        // carries no row, the closing confirm does.
+        await recorder.record(windowCapture(samples: Array(samples[0..<3]), trigger: .verdictChange, staged: staged))
+        await recorder.record(windowCapture(samples: Array(samples[1..<4]), trigger: .confirm, staged: staged))
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let sidecars = try FileManager.default.contentsOfDirectory(
+            at: sessionDirectory.appendingPathComponent("windows/frames"), includingPropertiesForKeys: nil
+        ).filter { $0.pathExtension == "json" }
+        XCTAssertEqual(sidecars.count, 4, "each frame is written once however many windows hold it")
+        let windows = try FileManager.default.contentsOfDirectory(
+            at: sessionDirectory.appendingPathComponent("windows"), includingPropertiesForKeys: nil
+        ).filter { $0.pathExtension == "json" }
+        XCTAssertEqual(windows.count, 2)
+
+        let rows = try String(contentsOf: sessionDirectory.appendingPathComponent(RecoveryEvidenceRecorder.verificationRowsFilename), encoding: .utf8)
+            .split(separator: "\n")
+        XCTAssertEqual(rows.count, 1)
+        let row = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(rows[0].utf8)) as? [String: Any])
+        XCTAssertEqual(row["kind"] as? String, "verification")
+        XCTAssertEqual(row["provenance"] as? String, "device")
+        XCTAssertEqual(row["expected_verdict"] as? String, "incomplete")
+        XCTAssertEqual(row["produced_verdict"] as? String, "incomplete")
+        XCTAssertEqual(row["window_trigger"] as? String, "confirm")
+        XCTAssertNil(row["challenge_class"], "a release-eligible scenario must not carry challenge keys")
+    }
+
+    func testAWindowWithAShadowDiffWritesADiffRow() async throws {
+        let recorder = makeRecorder()
+        let samples = (0..<2).map { windowSample(timestamp: TimeInterval($0)) }
+        let original = windowCapture(samples: samples, trigger: .confirm, staged: nil)
+        let diff = BuildDiff(stepID: "main.ldr#3", observations: [
+            PlacementObservation(placement: 4, state: .displaced(LatticeOffset(dx: 1)), evidence: PlacementEvidence(support: 12, absence: 3))
+        ], framesUsed: 9)
+        let capture = VerificationWindowCapture(
+            windowID: original.windowID, stepID: original.stepID, stepIndex: original.stepIndex, trigger: .confirm,
+            samples: original.samples, verification: original.verification, staged: nil,
+            ingestMillisecondsSinceBegin: 70, createdAt: .now, shadowDiff: diff,
+            shadowVerdict: original.verification.replacingVerdict(.misplaced(offsetStuds: SIMD2(1, 0)))
+        )
+        await recorder.record(capture)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent(RecoveryEvidenceRecorder.diffRowsFilename)
+        let record = try JSONDecoder().decode(BuildDiffRecord.self, from: try Data(contentsOf: url).split(separator: UInt8(ascii: "\n"))[0])
+        XCTAssertEqual(record.windowID, capture.windowID)
+        XCTAssertEqual(record.placements.first?.state, "displaced")
+        XCTAssertEqual(record.placements.first?.offset, [1, 0, 0, 0])
+        XCTAssertEqual(record.adapterVerdict, "misplaced")
+        XCTAssertEqual(record.verifierVerdict, "incomplete")
+    }
+
+    private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {
+        VerificationWindowSample(
+            frameID: UUID(),
+            frame: RegistrationFrameInput(
+                depth: [Float32](repeating: 0.4, count: 12), confidence: [UInt8](repeating: 2, count: 12),
+                rawDepth: nil, rawConfidence: nil, width: 4, height: 3,
+                depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4,
+                timestamp: timestamp, colour: [UInt8](repeating: 90, count: 36), colourEncoding: "rgb8_bt709_full",
+                occluderMask: [UInt8](repeating: 0, count: 12)
+            ),
+            registration: ModelRegistration(
+                alignmentID: UUID(), worldFromModel: matrix_identity_float4x4, state: .locked,
+                quality: RegistrationQuality(rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 2),
+                fittedStepIndex: 2, timestamp: timestamp
+            ),
+            result: verificationResult(.incomplete, timestamp: timestamp),
+            ingestMilliseconds: 7
+        )
+    }
+
+    private func verificationResult(_ verdict: StepVerdict, timestamp: TimeInterval) -> StepVerification {
+        StepVerification(
+            stepID: "main.ldr#3", verdict: verdict, detectability: .strong, deltaPixels: 140, framesUsed: 12,
+            completeFraction: 0.1, incompleteFraction: 0.8, registrationQuality: .none, timestamp: timestamp
+        )
+    }
+
+    private func windowCapture(
+        samples: [VerificationWindowSample], trigger: VerificationWindowRecord.Trigger,
+        staged: StagedVerificationDeclaration?
+    ) -> VerificationWindowCapture {
+        VerificationWindowCapture(
+            windowID: UUID(), stepID: "main.ldr#3", stepIndex: 2, trigger: trigger, samples: samples,
+            verification: verificationResult(.incomplete, timestamp: samples.last?.frame.timestamp ?? 0),
+            staged: staged, ingestMillisecondsSinceBegin: 70, createdAt: .now
+        )
+    }
+
     func testPurgeRemovesOldestSessionsBeyondCap() throws {
         let store = root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName, isDirectory: true)
         let sessionTotal = RecoveryEvidenceRecorder.maxSessions + 5

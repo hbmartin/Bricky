@@ -58,6 +58,22 @@ CHALLENGE_KIND = "verification_challenge"
 # false-complete rate, reported beside the geometric verifier's. Mac replay
 # rows, so never release evidence.
 VLM_CHECK_KIND = "vlm_check"
+# Per-placement build diff rows (M2.3): what the shadow diff concluded about
+# each authored placement. Informational until real windows exist.
+PLACEMENT_KIND = "placement"
+PLACEMENT_STATES = {"present", "absent", "displaced", "rotated", "colour_mismatch", "not_observable"}
+PLACEMENT_FALSE_PRESENT_CEILING = 0.02
+# Synthetic repair plans (M2.4): deterministic actions from a verdict. A
+# harmful action (one that would make the build worse) must never happen.
+REPAIR_KIND = "repair_plan"
+# Synthetic geometric recovery (M2.6): the real estimator on rendered,
+# degraded scenes, including steps built short of a part. Never release
+# evidence: device recovery rows are kind "recovery".
+GEOMETRIC_RECOVERY_KIND = "geometric_recovery"
+# Suggested ghost placements (M2.7): a wrong proposal is the failure; not
+# proposing is always allowed. The gate is on proposals made.
+PLACEMENT_SUGGESTION_KIND = "placement_suggestion"
+WRONG_PROPOSAL_CEILING = 0.05
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -812,6 +828,30 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def validate_vlm_check_release(rows: list[dict[str, object]]) -> None:
+    """Step-check rows enter a release corpus only from a device session with
+    a label declared before capture. Mac replays (provenance `replay`) are
+    refused as for every kind. So are confirmed labels: a step is confirmed
+    only after the user accepted a check, so those labels lean toward
+    complete and would understate the false-complete rate."""
+    fixtures: set[str] = set()
+    for index, row in enumerate(rows, start=1):
+        label = f"release {VLM_CHECK_KIND} row {index}"
+        if row.get("provenance") != "device":
+            raise SystemExit(f"{label} has provenance {row.get('provenance')!r}; release needs 'device'")
+        unique_fixture(row, fixtures, label)
+        validate_release_device(row, label)
+        if row.get("label_kind") != "staged":
+            raise SystemExit(f"{label} has label_kind {row.get('label_kind')!r}; release needs 'staged'")
+        if row.get("physical_case") is not True:
+            raise SystemExit(f"{label} is not explicitly marked as a physical case")
+        if row.get("legal_use_confirmed") is not True:
+            raise SystemExit(f"{label} lacks confirmed legal-use provenance")
+        model_id = row.get("authored_model_id")
+        if not isinstance(model_id, str) or not model_id.strip():
+            raise SystemExit(f"{label} authored_model_id must be non-empty")
+
+
 def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
     for index, row in enumerate(rows, start=1):
         label = f"vlm_check row {index}"
@@ -844,6 +884,135 @@ def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def validate_placement_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows, start=1):
+        label = f"placement row {index}"
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"{label} has unsupported schema")
+        missing = sorted({"fixture_id", "expected_state", "produced_state"} - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if row["expected_state"] not in PLACEMENT_STATES or row["produced_state"] not in PLACEMENT_STATES:
+            raise SystemExit(f"{label} has an invalid placement state")
+
+
+def score_placement(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    """The build diff's headline is false present: a placement that is not
+    there as authored (absent, shifted, turned) read as present. Observe-only
+    rows (plate steps) and expected failures (a colour swap) never count."""
+    validate_placement_rows(rows)
+    scored = [row for row in rows if not row.get("observe_only") and not row.get("expected_failure")]
+    negatives = [row for row in scored if row["expected_state"] != "present"]
+    false_present = [row for row in negatives if row["produced_state"] == "present"]
+    gate = rate_gate(
+        "placement.false_present_rate", len(false_present), len(negatives),
+        ceiling=PLACEMENT_FALSE_PRESENT_CEILING, required=False,
+    )
+    by_expected: dict[str, dict[str, int]] = {}
+    for row in scored:
+        produced = by_expected.setdefault(row["expected_state"], {})
+        produced[row["produced_state"]] = produced.get(row["produced_state"], 0) + 1
+    positives = [row for row in scored if row["expected_state"] == "present"]
+    report = {
+        "cases": len(rows),
+        "negatives": len(negatives),
+        "false_present_cases": len(false_present),
+        "false_present_rate": gate.value,
+        "false_present_upper_95": gate.bound,
+        "undetectable_false_present_cases": sum(row.get("detectability") == "undetectable" for row in false_present),
+        "observe_only_cases": sum(bool(row.get("observe_only")) for row in rows),
+        "expected_failure_cases": sum(bool(row.get("expected_failure")) for row in rows),
+        "present_recall": (
+            sum(row["produced_state"] == "present" for row in positives) / len(positives) if positives else None
+        ),
+        "by_expected_state": by_expected,
+    }
+    return report, [gate]
+
+
+def score_repair(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    for index, row in enumerate(rows, start=1):
+        missing = sorted({"fixture_id", "harmful_actions", "expected_actions", "produced_actions"} - row.keys())
+        if missing:
+            raise SystemExit(f"repair_plan row {index} missing fields: {', '.join(missing)}")
+        if not is_exact_int(row["harmful_actions"]) or row["harmful_actions"] < 0:
+            raise SystemExit(f"repair_plan row {index} harmful_actions must be a non-negative integer")
+    harmful = sum(row["harmful_actions"] for row in rows)
+    directed = [row for row in rows if row.get("produced_direction") not in (None, "none")
+                and row.get("expected_direction") not in (None, "none")]
+    agreeing = sum(row["produced_direction"] == row["expected_direction"] for row in directed)
+    gate = count_gate("repair_plan.harmful_actions", harmful, 0, trials=len(rows))
+    # Cross-step rows (M2.9) carry no direction; a withheld plan matches an
+    # empty expectation.
+    cross_step = [row for row in rows if row.get("scope") == "cross_step"]
+    report = {
+        "cases": len(rows),
+        "cross_step_cases": len(cross_step),
+        "cross_step_matching_cases": sum(row["produced_actions"] == row["expected_actions"] for row in cross_step),
+        "cross_step_harmful_actions": sum(row["harmful_actions"] for row in cross_step),
+        "plans_produced": sum(bool(row["produced_actions"]) for row in rows),
+        "plans_matching": sum(row["produced_actions"] == row["expected_actions"] for row in rows if row["produced_actions"]),
+        "harmful_actions": harmful,
+        "directed_cases": len(directed),
+        "direction_disagreement_cases": len(directed) - agreeing,
+        "direction_agreement": agreeing / len(directed) if directed else None,
+    }
+    return report, [gate]
+
+
+def score_geometric_recovery(rows: list[dict[str, object]]) -> dict[str, object]:
+    for index, row in enumerate(rows, start=1):
+        missing = sorted({"fixture_id", "scenario_class", "expected_step_id", "ranked_step_ids", "certainty"} - row.keys())
+        if missing:
+            raise SystemExit(f"geometric_recovery row {index} missing fields: {', '.join(missing)}")
+
+    def summary(group: list[dict[str, object]]) -> dict[str, object]:
+        top1 = sum(bool(r["ranked_step_ids"]) and r["ranked_step_ids"][0] == r["expected_step_id"] for r in group)
+        top3 = sum(r["expected_step_id"] in r["ranked_step_ids"][:3] for r in group)
+        insufficient = sum(r["certainty"] == "insufficient" for r in group)
+        return {
+            "cases": len(group),
+            "top1_cases": top1,
+            "top3_cases": top3,
+            "insufficient_cases": insufficient,
+            "tie_break_cases": sum(bool(r.get("tie_break_applied")) for r in group),
+            "top1_rate": top1 / len(group) if group else None,
+        }
+
+    by_class: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        by_class.setdefault(str(row["scenario_class"]), []).append(row)
+    report = summary(rows)
+    report["by_class"] = {name: summary(group) for name, group in sorted(by_class.items())}
+    return report
+
+
+def score_placement_suggestion(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    for index, row in enumerate(rows, start=1):
+        if row.get("outcome") not in {"correct", "wrong", "none"}:
+            raise SystemExit(f"placement_suggestion row {index} has an invalid outcome")
+    proposals = [row for row in rows if row["outcome"] != "none"]
+    wrong = [row for row in proposals if row["outcome"] == "wrong"]
+    gate = rate_gate(
+        "placement_suggestion.wrong_proposal_rate", len(wrong), len(proposals),
+        ceiling=WRONG_PROPOSAL_CEILING, required=False,
+    )
+    by_scenario: dict[str, dict[str, int]] = {}
+    for row in rows:
+        entry = by_scenario.setdefault(str(row.get("scenario", "unknown")), {"correct": 0, "wrong": 0, "none": 0})
+        entry[row["outcome"]] += 1
+    report = {
+        "cases": len(rows),
+        "proposal_cases": len(proposals),
+        "wrong_proposal_cases": len(wrong),
+        "no_proposal_cases": len(rows) - len(proposals),
+        "wrong_proposal_rate": gate.value,
+        "wrong_proposal_upper_95": gate.bound,
+        "by_scenario": by_scenario,
+    }
+    return report, [gate]
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -857,7 +1026,10 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
-        kind: [] for kind in KINDS + SUMMARY_KINDS + (CHALLENGE_KIND, VLM_CHECK_KIND)
+        kind: [] for kind in KINDS + SUMMARY_KINDS + (
+            CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
+            PLACEMENT_SUGGESTION_KIND,
+        )
     }
     for index, row in enumerate(rows, start=1):
         kind = row.get("kind", "recovery")
@@ -963,7 +1135,15 @@ def main(
         if kinds[CHALLENGE_KIND]:
             raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
         if kinds[VLM_CHECK_KIND]:
-            raise SystemExit(f"{VLM_CHECK_KIND} rows are Mac replays and are not release evidence")
+            validate_vlm_check_release(kinds[VLM_CHECK_KIND])
+        if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_KIND]):
+            raise SystemExit(f"{PLACEMENT_KIND} rows other than device rows are not release evidence")
+        if kinds[REPAIR_KIND]:
+            raise SystemExit(f"{REPAIR_KIND} rows are synthetic and are not release evidence")
+        if kinds[GEOMETRIC_RECOVERY_KIND]:
+            raise SystemExit(f"{GEOMETRIC_RECOVERY_KIND} rows are synthetic and are not release evidence")
+        if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_SUGGESTION_KIND]):
+            raise SystemExit(f"{PLACEMENT_SUGGESTION_KIND} rows other than device rows are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -984,6 +1164,27 @@ def main(
         report[CHALLENGE_KIND] = score_challenge(kinds[CHALLENGE_KIND])
     if kinds[VLM_CHECK_KIND]:
         report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
+    placement_gates: list[Gate] = []
+    if kinds[PLACEMENT_KIND]:
+        report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
+    repair_gates: list[Gate] = []
+    if kinds[REPAIR_KIND]:
+        report[REPAIR_KIND], repair_gates = score_repair(kinds[REPAIR_KIND])
+    if kinds[PLACEMENT_SUGGESTION_KIND]:
+        report[PLACEMENT_SUGGESTION_KIND], suggestion_gates = score_placement_suggestion(kinds[PLACEMENT_SUGGESTION_KIND])
+        suggestion = report[PLACEMENT_SUGGESTION_KIND]
+        print(
+            f"PLACEMENT_SUGGESTION_WRONG {suggestion['wrong_proposal_cases']}/{suggestion['proposal_cases']} proposals "
+            f"(upper95={format_number(suggestion['wrong_proposal_upper_95'])}, {suggestion['no_proposal_cases']} declined)"
+        )
+        suggestion["gates"] = {gate.name: gate.summary(release=release) for gate in suggestion_gates}
+    if kinds[GEOMETRIC_RECOVERY_KIND]:
+        report[GEOMETRIC_RECOVERY_KIND] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
+        for name, entry in report[GEOMETRIC_RECOVERY_KIND]["by_class"].items():
+            print(
+                f"GEOMETRIC_RECOVERY {name} top1 {entry['top1_cases']}/{entry['cases']} "
+                f"top3 {entry['top3_cases']}/{entry['cases']} insufficient {entry['insufficient_cases']}"
+            )
 
     # The headline number, printed before anything else (ADR 0008) — even
     # when it could not be measured, so its absence is never silent.
@@ -999,11 +1200,38 @@ def main(
             f"VLM_CHECK_FALSE_COMPLETE {shown} ({check['false_complete_cases']}/{check['negatives']} negatives, "
             f"upper95={format_number(check['false_complete_upper_95'])})"
         )
+    if PLACEMENT_KIND in report:
+        placement = report[PLACEMENT_KIND]
+        shown = UNMEASURED if placement["false_present_rate"] is None else f"{placement['false_present_rate']:.4f}"
+        print(
+            f"PLACEMENT_FALSE_PRESENT {shown} ({placement['false_present_cases']}/{placement['negatives']} negatives, "
+            f"upper95={format_number(placement['false_present_upper_95'])})"
+        )
+        for gate in placement_gates:
+            status = gate.status(release=release)
+            failed_placement = gate.fails(release=release)
+            print(
+                f"GATE {gate.name} {status} value={format_number(gate.value)} "
+                f"bound={format_number(gate.bound)} n={gate.trials} threshold<={gate.threshold:g}"
+            )
+            placement["gates"] = {gate.name: gate.summary(release=release)}
+            if failed_placement:
+                print("(informational until real verification windows exist; never fails the run)")
+    if REPAIR_KIND in report:
+        repair = report[REPAIR_KIND]
+        print(
+            f"REPAIR_HARMFUL_ACTIONS {repair['harmful_actions']} ({repair['cases']} cases, "
+            f"{repair['plans_produced']} plans, direction agreement {format_number(repair['direction_agreement'])})"
+        )
     if CHALLENGE_KIND in report:
         for line in challenge_lines(report[CHALLENGE_KIND]):
             print(line)
 
-    failed = False
+    # A harmful repair action fails the run in either mode: it would make a
+    # build worse, which no corpus size excuses.
+    failed = any(gate.fails(release=True) for gate in repair_gates)
+    for gate in repair_gates:
+        print(f"GATE {gate.name} {gate.status(release=True)} value={format_number(gate.value)} n={gate.trials} threshold<={gate.threshold:g}")
     for kind in KINDS:
         if not kinds[kind]:
             required = kind in require_kinds

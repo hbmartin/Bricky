@@ -30,6 +30,11 @@
       "tolerance": 0.0,
       "value": 3.0
     },
+    "challenge.by_class.colour_swap.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
     "challenge.by_class.plate_down1.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -39,6 +44,11 @@
       "direction": "lower_is_better",
       "tolerance": 0.0,
       "value": 0.0
+    },
+    "challenge.by_class.plate_down1.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
     },
     "challenge.by_class.plate_up1.cases": {
       "direction": "exact",
@@ -50,6 +60,11 @@
       "tolerance": 0.0,
       "value": 3.0
     },
+    "challenge.by_class.plate_up1.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
     "challenge.by_class.rot180_asymmetric.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -60,6 +75,11 @@
       "tolerance": 0.0,
       "value": 0.0
     },
+    "challenge.by_class.rot180_asymmetric.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 2.0
+    },
     "challenge.by_class.rot180_symmetric.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -67,6 +87,11 @@
     },
     "challenge.by_class.rot180_symmetric.false_complete_cases": {
       "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.rot180_symmetric.negatives": {
+      "direction": "exact",
       "tolerance": 0.0,
       "value": 0.0
     },
@@ -80,6 +105,11 @@
       "tolerance": 0.0,
       "value": 0.0
     },
+    "challenge.by_class.rot90_asymmetric.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 5.0
+    },
     "challenge.by_class.rot90_symmetric.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -87,6 +117,11 @@
     },
     "challenge.by_class.rot90_symmetric.false_complete_cases": {
       "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "challenge.by_class.rot90_symmetric.negatives": {
+      "direction": "exact",
       "tolerance": 0.0,
       "value": 0.0
     },
@@ -100,6 +135,11 @@
       "tolerance": 0.0,
       "value": 0.0
     },
+    "challenge.by_class.shift1z.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
     "challenge.by_class.wrong_part_same_footprint.cases": {
       "direction": "exact",
       "tolerance": 0.0,
@@ -109,6 +149,11 @@
       "direction": "lower_is_better",
       "tolerance": 0.0,
       "value": 0.0
+    },
+    "challenge.by_class.wrong_part_same_footprint.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 3.0
     },
     "challenge.cases": {
       "direction": "exact",
@@ -125,6 +170,36 @@
       "tolerance": 0.0,
       "value": 3.0
     },
+    "placement.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 39.0
+    },
+    "placement.expected_failure_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "placement.false_present_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "placement.negatives": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 16.0
+    },
+    "placement.observe_only_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 12.0
+    },
+    "placement.undetectable_false_present_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
     "synthetic_summary.challenge.dropped_expected_complete_below_strong": {
       "direction": "lower_is_better",
       "tolerance": 0.0,
@@ -139,6 +214,26 @@
       "direction": "exact",
       "tolerance": 0.0,
       "value": 6.0
+    },
+    "synthetic_summary.challenge_placement.generated_placement_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 39.0
+    },
+    "synthetic_summary.challenge_placement.judge_disagreements": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "synthetic_summary.symmetry.checked": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 12.0
+    },
+    "synthetic_summary.symmetry.oracle_disagreements": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
     }
   },
   "seed": 7

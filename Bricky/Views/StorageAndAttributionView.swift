@@ -1,12 +1,17 @@
+import SwiftData
 import SwiftUI
 
 struct StorageAndAttributionView: View {
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
+    @Environment(\.modelContext) private var context
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
     @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
+    @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
+    @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
+    @AppStorage(AppConfig.Defaults.spotlightModelsEnabled) private var spotlightModelsEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
@@ -63,6 +68,12 @@ struct StorageAndAttributionView: View {
             Section("Privacy") {
                 Label("Images and instruction models stay on this device", systemImage: "lock.shield.fill")
                 Text("Instruction models and LDraw files never leave the device. Images leave only through actions you take explicitly: exporting an evidence bundle, or sending one consented frame via cloud assist.")
+                Toggle("Show models in Spotlight", isOn: $spotlightModelsEnabled)
+                    .onChange(of: spotlightModelsEnabled) { _, enabled in
+                        Task { try? await InstructionModelSpotlight.sync(enabled: enabled, context: context) }
+                    }
+                Text("Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
@@ -100,6 +111,8 @@ struct StorageAndAttributionView: View {
                     .disabled(!evidenceCaptureEnabled)
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
                 Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
+                Toggle("Offer a suggested ghost position", isOn: $suggestedPlacementEnabled)
+                Toggle("Hands-free in the AR guide", isOn: $handsFreeEnabled)
                 if let relief = recoveryModel.lastPressureRelief {
                     LabeledContent(
                         "Last memory-pressure unload",

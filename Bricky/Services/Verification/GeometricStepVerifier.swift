@@ -98,26 +98,45 @@ actor GeometricStepVerifier {
         lastDeltaPixels = 0
     }
 
+    /// What one counted frame was judged against: the shadow build diff
+    /// (M2.3) reads these instead of rendering them a second time.
+    struct FrameMaps: Sendable {
+        let viewFromModel: simd_float4x4
+        let completed: ExpectedDepthMap
+        let delta: ExpectedDepthMap
+        let observedDepth: [Float32]
+        let observedConfidence: [UInt8]
+    }
+
     /// Scores one depth frame under the registered pose and returns the
     /// current cumulative assessment.
     func ingest(
         frame: RegistrationFrameInput,
         registration: ModelRegistration
     ) async throws -> StepVerification {
+        try await ingestReporting(frame: frame, registration: registration).verification
+    }
+
+    /// `ingest`, also returning the maps the frame was judged against when
+    /// it counted toward the verdict (nil when an early return skipped it).
+    func ingestReporting(
+        frame: RegistrationFrameInput,
+        registration: ModelRegistration
+    ) async throws -> (verification: StepVerification, maps: FrameMaps?) {
         let signpost = GeometrySignposts.signposter.beginInterval("VerifierIngest")
         defer { GeometrySignposts.signposter.endInterval("VerifierIngest", signpost) }
         guard registration.allowsVerification else {
             let reason: UncertainReason = registration.state == .ambiguous
                 ? .poseAmbiguous
                 : .registrationNotLocked
-            return assessment(verdict: .uncertain(reason), registration: registration, timestamp: frame.timestamp)
+            return (assessment(verdict: .uncertain(reason), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         guard let completedGeometry, let deltaGeometry else {
-            return assessment(
+            return (assessment(
                 verdict: .uncertain(.insufficientEvidence),
                 registration: registration,
-                timestamp: frame.timestamp
-            )
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
+            ), nil)
         }
 
         // Raw depth is the evidence of record; smoothed depth is only a
@@ -143,7 +162,7 @@ actor GeometricStepVerifier {
             height: frame.height
         )
         guard generation == evidenceGeneration else {
-            return assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp)
+            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         let completedMap = baseMaps[0]
         let deltaMap = baseMaps[1]
@@ -164,22 +183,22 @@ actor GeometricStepVerifier {
         lastDeltaPixels = region.count
 
         guard region.count >= configuration.minimumDeltaPixels else {
-            return assessment(
+            return (assessment(
                 verdict: .uncertain(.occludedView),
                 registration: registration,
-                timestamp: frame.timestamp
-            )
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
+            ), nil)
         }
 
         depthChanges.sort()
         let medianChange = depthChanges[depthChanges.count / 2]
         if medianChange < configuration.marginalMedianDelta {
             lastDetectability = .undetectable
-            return assessment(
+            return (assessment(
                 verdict: .uncertain(.deltaUndetectable),
                 registration: registration,
-                timestamp: frame.timestamp
-            )
+                timestamp: frame.timestamp, camera: frame.worldFromCamera
+            ), nil)
         }
         lastDetectability = medianChange >= configuration.strongMedianDelta
             && region.count >= configuration.strongDeltaPixels
@@ -235,7 +254,7 @@ actor GeometricStepVerifier {
         // `begin` already discarded them, so only the lattice votes need
         // guarding here.
         guard generation == evidenceGeneration else {
-            return assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp)
+            return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
         for (slot, alternativeMap) in alternativeMaps.enumerated() {
             for index in deltaMap.depth.indices
@@ -270,7 +289,11 @@ actor GeometricStepVerifier {
         }
 
         framesUsed += 1
-        return assessment(verdict: verdict(), registration: registration, timestamp: frame.timestamp)
+        let maps = FrameMaps(
+            viewFromModel: viewFromModel, completed: completedMap, delta: deltaMap,
+            observedDepth: observed, observedConfidence: observedConfidence
+        )
+        return (assessment(verdict: verdict(), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), maps)
     }
 
     private func verdict() -> StepVerdict {
@@ -328,7 +351,8 @@ actor GeometricStepVerifier {
     private func assessment(
         verdict: StepVerdict,
         registration: ModelRegistration,
-        timestamp: TimeInterval
+        timestamp: TimeInterval,
+        camera: simd_float4x4
     ) -> StepVerification {
         StepVerification(
             stepID: stepID,
@@ -339,7 +363,9 @@ actor GeometricStepVerifier {
             completeFraction: classifiedVotes > 0 ? Float(completeVotes) / Float(classifiedVotes) : 0,
             incompleteFraction: classifiedVotes > 0 ? Float(incompleteVotes) / Float(classifiedVotes) : 0,
             registrationQuality: registration.quality,
-            timestamp: timestamp
+            timestamp: timestamp,
+            worldFromModel: registration.worldFromModel,
+            worldFromCamera: camera
         )
     }
 }

@@ -4,11 +4,13 @@ import SwiftUI
 
 struct GuideView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var library: InstructionLibraryController
     @EnvironmentObject private var partPack: LDrawPartPackManager
     let model: StoredInstructionModel
     @State private var loadError: String?
+    @State private var isVisible = false
 
     /// The session's plan, once it holds this model.
     private var plan: InstructionPlan? {
@@ -95,22 +97,27 @@ struct GuideView: View {
         // photo check) keeps the browsing position, while a confirm made
         // anywhere else already moved the shared cursor.
         .task { load() }
+        .onAppear {
+            isVisible = true
+            updateAttendance()
+        }
+        .onDisappear {
+            isVisible = false
+            updateAttendance()
+        }
+        .onChange(of: scenePhase) { _, _ in updateAttendance() }
+    }
+
+    /// Someone is at the guide while it is on screen and the app is not in
+    /// the background: Siri's "next" may then act (ADR 0016).
+    private func updateAttendance() {
+        session.setAttending(isVisible && scenePhase != .background, by: "guide")
     }
 
     /// One index per model and pack, so descriptions stay cached across
     /// steps.
     private func descriptionIndex(for plan: InstructionPlan) -> PartDescriptionIndex? {
-        guard let pack = partPack.readyLibraryURL, let root = try? InstructionModelImporter.applicationSupportRoot() else {
-            return nil
-        }
-        let key = "\(plan.sourceSHA256)|\(pack.path)"
-        if let existing = PartDescriptionIndexCache.shared[key] { return existing }
-        let index = PartDescriptionIndex(
-            modelSourceRoot: root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source"),
-            partPackRoot: pack
-        )
-        PartDescriptionIndexCache.shared[key] = index
-        return index
+        partPack.readyLibraryURL.flatMap { PartDescriptionIndexCache.index(for: plan, partPackRoot: $0) }
     }
 
     private func load() {
@@ -121,11 +128,6 @@ struct GuideView: View {
             loadError = error.localizedDescription
         }
     }
-}
-
-@MainActor
-private enum PartDescriptionIndexCache {
-    static var shared: [String: PartDescriptionIndex] = [:]
 }
 
 private struct NewPartsCard: View {

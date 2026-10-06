@@ -186,17 +186,21 @@ class Verdict:
     insufficient: tuple[float | None, float | None]
     false_complete: tuple[float | None, float | None]
     notes: list[str] = field(default_factory=list)
+    # Which paired accuracy decides: per pass (VLM replays) or per session
+    # (geometric recovery, which has no passes).
+    primary_level: str = "pass_top1"
 
     @property
     def decision(self) -> str:
-        primary = self.accuracy["pass_top1"]
+        primary = self.accuracy[self.primary_level]
         regressed = worse(self.insufficient[1], self.insufficient[0]) or worse(self.false_complete[1], self.false_complete[0])
         if regressed:
             return "HOLD (insufficient or false-complete rate rose)"
+        unit = "passes" if self.primary_level == "pass_top1" else "sessions"
         if primary.pairs == 0:
-            return "UNMEASURED (no paired passes with the truth on the board)"
+            return f"UNMEASURED (no paired {unit} with the truth available)"
         if primary.pairs < MINIMUM_PAIRS:
-            return f"UNDERPOWERED ({primary.pairs} paired passes; a verdict needs >= {MINIMUM_PAIRS})"
+            return f"UNDERPOWERED ({primary.pairs} paired {unit}; a verdict needs >= {MINIMUM_PAIRS})"
         if primary.wins > primary.losses and self.adjusted_p < ALPHA:
             return "FLIP CANDIDATE: accuracy win (device rows still required)"
         geometric = self.latency.get("geometric_mean")
@@ -205,9 +209,9 @@ class Verdict:
         return "HOLD"
 
 
-def compare(control: Arm, variants: list[Arm]) -> list[Verdict]:
+def compare(control: Arm, variants: list[Arm], primary: str = "pass_top1") -> list[Verdict]:
     accuracies = [compare_accuracy(control, variant) for variant in variants]
-    adjusted = holm([accuracy["pass_top1"].p_value for accuracy in accuracies])
+    adjusted = holm([accuracy[primary].p_value for accuracy in accuracies])
     verdicts = []
     for variant, accuracy, p in zip(variants, accuracies, adjusted):
         sessions = set(control.sessions) & set(variant.sessions)
@@ -219,6 +223,7 @@ def compare(control: Arm, variants: list[Arm]) -> list[Verdict]:
             latency=latency_ratio(control, variant),
             insufficient=(insufficient_rate(control, sessions), insufficient_rate(variant, sessions)),
             false_complete=(check_false_complete_rate(control, checks), check_false_complete_rate(variant, checks)),
+            primary_level=primary,
         ))
     return verdicts
 
@@ -231,19 +236,26 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--control", type=Path, required=True)
     parser.add_argument("--variant", type=Path, action="append", required=True)
+    parser.add_argument(
+        "--primary",
+        choices=("pass_top1", "session_top1"),
+        default="pass_top1",
+        help="the paired accuracy that decides: per replayed pass (VLM arms) or per session "
+        "(geometric recovery arms, e.g. SyntheticRGBD --suite recovery)",
+    )
     arguments = parser.parse_args(argv)
 
     control = Arm.load(arguments.control)
     variants = [Arm.load(path) for path in arguments.variant]
     print(f"control {control.name}: slots {slot_histogram(control)}")
-    for verdict, variant in zip(compare(control, variants), variants):
+    for verdict, variant in zip(compare(control, variants, primary=arguments.primary), variants):
         print(f"\nvariant {verdict.variant}")
         for level, paired in verdict.accuracy.items():
             print(
                 f"  {level}: {paired.pairs} pairs, {paired.wins} wins / {paired.losses} losses "
                 f"(exact McNemar p={paired.p_value:.4f})"
             )
-        print(f"  pass_top1 Holm-adjusted p={verdict.adjusted_p:.4f}; with no losses, p < 0.05 needs >= 6 wins")
+        print(f"  {arguments.primary} Holm-adjusted p={verdict.adjusted_p:.4f}; with no losses, p < 0.05 needs >= 6 wins")
         latency = verdict.latency
         print(
             f"  latency ratio variant/control over {latency['pairs']} passes: "

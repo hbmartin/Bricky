@@ -124,13 +124,74 @@ jobs:
         run: |
           python3 ../RecoveryEvaluation/score_results.py \
             "$RUNNER_TEMP/challenge.ndjson" --informational
+      # Repairs (M2.4, M2.9): in-step plans undo a one-stud shift, worded
+      # from each view and screen rotation; cross-step plans are replayed on
+      # the support graph. Any harmful action fails.
+      - name: Run SyntheticRGBD repair suite
+        working-directory: Tools/SyntheticScenes
+        run: |
+          "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+            fixtures/challenge/challenge.ldr \
+            --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+            --out "$RUNNER_TEMP/repair.ndjson" --seed 7 --suite repair
+      - name: Check repair regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/repair.ndjson" \
+            --baseline fixtures/challenge/repair-baseline.json
+      # Suggested placement (M2.7): off-build and distractor scenes must
+      # never get a proposal.
+      - name: Run SyntheticRGBD placement suite
+        working-directory: Tools/SyntheticScenes
+        run: |
+          "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+            fixtures/challenge/challenge.ldr \
+            --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+            --out "$RUNNER_TEMP/placement.ndjson" --seed 7 --suite placement
+      - name: Check placement regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/placement.ndjson" \
+            --baseline fixtures/challenge/placement-suggestion-baseline.json
+      # Geometric recovery (M2.6), with the placement tie-break off (control)
+      # and on. Each arm is held to its own baseline; the paired comparison
+      # is informational until device replays exist (ADR 0010).
+      - name: Run SyntheticRGBD recovery suite (both arms)
+        working-directory: Tools/SyntheticScenes
+        run: |
+          for arm in control tiebreak; do
+            "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+              fixtures/challenge/challenge.ldr \
+              --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+              --out "$RUNNER_TEMP/recovery-$arm.ndjson" --seed 7 \
+              --suite recovery --recovery-arm "$arm"
+          done
+      - name: Check recovery regression against baselines
+        working-directory: Tools/SyntheticScenes
+        run: |
+          for arm in control tiebreak; do
+            python3 ../RecoveryEvaluation/check_regression.py \
+              "$RUNNER_TEMP/recovery-$arm.ndjson" \
+              --baseline "fixtures/challenge/recovery-$arm-baseline.json"
+          done
+      - name: Compare recovery arms (informational)
+        working-directory: Tools/SyntheticScenes
+        continue-on-error: true
+        run: |
+          python3 ../RecoveryEvaluation/compare_arms.py \
+            --control "$RUNNER_TEMP/recovery-control.ndjson" \
+            --variant "$RUNNER_TEMP/recovery-tiebreak.ndjson" --primary session_top1
 
   swift-parity:
     # The Xcode 27 image carries the iOS 27 SDK required by the project's
     # deployment target; building and testing here is also the workflow's
     # iOS 27 build check.
     runs-on: xcode-27
-    timeout-minutes: 60
+    # A cold build compiles mlx-swift's C++ and Metal sources; the build
+    # and the test run have their own limits so a stall shows which it was.
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -157,12 +218,20 @@ jobs:
       # UI tests run too: they force a device-floor verdict with a Debug-only
       # launch argument, because the Simulator has no LiDAR and would
       # otherwise only ever show the unsupported screen.
-      - name: Build and run native parity and UI tests
+      - name: Build for testing
+        timeout-minutes: 65
         run: |
           xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
-            -parallel-testing-enabled NO test \
+            -showBuildTimingSummary build-for-testing
+      - name: Run native parity and UI tests
+        timeout-minutes: 40
+        run: |
+          xcodebuild -project 'Bricky the Brick Scanner.xcodeproj' -scheme Bricky \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation \
+            -parallel-testing-enabled NO test-without-building \
             -only-testing:BrickyTests -only-testing:BrickyUITests
 
   harness-macos:

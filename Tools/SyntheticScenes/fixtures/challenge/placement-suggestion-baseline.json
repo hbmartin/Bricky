@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "Regression baseline for the suggested-placement suite (SyntheticRGBD",
+    "--suite placement, fixture challenge.ldr, seed 7): for sampled steps the",
+    "suggestion is asked for aimed at the build, at the bare table beside it,",
+    "and at a distractor box (M2.7). Declining is never wrong; a wrong",
+    "proposal is guarded lower-is-better.",
+    "Recorded 2026-10-05: no proposals. The table and distractor aims find no",
+    "blob or a poor fit, as they should. On the build the early steps sit",
+    "mostly below the synthetic table plane, and later ones do not reach",
+    "registration's lock standard under the synthetic sensor model. The 5%",
+    "wrong-proposal gate is therefore unmeasured here and needs device rows."
+  ],
+  "fixture": "fixtures/challenge/challenge.ldr",
+  "generated": "2026-10-05",
+  "metrics": {
+    "placement_suggestion.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    },
+    "placement_suggestion.no_proposal_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    },
+    "placement_suggestion.proposal_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "placement_suggestion.wrong_proposal_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "synthetic_summary.placement_suggestion.generated_placement_suggestion_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    }
+  },
+  "seed": 7
+}

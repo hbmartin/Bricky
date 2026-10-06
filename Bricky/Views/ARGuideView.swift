@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ARGuideView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
@@ -21,6 +22,14 @@ struct ARGuideView: View {
     @StateObject private var photoCheck = PhotoCheckController()
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
+    @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
+    @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
+    /// Hands-free mode (ADR 0016): spoken steps and repairs, and "next",
+    /// "next anyway", "back" and "repeat" by voice.
+    @StateObject private var narrator = StepNarrator()
+    @StateObject private var voice = VoiceCommandService()
+    /// What is built before this step, for fitting a suggested ghost.
+    @State private var builtSnapshot: InstructionGeometrySnapshot?
     @State private var stagedDeclaration: StagedFixtureDeclaration?
     @State private var showStagedSetup = false
     /// The open evidence session for the current photo check, and the
@@ -29,6 +38,17 @@ struct ARGuideView: View {
     @State private var photoCheckStaged: StagedFixtureDeclaration?
     @State private var photoCheckStep: AuthoredStep?
     @State private var photoCheckTask: Task<Void, Never>?
+    /// Verification evidence for this AR visit (ADR 0007 amendment 2):
+    /// exists only while evidence capture is on.
+    @State private var verificationRecorder: RecoveryEvidenceRecorder?
+    @State private var stagedVerification: StagedVerificationDeclaration?
+    @State private var showStagedVerificationSetup = false
+    /// The current step's parts in sentence form ("red Brick 2 x 4"), by
+    /// placement index, for repair wording.
+    @State private var partLabels: [Int: String] = [:]
+    @State private var directionStabilizer = DirectionStabilizer()
+    /// What to do about a misplaced step, worded from the poses (ADR 0015).
+    @State private var repairLine: String?
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -44,7 +64,8 @@ struct ARGuideView: View {
                     entity: entity,
                     alignment: alignment.alignment,
                     trackedTransform: registration.trackedTransform,
-                    isLocked: registration.registration?.state == .locked
+                    isLocked: registration.registration?.state == .locked,
+                    suggestedTransform: alignment.suggestion?.worldFromModel
                 )
                 .ignoresSafeArea()
                 Image(systemName: "plus").font(.title).foregroundStyle(.white).shadow(radius: 3)
@@ -66,9 +87,9 @@ struct ARGuideView: View {
                         Button("Reset") { alignment.reset() }
                     }
                     .padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
-                    if let verdictLabel = verification.statusLabel {
+                    if let verdictLabel = repairLine ?? verification.statusLabel {
                         HStack(spacing: 6) {
-                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : "eye")
+                            Image(systemName: verification.isComplete ? "checkmark.circle.fill" : (repairLine == nil ? "eye" : "arrow.uturn.backward"))
                             Text(verdictLabel)
                         }
                         .font(.callout.weight(.semibold))
@@ -76,6 +97,21 @@ struct ARGuideView: View {
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                         .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
+                    }
+                    if handsFreeEnabled {
+                        VoiceStatusChip(state: voice.state, speaking: narrator.isSpeaking)
+                    }
+                    if evidenceCaptureEnabled, corpusCollectionEnabled {
+                        Button {
+                            showStagedVerificationSetup = true
+                        } label: {
+                            Label(
+                                stagedVerification.map { "Staged: \($0.scenario.rawValue)" } ?? "Stage This Step",
+                                systemImage: "tag"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.caption)
                     }
                     Spacer()
                     photoCheckSection
@@ -89,9 +125,30 @@ struct ARGuideView: View {
                             .buttonStyle(.borderedProminent).tint(.green).controlSize(.large)
                             .padding(.bottom, 4)
                     }
-                    if alignment.alignment == nil {
-                        Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
-                            .buttonStyle(.borderedProminent).controlSize(.large)
+                    if alignment.alignment == nil, alignment.suggestion != nil {
+                        // A suggestion is only ever a proposal: registration
+                        // starts from it only after this tap (ADR 0009).
+                        HStack {
+                            Button("Use Suggested Position") { alignment.acceptSuggestion() }
+                                .buttonStyle(.borderedProminent)
+                            Button("Place Manually") { alignment.declineSuggestion() }
+                                .buttonStyle(.bordered)
+                        }
+                        .controlSize(.large)
+                    } else if alignment.alignment == nil {
+                        HStack {
+                            if suggestedPlacementEnabled, let builtSnapshot {
+                                Button("Suggest Position") {
+                                    let viewport = Self.viewport(proxy)
+                                    Task { await alignment.suggest(manager: camera, viewport: viewport, build: builtSnapshot) }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(alignment.isSuggesting)
+                            }
+                            Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
+                                .buttonStyle(.borderedProminent)
+                        }
+                        .controlSize(.large)
                     } else {
                         AlignmentNudgePad(alignment: alignment)
                     }
@@ -99,17 +156,26 @@ struct ARGuideView: View {
             }
             .task {
                 camera.checkPermissions()
+                startVerificationEvidence()
                 registration.frameObserver = { [weak verification] frame, update in
                     verification?.submit(frame: frame, registration: update)
                 }
+                session.setAttending(scenePhase != .background, by: Self.attendanceID)
+                startHandsFree()
                 await loadEntity()
                 // Placement can precede the fit sample when geometry loads
                 // slowly; make sure tracking starts once both exist.
                 registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
             }
             .onDisappear {
+                session.setAttending(false, by: Self.attendanceID)
+                session.reportVerification(nil, repairSentence: nil)
+                stopHandsFree()
                 endPhotoCheck(confirmed: false)
+                verification.recordWindow(trigger: .stepExit)
+                endVerificationEvidence()
                 verification.stop()
+                Task { await PlacementGeometryStore.shared.purge() }
                 registration.stop()
                 camera.stopSession()
                 // Re-entry re-runs the session with reset options, which
@@ -125,6 +191,21 @@ struct ARGuideView: View {
             .onChange(of: session.cursorStep?.id) { _, _ in
                 follow(session.cursorStep)
             }
+            .onChange(of: verification.verification?.timestamp) { _, _ in
+                updateRepairLine()
+                session.reportVerification(verification.verification, repairSentence: repairLine)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Nobody confirms from the background (ADR 0016). Inactive
+                // still counts as attended: Siri's own overlay makes the app
+                // inactive. The microphone listens only while active.
+                session.setAttending(phase != .background, by: Self.attendanceID)
+                if phase == .active {
+                    startHandsFree()
+                } else {
+                    stopHandsFree()
+                }
+            }
         }
         .navigationTitle("AR Step \(step.index)")
         .navigationBarTitleDisplayMode(.inline)
@@ -133,6 +214,12 @@ struct ARGuideView: View {
         } message: { Text(error ?? "") }
         .sheet(isPresented: $showStagedSetup) {
             StagedFixtureSetupView(plan: plan, declaration: $stagedDeclaration)
+        }
+        .sheet(isPresented: $showStagedVerificationSetup) {
+            StagedVerificationSetupView(declaration: $stagedVerification, stepIndex: step.index)
+        }
+        .onChange(of: stagedVerification) { _, declaration in
+            verification.setStagedVerification(declaration)
         }
     }
 
@@ -242,6 +329,8 @@ struct ARGuideView: View {
         guard !isAdvancing else { return }
         endPhotoCheck(confirmed: true)
         isAdvancing = true
+        verification.recordWindow(trigger: .confirm)
+        stagedVerification = nil
         verification.stop()
         session.confirm(step, source: .photoCheck)
         guard step.index < plan.steps.count else {
@@ -274,6 +363,82 @@ struct ARGuideView: View {
         }
     }
 
+    /// The full-window viewport the reticle is centred in, as placement uses.
+    static func viewport(_ proxy: GeometryProxy) -> CGSize {
+        CGSize(
+            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
+            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+        )
+    }
+
+    /// Words a repair for a misplaced step: which part, and which way from
+    /// where the user stands once the direction holds steady. Text only; no
+    /// arrow (ADR 0015).
+    private func updateRepairLine() {
+        guard let current = verification.verification, case .misplaced = current.verdict,
+              let repair = RepairPlanner.plan(verdict: current.verdict, context: RepairPlanner.context(plan: plan, step: step)),
+              let first = repair.actions.first else {
+            repairLine = nil
+            return
+        }
+        var direction: RelativeDirection?
+        if case .move(_, let by) = first, let worldFromModel = current.worldFromModel, let worldFromCamera = current.worldFromCamera {
+            direction = directionStabilizer.update(
+                bearing: CameraRelativeDirection.bearingDegrees(
+                    correction: CameraRelativeDirection.worldCorrection(by, worldFromModel: worldFromModel),
+                    worldFromCamera: worldFromCamera,
+                    rotation: ARCameraManager.screenRotation()
+                ),
+                pitchDegrees: CameraRelativeDirection.pitchDegrees(worldFromCamera: worldFromCamera),
+                at: current.timestamp
+            )
+        }
+        repairLine = RepairPhrasebook.sentence(for: repair.actions, direction: direction, labels: partLabels)
+    }
+
+    /// The step's parts in sentence form, from the pack's descriptions.
+    private func loadPartLabels(for step: AuthoredStep) async {
+        guard let pack = partPack.readyLibraryURL, let index = PartDescriptionIndexCache.index(for: plan, partPackRoot: pack) else {
+            partLabels = [:]
+            return
+        }
+        var labels: [Int: String] = [:]
+        let lower = min(max(0, step.addedPlacementRange.lowerBound), plan.placementTimeline.count)
+        let upper = min(max(lower, step.addedPlacementRange.upperBound), plan.placementTimeline.count)
+        for placementIndex in lower..<upper {
+            let placement = plan.placementTimeline[placementIndex]
+            let colour = PartNaming.colourName(code: placement.colorCode, definitionName: LDrawPalette.definition(placement.colorCode)?.name)
+            labels[placementIndex] = PartNaming.inSentence(colour: colour, part: await index.description(for: placement.partReference))
+        }
+        partLabels = labels
+    }
+
+    /// With evidence on, records verification windows for this visit and
+    /// asks the relay for the colour and occluder channels they keep.
+    private func startVerificationEvidence() {
+        guard evidenceCaptureEnabled, verificationRecorder == nil,
+              let recorder = makePhotoCheckRecorder(staged: nil) else {
+            camera.registrationRelay.setAuxiliaryChannels([])
+            return
+        }
+        verificationRecorder = recorder
+        verification.setWindowSink(recorder)
+        camera.registrationRelay.setAuxiliaryChannels([.colour, .occluderMask])
+    }
+
+    private func endVerificationEvidence() {
+        camera.registrationRelay.setAuxiliaryChannels([])
+        verification.setWindowSink(nil)
+        guard let recorder = verificationRecorder else { return }
+        verificationRecorder = nil
+        Task.detached(priority: .utility) {
+            // Session metadata only: a verification visit carries its ground
+            // truth on each window, not as a step count.
+            guard await recorder.verificationWindowCount > 0 else { return }
+            await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+        }
+    }
+
     private func makePhotoCheckRecorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder? {
         guard evidenceCaptureEnabled, let root = try? InstructionModelImporter.applicationSupportRoot() else { return nil }
         return RecoveryEvidenceRecorder(
@@ -293,6 +458,8 @@ struct ARGuideView: View {
     private func confirmAndAdvance() {
         guard !isAdvancing else { return }
         isAdvancing = true
+        verification.recordWindow(trigger: .confirm)
+        stagedVerification = nil
         // Dropping the verdict hides the confirm affordance immediately, so
         // one physical step cannot be confirmed twice before the next loads.
         verification.stop()
@@ -313,7 +480,14 @@ struct ARGuideView: View {
             isAdvancing = false
             return
         }
+        // Moving on without a complete verdict is the user overriding the
+        // verifier; after a confirm the window is already written. Browsing
+        // back overrides nothing.
+        verification.recordWindow(trigger: next.index > step.index && !verification.isComplete ? .override : .stepExit)
+        stagedVerification = nil
         verification.stop()
+        repairLine = nil
+        directionStabilizer = DirectionStabilizer()
         step = next
         Task {
             await loadEntity()
@@ -328,15 +502,20 @@ struct ARGuideView: View {
         do {
             let root = try InstructionModelImporter.applicationSupportRoot()
             let source = root.appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
-            let engine = LDrawGeometryEngine(sourceRoot: source, partPackRoot: partPackRoot)
+            // One flatten for the whole visit: each step's geometry is a
+            // range of it (M2.0), identical to a per-step snapshot.
+            let geometry = try await PlacementGeometryStore.shared.geometry(
+                for: plan, sourceRoot: source, partPackRoot: partPackRoot
+            )
             // Same completed/new treatment as the on-screen guide: dimmed
             // prior work under a full-opacity ghost of this step's additions.
             // Both stay solid translucent renders — never wireframe — per the
             // ADR 0008 design-around.
-            let completed = Array(plan.completedPlacements(before: step))
-            let additions = Array(plan.addedPlacements(for: step))
+            let completed = plan.completedPlacements(before: step)
             let container = Entity()
-            let completedSnapshot = try await engine.snapshot(placements: completed)
+            let stepGeometry = StepGeometry(step: step, geometry: geometry)
+            let completedSnapshot = stepGeometry.completedSnapshot
+            builtSnapshot = completedSnapshot.buffers.isEmpty ? nil : completedSnapshot
             if !completed.isEmpty {
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;
@@ -349,15 +528,120 @@ struct ARGuideView: View {
             } else {
                 registration.setFitSample(nil)
             }
-            let additionSnapshot = try await engine.snapshot(placements: additions)
+            let additionSnapshot = stepGeometry.deltaSnapshot
             container.addChild(try RealityKitInstructionAdapter.makeEntity(from: additionSnapshot))
             entity = container
             await verification.begin(
                 stepID: step.id,
-                completedSnapshot: completedSnapshot,
-                deltaSnapshot: additionSnapshot
+                geometry: stepGeometry,
+                stepIndex: step.index - 1
             )
+            await loadPartLabels(for: step)
+            announceStep()
         } catch { self.error = error.localizedDescription }
+    }
+
+    private static let attendanceID = "ar_guide"
+
+    private func startHandsFree() {
+        guard handsFreeEnabled, scenePhase == .active else { return }
+        narrator.onSpeakingChanged = { [weak voice] speaking in
+            if speaking {
+                voice?.narrationStarted()
+            } else {
+                voice?.narrationEnded()
+            }
+        }
+        voice.onCommand = { command in handle(command) }
+        Task { await voice.start() }
+    }
+
+    private func stopHandsFree() {
+        voice.stop()
+        narrator.stop()
+    }
+
+    /// Says which step is on screen and what it adds.
+    private func announceStep() {
+        guard handsFreeEnabled, scenePhase == .active else { return }
+        narrator.speak(StepNarration.announcement(
+            stepNumber: step.index,
+            stepCount: plan.steps.count,
+            partLabels: partLabels.sorted { $0.key < $1.key }.map(\.value)
+        ))
+    }
+
+    /// A voice command, through the same session policy Siri uses
+    /// (ADR 0016). Advancing and browsing move the cursor; `follow(_:)`
+    /// then loads and announces the step.
+    private func handle(_ command: VoiceCommand) {
+        switch command {
+        case .next, .nextAnyway:
+            guard !isAdvancing else { return }
+            let decision = session.requestAdvance(
+                command == .next ? .next : .nextAnyway, source: .voice, verification: verification.verification
+            )
+            switch decision {
+            case .advance, .browseForward:
+                if session.cursorStep?.id != step.id {
+                    isAdvancing = true
+                } else if session.isFinished {
+                    narrator.speak(StepNarration.buildFinished)
+                } else {
+                    announceStep()
+                }
+            case .holdAndSpeak(let repair):
+                let sentence = repair.flatMap {
+                    RepairPhrasebook.sentence(for: $0.actions, direction: directionStabilizer.current, labels: partLabels)
+                }
+                narrator.speak(StepNarration.hold(repairSentence: sentence))
+            case .refuse(let reason):
+                narrator.speak(StepNarration.refusal(reason))
+            }
+        case .back:
+            guard !isAdvancing else { return }
+            if session.cursorIndex == 0 {
+                announceStep()
+            } else {
+                session.browse(by: -1)
+            }
+        case .repeatLast:
+            narrator.repeatLast()
+        }
+    }
+}
+
+/// Whether hands-free mode is listening, speaking, or why it cannot.
+private struct VoiceStatusChip: View {
+    let state: VoiceCommandService.State
+    let speaking: Bool
+
+    var body: some View {
+        switch state {
+        case .idle:
+            EmptyView()
+        case .preparing:
+            Label("Preparing voice commands…", systemImage: "mic")
+                .modifier(ChipStyle())
+        case .listening:
+            Label(
+                speaking ? "Speaking" : "Listening for “next”",
+                systemImage: speaking ? "speaker.wave.2" : "mic.fill"
+            )
+            .modifier(ChipStyle())
+        case .unavailable(let reason):
+            Label(reason, systemImage: "mic.slash")
+                .modifier(ChipStyle())
+        }
+    }
+
+    private struct ChipStyle: ViewModifier {
+        func body(content: Content) -> some View {
+            content
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }
 

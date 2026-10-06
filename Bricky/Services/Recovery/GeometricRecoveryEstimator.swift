@@ -33,6 +33,13 @@ actor GeometricRecoveryEstimator {
         var minimumConfidence: UInt8 = 1
         var refinementPasses = 3
         var candidatesPerPass = 8
+        /// Break an inconclusive ranking by per-placement consistency
+        /// (M2.6). Off until device replays show it helps (ADR 0010).
+        var consistencyTieBreak = false
+        /// The leader's fit must at least reach this score for the
+        /// tie-break to trust its pose.
+        var tieBreakMinimumScore: Float = 0.3
+        var tieBreak = PlacementConsistencyScorer.Configuration()
     }
 
     struct CandidateScore: Sendable {
@@ -62,6 +69,8 @@ actor GeometricRecoveryEstimator {
     /// estimate (ADR 0007). Typed as the protocol so this file compiles into
     /// the macOS SyntheticRGBD tool, which cannot link the MLX-backed recorder.
     private let recorder: (any GeometricFitRecording)?
+    /// The plan's flattened timeline, when the caller already holds it.
+    private let geometry: PlacementGeometry?
 
     init(
         frame: RegistrationFrameInput,
@@ -69,7 +78,8 @@ actor GeometricRecoveryEstimator {
         partPackRoot: URL,
         configuration: Configuration = Configuration(),
         recorder: (any GeometricFitRecording)? = nil,
-        renderer: ExpectedDepthRenderer? = nil
+        renderer: ExpectedDepthRenderer? = nil,
+        geometry: PlacementGeometry? = nil
     ) throws {
         self.frame = frame
         self.sourceRoot = sourceRoot
@@ -77,6 +87,31 @@ actor GeometricRecoveryEstimator {
         self.configuration = configuration
         self.recorder = recorder
         self.renderer = try renderer ?? ExpectedDepthRenderer.shared()
+        self.geometry = geometry
+    }
+
+    /// The placement-consistency winner for an inconclusive ranking, when
+    /// the tie-break is on and the leader's fit is sound enough to judge
+    /// placements from its pose.
+    private func tieBreak(ranked: [CandidateScore], plan: InstructionPlan, geometry: PlacementGeometry) async throws -> Int? {
+        guard configuration.consistencyTieBreak, let leader = ranked.first,
+              leader.disqualification == .none,
+              leader.quality.rmsResidual <= configuration.maxFitRMS,
+              leader.score >= configuration.tieBreakMinimumScore else { return nil }
+        return try await PlacementConsistencyScorer.tieBreak(
+            leader: leader.index,
+            leaderWorldFromModel: leader.worldFromModel,
+            plan: plan,
+            geometry: geometry,
+            frame: frame,
+            renderer: renderer,
+            configuration: configuration.tieBreak
+        )
+    }
+
+    private static func milliseconds(since start: ContinuousClock.Instant) -> Int {
+        let duration = start.duration(to: .now)
+        return Int(duration.components.seconds) * 1_000 + Int(duration.components.attoseconds / 1_000_000_000_000_000)
     }
 
     /// Returns a conclusive estimate or nil. Step zero (nothing built) has no
@@ -88,7 +123,16 @@ actor GeometricRecoveryEstimator {
     ) async throws -> RecoveryEstimate? {
         guard !plan.steps.isEmpty else { return nil }
         let started = ContinuousClock.now
-        let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        // One flatten per estimate: every candidate's cumulative geometry is
+        // a prefix of it (M2.0), merged exactly as a per-candidate snapshot
+        // used to be, so the scores are unchanged.
+        let geometry: PlacementGeometry
+        if let provided = self.geometry, provided.segments.placementCount == plan.placementTimeline.count {
+            geometry = provided
+        } else {
+            let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+            geometry = PlacementGeometry(plan: plan, segments: try await engine.segmented(placements: plan.placementTimeline))
+        }
 
         var scored: [Int: CandidateScore] = [:]
         // Which refinement pass first scored each candidate, so a fit record
@@ -103,8 +147,7 @@ actor GeometricRecoveryEstimator {
             var fresh: [(index: Int, snapshot: InstructionGeometrySnapshot)] = []
             for index in indices where scored[index] == nil {
                 try Task.checkCancellation()
-                let placements = Array(plan.cumulativePlacements(through: plan.steps[index]))
-                fresh.append((index, try await engine.snapshot(placements: placements)))
+                fresh.append((index, geometry.cumulativeSnapshot(through: plan.steps[index])))
             }
             for score in try await Self.scoreCandidates(
                 candidates: fresh,
@@ -129,6 +172,19 @@ actor GeometricRecoveryEstimator {
         let ranked = scored.values.sorted { $0.score > $1.score }
         guard let best = ranked.first,
               Self.isConclusive(best: best, runnerUp: ranked.dropFirst().first, configuration: configuration) else {
+            if let winner = try await tieBreak(ranked: ranked, plan: plan, geometry: geometry) {
+                await recordFits(scored: scored, passIndices: passIndexByCandidate, plan: plan, conclusiveIndex: winner)
+                let others = ranked.filter { $0.index != winner }.prefix(2)
+                return RecoveryEstimate(
+                    rankedStepIDs: ([winner] + others.map(\.index)).map { RecoveryIndexing.stepID(forIndex: $0, plan: plan) },
+                    certainty: .medium,
+                    modelRevision: "depth-icp-geometric-v1+pcs1",
+                    latencyMilliseconds: Self.milliseconds(since: started),
+                    captureIDs: captureIDs,
+                    insufficiencyCause: nil,
+                    method: .geometric
+                )
+            }
             // An inconclusive attempt is the interesting one — it is what
             // sent the recovery to the VLM — so it is recorded too.
             await recordFits(scored: scored, passIndices: passIndexByCandidate, plan: plan, conclusiveIndex: nil)
@@ -244,25 +300,14 @@ actor GeometricRecoveryEstimator {
         var scores: [CandidateScore] = []
         for (candidate, expected) in zip(solved, expectedMaps) {
             let solve = candidate.solve
-            var covered = 0
-            var unexplained = 0
-            var phantom = 0
-            for index in expected.depth.indices where expected.depth[index] > 0 {
-                guard observedConfidence[index] >= configuration.minimumConfidence else { continue }
-                let depth = observed[index]
-                guard depth.isFinite, depth > 0 else { continue }
-                covered += 1
-                if depth < expected.depth[index] - configuration.unexplainedGap {
-                    unexplained += 1
-                } else if depth > expected.depth[index] + configuration.unexplainedGap {
-                    phantom += 1
-                }
-            }
-            let unexplainedFraction = covered > 0 ? Float(unexplained) / Float(covered) : 1
-            let phantomFraction = covered > 0 ? Float(phantom) / Float(covered) : 1
-            var score = solve.quality.inlierFraction
-                * min(1, solve.visibleFraction * 2)
-                - configuration.unexplainedWeight * (unexplainedFraction + phantomFraction)
+            let fit = FitScoring.score(
+                solve: solve, expected: expected, observed: observed, confidence: observedConfidence,
+                minimumConfidence: configuration.minimumConfidence,
+                unexplainedGap: configuration.unexplainedGap, unexplainedWeight: configuration.unexplainedWeight
+            )
+            let unexplainedFraction = fit.unexplainedFraction
+            let phantomFraction = fit.phantomFraction
+            var score = fit.score
 
             // Pose-sanity: disqualify fits that left the build plane or slid
             // far from the user's placement — they matched some other

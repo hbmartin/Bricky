@@ -1,0 +1,95 @@
+{
+  "_comment": [
+    "Regression baseline for the repair suite (SyntheticRGBD --suite repair,",
+    "fixture challenge.ldr, seed 7), checked by check_regression.py.",
+    "Each sampled step is built one stud off in four directions, judged from",
+    "a diagonal, a front, a side and an overhead view, and the planner's",
+    "repair is worded under all four screen rotations (M2.4).",
+    "harmful_actions must stay 0: an action that does not exactly undo the",
+    "shift would make the build worse. Direction disagreements with the",
+    "independent image-space projection are guarded lower_is_better.",
+    "Rows worded 'none' sit within 8 degrees of a sector boundary; the",
+    "diagonal regression view puts every stud-axis move there by design.",
+    "Cross-step rows (M2.9, flag on only in this suite): for each sampled step",
+    "the earlier part with the most built parts resting on it is shifted,",
+    "turned, missing, and missing under parts seen in place (which must be",
+    "withheld as implausible). Each plan is replayed on the support graph;",
+    "any step a builder could not take is harmful. The fixture has no part",
+    "with more than six resting on it, so the over-budget case does not occur."
+  ],
+  "fixture": "fixtures/challenge/challenge.ldr",
+  "generated": "2026-10-05",
+  "metrics": {
+    "repair_plan.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 408.0
+    },
+    "repair_plan.cross_step_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 24.0
+    },
+    "repair_plan.cross_step_harmful_actions": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "repair_plan.cross_step_matching_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 24.0
+    },
+    "repair_plan.directed_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 176.0
+    },
+    "repair_plan.direction_disagreement_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "repair_plan.harmful_actions": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "repair_plan.plans_produced": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 242.0
+    },
+    "synthetic_summary.repair.cross_step_plans": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 18.0
+    },
+    "synthetic_summary.repair.cross_step_withheld": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "synthetic_summary.repair.generated_cross_step_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 24.0
+    },
+    "synthetic_summary.repair.generated_repair_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 384.0
+    },
+    "synthetic_summary.repair.plans_produced": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 56.0
+    },
+    "synthetic_summary.repair.steps_sampled": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 6.0
+    }
+  },
+  "seed": 7
+}

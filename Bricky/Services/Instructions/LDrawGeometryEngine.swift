@@ -81,21 +81,65 @@ actor LDrawGeometryEngine {
             )
         }
 
+        return InstructionGeometrySnapshot(buffers: buffers, bounds: Self.bounds(of: buffers))
+    }
+
+    /// Flattens `placements` once, keeping each placement's triangles as a
+    /// contiguous run in timeline order (M2.0). Same flatten, same budgets
+    /// and same normals as `snapshot`, so `mergedByColour` over any range
+    /// reproduces `snapshot` of those placements exactly.
+    func segmented(placements: some Collection<PartPlacement>) throws -> SegmentedGeometry {
+        let signpost = GeometrySignposts.signposter.beginInterval("Snapshot", id: .exclusive, "segmented \(placements.count) placements")
+        defer { GeometrySignposts.signposter.endInterval("Snapshot", signpost) }
+        var triangles: [Triangle] = []
+        var starts = [0]
+        starts.reserveCapacity(placements.count + 1)
+        flattenOperations = 0
+        for placement in placements {
+            try flatten(
+                reference: placement.partReference,
+                transform: placement.transform,
+                inheritedColor: resolve(placement.colorCode, inheritedColor: Self.uncontextedMainColor),
+                invertWinding: false,
+                depth: 0,
+                triangles: &triangles
+            )
+            starts.append(triangles.count)
+        }
+        var positions: [SIMD3<Float>] = []
+        var normals: [SIMD3<Float>] = []
+        positions.reserveCapacity(triangles.count * 3)
+        normals.reserveCapacity(triangles.count * 3)
+        for triangle in triangles {
+            let normal = simd_normalize(simd_cross(triangle.b - triangle.a, triangle.c - triangle.a))
+            positions.append(contentsOf: [triangle.a, triangle.b, triangle.c])
+            normals.append(contentsOf: [normal, normal, normal])
+        }
+        return SegmentedGeometry(
+            positions: positions,
+            normals: normals,
+            triangleColours: triangles.map(\.color),
+            placementTriangleStarts: starts
+        )
+    }
+
+    /// Axis-aligned bounds over every buffer's positions, folded in buffer
+    /// order. The order matters only for signed zeros, which is why both
+    /// snapshot paths share this one fold.
+    nonisolated static func bounds(of buffers: [LDrawGeometryBuffer]) -> LDrawBounds? {
         let allPositions = buffers.flatMap(\.positions)
-        let bounds: LDrawBounds? = if let first = allPositions.first {
-            allPositions.dropFirst().reduce(
-                LDrawBounds(
-                    minimum: [Double(first.x), Double(first.y), Double(first.z)],
-                    maximum: [Double(first.x), Double(first.y), Double(first.z)]
-                )
-            ) { bounds, point in
-                LDrawBounds(
-                    minimum: zip(bounds.minimum, [Double(point.x), Double(point.y), Double(point.z)]).map(min),
-                    maximum: zip(bounds.maximum, [Double(point.x), Double(point.y), Double(point.z)]).map(max)
-                )
-            }
-        } else { nil }
-        return InstructionGeometrySnapshot(buffers: buffers, bounds: bounds)
+        guard let first = allPositions.first else { return nil }
+        return allPositions.dropFirst().reduce(
+            LDrawBounds(
+                minimum: [Double(first.x), Double(first.y), Double(first.z)],
+                maximum: [Double(first.x), Double(first.y), Double(first.z)]
+            )
+        ) { bounds, point in
+            LDrawBounds(
+                minimum: zip(bounds.minimum, [Double(point.x), Double(point.y), Double(point.z)]).map(min),
+                maximum: zip(bounds.maximum, [Double(point.x), Double(point.y), Double(point.z)]).map(max)
+            )
+        }
     }
 
     /// Codes 16 (inherit) and 24 (edge complement) are contextual and must

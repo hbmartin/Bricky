@@ -20,3 +20,8 @@ realignment after relaunch or unrecoverable tracking loss.
 
 The experience makes its precision boundary explicit and remains deterministic
 across guide, recovery-board, and AR renders.
+
+Note (2026-10-05): ADR 0009's amendment adds an optional suggested pose. It
+is a proposal the user must confirm, so alignment is still manual in the
+sense of this ADR: nothing registers without the user's tap.
+

@@ -1,4 +1,22 @@
+import CryptoKit
 import Foundation
+
+/// The identity an imported model is stored and recorded under: SHA-256
+/// over every imported file, sorted by relative path, each path and body
+/// NUL-terminated. Shared by the importer and by SyntheticRGBD, which must
+/// match a bundle's `instruction_sha256` before replaying its windows.
+enum InstructionSourceIdentity {
+    static func sha256(of files: [InstructionSourceFile]) -> String {
+        var hasher = SHA256()
+        for file in files.sorted(by: { $0.relativePath < $1.relativePath }) {
+            hasher.update(data: Data(file.relativePath.utf8))
+            hasher.update(data: Data([0]))
+            hasher.update(data: file.data)
+            hasher.update(data: Data([0]))
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 struct InstructionPlanBuilder {
     func build(

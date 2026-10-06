@@ -119,17 +119,36 @@ class AutoGuardTests(unittest.TestCase):
     def test_counts_are_exact_and_failures_and_drops_lower_is_better(self) -> None:
         for metric in ("verification.cases", "verification.negatives", "verification.undetectable_cases",
                        "synthetic_summary.regression.steps_sampled",
-                       "synthetic_summary.regression.generated_verification_rows"):
+                       "synthetic_summary.regression.generated_verification_rows",
+                       "repair_plan.cross_step_cases", "synthetic_summary.repair.generated_cross_step_rows"):
             self.assertEqual(auto_guard(metric)["direction"], "exact", metric)
         for metric in ("verification.false_complete_cases", "verification.undetectable_false_completes",
-                       "challenge.expected_failure_false_complete_cases",
-                       "synthetic_summary.regression.dropped_expected_complete_below_strong"):
+                       "challenge.expected_failure_false_complete_cases", "placement.false_present_cases",
+                       "synthetic_summary.regression.dropped_expected_complete_below_strong",
+                       "repair_plan.cross_step_harmful_actions"):
             self.assertEqual(auto_guard(metric)["direction"], "lower_is_better", metric)
 
     def test_rates_and_latencies_are_never_auto_guarded(self) -> None:
         for metric in ("verification.false_complete_rate", "verification.median_latency_ms",
                        "registration.translation_rmse_m", "verification.false_complete_upper_95"):
             self.assertIsNone(auto_guard(metric), metric)
+
+
+class PlacementMeasureTests(unittest.TestCase):
+    def test_measure_includes_placement(self) -> None:
+        rows = [
+            {"kind": "placement", "schema_version": 1, "fixture_id": "a", "expected_state": "absent",
+             "produced_state": "absent"},
+            {"kind": "placement", "schema_version": 1, "fixture_id": "b", "expected_state": "present",
+             "produced_state": "present"},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rows.ndjson"
+            path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            metrics = measure(path)
+        self.assertEqual(metrics["placement.cases"], 2.0)
+        self.assertEqual(metrics["placement.negatives"], 1.0)
+        self.assertEqual(metrics["placement.false_present_cases"], 0.0)
 
 
 class EndToEndTests(unittest.TestCase):

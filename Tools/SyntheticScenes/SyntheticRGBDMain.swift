@@ -46,6 +46,19 @@ struct SyntheticRGBDMain {
         case regression
         /// Mistake classes the taxonomy lacks, on every single-part step.
         case challenge
+        /// Repair plans and their camera-relative wording (M2.4).
+        case repair
+        /// Geometric recovery on mid-build states (M2.6).
+        case recovery
+        /// Suggested ghost placement on and off the build (M2.7).
+        case placement
+    }
+
+    /// Which recovery configuration the suite runs: the control, or the
+    /// placement-consistency tie-break (M2.6).
+    enum RecoveryArm: String {
+        case control
+        case tiebreak
     }
 
     struct Options {
@@ -55,18 +68,31 @@ struct SyntheticRGBDMain {
         var seed: UInt64 = 42
         var sampledSteps = 6
         var suite = Suite.regression
+        /// Replays an evidence bundle's verification windows instead of
+        /// generating synthetic scenes.
+        var replayBundle: String?
+        var replayJudge = WindowReplay.Judge.verifier
+        var recoveryArm = RecoveryArm.control
+        /// Prints colour-order vs timeline-order render differences per step
+        /// and exits (M2.0 diagnostic).
+        var checkRenderOrder = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
         var index = 0
         while index < arguments.count {
             let flag = arguments[index]
+            if flag == "--check-render-order" {
+                options.checkRenderOrder = true
+                index += 1
+                continue
+            }
             guard index + 1 < arguments.count else { throw CLIError("missing value for \(flag)") }
             let value = arguments[index + 1]
             switch flag {
@@ -81,6 +107,13 @@ struct SyntheticRGBDMain {
             case "--suite":
                 guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
                 options.suite = suite
+            case "--replay-bundle": options.replayBundle = value
+            case "--recovery-arm":
+                guard let arm = RecoveryArm(rawValue: value) else { throw CLIError("invalid value for --recovery-arm: \(value)") }
+                options.recoveryArm = arm
+            case "--judge":
+                guard let judge = WindowReplay.Judge(rawValue: value) else { throw CLIError("invalid value for --judge: \(value)") }
+                options.replayJudge = judge
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
@@ -123,6 +156,40 @@ struct SyntheticRGBDMain {
             partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
         )
         let renderer = try ExpectedDepthRenderer()
+        if options.checkRenderOrder {
+            try await RenderOrderCheck.run(plan: plan, engine: engine, renderer: renderer)
+            return
+        }
+        if let bundle = options.replayBundle {
+            // The model's directory must hold exactly the files that were
+            // imported, so its identity matches the bundle's sessions.
+            let (rows, summary) = try await WindowReplay.run(
+                bundle: URL(fileURLWithPath: bundle),
+                plan: plan,
+                sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles),
+                geometry: try await PlacementGeometryStore.shared.geometry(
+                    for: plan, sourceRoot: sourceDirectory, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
+                ),
+                renderer: renderer,
+                judge: options.replayJudge
+            )
+            try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
+                .write(toFile: options.outPath, atomically: true, encoding: .utf8)
+            print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.matches) match the device verdict; \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
+            return
+        }
+        if options.suite == .placement {
+            try await runPlacementSuggestion(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
+            return
+        }
+        if options.suite == .recovery {
+            try await runRecovery(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
+            return
+        }
+        if options.suite == .repair {
+            try await runRepair(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
+            return
+        }
         if options.suite == .challenge {
             try await runChallenge(
                 plan: plan, engine: engine, renderer: renderer, fixtureStem: fixtureStem, options: options
@@ -134,17 +201,26 @@ struct SyntheticRGBDMain {
         var registrationRows = 0
         var verificationRows = 0
         var droppedByDetectability: [String: Int] = [:]
+        // The shadow build diff (M2.3) judges the same frames; its rows go
+        // after the regression rows so those stay byte-identical.
+        var placementRows: [String] = []
+        var judgeDisagreements = 0
 
         let stepIndices = RecoveryIndexing.evenlySampledIndices(
             count: min(options.sampledSteps, plan.steps.count),
             range: 0..<plan.steps.count
         )
 
+        // One flatten for the corpus; each step's geometry is a range of it,
+        // identical to a per-step snapshot (M2.0).
+        let geometry = try await PlacementGeometryStore.shared.geometry(
+            for: plan, sourceRoot: sourceDirectory, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
+        )
         for stepIndex in stepIndices {
             let step = plan.steps[stepIndex]
-            let completed = try await engine.snapshot(placements: Array(plan.completedPlacements(before: step)))
-            let delta = try await engine.snapshot(placements: Array(plan.addedPlacements(for: step)))
-            let full = try await engine.snapshot(placements: Array(plan.cumulativePlacements(through: step)))
+            let completed = geometry.completedSnapshot(before: step)
+            let delta = geometry.deltaSnapshot(for: step)
+            let full = geometry.cumulativeSnapshot(through: step)
             guard !full.buffers.isEmpty else { continue }
 
             let scene = SyntheticScene(renderer: renderer, model: full)
@@ -166,15 +242,36 @@ struct SyntheticRGBDMain {
 
             // Verification scenarios: the physical scene carries the injected
             // error, the verifier judges the authored delta.
+            let stepGeometry = StepGeometry(step: step, geometry: geometry)
             for scenario in VerificationScenario.taxonomy {
                 let physical = scenario.physicalSnapshot(completed: completed, delta: delta)
+                let authoredCompleted = scenario.authoredCompleted(completed: completed, delta: delta)
                 let started = ContinuousClock.now
-                let verdict = try await scene.verify(
-                    completed: scenario.authoredCompleted(completed: completed, delta: delta),
+                let (verdict, shadow) = try await scene.verify(
+                    completed: authoredCompleted,
                     delta: delta,
                     physical: physical,
-                    sensor: SensorModel(rng: &rng)
+                    sensor: SensorModel(rng: &rng),
+                    shadow: (try BuildDiffEngine(renderer: renderer), StepGeometry(
+                        completedSnapshot: authoredCompleted, deltaSnapshot: delta,
+                        segments: stepGeometry.segments, index: stepGeometry.index,
+                        completedPlacements: stepGeometry.completedPlacements, deltaPlacements: stepGeometry.deltaPlacements
+                    ))
                 )
+                let verifierMilliseconds = started.duration(to: .now).milliseconds - (shadow?.milliseconds ?? 0)
+                if let shadow {
+                    if !Row.sameAssessment(shadow.verdict, verdict) { judgeDisagreements += 1 }
+                    if let diff = shadow.diff {
+                        placementRows += try Row.placements(
+                            fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
+                            diff: diff,
+                            plan: plan,
+                            expected: { _ in scenario.expectedPlacement },
+                            detectability: verdict.detectability,
+                            latencyMilliseconds: shadow.milliseconds
+                        )
+                    }
+                }
                 // An expected-complete row whose delta the verifier itself
                 // rates below strong is not a fair recall target: the honest
                 // response to a weakly visible delta is abstention (ADR 0008),
@@ -192,7 +289,7 @@ struct SyntheticRGBDMain {
                     fixture: "\(fixtureStem)-s\(stepIndex)-\(scenario.label)",
                     expected: scenario.expectedVerdict,
                     verification: verdict,
-                    latencyMilliseconds: started.duration(to: .now).milliseconds
+                    latencyMilliseconds: verifierMilliseconds
                 ))
                 verificationRows += 1
             }
@@ -212,6 +309,16 @@ struct SyntheticRGBDMain {
             "generated_verification_rows": verificationRows,
             "dropped_expected_complete_below_strong": droppedByDetectability.values.reduce(0, +),
             "dropped_by_detectability": droppedByDetectability,
+        ]))
+        rows += placementRows
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "placement",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "generated_placement_rows": placementRows.count,
+            "judge_disagreements": judgeDisagreements,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
@@ -235,6 +342,17 @@ extension SyntheticRGBDMain {
         var stepsUsed = 0
         var notApplicable: [String: Int] = [:]
         var dropped: [String: Int] = [:]
+        // The placement index's symmetry (Chamfer, M2.0) is checked against
+        // the render-based depth-equivalence oracle on every rotation row.
+        var symmetryChecked = 0
+        var symmetryDisagreements = 0
+        let sourceRoot = URL(fileURLWithPath: options.modelPath).deletingLastPathComponent()
+        let partPackRoot = URL(fileURLWithPath: options.ldrawRoot)
+        let geometry = try await PlacementGeometryStore.shared.geometry(
+            for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
+        )
+        var placementRows: [String] = []
+        var judgeDisagreements = 0
 
         for step in plan.steps {
             let added = Array(plan.addedPlacements(for: step))
@@ -264,22 +382,53 @@ extension SyntheticRGBDMain {
                 }
                 let challengeClass: String
                 let expected: String
+                var symmetricTurn = false
                 switch scenario.expectation {
                 case .verdict(let verdict):
                     (challengeClass, expected) = (scenario.label, verdict)
                 case .completeIfDepthEquivalent:
                     let symmetric = try scene.depthEquivalent(delta, physicalDelta)
+                    symmetricTurn = symmetric
                     challengeClass = scenario.label + (symmetric ? "_symmetric" : "_asymmetric")
                     expected = symmetric ? "complete" : "misplaced"
+                    if let turns = scenario.quarterTurns {
+                        let indexed = try await PlacementGeometryStore.shared.symmetry(
+                            of: placement.partReference, in: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
+                        ).isSymmetric(quarterTurns: turns)
+                        symmetryChecked += 1
+                        if indexed != symmetric {
+                            symmetryDisagreements += 1
+                            print("symmetry disagreement: \(placement.partReference) \(scenario.label) index=\(indexed) oracle=\(symmetric)")
+                        }
+                    }
                 }
 
                 let started = ContinuousClock.now
-                let verdict = try await scene.verify(
+                let (verdict, shadow) = try await scene.verify(
                     completed: completed,
                     delta: delta,
                     physical: InstructionGeometrySnapshot(buffers: completed.buffers + physicalDelta.buffers, bounds: nil),
-                    sensor: SensorModel(rng: &rng)
+                    sensor: SensorModel(rng: &rng),
+                    shadow: (try BuildDiffEngine(renderer: renderer), StepGeometry(step: step, geometry: geometry))
                 )
+                let verifierMilliseconds = started.duration(to: .now).milliseconds - (shadow?.milliseconds ?? 0)
+                if let shadow {
+                    if !Row.sameAssessment(shadow.verdict, verdict) { judgeDisagreements += 1 }
+                    if let diff = shadow.diff {
+                        let truth = scenario.expectedPlacement(symmetricTurn: symmetricTurn)
+                        placementRows += try Row.placements(
+                            fixture: "\(fixtureStem)-s\(step.index)-\(scenario.label)-\(placement.partReference)",
+                            diff: diff,
+                            plan: plan,
+                            expected: { _ in (truth.state, truth.offset) },
+                            detectability: verdict.detectability,
+                            observeOnly: truth.observeOnly,
+                            expectedFailure: scenario.expectedFailure,
+                            challengeClass: challengeClass,
+                            latencyMilliseconds: shadow.milliseconds
+                        )
+                    }
+                }
                 // Same rule as the regression suite: an expected-complete
                 // row below strong detectability is not a fair recall target.
                 if expected == "complete", verdict.detectability != .strong {
@@ -292,7 +441,7 @@ extension SyntheticRGBDMain {
                     expected: expected,
                     expectedFailure: scenario.expectedFailure,
                     verification: verdict,
-                    latencyMilliseconds: started.duration(to: .now).milliseconds
+                    latencyMilliseconds: verifierMilliseconds
                 ))
             }
         }
@@ -312,6 +461,25 @@ extension SyntheticRGBDMain {
             "dropped_expected_complete_below_strong": dropped.values.reduce(0, +),
             "dropped_by_class": dropped,
             "not_applicable_by_class": notApplicable,
+        ]))
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "symmetry",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "checked": symmetryChecked,
+            "oracle_disagreements": symmetryDisagreements,
+        ]))
+        rows += placementRows
+        rows.append(try Row.encode([
+            "kind": "synthetic_summary",
+            "schema_version": 1,
+            "suite": "challenge_placement",
+            "fixture": fixtureStem,
+            "seed": options.seed,
+            "generated_placement_rows": placementRows.count,
+            "judge_disagreements": judgeDisagreements,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)

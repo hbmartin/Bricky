@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftData
 import SwiftUI
 import UIKit
@@ -8,7 +9,7 @@ struct AppEntry: App {
     @StateObject private var library = InstructionLibraryController()
     @StateObject private var partPack = LDrawPartPackManager()
     @StateObject private var recoveryModel = RecoveryModelManager()
-    @State private var buildSession = BuildSessionController()
+    @State private var buildSession: BuildSessionController
     @State private var lifecycleTeardownTask: Task<Void, Never>?
     private let modelContainer: ModelContainer
 
@@ -18,6 +19,13 @@ struct AppEntry: App {
         } catch {
             fatalError("Bricky could not open its new instruction library: \(error.localizedDescription)")
         }
+        let session = BuildSessionController()
+        _buildSession = State(initialValue: session)
+        // Siri and Shortcuts act through the same session and library the
+        // views use, so a spoken "next" and a tap cannot disagree (ADR 0016).
+        let container = modelContainer
+        AppDependencyManager.shared.add(dependency: session)
+        AppDependencyManager.shared.add(dependency: container)
     }
 
     var body: some Scene {
@@ -63,6 +71,9 @@ struct AppEntry: App {
                     // written strictly after model admission, so it can run
                     // concurrently without delaying the part-pack and model
                     // checks behind the milestone fetch.
+                    // Spotlight holds models only while the user wants it
+                    // to; this also clears entries left by a replaced model.
+                    try? await InstructionModelSpotlight.sync(context: modelContainer.mainContext)
                     async let sweep: Void = sweepOrphanedRecoveryWorkFiles()
                     await partPack.checkInstalled()
                     await recoveryModel.check()

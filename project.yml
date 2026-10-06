@@ -5,6 +5,7 @@ options:
     iOS: "27.0"
   xcodeVersion: "27.0"
   groupSortPosition: top
+  developmentLanguage: en
 packages:
   RecoveryMLX:
     path: Packages/RecoveryMLX
@@ -37,6 +38,9 @@ targets:
       - Bricky/Services/Registration
       - Bricky/Services/Verification
       - Bricky/Services/Cloud
+      - Bricky/Services/Repair
+      - Bricky/Services/Voice
+      - Bricky/Intents
       - Bricky/Views/EvidenceSessionsView.swift
       - Bricky/Views/LibraryView.swift
       - Bricky/Views/StorageAndAttributionView.swift
@@ -48,6 +52,9 @@ targets:
       - path: Bricky/Resources/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: Bricky/Resources/LDRAW_ATTRIBUTION.txt
+        buildPhase: resources
+      # Repair wording and verifier labels (ADR 0015).
+      - path: Bricky/Resources/Localizable.xcstrings
         buildPhase: resources
     settings:
       base:
@@ -61,6 +68,8 @@ targets:
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Bricky/Resources/Info.plist
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_ENTITLEMENTS: Bricky/Resources/App.entitlements
     dependencies:
       - package: RecoveryMLX
@@ -84,18 +93,33 @@ targets:
       - Bricky/Domain/InstructionDomain.swift
       - Bricky/Domain/RegistrationDomain.swift
       - Bricky/Domain/VerificationDomain.swift
+      - Bricky/Domain/VerificationEvidenceReplay.swift
+      - Bricky/Domain/BuildDiffDomain.swift
+      - Bricky/Domain/RepairDomain.swift
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
+      - Bricky/Services/Instructions/SegmentedGeometry.swift
+      - Bricky/Services/Instructions/PlacementGeometryStore.swift
+      - Bricky/Services/Instructions/PlacementGeometryIndex.swift
+      - Bricky/Services/Instructions/PartSymmetry.swift
       - Bricky/Services/Instructions/LDConfigPalette.swift
       - Bricky/Services/Registration/ModelSurfaceSampler.swift
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
       - Bricky/Services/Registration/GeometrySignposts.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
+      - Bricky/Services/Registration/SuggestedPlacementEstimator.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
+      - Bricky/Services/Verification/StepJudging.swift
+      - Bricky/Services/Verification/BuildDiffEngine.swift
+      - Bricky/Services/Repair/CameraRelativeDirection.swift
+      - Bricky/Services/Repair/RepairPlanner.swift
+      - Bricky/Services/Repair/CrossStepRepairPlanner.swift
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
+      - Bricky/Services/Recovery/PlacementConsistencyScorer.swift
+      - Bricky/Services/Recovery/FitScoring.swift
     dependencies:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
@@ -121,6 +145,21 @@ targets:
       - BrickyTests/LDrawGeometryEngineTests.swift
       - BrickyTests/RecoveryCaptureTests.swift
       - BrickyTests/RecoveryBenchmarkWriterTests.swift
+      - BrickyTests/VLMCheckRowWriterTests.swift
+      - BrickyTests/ColourGridSamplerTests.swift
+      - BrickyTests/VerificationWindowBufferTests.swift
+      - BrickyTests/SegmentedGeometryTests.swift
+      - BrickyTests/PlacementGeometryStoreTests.swift
+      - BrickyTests/PlacementGeometryIndexTests.swift
+      - BrickyTests/RepairPlanningTests.swift
+      - BrickyTests/RepairPhrasebookTests.swift
+      - BrickyTests/AdvancePolicyTests.swift
+      - BrickyTests/VoiceCommandGrammarTests.swift
+      - BrickyTests/NextStepIntentTests.swift
+      - BrickyTests/InstructionModelEntityTests.swift
+      - BrickyTests/CrossStepRepairPlannerTests.swift
+      - BrickyTests/PlacementConsistencyScorerTests.swift
+      - BrickyTests/SuggestedPlacementTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

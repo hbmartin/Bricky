@@ -51,4 +51,20 @@ struct StepVerification: Sendable {
     let incompleteFraction: Float
     let registrationQuality: RegistrationQuality
     let timestamp: TimeInterval
+    /// The poses the frame was judged under, so a repair can say which way
+    /// to move a part from where the user stands (M2.4).
+    var worldFromModel: simd_float4x4? = nil
+    var worldFromCamera: simd_float4x4? = nil
+}
+
+extension StepVerdict {
+    /// The verdict's name in evidence rows and windows.
+    var evidenceName: String {
+        switch self {
+        case .complete: "complete"
+        case .incomplete: "incomplete"
+        case .misplaced: "misplaced"
+        case .uncertain: "uncertain"
+        }
+    }
 }

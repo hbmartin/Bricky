@@ -34,6 +34,7 @@ final class InstructionLibraryController: ObservableObject {
             let stored = StoredInstructionModel(plan: plan)
             context.insert(stored)
             try context.save()
+            Task { try? await InstructionModelSpotlight.sync(context: context) }
             return stored
         } catch let InstructionImportError.rootSelectionRequired(candidates) {
             rootCandidates = candidates

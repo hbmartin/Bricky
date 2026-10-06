@@ -1,12 +1,29 @@
 # Using Apple's iOS 27 on-device AI for mid-flight build and repair in Bricky
 
-Status: accepted as the program plan on 2026-09-25. Phase 0 (no device
-needed) is implemented on `feat/ios27-phase0`, one commit per plan item.
-Phase 1 is device work: measuring on an iPhone 17 Pro with the tools Phase 0
-built. The remaining Phase 0 debts are listed in
-[NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md): a device-side
-`vlm_check` row writer, background-download QA on a device, and a cloud
-offer on `thermal_deferred`, which needs an ADR 0011 amendment first.
+Status: accepted as the program plan on 2026-09-25.
+- Phase 0 (no device needed) shipped in PR #10; its review findings were
+  fixed in PR #11.
+- Phase 2's device-free work is on `feat/ios27-phase2` (PR #12), one commit
+  per item:
+  - evidence windows;
+  - segmented geometry and range draws;
+  - the placement index;
+  - the build diff in shadow;
+  - in-step repair with camera-relative wording (ADR 0015);
+  - the synthetic recovery suite and the tie-break, off;
+  - suggested placement, behind a flag;
+  - the hands-free advance policy, voice, Siri and opt-in Spotlight
+    (ADR 0016);
+  - the cross-step planner, flag off and Proposed.
+- Everything gated on device data stays off or in shadow until Phase 1
+  measures it, using the add-on checklist in
+  [NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md) §1a.
+- Still waiting:
+  - M2.1 and M2.5, for the Phase 1 step-5 verifier trace;
+  - every authority flip;
+  - background-download QA on a device;
+  - the `thermal_deferred` cloud offer, which needs an ADR 0011 amendment
+    first.
 
 Owner decisions (answers to §7):
 1. Floor: iPhone 17 Pro / Pro Max only (ADR 0012 amendment).

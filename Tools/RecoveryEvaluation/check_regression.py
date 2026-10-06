@@ -33,7 +33,21 @@ import json
 import sys
 from pathlib import Path
 
-from score_results import CHALLENGE_KIND, partition, score_challenge, score_registration, score_verification
+from score_results import (
+    CHALLENGE_KIND,
+    PLACEMENT_KIND,
+    REPAIR_KIND,
+    GEOMETRIC_RECOVERY_KIND,
+    PLACEMENT_SUGGESTION_KIND,
+    partition,
+    score_challenge,
+    score_placement,
+    score_repair,
+    score_geometric_recovery,
+    score_placement_suggestion,
+    score_registration,
+    score_verification,
+)
 
 LOWER_IS_BETTER = "lower_is_better"
 HIGHER_IS_BETTER = "higher_is_better"
@@ -49,6 +63,12 @@ FAILURE_COUNT_LEAVES = {
     "false_complete_cases",
     "undetectable_false_completes",
     "expected_failure_false_complete_cases",
+    "false_present_cases",
+    "undetectable_false_present_cases",
+    "harmful_actions",
+    "cross_step_harmful_actions",
+    "direction_disagreement_cases",
+    "wrong_proposal_cases",
 }
 
 
@@ -103,6 +123,14 @@ def measure(path: Path) -> dict[str, float]:
         report["registration"], _ = score_registration(kinds["registration"])
     if kinds[CHALLENGE_KIND]:
         report["challenge"] = score_challenge(kinds[CHALLENGE_KIND])
+    if kinds[PLACEMENT_KIND]:
+        report["placement"], _ = score_placement(kinds[PLACEMENT_KIND])
+    if kinds[REPAIR_KIND]:
+        report["repair_plan"], _ = score_repair(kinds[REPAIR_KIND])
+    if kinds[GEOMETRIC_RECOVERY_KIND]:
+        report["geometric_recovery"] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
+    if kinds[PLACEMENT_SUGGESTION_KIND]:
+        report["placement_suggestion"], _ = score_placement_suggestion(kinds[PLACEMENT_SUGGESTION_KIND])
     return flatten(report)
 
 
