@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.iOS("27.0"), .macOS(.v14)],
     products: [
         .library(name: "RecoveryMLX", targets: ["RecoveryMLX"]),
-        .library(name: "RecoveryEvidenceKit", targets: ["RecoveryEvidenceKit"])
+        .library(name: "RecoveryEvidenceKit", targets: ["RecoveryEvidenceKit"]),
+        .library(name: "BrickyLanguage", targets: ["BrickyLanguage"])
     ],
     dependencies: [
         // This exact commit includes MLXGuidedGeneration and trait-gated
@@ -52,6 +53,11 @@ let package = Package(
         // frameworks only (CoreGraphics/CoreText/ImageIO) so it stays cheap
         // to link everywhere.
         .target(name: "RecoveryEvidenceKit"),
+        // The language layer (ADR 0017): repair wording and the step-check
+        // advisor. No MLX. Its Foundation Models code needs the iOS/macOS 27
+        // SDKs and compiles out where the framework is absent (Xcode 16.4
+        // in CI); an Xcode 26 SDK is unsupported.
+        .target(name: "BrickyLanguage", dependencies: ["RecoveryEvidenceKit"]),
         .executableTarget(
             name: "bricky-harness",
             dependencies: [
@@ -72,6 +78,10 @@ let package = Package(
         .testTarget(
             name: "RecoveryEvidenceKitTests",
             dependencies: ["RecoveryEvidenceKit"]
+        ),
+        .testTarget(
+            name: "BrickyLanguageTests",
+            dependencies: ["BrickyLanguage"]
         )
     ]
 )

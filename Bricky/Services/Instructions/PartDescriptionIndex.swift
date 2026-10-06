@@ -38,7 +38,7 @@ actor PartDescriptionIndex {
 
     private func resolve(_ reference: String, followingMoves hops: Int) -> PartDescription {
         guard let header = headerLine(for: reference), let title = Self.title(fromHeader: header) else {
-            return PartDescription(reference: reference, title: reference, isFallback: true)
+            return PartDescription(reference: reference, title: Self.fallbackTitle(reference), isFallback: true)
         }
         // "~Moved to 3040b": the library keeps the old number as an alias.
         if hops > 0, let target = Self.movedTarget(title) {
@@ -81,6 +81,17 @@ actor PartDescriptionIndex {
             .map(String.init).joined()
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !cleaned.isEmpty else { return nil }
+        return String(cleaned.prefix(maximumTitleLength))
+    }
+
+    /// The file name as a title, held to the header rules: a reference
+    /// comes from the model file, so it is untrusted text too (it reaches
+    /// the screen, narration and the language layer's prompt).
+    static func fallbackTitle(_ reference: String) -> String {
+        let cleaned = reference.unicodeScalars
+            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .map(String.init).joined()
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return String(cleaned.prefix(maximumTitleLength))
     }
 

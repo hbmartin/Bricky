@@ -17,7 +17,7 @@
 		084D0B13E5632C69057B21D6 /* ColourTermJudgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E988815B76E8CDA0B5F19F /* ColourTermJudgeTests.swift */; };
 		0B71252BF557DE0600EB2D47 /* RepairDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E4F225F65FE3333B524877 /* RepairDomain.swift */; };
 		0C942BD7361D1F3B543F4367 /* PhotoCheckController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */; };
-		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
+		124A64B8C70625D1B6A5677C /* BrickyLanguage in Frameworks */ = {isa = PBXBuildFile; productRef = 4FBA9068E16AF61AD043A0E3 /* BrickyLanguage */; };
 		133A3C56CA34A0CFDF7EBA31 /* RenderOrderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */; };
 		144AA5228925EB679B66A89A /* LDrawPartPackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D9734797E7A28F77796154 /* LDrawPartPackManager.swift */; };
 		1A5FCBEABA863BC103FB9EB4 /* InferenceArmSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D83DE340051E760426159DB /* InferenceArmSchedulerTests.swift */; };
@@ -67,6 +67,7 @@
 		4FDDA08FE65E83E0BDC34FC0 /* VerificationWindowBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59AADE68549F7806130D18F6 /* VerificationWindowBuffer.swift */; };
 		5034AE2C95122CCBADE9CDA8 /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BA6FBDDD9842F5EA2E6670 /* AppEntry.swift */; };
 		5107765EB76F417AE2907EC5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */; };
+		519AAFA1A09B729CDD50D053 /* BrickyLanguage in Frameworks */ = {isa = PBXBuildFile; productRef = ECE5AF35AAC6814421531F56 /* BrickyLanguage */; };
 		52AD18E186BA2BE6925A9CDC /* RecoveryModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18C9BE053B07AB788E2FEF5 /* RecoveryModelManagerTests.swift */; };
 		52BBC71CC64A5DEE569D5D40 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
 		52BE7D12B49EA96661D09A29 /* SuggestedPlacementEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */; };
@@ -99,6 +100,7 @@
 		72B2AEF320E6138077EAF215 /* BuildDiffDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D75275F92B067A38B70821C /* BuildDiffDomain.swift */; };
 		73215EA20824B399957536D3 /* BuildDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9C07CC11857DAD082E51AC /* BuildDiffEngine.swift */; };
 		742664211DBD1A5C9D568F80 /* InferenceArmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */; };
+		7431386AA9EC11E01071384E /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
 		74656C2296FF82B28D491C39 /* DeviceFloor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85778E2B3323B8DD913494D2 /* DeviceFloor.swift */; };
 		746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */; };
 		773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A84BA4D548E212777156661 /* StorageLayoutTests.swift */; };
@@ -403,6 +405,7 @@
 			files = (
 				9CE090D5FC58982B64C08250 /* RecoveryMLX in Frameworks */,
 				2C805B31F620F8B53C9A693D /* RecoveryEvidenceKit in Frameworks */,
+				519AAFA1A09B729CDD50D053 /* BrickyLanguage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -412,7 +415,8 @@
 			files = (
 				7C65214ECBA98338964270E9 /* RecoveryMLX in Frameworks */,
 				E0FB47420C749683B165C2AD /* RecoveryEvidenceKit in Frameworks */,
-				124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */,
+				124A64B8C70625D1B6A5677C /* BrickyLanguage in Frameworks */,
+				7431386AA9EC11E01071384E /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -794,6 +798,7 @@
 			packageProductDependencies = (
 				9AFD1FD8C0E975A9F3202610 /* RecoveryMLX */,
 				97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */,
+				4FBA9068E16AF61AD043A0E3 /* BrickyLanguage */,
 				E78ECCD396A43FB4FD11323B /* ZIPFoundation */,
 			);
 			productName = Bricky;
@@ -853,6 +858,7 @@
 			packageProductDependencies = (
 				131FA9216C20002D90F8F63D /* RecoveryMLX */,
 				46B4FE67FF07A92A5D41E7E4 /* RecoveryEvidenceKit */,
+				ECE5AF35AAC6814421531F56 /* BrickyLanguage */,
 			);
 			productName = BrickyTests;
 			productReference = B9875749055872E5C5260701 /* BrickyTests.xctest */;
@@ -1504,6 +1510,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = RecoveryEvidenceKit;
 		};
+		4FBA9068E16AF61AD043A0E3 /* BrickyLanguage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BrickyLanguage;
+		};
 		97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RecoveryEvidenceKit;
@@ -1516,6 +1526,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3C92D65161CA6D2BEEBABF2D /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
 			productName = ZIPFoundation;
+		};
+		ECE5AF35AAC6814421531F56 /* BrickyLanguage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BrickyLanguage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
