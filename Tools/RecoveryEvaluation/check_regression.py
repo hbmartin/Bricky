@@ -38,11 +38,13 @@ from score_results import (
     PLACEMENT_KIND,
     REPAIR_KIND,
     GEOMETRIC_RECOVERY_KIND,
+    PLACEMENT_SUGGESTION_KIND,
     partition,
     score_challenge,
     score_placement,
     score_repair,
     score_geometric_recovery,
+    score_placement_suggestion,
     score_registration,
     score_verification,
 )
@@ -65,6 +67,7 @@ FAILURE_COUNT_LEAVES = {
     "undetectable_false_present_cases",
     "harmful_actions",
     "direction_disagreement_cases",
+    "wrong_proposal_cases",
 }
 
 
@@ -125,6 +128,8 @@ def measure(path: Path) -> dict[str, float]:
         report["repair_plan"], _ = score_repair(kinds[REPAIR_KIND])
     if kinds[GEOMETRIC_RECOVERY_KIND]:
         report["geometric_recovery"] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
+    if kinds[PLACEMENT_SUGGESTION_KIND]:
+        report["placement_suggestion"], _ = score_placement_suggestion(kinds[PLACEMENT_SUGGESTION_KIND])
     return flatten(report)
 
 

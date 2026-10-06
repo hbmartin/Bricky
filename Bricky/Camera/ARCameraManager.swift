@@ -106,6 +106,20 @@ final class ARCameraManager: NSObject, ObservableObject {
     /// image-space coordinates in the captured image's landscape frame, so
     /// the view point is first normalized against the viewport and then
     /// mapped through the inverse of the frame's display transform.
+    /// The depth-grid pixel under `screenPoint`, through the frame's display
+    /// transform, for a `gridWidth × gridHeight` depth map.
+    func depthPixel(forScreenPoint screenPoint: CGPoint, viewportSize: CGSize, gridWidth: Int, gridHeight: Int) -> SIMD2<Int>? {
+        guard viewportSize.width > 0, viewportSize.height > 0, let frame = session.currentFrame else { return nil }
+        let normalized = CGPoint(x: screenPoint.x / viewportSize.width, y: screenPoint.y / viewportSize.height)
+        let image = normalized.applying(
+            frame.displayTransform(for: Self.currentInterfaceOrientation(), viewportSize: viewportSize).inverted()
+        )
+        let x = Int(image.x * CGFloat(gridWidth))
+        let y = Int(image.y * CGFloat(gridHeight))
+        guard (0..<gridWidth).contains(x), (0..<gridHeight).contains(y) else { return nil }
+        return SIMD2(x, y)
+    }
+
     func unprojectToPlane(screenPoint: CGPoint, viewportSize: CGSize) -> SIMD3<Float>? {
         guard viewportSize.width > 0, viewportSize.height > 0,
               let frame = session.currentFrame,

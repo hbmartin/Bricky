@@ -300,25 +300,14 @@ actor GeometricRecoveryEstimator {
         var scores: [CandidateScore] = []
         for (candidate, expected) in zip(solved, expectedMaps) {
             let solve = candidate.solve
-            var covered = 0
-            var unexplained = 0
-            var phantom = 0
-            for index in expected.depth.indices where expected.depth[index] > 0 {
-                guard observedConfidence[index] >= configuration.minimumConfidence else { continue }
-                let depth = observed[index]
-                guard depth.isFinite, depth > 0 else { continue }
-                covered += 1
-                if depth < expected.depth[index] - configuration.unexplainedGap {
-                    unexplained += 1
-                } else if depth > expected.depth[index] + configuration.unexplainedGap {
-                    phantom += 1
-                }
-            }
-            let unexplainedFraction = covered > 0 ? Float(unexplained) / Float(covered) : 1
-            let phantomFraction = covered > 0 ? Float(phantom) / Float(covered) : 1
-            var score = solve.quality.inlierFraction
-                * min(1, solve.visibleFraction * 2)
-                - configuration.unexplainedWeight * (unexplainedFraction + phantomFraction)
+            let fit = FitScoring.score(
+                solve: solve, expected: expected, observed: observed, confidence: observedConfidence,
+                minimumConfidence: configuration.minimumConfidence,
+                unexplainedGap: configuration.unexplainedGap, unexplainedWeight: configuration.unexplainedWeight
+            )
+            let unexplainedFraction = fit.unexplainedFraction
+            let phantomFraction = fit.phantomFraction
+            var score = fit.score
 
             // Pose-sanity: disqualify fits that left the build plane or slid
             // far from the user's placement — they matched some other

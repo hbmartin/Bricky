@@ -21,6 +21,9 @@ struct ARGuideView: View {
     @StateObject private var photoCheck = PhotoCheckController()
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
+    @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
+    /// What is built before this step, for fitting a suggested ghost.
+    @State private var builtSnapshot: InstructionGeometrySnapshot?
     @State private var stagedDeclaration: StagedFixtureDeclaration?
     @State private var showStagedSetup = false
     /// The open evidence session for the current photo check, and the
@@ -55,7 +58,8 @@ struct ARGuideView: View {
                     entity: entity,
                     alignment: alignment.alignment,
                     trackedTransform: registration.trackedTransform,
-                    isLocked: registration.registration?.state == .locked
+                    isLocked: registration.registration?.state == .locked,
+                    suggestedTransform: alignment.suggestion?.worldFromModel
                 )
                 .ignoresSafeArea()
                 Image(systemName: "plus").font(.title).foregroundStyle(.white).shadow(radius: 3)
@@ -112,9 +116,30 @@ struct ARGuideView: View {
                             .buttonStyle(.borderedProminent).tint(.green).controlSize(.large)
                             .padding(.bottom, 4)
                     }
-                    if alignment.alignment == nil {
-                        Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
-                            .buttonStyle(.borderedProminent).controlSize(.large)
+                    if alignment.alignment == nil, alignment.suggestion != nil {
+                        // A suggestion is only ever a proposal: registration
+                        // starts from it only after this tap (ADR 0009).
+                        HStack {
+                            Button("Use Suggested Position") { alignment.acceptSuggestion() }
+                                .buttonStyle(.borderedProminent)
+                            Button("Place Manually") { alignment.declineSuggestion() }
+                                .buttonStyle(.bordered)
+                        }
+                        .controlSize(.large)
+                    } else if alignment.alignment == nil {
+                        HStack {
+                            if suggestedPlacementEnabled, let builtSnapshot {
+                                Button("Suggest Position") {
+                                    let viewport = Self.viewport(proxy)
+                                    Task { await alignment.suggest(manager: camera, viewport: viewport, build: builtSnapshot) }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(alignment.isSuggesting)
+                            }
+                            Button("Place Ghost Here") { alignment.placeGhost(manager: camera, proxy: proxy) }
+                                .buttonStyle(.borderedProminent)
+                        }
+                        .controlSize(.large)
                     } else {
                         AlignmentNudgePad(alignment: alignment)
                     }
@@ -312,6 +337,14 @@ struct ARGuideView: View {
         }
     }
 
+    /// The full-window viewport the reticle is centred in, as placement uses.
+    static func viewport(_ proxy: GeometryProxy) -> CGSize {
+        CGSize(
+            width: proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing,
+            height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+        )
+    }
+
     /// Words a repair for a misplaced step: which part, and which way from
     /// where the user stands once the direction holds steady. Text only; no
     /// arrow (ADR 0015).
@@ -455,6 +488,7 @@ struct ARGuideView: View {
             let container = Entity()
             let stepGeometry = StepGeometry(step: step, geometry: geometry)
             let completedSnapshot = stepGeometry.completedSnapshot
+            builtSnapshot = completedSnapshot.buffers.isEmpty ? nil : completedSnapshot
             if !completed.isEmpty {
                 container.addChild(try RealityKitInstructionAdapter.makeEntity(from: completedSnapshot, dimmed: true))
                 // The physical build at this point is the completed geometry;

@@ -60,12 +60,14 @@
 		5107765EB76F417AE2907EC5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E020663BF984047A03349FD /* PrivacyInfo.xcprivacy */; };
 		52AD18E186BA2BE6925A9CDC /* RecoveryModelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18C9BE053B07AB788E2FEF5 /* RecoveryModelManagerTests.swift */; };
 		52BBC71CC64A5DEE569D5D40 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
+		52BE7D12B49EA96661D09A29 /* SuggestedPlacementEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */; };
 		56B00421E0CFE61591E9E38C /* PartSymmetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E271521248A9118A672048 /* PartSymmetry.swift */; };
 		574A0E1C907C0846D18ECD46 /* GeometricRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */; };
 		586EB1012DD6375874E0FE0D /* SegmentedGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0B75DC6220349A5907258E /* SegmentedGeometry.swift */; };
 		59629DFFFF88DD94CF89739F /* StepVerificationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1982584DC887B6D9531AD75A /* StepVerificationController.swift */; };
 		596E5F7E6AE9925BC8BDC8B5 /* RegistrationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */; };
 		59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */; };
+		5CD2E032FF04ED5ABAA9BCC0 /* PlacementSuggestionSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4CFE86754EB7B84DB29503C /* PlacementSuggestionSuite.swift */; };
 		5E7E24748521D2697DFE375D /* InstructionPlanBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E92D26DA183F19074C695F0 /* InstructionPlanBuilder.swift */; };
 		609FFC841C24CB36EAC14AFE /* RecoveryBenchmarkWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */; };
 		60E27187389AA678D8117CC9 /* RepairDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E4F225F65FE3333B524877 /* RepairDomain.swift */; };
@@ -78,6 +80,7 @@
 		66A30C1550A36BF9AAEB8A73 /* InstructionImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DA8AD5BB06C73FEEDC7F57 /* InstructionImporterTests.swift */; };
 		66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
+		7196B421FF21CAED9C8B8362 /* FitScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */; };
 		71BCB7B2BE960802AE2DC993 /* VerificationWindowBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F794530C71D1434800ED17 /* VerificationWindowBufferTests.swift */; };
 		72B2AEF320E6138077EAF215 /* BuildDiffDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D75275F92B067A38B70821C /* BuildDiffDomain.swift */; };
 		73215EA20824B399957536D3 /* BuildDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9C07CC11857DAD082E51AC /* BuildDiffEngine.swift */; };
@@ -94,6 +97,7 @@
 		80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */; };
 		8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */; };
 		829196A1BF915CC063472FF0 /* RepairPlanningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5BBE45F64B561B5F1CC030 /* RepairPlanningTests.swift */; };
+		837F852F4EBA7C8593D577F8 /* FitScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */; };
 		84F184173E6E02B3A9F5A693 /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4B31B371B1E80A1F60272641 /* RecoveryEvidenceKit */; };
 		860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD68ACF4D31A44E04136B1C /* ExpectedDepthRenderer.swift */; };
 		866D9F7DAEA448A189819978 /* PhotoCheckControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCE4E27B457E2F0AF1BC8A4 /* PhotoCheckControllerTests.swift */; };
@@ -132,6 +136,7 @@
 		B7B0DE172227251CC45DAE90 /* VerificationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0119F360F3125105431438 /* VerificationDomain.swift */; };
 		B7BE9DB6E235B31E72EFA2F2 /* PlacementGeometryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */; };
 		BA10501551BDA7FBBEA53564 /* ExpectedDepthRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */; };
+		BA1CFFBA0235283A59919168 /* SuggestedPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810C29BB4469B4F9BC8C51F6 /* SuggestedPlacementTests.swift */; };
 		BA8888EA2A2A32ED9DEA6217 /* InstructionModelImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */; };
 		BC4EC1D30B588A15098DC748 /* RepairPhrasebookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24AF0E86C263ADBD8D2561FA /* RepairPhrasebookTests.swift */; };
 		BDE61C7D88D0A67DC4DC646F /* CameraRelativeDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */; };
@@ -169,6 +174,7 @@
 		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
 		F7157EC1FC7E871C6D0E1F80 /* RepairPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868429598B01C6397EDFA9F1 /* RepairPlanner.swift */; };
+		F7C4A5D65A89E52B0C14975A /* SuggestedPlacementEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */; };
 		F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D274255AB95722CBD03B8747 /* DepthICPTracker.swift */; };
 		F9CD6433176BD57E93572C24 /* VerificationEvidenceReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B8B905DF3AD288BE68260A /* VerificationEvidenceReplay.swift */; };
 		FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */; };
@@ -252,6 +258,7 @@
 		7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedAssetDownloader.swift; sourceTree = "<group>"; };
 		7D75275F92B067A38B70821C /* BuildDiffDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDiffDomain.swift; sourceTree = "<group>"; };
 		7F0B75DC6220349A5907258E /* SegmentedGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedGeometry.swift; sourceTree = "<group>"; };
+		810C29BB4469B4F9BC8C51F6 /* SuggestedPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedPlacementTests.swift; sourceTree = "<group>"; };
 		854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryScenario.swift; sourceTree = "<group>"; };
 		85778E2B3323B8DD913494D2 /* DeviceFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloor.swift; sourceTree = "<group>"; };
 		868429598B01C6397EDFA9F1 /* RepairPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPlanner.swift; sourceTree = "<group>"; };
@@ -263,6 +270,7 @@
 		91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricRecoveryEstimatorTests.swift; sourceTree = "<group>"; };
 		93D85D9DF4E02BB4A87D0838 /* PlacementGeometryIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryIndexTests.swift; sourceTree = "<group>"; };
 		965B74AF30C0F6D89D5B8D12 /* StorageLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageLayout.swift; sourceTree = "<group>"; };
+		9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestedPlacementEstimator.swift; sourceTree = "<group>"; };
 		9785F3F83F1C9D08C4FE106F /* MemoryGovernor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryGovernor.swift; sourceTree = "<group>"; };
 		98464475033BC29B697EFBA7 /* DocumentOpenRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentOpenRouter.swift; sourceTree = "<group>"; };
 		9891FC28298A60A802423EF9 /* RegistrationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationController.swift; sourceTree = "<group>"; };
@@ -308,12 +316,14 @@
 		E287AB5C073EAC0F4D98EE98 /* ARCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCameraManager.swift; sourceTree = "<group>"; };
 		E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARAlignmentController.swift; sourceTree = "<group>"; };
 		E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationDomain.swift; sourceTree = "<group>"; };
+		E4CFE86754EB7B84DB29503C /* PlacementSuggestionSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementSuggestionSuite.swift; sourceTree = "<group>"; };
 		E4E7E99FBE84683A8DDDE9D4 /* InstructionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionParserTests.swift; sourceTree = "<group>"; };
 		E525FA894732754A4DAB64BC /* RepairPhrasebook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPhrasebook.swift; sourceTree = "<group>"; };
 		E9AFDF42C21A5064DDC52427 /* InstructionModelImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionModelImporter.swift; sourceTree = "<group>"; };
 		EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDConfigPaletteTests.swift; sourceTree = "<group>"; };
 		EF7019F35F3843431FF00650 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeRecoveryEstimatorTests.swift; sourceTree = "<group>"; };
+		F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitScoring.swift; sourceTree = "<group>"; };
 		F0673FBD15EFDC9F1175DA62 /* RecoveryCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCaptureService.swift; sourceTree = "<group>"; };
 		F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryIndexing.swift; sourceTree = "<group>"; };
 		F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorderTests.swift; sourceTree = "<group>"; };
@@ -405,6 +415,7 @@
 				F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */,
 				8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */,
 				9A84BA4D548E212777156661 /* StorageLayoutTests.swift */,
+				810C29BB4469B4F9BC8C51F6 /* SuggestedPlacementTests.swift */,
 				05743035E70D88A405DCEE91 /* SwiftParityTests.swift */,
 				58F794530C71D1434800ED17 /* VerificationWindowBufferTests.swift */,
 				B71E30B52B3B135BA91DF026 /* VLMCheckRowWriterTests.swift */,
@@ -451,6 +462,7 @@
 			isa = PBXGroup;
 			children = (
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
+				E4CFE86754EB7B84DB29503C /* PlacementSuggestionSuite.swift */,
 				854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
 				F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */,
@@ -615,6 +627,7 @@
 				B25E09395EE9E36968E58955 /* GeometrySignposts.swift */,
 				18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */,
 				9891FC28298A60A802423EF9 /* RegistrationController.swift */,
+				9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */,
 			);
 			name = Registration;
 			path = Bricky/Services/Registration;
@@ -628,6 +641,7 @@
 				9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */,
 				0C237B2E908EC68999D4995F /* DeviceConditionsProbe.swift */,
 				62E1EF565595993B80170831 /* EvidenceExporter.swift */,
+				F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */,
 				F9CE918ECC22A8DE4451A6EC /* GeometricRecoveryEstimator.swift */,
 				8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */,
 				4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */,
@@ -827,6 +841,7 @@
 				80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */,
 				C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */,
 				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
+				7196B421FF21CAED9C8B8362 /* FitScoring.swift in Sources */,
 				574A0E1C907C0846D18ECD46 /* GeometricRecoveryEstimator.swift in Sources */,
 				F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */,
 				C818D89620DE449A172F8EE0 /* GeometrySignposts.swift in Sources */,
@@ -840,6 +855,7 @@
 				C66B2FB30349B3152262E03D /* PlacementConsistencyScorer.swift in Sources */,
 				334D9608F8A63775657C8FA6 /* PlacementGeometryIndex.swift in Sources */,
 				C15523B38D9128BAE05738E3 /* PlacementGeometryStore.swift in Sources */,
+				5CD2E032FF04ED5ABAA9BCC0 /* PlacementSuggestionSuite.swift in Sources */,
 				B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */,
 				66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */,
 				4FD16722C51C4ABA0CA50337 /* RecoveryScenario.swift in Sources */,
@@ -850,6 +866,7 @@
 				F55E19809F6164C82D80F3B0 /* RepairSuite.swift in Sources */,
 				2C7628A53E2FBBBFBA76F85D /* SegmentedGeometry.swift in Sources */,
 				2C9A30B4610F957904A1AF69 /* StepJudging.swift in Sources */,
+				52BE7D12B49EA96661D09A29 /* SuggestedPlacementEstimator.swift in Sources */,
 				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
 				7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */,
 				A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */,
@@ -898,6 +915,7 @@
 				3EA3E6B538AB252790E57BEB /* SegmentedGeometryTests.swift in Sources */,
 				37A85FEF359A09F1AD6BCCDB /* StepVerificationControllerTests.swift in Sources */,
 				773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */,
+				BA1CFFBA0235283A59919168 /* SuggestedPlacementTests.swift in Sources */,
 				9D2417C263FD5594C35ADD49 /* SwiftParityTests.swift in Sources */,
 				6192674283502FF2E52B9C6E /* VLMCheckRowWriterTests.swift in Sources */,
 				080E5FE0E65857D82A734117 /* VLMStepCheckServiceTests.swift in Sources */,
@@ -934,6 +952,7 @@
 				8A88BBC7A5943699EAB11DD7 /* EvidenceExporter.swift in Sources */,
 				887B68E1B09FEE61473734CB /* EvidenceSessionsView.swift in Sources */,
 				B62A82A57995EB606F4E8A3F /* ExpectedDepthRenderer.swift in Sources */,
+				837F852F4EBA7C8593D577F8 /* FitScoring.swift in Sources */,
 				FFF449912475E9322656DDB1 /* GeometricRecoveryEstimator.swift in Sources */,
 				EDAED60425FBAD90D2AA4668 /* GeometricStepVerifier.swift in Sources */,
 				644FC9E3C196DDE3F54F4C17 /* GeometrySignposts.swift in Sources */,
@@ -984,6 +1003,7 @@
 				59629DFFFF88DD94CF89739F /* StepVerificationController.swift in Sources */,
 				746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */,
 				CADB2E8758CA0F30AAB71B50 /* StorageLayout.swift in Sources */,
+				F7C4A5D65A89E52B0C14975A /* SuggestedPlacementEstimator.swift in Sources */,
 				8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */,
 				387935CAFEDCB161503ED44B /* VLMStepCheckService.swift in Sources */,
 				B7B0DE172227251CC45DAE90 /* VerificationDomain.swift in Sources */,

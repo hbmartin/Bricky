@@ -11,6 +11,16 @@
         }
       }
     },
+    "Aim the center reticle at your build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aim the center reticle at your build."
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "en": {
@@ -121,12 +131,32 @@
         }
       }
     },
+    "No position to suggest here. Place the ghost yourself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No position to suggest here. Place the ghost yourself."
+          }
+        }
+      }
+    },
     "Parts too small to verify by depth": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Parts too small to verify by depth"
+          }
+        }
+      }
+    },
+    "Place Manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place Manually"
           }
         }
       }
@@ -157,6 +187,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Step not complete yet"
+          }
+        }
+      }
+    },
+    "Suggest Position": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest Position"
+          }
+        }
+      }
+    },
+    "Suggested position. Check it lines up with your build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggested position. Check it lines up with your build."
           }
         }
       }
@@ -207,6 +257,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Turn the %@ around."
+          }
+        }
+      }
+    },
+    "Use Suggested Position": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Suggested Position"
           }
         }
       }

@@ -23,5 +23,8 @@ enum AppConfig {
         /// Unload the VLM after `RecoveryModelManager.idleUnloadInterval`
         /// without inference. Off by default: re-warming costs a load.
         static let idleUnloadEnabled = "developer.idleUnloadEnabled"
+        /// Offer a ghost pose fitted to the depth under the reticle (M2.7).
+        /// Off until device rows show wrong proposals stay under 5%.
+        static let suggestedPlacementEnabled = "developer.suggestedPlacementEnabled"
     }
 }

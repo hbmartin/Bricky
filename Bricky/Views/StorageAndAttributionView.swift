@@ -7,6 +7,7 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
     @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
+    @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
@@ -100,6 +101,7 @@ struct StorageAndAttributionView: View {
                     .disabled(!evidenceCaptureEnabled)
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
                 Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
+                Toggle("Offer a suggested ghost position", isOn: $suggestedPlacementEnabled)
                 if let relief = recoveryModel.lastPressureRelief {
                     LabeledContent(
                         "Last memory-pressure unload",

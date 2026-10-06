@@ -31,6 +31,7 @@ from score_results import (
     score_placement,
     score_repair,
     score_geometric_recovery,
+    score_placement_suggestion,
 )
 
 RELEASE_ROWS = 60
@@ -337,6 +338,24 @@ class GeometricRecoveryScoringTests(unittest.TestCase):
         code, output = MainTests.run_main([recovery_row("exact", "m#3", ["m#3"])], informational=False, require_kinds=set())
         self.assertEqual(code, 1)
         self.assertIn("not release evidence", output)
+
+
+class PlacementSuggestionScoringTests(unittest.TestCase):
+    @staticmethod
+    def row(outcome: str, scenario: str = "on_build") -> dict[str, object]:
+        return {"kind": "placement_suggestion", "schema_version": 1, "provenance": "synthetic",
+                "fixture_id": f"s-{scenario}-{outcome}", "scenario": scenario, "outcome": outcome}
+
+    def test_wrong_proposals_are_judged_on_proposals_made(self) -> None:
+        rows = [self.row("correct"), self.row("wrong", "distractor"), self.row("none", "off_build"), self.row("none")]
+        report, gates = score_placement_suggestion(rows)
+        self.assertEqual((report["proposal_cases"], report["wrong_proposal_cases"], report["no_proposal_cases"]), (2, 1, 2))
+        self.assertEqual(report["by_scenario"]["distractor"]["wrong"], 1)
+        self.assertFalse(gates[0].required)
+
+    def test_no_proposals_leave_the_rate_unmeasured(self) -> None:
+        report, _ = score_placement_suggestion([self.row("none")])
+        self.assertIsNone(report["wrong_proposal_rate"])
 
 
 class RepairScoringTests(unittest.TestCase):

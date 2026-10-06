@@ -6,6 +6,55 @@ import SwiftUI
 final class ARAlignmentController: ObservableObject {
     @Published private(set) var alignment: ARAlignment?
     @Published var guidance = "Move your device until a horizontal surface appears."
+    /// A pose offered by `SuggestedPlacementEstimator` (M2.7). Only drawn,
+    /// never registered: `alignment` stays nil until the user accepts it.
+    @Published private(set) var suggestion: SuggestedPlacement?
+    @Published private(set) var isSuggesting = false
+
+    /// Fits the build to the depth under the screen centre and, if one pose
+    /// clearly fits, offers it. Nothing is placed until `acceptSuggestion`.
+    func suggest(manager: ARCameraManager, viewport: CGSize, build: InstructionGeometrySnapshot) async {
+        let centre = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+        guard !isSuggesting, alignment == nil,
+              let frame = manager.session.currentFrame, let input = RegistrationFrameRelay.input(from: frame),
+              let plane = manager.unprojectToPlane(screenPoint: centre, viewportSize: viewport),
+              let reticle = manager.depthPixel(forScreenPoint: centre, viewportSize: viewport, gridWidth: input.width, gridHeight: input.height),
+              let renderer = try? ExpectedDepthRenderer.shared() else {
+            guidance = String(localized: "Aim the center reticle at your build.")
+            return
+        }
+        isSuggesting = true
+        defer { isSuggesting = false }
+        let outcome = try? await SuggestedPlacementEstimator.suggest(
+            frame: input, reticle: reticle, planeHeight: plane.y, build: build, renderer: renderer
+        )
+        offer(outcome)
+    }
+
+    /// Shows an estimator outcome. A proposal is drawn and nothing more:
+    /// `alignment` is untouched until `acceptSuggestion`.
+    func offer(_ outcome: SuggestionOutcome?) {
+        if case .proposal(let placement) = outcome {
+            suggestion = placement
+            guidance = String(localized: "Suggested position. Check it lines up with your build.")
+        } else {
+            suggestion = nil
+            guidance = String(localized: "No position to suggest here. Place the ghost yourself.")
+        }
+    }
+
+    /// The user confirmed the suggested pose: it becomes the alignment, and
+    /// registration starts from it exactly as from a manual placement.
+    func acceptSuggestion() {
+        guard let suggestion else { return }
+        alignment = ARAlignment(id: UUID(), transform: suggestion.worldFromModel, isTracking: true)
+        self.suggestion = nil
+        guidance = "Drag the controls until the ghost matches the physical build."
+    }
+
+    func declineSuggestion() {
+        suggestion = nil
+    }
 
     /// Places the ghost at the raycast hit under `screenPoint`, expressed in
     /// the AR view's coordinate space of size `viewport`. Defaults to the
@@ -49,6 +98,7 @@ final class ARAlignmentController: ObservableObject {
 
     func reset() {
         alignment = nil
+        suggestion = nil
         guidance = "Place the ghost again. Alignment is intentionally never restored across launches."
     }
 
@@ -69,19 +119,24 @@ struct ARInstructionOverlay: UIViewRepresentable {
     /// ARAnchor-backed entity so ARKit's world-map refinements keep it
     /// stable; tracker corrections ride on top as a child transform.
     var isLocked: Bool
+    /// A suggested pose (M2.7), drawn in its own tint while nothing is
+    /// placed. Solid and translucent like every ghost, never wireframe.
+    var suggestedTransform: simd_float4x4?
 
     init(
         session: ARSession,
         entity: Entity?,
         alignment: ARAlignment?,
         trackedTransform: simd_float4x4? = nil,
-        isLocked: Bool = false
+        isLocked: Bool = false,
+        suggestedTransform: simd_float4x4? = nil
     ) {
         self.session = session
         self.entity = entity
         self.alignment = alignment
         self.trackedTransform = trackedTransform
         self.isLocked = isLocked
+        self.suggestedTransform = suggestedTransform
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -105,6 +160,7 @@ struct ARInstructionOverlay: UIViewRepresentable {
     func updateUIView(_ view: ARView, context: Context) {
         let coordinator = context.coordinator
         let transform = trackedTransform ?? alignment?.transform
+        updateSuggestion(view, coordinator: coordinator, visible: transform == nil)
 
         // Alignment removed (reset or tracking abandoned): tear down both
         // anchor kinds so the next placement starts clean in what may be a
@@ -159,9 +215,50 @@ struct ARInstructionOverlay: UIViewRepresentable {
         anchor.isEnabled = true
     }
 
+    /// Shows the suggested pose as a tinted copy of the ghost, and removes
+    /// it once anything is placed.
+    private func updateSuggestion(_ view: ARView, coordinator: Coordinator, visible: Bool) {
+        guard visible, let suggestedTransform, let entity else {
+            if let anchor = coordinator.suggestionAnchor { view.scene.removeAnchor(anchor) }
+            coordinator.suggestionAnchor = nil
+            coordinator.suggestionSource = nil
+            return
+        }
+        if coordinator.suggestionAnchor == nil {
+            let anchor = AnchorEntity(world: .zero)
+            view.scene.addAnchor(anchor)
+            coordinator.suggestionAnchor = anchor
+        }
+        guard let anchor = coordinator.suggestionAnchor else { return }
+        if coordinator.suggestionSource !== entity {
+            anchor.children.removeAll()
+            anchor.addChild(Self.tinted(entity))
+            coordinator.suggestionSource = entity
+        }
+        anchor.transform.matrix = suggestedTransform
+    }
+
+    /// A translucent teal copy, distinct from the placed ghost.
+    static func tinted(_ entity: Entity) -> Entity {
+        let copy = entity.clone(recursive: true)
+        var material = UnlitMaterial(color: UIColor.systemTeal.withAlphaComponent(0.5))
+        material.blending = .transparent(opacity: 0.5)
+        func apply(_ node: Entity) {
+            if var model = node.components[ModelComponent.self] {
+                model.materials = model.materials.map { _ in material }
+                node.components.set(model)
+            }
+            node.children.forEach(apply)
+        }
+        apply(copy)
+        return copy
+    }
+
     final class Coordinator {
         var anchor: AnchorEntity?
         var arAnchor: ARAnchor?
         weak var renderedEntity: Entity?
+        var suggestionAnchor: AnchorEntity?
+        weak var suggestionSource: Entity?
     }
 }

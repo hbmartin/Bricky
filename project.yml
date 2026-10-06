@@ -106,6 +106,7 @@ targets:
       - Bricky/Services/Registration/ExpectedDepthRenderer.swift
       - Bricky/Services/Registration/GeometrySignposts.swift
       - Bricky/Services/Registration/DepthICPTracker.swift
+      - Bricky/Services/Registration/SuggestedPlacementEstimator.swift
       - Bricky/Services/Verification/GeometricStepVerifier.swift
       - Bricky/Services/Verification/StepJudging.swift
       - Bricky/Services/Verification/BuildDiffEngine.swift
@@ -115,6 +116,7 @@ targets:
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
       - Bricky/Services/Recovery/PlacementConsistencyScorer.swift
+      - Bricky/Services/Recovery/FitScoring.swift
     dependencies:
       - package: RecoveryMLX
         product: RecoveryEvidenceKit
@@ -149,6 +151,7 @@ targets:
       - BrickyTests/RepairPlanningTests.swift
       - BrickyTests/RepairPhrasebookTests.swift
       - BrickyTests/PlacementConsistencyScorerTests.swift
+      - BrickyTests/SuggestedPlacementTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift
       - BrickyTests/RecoveryEvidenceSweepTests.swift
       - BrickyTests/SwiftParityTests.swift

@@ -59,3 +59,28 @@ only a future revisit): USDZ export fidelity from LDraw triangle soup, the
 practical small-object tracking floor, and a power-user path where someone
 trains a `.referenceobject` for a favorite finished model on their own Mac
 and imports it purely for re-registration of a completed build.
+
+## Amendment (2026-10-05): a suggested ghost position, confirmed by the user
+
+The user remains the sole initializer. With the developer setting "Offer a
+suggested ghost position" on (off by default), the AR guide can propose a
+pose (M2.7, `SuggestedPlacementEstimator`):
+- it fits the geometry built so far to the depth blob under the reticle,
+  from yaw seeds on the blob's principal axis, with this ADR's ICP solve and
+  recovery's two-sided score;
+- it proposes only a fit at lock standard that beats every other pose by
+  1.2x, and otherwise offers nothing (no blob, poor fit, or ambiguous).
+
+Rules:
+- The proposal is drawn as a distinct translucent teal ghost, never
+  wireframe.
+- It is not an alignment. Registration starts only when the user taps "Use
+  Suggested Position"; "Place Manually" discards it.
+- The wording never claims detection or automation (CONTRIBUTING).
+- It is offered in the AR guide only, where the build's geometry is known.
+  In recovery the step is the unknown, so there is nothing to fit.
+
+The gate is wrong proposals at most 5% (Clopper-Pearson bound), measured by
+`SyntheticRGBD --suite placement` now and on device rows before the setting
+can default on.
+

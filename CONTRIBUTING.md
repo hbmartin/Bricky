@@ -7,6 +7,9 @@ shipping contracts.
 
 - Accept authored MPD and stepped LDR only; never add PDF ingestion.
 - Never infer missing steps or claim automatic AR registration.
+- A suggested ghost position (ADR 0009 amendment) is only ever offered: the user
+  taps "Use Suggested Position" before anything registers. Never word it as
+  automatic, detected, found or locked on.
 - Keep all inference local and advisory; users may override every estimate.
 - Keep Python and GPL pyldraw3 code outside the iOS target and bundle.
 - Treat `../Lego_Assembly` as read-only.

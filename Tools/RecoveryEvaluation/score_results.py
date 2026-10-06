@@ -70,6 +70,10 @@ REPAIR_KIND = "repair_plan"
 # degraded scenes, including steps built short of a part. Never release
 # evidence: device recovery rows are kind "recovery".
 GEOMETRIC_RECOVERY_KIND = "geometric_recovery"
+# Suggested ghost placements (M2.7): a wrong proposal is the failure; not
+# proposing is always allowed. The gate is on proposals made.
+PLACEMENT_SUGGESTION_KIND = "placement_suggestion"
+WRONG_PROPOSAL_CEILING = 0.05
 
 RECOVERY_REQUIRED_FIELDS = {
     "schema_version",
@@ -977,6 +981,32 @@ def score_geometric_recovery(rows: list[dict[str, object]]) -> dict[str, object]
     return report
 
 
+def score_placement_suggestion(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
+    for index, row in enumerate(rows, start=1):
+        if row.get("outcome") not in {"correct", "wrong", "none"}:
+            raise SystemExit(f"placement_suggestion row {index} has an invalid outcome")
+    proposals = [row for row in rows if row["outcome"] != "none"]
+    wrong = [row for row in proposals if row["outcome"] == "wrong"]
+    gate = rate_gate(
+        "placement_suggestion.wrong_proposal_rate", len(wrong), len(proposals),
+        ceiling=WRONG_PROPOSAL_CEILING, required=False,
+    )
+    by_scenario: dict[str, dict[str, int]] = {}
+    for row in rows:
+        entry = by_scenario.setdefault(str(row.get("scenario", "unknown")), {"correct": 0, "wrong": 0, "none": 0})
+        entry[row["outcome"]] += 1
+    report = {
+        "cases": len(rows),
+        "proposal_cases": len(proposals),
+        "wrong_proposal_cases": len(wrong),
+        "no_proposal_cases": len(rows) - len(proposals),
+        "wrong_proposal_rate": gate.value,
+        "wrong_proposal_upper_95": gate.bound,
+        "by_scenario": by_scenario,
+    }
+    return report, [gate]
+
+
 def challenge_lines(report: dict[str, object]) -> list[str]:
     lines = []
     for name, entry in sorted(report["by_class"].items()):
@@ -991,7 +1021,8 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
         kind: [] for kind in KINDS + SUMMARY_KINDS + (
-            CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND
+            CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
+            PLACEMENT_SUGGESTION_KIND,
         )
     }
     for index, row in enumerate(rows, start=1):
@@ -1105,6 +1136,8 @@ def main(
             raise SystemExit(f"{REPAIR_KIND} rows are synthetic and are not release evidence")
         if kinds[GEOMETRIC_RECOVERY_KIND]:
             raise SystemExit(f"{GEOMETRIC_RECOVERY_KIND} rows are synthetic and are not release evidence")
+        if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_SUGGESTION_KIND]):
+            raise SystemExit(f"{PLACEMENT_SUGGESTION_KIND} rows other than device rows are not release evidence")
         for kind in ("verification", "registration"):
             if kinds[kind]:
                 validate_triad_release(kinds[kind], kind)
@@ -1131,6 +1164,14 @@ def main(
     repair_gates: list[Gate] = []
     if kinds[REPAIR_KIND]:
         report[REPAIR_KIND], repair_gates = score_repair(kinds[REPAIR_KIND])
+    if kinds[PLACEMENT_SUGGESTION_KIND]:
+        report[PLACEMENT_SUGGESTION_KIND], suggestion_gates = score_placement_suggestion(kinds[PLACEMENT_SUGGESTION_KIND])
+        suggestion = report[PLACEMENT_SUGGESTION_KIND]
+        print(
+            f"PLACEMENT_SUGGESTION_WRONG {suggestion['wrong_proposal_cases']}/{suggestion['proposal_cases']} proposals "
+            f"(upper95={format_number(suggestion['wrong_proposal_upper_95'])}, {suggestion['no_proposal_cases']} declined)"
+        )
+        suggestion["gates"] = {gate.name: gate.summary(release=release) for gate in suggestion_gates}
     if kinds[GEOMETRIC_RECOVERY_KIND]:
         report[GEOMETRIC_RECOVERY_KIND] = score_geometric_recovery(kinds[GEOMETRIC_RECOVERY_KIND])
         for name, entry in report[GEOMETRIC_RECOVERY_KIND]["by_class"].items():
