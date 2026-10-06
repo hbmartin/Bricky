@@ -19,7 +19,7 @@ struct BrickyHarness: AsyncParsableCommand {
         device rows. Score results with:
         uv run python Tools/RecoveryEvaluation/score_results.py <out> --allow-small-corpus
         """,
-        subcommands: [Replay.self, Recompose.self]
+        subcommands: [Replay.self, Recompose.self, WordingSheet.self]
     )
 }
 
@@ -334,6 +334,47 @@ struct Replay: AsyncParsableCommand {
             data.append(UInt8(ascii: "\n"))
         }
         try data.write(to: url, options: .atomic)
+    }
+}
+
+struct WordingSheet: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "wording-sheet",
+        abstract: "Build the blinded repair-wording preference sheet from device wording.ndjson pairs (ADR 0017).",
+        discussion: """
+        Give the sheet to the rater and keep the key. Each row places the
+        template and the model's sentence as A or B at random; the rater
+        fills `choice` with A, B or =. Then:
+        python3 Tools/RecoveryEvaluation/score_wording_ab.py --sheet <sheet> --key <key>
+        Device pairs only decide the default (a Mac is not the phone's model tier).
+        """
+    )
+
+    @Option(help: "An unzipped evidence bundle directory; repeat for several.")
+    var bundle: [String]
+
+    @Option(name: .customLong("out-sheet"), help: "CSV for the rater.")
+    var outSheet: String
+
+    @Option(name: .customLong("out-key"), help: "CSV that unblinds the sheet; keep it from the rater.")
+    var outKey: String
+
+    @Option(help: "Seed for the pair order and A/B placement.")
+    var seed: UInt64 = 7
+
+    mutating func run() throws {
+        var records: [RepairWordingRecordV1] = []
+        for path in bundle {
+            let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: path))
+            records += try reader.loadSessions().flatMap(\.wordingRecords)
+        }
+        let (pairs, summary) = WordingPreferenceSheet.pairs(from: records, seed: seed)
+        try WordingPreferenceSheet.sheetCSV(pairs).write(toFile: outSheet, atomically: true, encoding: .utf8)
+        try WordingPreferenceSheet.keyCSV(pairs).write(toFile: outKey, atomically: true, encoding: .utf8)
+        print("""
+        wording attempts \(summary.attempts): \(summary.accepted) accepted, \(summary.identical) identical to the template, \
+        \(summary.duplicates) repeats; \(summary.pairs) pairs on the sheet
+        """)
     }
 }
 

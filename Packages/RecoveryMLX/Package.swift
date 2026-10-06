@@ -82,6 +82,12 @@ let package = Package(
         .testTarget(
             name: "BrickyLanguageTests",
             dependencies: ["BrickyLanguage"]
+        ),
+        // Evaluations framework suite: macOS 27 and BRICKY_FM_LIVE=1 only;
+        // compiled out wherever Evaluations or FoundationModels is absent.
+        .testTarget(
+            name: "BrickyLanguageEvaluations",
+            dependencies: ["BrickyLanguage"]
         )
     ]
 )
