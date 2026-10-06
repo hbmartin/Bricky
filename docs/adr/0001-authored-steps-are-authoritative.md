@@ -24,3 +24,6 @@ step checks can only select or assess authored steps, and users always retain
 the final choice. A repair of the current step's parts (ADR 0015) is a fix to
 the physical build, not to the sequence: it names only that step's authored
 placements and never adds, removes or reorders a step.
+Saying "next" is a confirmation like a tap, decided by the hands-free advance
+policy (ADR 0016): it holds when the check says the step is unfinished, and only
+"next anyway" goes past it.

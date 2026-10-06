@@ -116,6 +116,63 @@ final class BuildSessionControllerTests: XCTestCase {
         XCTAssertEqual(model.currentStepIndex, 1)
     }
 
+    private func verification(_ verdict: StepVerdict, step: Int) -> StepVerification {
+        StepVerification(
+            stepID: plan.steps[step].id, verdict: verdict, detectability: .strong, deltaPixels: 400, framesUsed: 10,
+            completeFraction: 0, incompleteFraction: 0, registrationQuality: .none, timestamp: 0
+        )
+    }
+
+    func testVoiceNextIsRefusedWhenNoGuideIsAttending() throws {
+        let session = try openedSession()
+        XCTAssertEqual(session.requestAdvance(.nextAnyway, source: .voice, verification: nil), .refuse(.unattended))
+        XCTAssertEqual(model.currentStepIndex, 0)
+        session.setAttending(true, by: "ar_guide")
+        session.setAttending(true, by: "guide")
+        session.setAttending(false, by: "ar_guide")
+        XCTAssertTrue(session.isAttended, "another guide is still on screen")
+        XCTAssertEqual(session.requestAdvance(.next, source: .voice, verification: nil), .advance)
+        XCTAssertEqual(model.currentStepIndex, 1)
+        XCTAssertEqual(session.lastConfirmationSource, .voice)
+    }
+
+    func testVoiceNextHoldsOnAMisplacedStepWithItsRepair() throws {
+        let session = try openedSession()
+        session.setAttending(true, by: "ar_guide")
+        let decision = session.requestAdvance(
+            .next, source: .voice, verification: verification(.misplaced(offsetStuds: SIMD2(1, 0)), step: 0)
+        )
+        guard case .holdAndSpeak(let repair?) = decision else {
+            return XCTFail("expected a hold with a repair, got \(decision)")
+        }
+        XCTAssertEqual(repair.actions.count, 1)
+        XCTAssertEqual(model.currentStepIndex, 0, "holding saves nothing")
+        XCTAssertEqual(session.requestAdvance(.nextAnyway, source: .voice, verification: nil), .advance)
+        XCTAssertEqual(model.currentStepIndex, 1)
+    }
+
+    func testAVerdictAboutAnotherStepIsIgnored() throws {
+        let session = try openedSession(completed: 1)
+        session.setAttending(true, by: "ar_guide")
+        XCTAssertEqual(session.requestAdvance(.next, source: .voice, verification: verification(.incomplete, step: 0)), .advance)
+        XCTAssertEqual(model.currentStepIndex, 2)
+    }
+
+    func testVoiceNextOnABrowsedBackStepOnlyBrowses() throws {
+        let session = try openedSession(completed: 2)
+        session.setAttending(true, by: "ar_guide")
+        session.browse(by: -2)
+        XCTAssertEqual(session.requestAdvance(.nextAnyway, source: .voice, verification: nil), .browseForward)
+        XCTAssertEqual(session.cursorIndex, 1)
+        XCTAssertEqual(model.currentStepIndex, 2, "never rewinds, never skips")
+    }
+
+    func testVoiceNextAfterTheLastStepIsRefused() throws {
+        let session = try openedSession(completed: 3)
+        session.setAttending(true, by: "ar_guide")
+        XCTAssertEqual(session.requestAdvance(.next, source: .voice, verification: nil), .refuse(.finished))
+    }
+
     func testReopeningTheSameModelKeepsTheBrowsingPosition() throws {
         let session = try openedSession(completed: 0)
         session.browse(by: 2)

@@ -26,5 +26,8 @@ enum AppConfig {
         /// Offer a ghost pose fitted to the depth under the reticle (M2.7).
         /// Off until device rows show wrong proposals stay under 5%.
         static let suggestedPlacementEnabled = "developer.suggestedPlacementEnabled"
+        /// Spoken steps and voice commands in the AR guide (M2.8,
+        /// ADR 0016). Off until the Phase 1 hands-free checks pass.
+        static let handsFreeEnabled = "developer.handsFreeEnabled"
     }
 }

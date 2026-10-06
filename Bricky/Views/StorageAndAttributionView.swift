@@ -8,6 +8,7 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.cloudAssistEnabled) private var cloudAssistEnabled = false
     @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
     @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
+    @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
     @State private var keychainError: String?
@@ -102,6 +103,7 @@ struct StorageAndAttributionView: View {
                 NavigationLink("Evidence Sessions") { EvidenceSessionsView() }
                 Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
                 Toggle("Offer a suggested ghost position", isOn: $suggestedPlacementEnabled)
+                Toggle("Hands-free in the AR guide", isOn: $handsFreeEnabled)
                 if let relief = recoveryModel.lastPressureRelief {
                     LabeledContent(
                         "Last memory-pressure unload",

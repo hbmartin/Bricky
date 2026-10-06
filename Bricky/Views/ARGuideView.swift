@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ARGuideView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(BuildSessionController.self) private var session
     @EnvironmentObject private var partPack: LDrawPartPackManager
     @EnvironmentObject private var recoveryModel: RecoveryModelManager
@@ -22,6 +23,11 @@ struct ARGuideView: View {
     @AppStorage(AppConfig.Defaults.evidenceCaptureEnabled) private var evidenceCaptureEnabled = false
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
+    @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
+    /// Hands-free mode (ADR 0016): spoken steps and repairs, and "next",
+    /// "next anyway", "back" and "repeat" by voice.
+    @StateObject private var narrator = StepNarrator()
+    @StateObject private var voice = VoiceCommandService()
     /// What is built before this step, for fitting a suggested ghost.
     @State private var builtSnapshot: InstructionGeometrySnapshot?
     @State private var stagedDeclaration: StagedFixtureDeclaration?
@@ -92,6 +98,9 @@ struct ARGuideView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .accessibilityLabel("Step verification: \(verdictLabel). This check is advisory; you decide when to advance.")
                     }
+                    if handsFreeEnabled {
+                        VoiceStatusChip(state: voice.state, speaking: narrator.isSpeaking)
+                    }
                     if evidenceCaptureEnabled, corpusCollectionEnabled {
                         Button {
                             showStagedVerificationSetup = true
@@ -151,12 +160,16 @@ struct ARGuideView: View {
                 registration.frameObserver = { [weak verification] frame, update in
                     verification?.submit(frame: frame, registration: update)
                 }
+                session.setAttending(scenePhase == .active, by: Self.attendanceID)
+                startHandsFree()
                 await loadEntity()
                 // Placement can precede the fit sample when geometry loads
                 // slowly; make sure tracking starts once both exist.
                 registration.refit(alignment: alignment.alignment, relay: camera.registrationRelay)
             }
             .onDisappear {
+                session.setAttending(false, by: Self.attendanceID)
+                stopHandsFree()
                 endPhotoCheck(confirmed: false)
                 verification.recordWindow(trigger: .stepExit)
                 endVerificationEvidence()
@@ -179,6 +192,16 @@ struct ARGuideView: View {
             }
             .onChange(of: verification.verification?.timestamp) { _, _ in
                 updateRepairLine()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                // Nobody confirms from the background, and the microphone
+                // stays off there (ADR 0016).
+                session.setAttending(phase == .active, by: Self.attendanceID)
+                if phase == .active {
+                    startHandsFree()
+                } else {
+                    stopHandsFree()
+                }
             }
         }
         .navigationTitle("AR Step \(step.index)")
@@ -455,8 +478,9 @@ struct ARGuideView: View {
             return
         }
         // Moving on without a complete verdict is the user overriding the
-        // verifier; after a confirm the window is already written.
-        verification.recordWindow(trigger: verification.isComplete ? .stepExit : .override)
+        // verifier; after a confirm the window is already written. Browsing
+        // back overrides nothing.
+        verification.recordWindow(trigger: next.index > step.index && !verification.isComplete ? .override : .stepExit)
         stagedVerification = nil
         verification.stop()
         repairLine = nil
@@ -510,7 +534,111 @@ struct ARGuideView: View {
                 stepIndex: step.index - 1
             )
             await loadPartLabels(for: step)
+            announceStep()
         } catch { self.error = error.localizedDescription }
+    }
+
+    private static let attendanceID = "ar_guide"
+
+    private func startHandsFree() {
+        guard handsFreeEnabled, scenePhase == .active else { return }
+        narrator.onSpeakingChanged = { [weak voice] speaking in
+            if speaking {
+                voice?.narrationStarted()
+            } else {
+                voice?.narrationEnded()
+            }
+        }
+        voice.onCommand = { command in handle(command) }
+        Task { await voice.start() }
+    }
+
+    private func stopHandsFree() {
+        voice.stop()
+        narrator.stop()
+    }
+
+    /// Says which step is on screen and what it adds.
+    private func announceStep() {
+        guard handsFreeEnabled, scenePhase == .active else { return }
+        narrator.speak(StepNarration.announcement(
+            stepNumber: step.index,
+            stepCount: plan.steps.count,
+            partLabels: partLabels.sorted { $0.key < $1.key }.map(\.value)
+        ))
+    }
+
+    /// A voice command, through the same session policy Siri uses
+    /// (ADR 0016). Advancing and browsing move the cursor; `follow(_:)`
+    /// then loads and announces the step.
+    private func handle(_ command: VoiceCommand) {
+        switch command {
+        case .next, .nextAnyway:
+            guard !isAdvancing else { return }
+            let decision = session.requestAdvance(
+                command == .next ? .next : .nextAnyway, source: .voice, verification: verification.verification
+            )
+            switch decision {
+            case .advance, .browseForward:
+                if session.cursorStep?.id != step.id {
+                    isAdvancing = true
+                } else if session.isFinished {
+                    narrator.speak(StepNarration.buildFinished)
+                } else {
+                    announceStep()
+                }
+            case .holdAndSpeak(let repair):
+                let sentence = repair.flatMap {
+                    RepairPhrasebook.sentence(for: $0.actions, direction: directionStabilizer.current, labels: partLabels)
+                }
+                narrator.speak(StepNarration.hold(repairSentence: sentence))
+            case .refuse(let reason):
+                narrator.speak(StepNarration.refusal(reason))
+            }
+        case .back:
+            guard !isAdvancing else { return }
+            if session.cursorIndex == 0 {
+                announceStep()
+            } else {
+                session.browse(by: -1)
+            }
+        case .repeatLast:
+            narrator.repeatLast()
+        }
+    }
+}
+
+/// Whether hands-free mode is listening, speaking, or why it cannot.
+private struct VoiceStatusChip: View {
+    let state: VoiceCommandService.State
+    let speaking: Bool
+
+    var body: some View {
+        switch state {
+        case .idle:
+            EmptyView()
+        case .preparing:
+            Label("Preparing voice commands…", systemImage: "mic")
+                .modifier(ChipStyle())
+        case .listening:
+            Label(
+                speaking ? "Speaking" : "Listening for “next”",
+                systemImage: speaking ? "speaker.wave.2" : "mic.fill"
+            )
+            .modifier(ChipStyle())
+        case .unavailable(let reason):
+            Label(reason, systemImage: "mic.slash")
+                .modifier(ChipStyle())
+        }
+    }
+
+    private struct ChipStyle: ViewModifier {
+        func body(content: Content) -> some View {
+            content
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }
 

@@ -1,6 +1,28 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Add %lld parts.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Add %lld part."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Add %lld parts."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Add the %@.": {
       "localizations": {
         "en": {
@@ -21,12 +43,42 @@
         }
       }
     },
+    "Allow the microphone in Settings to use voice commands.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow the microphone in Settings to use voice commands."
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Checking…"
+          }
+        }
+      }
+    },
+    "Hands-free in the AR guide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands-free in the AR guide"
+          }
+        }
+      }
+    },
+    "Listening for “next”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listening for “next”"
           }
         }
       }
@@ -141,6 +193,16 @@
         }
       }
     },
+    "Open the build guide to go on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the build guide to go on."
+          }
+        }
+      }
+    },
     "Parts too small to verify by depth": {
       "localizations": {
         "en": {
@@ -161,12 +223,52 @@
         }
       }
     },
+    "Preparing voice commands…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing voice commands…"
+          }
+        }
+      }
+    },
     "Put the %@ back.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Put the %@ back."
+          }
+        }
+      }
+    },
+    "Say “next anyway” to go on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say “next anyway” to go on."
+          }
+        }
+      }
+    },
+    "Speaking": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaking"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld of %lld."
           }
         }
       }
@@ -231,6 +333,36 @@
         }
       }
     },
+    "That was the last step.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That was the last step."
+          }
+        }
+      }
+    },
+    "That was the last step. The build is done.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That was the last step. The build is done."
+          }
+        }
+      }
+    },
+    "This step doesn't look complete yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This step doesn't look complete yet."
+          }
+        }
+      }
+    },
     "This step's parts look shifted": {
       "localizations": {
         "en": {
@@ -267,6 +399,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use Suggested Position"
+          }
+        }
+      }
+    },
+    "Voice commands are available in English only.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands are available in English only."
+          }
+        }
+      }
+    },
+    "Voice commands aren't ready on this iPhone yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands aren't ready on this iPhone yet."
+          }
+        }
+      }
+    },
+    "Voice commands stopped: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice commands stopped: %@"
           }
         }
       }

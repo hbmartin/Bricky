@@ -44,6 +44,10 @@ final class BuildSessionController {
     /// rather than silently losing it.
     private(set) var lastPersistenceError: String?
     private var context: ModelContext?
+    /// Guides on screen in the foreground: someone is there to confirm.
+    private var attendingGuides: Set<String> = []
+
+    var isAttended: Bool { !attendingGuides.isEmpty }
 
     var cursorStep: AuthoredStep? {
         guard let plan, plan.steps.indices.contains(cursorIndex) else { return nil }
@@ -93,6 +97,46 @@ final class BuildSessionController {
         lastConfirmationSource = source
         cursorIndex = Self.cursor(forCompleted: done, in: plan)
         save()
+    }
+
+    /// "Next" by voice or Siri, decided by `AdvancePolicy` and applied here
+    /// (ADR 0016). `verification` counts only when it judged the step on
+    /// screen. Holding or refusing changes nothing.
+    @discardableResult
+    func requestAdvance(
+        _ request: AdvanceRequest, source: ConfirmationSource, verification: StepVerification?
+    ) -> AdvanceDecision {
+        guard let plan, let step = cursorStep else { return .refuse(.noSession) }
+        let verdict = verification?.stepID == step.id ? verification?.verdict : nil
+        let repair = verdict.flatMap { RepairPlanner.plan(verdict: $0, context: RepairPlanner.context(plan: plan, step: step)) }
+        let decision = AdvancePolicy.decide(
+            request: request,
+            source: source,
+            verdict: verdict,
+            repair: repair,
+            attended: isAttended,
+            cursorIsFrontier: cursorIndex == Self.cursor(forCompleted: completedCount, in: plan),
+            finished: isFinished
+        )
+        switch decision {
+        case .advance:
+            confirm(step, source: source)
+        case .browseForward:
+            browse(by: 1)
+        case .holdAndSpeak, .refuse:
+            break
+        }
+        return decision
+    }
+
+    /// Marks a guide as on screen in the foreground (`true`) or not. A
+    /// hands-free request is refused unless some guide is attending.
+    func setAttending(_ attending: Bool, by guide: String) {
+        if attending {
+            attendingGuides.insert(guide)
+        } else {
+            attendingGuides.remove(guide)
+        }
     }
 
     /// Sets progress outright (recovery: "I am at step N"), landing the
