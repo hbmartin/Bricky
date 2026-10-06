@@ -1,6 +1,6 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-09-25. Companion to
+Last revised 2026-10-05. Companion to
 [EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
 program that supersedes much of the sequencing below — honest gates first,
 then device measurement, then the placement-level build diff — is
@@ -50,6 +50,49 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
    to the worst-case `AdmissionSnapshot.modelPeakCostBytes` + 25%. Discard
    samples where `isPeakMasked` is true: the lifetime peak never resets, so
    an earlier load or spike hides the model's own peak.
+
+## 1a. Phase 1 add-on checklist (iOS 27 Phase 2 features, iPhone 17 Pro class)
+
+Phase 2 built these without a device. Everything here is off, in shadow,
+or behind a flag until its row is measured. Record each result in the
+evidence bundle or the PR that flips the flag.
+
+1. **Staged photo checks, negatives included.** Run staged sessions with
+   photo checks, including steps left short. The `check.ndjson` rows must
+   score in release mode (`label_kind` staged, provenance `device`).
+2. **Evidence windows** (ADR 0007 amendment 2), with evidence capture on:
+   - resident memory grows by about 5.5 MB and no more;
+   - relay colour and occluder extraction p95 ≤ 3 ms, with no
+     ARFrame-retention warnings;
+   - record the segmentation buffer's size and alignment, and the colour
+     matrix (709 or 601) the sampler saw;
+   - `SyntheticRGBD --replay-bundle` on a Mac matches the device verdict
+     on strong windows.
+3. **Shadow diff cost.** Read the `VerifierIngest` and `BuildDiffIngest`
+   signposts in the sustained thermal bucket. This is also the entry
+   evidence for M2.1 (placement IDs, peel pass, instanced draws).
+4. **Repair direction** (ADR 0015):
+   - portrait and both landscapes;
+   - model yawed 0°, 45° and 90°;
+   - the straight-down fallback ("toward the top of the screen");
+   - no flicker when standing on a sector boundary.
+5. **Suggested placement** (developer flag): wrong proposals ≤ 5% on the
+   Clopper–Pearson bound; registration never starts before "Use Suggested
+   Position"; the teal tint is legible on real tables.
+6. **Hands-free** (developer flag, ADR 0016):
+   - 0 false advances in 30 minutes of background noise (TV, talk);
+   - command recall ≥ 95% in a quiet room;
+   - narration never triggers a command (the 600 ms gate holds);
+   - it works with Speech Recognition denied in Settings, which resolves
+     apple-speech gap G21 on whether `NSSpeechRecognitionUsageDescription`
+     is needed;
+   - command latency with `.frequentFinalization` on the `phrase` preset;
+   - Siri's "Next step in Bricky" refuses when the app is backgrounded or
+     the phone is locked, and asks before every advance;
+   - turning "Show models in Spotlight" off removes every entry;
+   - thermal state and memory hold with AR, speech and the VLM together.
+7. **Wording.** The owner reviews the phrasebook and narration on screen
+   and in VoiceOver. "About one stud" and the forbidden words stay absent.
 
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
