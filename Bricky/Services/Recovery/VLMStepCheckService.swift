@@ -26,6 +26,10 @@ struct VLMStepCheckService {
         /// Where the step's delta fell in the photo. Measured only for AR
         /// checks with evidence on, after inference.
         var checkGeometry: CheckGeometryRecord? = nil
+        /// The photo and the target as the model judged them, so a shadow
+        /// advisor (ADR 0018) sees the same two images.
+        var photoJPEG: Data? = nil
+        var targetJPEG: Data? = nil
     }
 
     let runtime: MLXRecoveryRuntime
@@ -116,7 +120,9 @@ struct VLMStepCheckService {
             result: StepCheckResult(rawValue: output.result) ?? .uncertain,
             boardJPEG: boardJPEG,
             variant: used,
-            checkGeometry: checkGeometry
+            checkGeometry: checkGeometry,
+            photoJPEG: try? Data(contentsOf: root.appendingPathComponent(capture.imageRelativePath)),
+            targetJPEG: image.jpegData(compressionQuality: 0.9)
         )
     }
 

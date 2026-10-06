@@ -299,7 +299,7 @@ struct ARGuideView: View {
         let staged = evidenceCaptureEnabled && corpusCollectionEnabled ? stagedDeclaration : nil
         let recorder = makePhotoCheckRecorder(staged: staged)
         let checkedStep = step
-        let service = VLMStepCheckService(
+        let service: any StepCheckAdvisor = VLMStepCheckService(
             runtime: recoveryModel.runtime,
             modelDirectory: modelDirectory,
             partPackRoot: pack,

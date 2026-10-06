@@ -96,6 +96,7 @@
 		6711C0707FE5BE3B60020B8A /* VoiceCommandGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DC833125B34331292027BA /* VoiceCommandGrammarTests.swift */; };
 		674C28190918AF3B7E79E3A3 /* AdvancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7B7091A7B2095316A842B6 /* AdvancePolicyTests.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
+		6A9D4467F2B069AD21E4D40D /* StepCheckAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E27CDC87FD45B7F5CFFB1D /* StepCheckAdvisor.swift */; };
 		6FA131640E8A023945E97BD0 /* SceneColourCalibrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16092550A5144F2753A6D72 /* SceneColourCalibrationTests.swift */; };
 		7196B421FF21CAED9C8B8362 /* FitScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */; };
 		71BCB7B2BE960802AE2DC993 /* VerificationWindowBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F794530C71D1434800ED17 /* VerificationWindowBufferTests.swift */; };
@@ -256,6 +257,7 @@
 		2E0831737748DC2485157FA3 /* ColourAgreementTermTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourAgreementTermTests.swift; sourceTree = "<group>"; };
 		2F37ACAD29B959B70A3D202C /* RepairWordingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairWordingCoordinatorTests.swift; sourceTree = "<group>"; };
 		31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryImageNormalization.swift; sourceTree = "<group>"; };
+		38E27CDC87FD45B7F5CFFB1D /* StepCheckAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepCheckAdvisor.swift; sourceTree = "<group>"; };
 		3B645888FECCA75368D770F6 /* LDrawGeometryEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LDrawGeometryEngineTests.swift; sourceTree = "<group>"; };
 		3CD0E117F9A459D87E8B1705 /* BuildSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildSessionController.swift; sourceTree = "<group>"; };
 		3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildSessionControllerTests.swift; sourceTree = "<group>"; };
@@ -762,6 +764,7 @@
 				4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */,
 				31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */,
 				6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */,
+				38E27CDC87FD45B7F5CFFB1D /* StepCheckAdvisor.swift */,
 				E17A06C0572404D55640833C /* VerificationWindowRecording.swift */,
 				A7905762DAE8B79A6E95EDE5 /* VLMStepCheckService.swift */,
 				A02540321DE5FCA1E19A1661 /* WordingRecording.swift */,
@@ -1136,6 +1139,7 @@
 				586EB1012DD6375874E0FE0D /* SegmentedGeometry.swift in Sources */,
 				69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */,
 				27307B0BB50EAE558ED586F6 /* StagedVerificationSetupView.swift in Sources */,
+				6A9D4467F2B069AD21E4D40D /* StepCheckAdvisor.swift in Sources */,
 				D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */,
 				E05639E5AB825AAF5F586C31 /* StepJudging.swift in Sources */,
 				89B2E15DB06F8D112C65D666 /* StepNarrator.swift in Sources */,
