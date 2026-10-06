@@ -95,9 +95,11 @@
 		66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F169DE859A4D041325F8FC67 /* RecoveryIndexing.swift */; };
 		6711C0707FE5BE3B60020B8A /* VoiceCommandGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DC833125B34331292027BA /* VoiceCommandGrammarTests.swift */; };
 		674C28190918AF3B7E79E3A3 /* AdvancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7B7091A7B2095316A842B6 /* AdvancePolicyTests.swift */; };
+		6889BFC56A31C541F5B05843 /* ShadowCheckRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731DE364F8AEE67FB8805928 /* ShadowCheckRecording.swift */; };
 		69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D594103B62F7B1A33F8011DD /* StagedFixtureSetupView.swift */; };
 		6A9D4467F2B069AD21E4D40D /* StepCheckAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E27CDC87FD45B7F5CFFB1D /* StepCheckAdvisor.swift */; };
 		6FA131640E8A023945E97BD0 /* SceneColourCalibrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16092550A5144F2753A6D72 /* SceneColourCalibrationTests.swift */; };
+		7180330B1A7B2193D90FAC1E /* ShadowCheckRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CCA0CEE6E4FF3435D43586C /* ShadowCheckRunner.swift */; };
 		7196B421FF21CAED9C8B8362 /* FitScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0490DC1E8C0CADA617F7CA7 /* FitScoring.swift */; };
 		71BCB7B2BE960802AE2DC993 /* VerificationWindowBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F794530C71D1434800ED17 /* VerificationWindowBufferTests.swift */; };
 		72B2AEF320E6138077EAF215 /* BuildDiffDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D75275F92B067A38B70821C /* BuildDiffDomain.swift */; };
@@ -136,6 +138,7 @@
 		91219CD62E2123F73F1D2AB8 /* SceneColourCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 646D32CA366AA8F1AED59311 /* SceneColourCalibration.swift */; };
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
 		930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7255416EAA67E75793A6A9 /* AppConfig.swift */; };
+		93912D673DC1EB075282CC6B /* ShadowCheckRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B865A9B4E680A30866687996 /* ShadowCheckRunnerTests.swift */; };
 		966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
 		985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		98FF8D1D4B1A7BAC9DB8F4FE /* NextStepIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78B5B562CA2B3FD2B2E37CD /* NextStepIntentTests.swift */; };
@@ -243,6 +246,7 @@
 		0A0119F360F3125105431438 /* VerificationDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationDomain.swift; sourceTree = "<group>"; };
 		0A7255416EAA67E75793A6A9 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		0C237B2E908EC68999D4995F /* DeviceConditionsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConditionsProbe.swift; sourceTree = "<group>"; };
+		0CCA0CEE6E4FF3435D43586C /* ShadowCheckRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowCheckRunner.swift; sourceTree = "<group>"; };
 		0F8380712AB853B0D3B8DEE7 /* PlacementGeometryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStoreTests.swift; sourceTree = "<group>"; };
 		154274B40728D547EBC06DE3 /* TagRenderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagRenderCheck.swift; sourceTree = "<group>"; };
 		16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStore.swift; sourceTree = "<group>"; };
@@ -302,6 +306,7 @@
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DCE4E27B457E2F0AF1BC8A4 /* PhotoCheckControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCheckControllerTests.swift; sourceTree = "<group>"; };
 		71E988815B76E8CDA0B5F19F /* ColourTermJudgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourTermJudgeTests.swift; sourceTree = "<group>"; };
+		731DE364F8AEE67FB8805928 /* ShadowCheckRecording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowCheckRecording.swift; sourceTree = "<group>"; };
 		74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLMStepCheckServiceTests.swift; sourceTree = "<group>"; };
 		776DE075F6358E0E28C47B06 /* RecoveryIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryIndexingTests.swift; sourceTree = "<group>"; };
 		789BB736F6B7F975CF21E99B /* ModelDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDelivery.swift; sourceTree = "<group>"; };
@@ -347,6 +352,7 @@
 		B78B5B562CA2B3FD2B2E37CD /* NextStepIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStepIntentTests.swift; sourceTree = "<group>"; };
 		B7A6BA79AD21470FA8712D3E /* PlacementConsistencyScorerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementConsistencyScorerTests.swift; sourceTree = "<group>"; };
 		B846C324539715D80A41F6F3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B865A9B4E680A30866687996 /* ShadowCheckRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowCheckRunnerTests.swift; sourceTree = "<group>"; };
 		B9875749055872E5C5260701 /* BrickyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BrickyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFBC1F040685BCD64DAE0C47 /* CloudVisionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudVisionProvider.swift; sourceTree = "<group>"; };
 		C16092550A5144F2753A6D72 /* SceneColourCalibrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneColourCalibrationTests.swift; sourceTree = "<group>"; };
@@ -499,6 +505,7 @@
 				2F37ACAD29B959B70A3D202C /* RepairWordingCoordinatorTests.swift */,
 				C16092550A5144F2753A6D72 /* SceneColourCalibrationTests.swift */,
 				F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */,
+				B865A9B4E680A30866687996 /* ShadowCheckRunnerTests.swift */,
 				8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */,
 				9A84BA4D548E212777156661 /* StorageLayoutTests.swift */,
 				810C29BB4469B4F9BC8C51F6 /* SuggestedPlacementTests.swift */,
@@ -576,6 +583,7 @@
 				B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */,
 				DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */,
 				646D32CA366AA8F1AED59311 /* SceneColourCalibration.swift */,
+				0CCA0CEE6E4FF3435D43586C /* ShadowCheckRunner.swift */,
 				FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */,
 				1982584DC887B6D9531AD75A /* StepVerificationController.swift */,
 				59AADE68549F7806130D18F6 /* VerificationWindowBuffer.swift */,
@@ -764,6 +772,7 @@
 				4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */,
 				31D628068E6819C6C79EB01A /* RecoveryImageNormalization.swift */,
 				6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */,
+				731DE364F8AEE67FB8805928 /* ShadowCheckRecording.swift */,
 				38E27CDC87FD45B7F5CFFB1D /* StepCheckAdvisor.swift */,
 				E17A06C0572404D55640833C /* VerificationWindowRecording.swift */,
 				A7905762DAE8B79A6E95EDE5 /* VLMStepCheckService.swift */,
@@ -1042,6 +1051,7 @@
 				9DE438082506FECE775C82EC /* RepairWordingCoordinatorTests.swift in Sources */,
 				6FA131640E8A023945E97BD0 /* SceneColourCalibrationTests.swift in Sources */,
 				3EA3E6B538AB252790E57BEB /* SegmentedGeometryTests.swift in Sources */,
+				93912D673DC1EB075282CC6B /* ShadowCheckRunnerTests.swift in Sources */,
 				37A85FEF359A09F1AD6BCCDB /* StepVerificationControllerTests.swift in Sources */,
 				773A881698D29E9AE756195D /* StorageLayoutTests.swift in Sources */,
 				BA1CFFBA0235283A59919168 /* SuggestedPlacementTests.swift in Sources */,
@@ -1137,6 +1147,8 @@
 				A74857E3466D3D8F1267B5D1 /* RepairWordingFacts+Plan.swift in Sources */,
 				91219CD62E2123F73F1D2AB8 /* SceneColourCalibration.swift in Sources */,
 				586EB1012DD6375874E0FE0D /* SegmentedGeometry.swift in Sources */,
+				6889BFC56A31C541F5B05843 /* ShadowCheckRecording.swift in Sources */,
+				7180330B1A7B2193D90FAC1E /* ShadowCheckRunner.swift in Sources */,
 				69C0708CD38170E32544658B /* StagedFixtureSetupView.swift in Sources */,
 				27307B0BB50EAE558ED586F6 /* StagedVerificationSetupView.swift in Sources */,
 				6A9D4467F2B069AD21E4D40D /* StepCheckAdvisor.swift in Sources */,

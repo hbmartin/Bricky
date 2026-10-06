@@ -26,6 +26,7 @@ struct ARGuideView: View {
     @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
     @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
     @AppStorage(AppConfig.Defaults.languageModelWordingEnabled) private var languageModelWordingEnabled = false
+    @AppStorage(AppConfig.Defaults.fmShadowCheckEnabled) private var fmShadowCheckEnabled = false
     /// Hands-free mode (ADR 0016): spoken steps and repairs, and "next",
     /// "next anyway", "back" and "repeat" by voice.
     @StateObject private var narrator = StepNarrator()
@@ -54,6 +55,8 @@ struct ARGuideView: View {
     /// Template first, then the language layer's validated sentence (ADR
     /// 0017). Built when the guide opens; nil wording means templates only.
     @State private var wording: RepairWordingCoordinator?
+    /// The Foundation Models advisor beside photo checks, in shadow (ADR 0018).
+    @State private var shadowChecks = ShadowCheckRunner()
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -211,6 +214,7 @@ struct ARGuideView: View {
                 } else {
                     stopHandsFree()
                 }
+                if phase == .background { shadowChecks.cancel() }
             }
         }
         .navigationTitle("AR Step \(step.index)")
@@ -299,6 +303,10 @@ struct ARGuideView: View {
         let staged = evidenceCaptureEnabled && corpusCollectionEnabled ? stagedDeclaration : nil
         let recorder = makePhotoCheckRecorder(staged: staged)
         let checkedStep = step
+        // A new check ends any shadow still judging the last one.
+        shadowChecks.cancel()
+        let shadowRecorder = fmShadowCheckEnabled ? recorder : nil
+        let shadowRunner = shadowChecks
         let service: any StepCheckAdvisor = VLMStepCheckService(
             runtime: recoveryModel.runtime,
             modelDirectory: modelDirectory,
@@ -317,7 +325,13 @@ struct ARGuideView: View {
             let captureURL = try InstructionModelImporter.applicationSupportRoot()
                 .appendingPathComponent(capture.imageRelativePath)
             defer { RecoveryWorkFileCleanup.remove(urls: [captureURL]) }
-            return try await service.check(capture: capture, plan: plan, step: checkedStep, registered: alignment).result
+            let outcome = try await service.check(capture: capture, plan: plan, step: checkedStep, registered: alignment)
+            // In shadow, after the VLM has returned; the verdict below is
+            // published without waiting for it.
+            if let shadowRecorder {
+                shadowRunner.start(outcome: outcome, captureID: capture.id, step: checkedStep, recorder: shadowRecorder)
+            }
+            return outcome.result
         }
         guard let task else { return }
         photoCheckTask = task
@@ -363,8 +377,11 @@ struct ARGuideView: View {
         photoCheckStaged = nil
         photoCheckStep = nil
         guard let recorder else { return }
+        let shadowRunner = shadowChecks
         Task.detached(priority: .utility) {
             await task?.value
+            // The shadow's row belongs to this session: let it land first.
+            await shadowRunner.drain(deadline: .seconds(20))
             await recorder.finalize(estimate: nil, analysisError: analysisError, groundTruth: groundTruth)
         }
     }

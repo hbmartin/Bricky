@@ -294,6 +294,7 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             session.conditionsEnd = conditions
             try writeSessionFile()
             try writeCheckRows()
+            try writeShadowCheckRows()
         }
     }
 

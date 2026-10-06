@@ -13,6 +13,7 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
     @AppStorage(AppConfig.Defaults.colourTermMode) private var colourTermMode = ColourTermMode.off.rawValue
     @AppStorage(AppConfig.Defaults.languageModelWordingEnabled) private var languageModelWordingEnabled = false
+    @AppStorage(AppConfig.Defaults.fmShadowCheckEnabled) private var fmShadowCheckEnabled = false
     @AppStorage(AppConfig.Defaults.spotlightModelsEnabled) private var spotlightModelsEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
@@ -123,6 +124,8 @@ struct StorageAndAttributionView: View {
                     Text("Can block a complete").tag(ColourTermMode.blockOnly.rawValue)
                 }
                 Toggle("Reword repairs with the on-device language model", isOn: $languageModelWordingEnabled)
+                Toggle("Second opinion on photo checks, recorded only", isOn: $fmShadowCheckEnabled)
+                    .disabled(!evidenceCaptureEnabled)
                 if let relief = recoveryModel.lastPressureRelief {
                     LabeledContent(
                         "Last memory-pressure unload",

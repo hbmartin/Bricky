@@ -300,6 +300,35 @@ per finished wording attempt. Fields:
 The model is not pinned, so `os_build` identifies it. These device pairs
 are what the blinded preference test runs on.
 
+## `shadow-checks.ndjson` and `shadow_check.ndjson` — the step-check advisor
+
+With evidence capture on and the developer setting "Second opinion on photo
+checks, recorded only" on, the AR guide's Photo Check runs the Foundation
+Models advisor beside the VLM, in shadow (ADR 0018). It starts after the VLM
+returns, and the user only ever sees the VLM's verdict.
+
+- `shadow-checks.ndjson` (`ShadowCheckTraceV1`), one line per run, with:
+  - `shadow_id`, `session_id`, `capture_id`, `step_index`, `advisor`
+    (`foundation_models`) and `check_target`;
+  - `primary_verdict`: what the user saw;
+  - `standalone_verdict` and `standalone_outcome`: the advisor's own
+    complete / incomplete / uncertain, or why it gave none;
+  - `closed_answer` and `closed_outcome`: present / absent / cannot_tell on
+    the photo and the registered render, both cropped to `check_geometry`'s
+    box; skipped without a box or at the guide camera;
+  - `merged_verdict`: the primary verdict after the merge, which may only
+    turn a complete into an incomplete;
+  - `had_delta_box`, `latency_ms`, `os_build`, `device_model`, `created_at`.
+  It is a file of its own, not a new `pass` in `traces.ndjson`, whose
+  reader is strict.
+- `shadow_check.ndjson` (`ShadowCheckRowV1`, kind `shadow_check`): written at
+  finalize for labeled sessions, one row per run. It has the expected
+  verdict (the check's rule), the three verdicts, the closed answer, and the
+  release fields of `vlm_check`. Release mode accepts only staged device
+  rows from a floor device. The scorer prints the standalone false-complete
+  rate first, with how many more negatives ADR 0018 needs (149 at zero
+  misses).
+
 ## `check.ndjson` — VLMCheckRowV1
 
 Written when a **labeled** session that ran photo checks is finalized, with

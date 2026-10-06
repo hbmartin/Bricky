@@ -37,6 +37,10 @@ enum AppConfig {
         /// (M3.3, ADR 0017), validated against the plan, with the template
         /// as fallback. Off until device pairs win a blinded preference test.
         static let languageModelWordingEnabled = "developer.languageModelWordingEnabled"
+        /// The on-device language model judges each AR photo check in
+        /// shadow beside the VLM (M3.4, ADR 0018): recorded with evidence
+        /// capture on, never shown. Device rows decide ADR 0018.
+        static let fmShadowCheckEnabled = "developer.fmShadowCheckEnabled"
         /// Model titles in Spotlight (ADR 0016). Off by default; turning it
         /// off removes every entry.
         static let spotlightModelsEnabled = "privacy.spotlightModelsEnabled"

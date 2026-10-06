@@ -345,6 +345,16 @@
         }
       }
     },
+    "Second opinion on photo checks, recorded only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Second opinion on photo checks, recorded only"
+          }
+        }
+      }
+    },
     "Shadow (recorded only)": {
       "localizations": {
         "en": {
