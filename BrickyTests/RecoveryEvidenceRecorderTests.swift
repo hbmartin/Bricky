@@ -348,6 +348,28 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: plainURL)).colourTerm)
     }
 
+    func testWordingAttemptsGoToTheirOwnFile() async throws {
+        let recorder = makeRecorder()
+        let record = RepairWordingRecordV1(
+            sessionID: recorder.sessionID, stepID: "main.ldr#3", action: "move", partLabel: "red Brick 2 x 4",
+            partCount: 1, direction: "your_left", studs: 1, turn: nil,
+            template: "Move the red Brick 2 x 4 one stud to your left.",
+            modelSentence: "Slide the red Brick 2 x 4 one stud to your left.", outcome: "accepted",
+            shown: "Slide the red Brick 2 x 4 one stud to your left.", latencyMilliseconds: 900,
+            osBuild: "24A430", deviceModel: "iPhone18,1", createdAt: Date(timeIntervalSince1970: 0)
+        )
+        await recorder.recordWording(record)
+        await recorder.recordWording(record)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent(RepairWordingRecordV1.filename)
+        let lines = try Data(contentsOf: url).split(separator: UInt8(ascii: "\n"))
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(try EvidenceSchema.decoder().decode(RepairWordingRecordV1.self, from: Data(lines[0])), record)
+        XCTAssertTrue(String(decoding: lines[0], as: UTF8.self).contains(#""model_sentence""#))
+    }
+
     private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {
         VerificationWindowSample(
             frameID: UUID(),

@@ -281,6 +281,25 @@ and, on a disagreement, `colour_nearest_code`. The scorer reports these as
 an informational `colour_term` block, and `compare_arms.py --primary
 verification_correct` pairs two modes' rows by window.
 
+## `wording.ndjson` — RepairWordingRecordV1
+
+Written by the AR guide with evidence capture on and the developer setting
+"Reword repairs with the on-device language model" on (ADR 0017): one row
+per finished wording attempt. Fields:
+- `record_id`, `session_id`, `step_id`, `created_at`;
+- the facts: `action`, `part_label`, `part_count`, `direction`, `studs`,
+  `turn`;
+- `template`: the String Catalog sentence;
+- `model_sentence`: what the model wrote, accepted or not (null when it
+  wrote nothing);
+- `outcome`: `accepted`, `rejected_<reason>`, `unavailable_<reason>` or
+  `failed_<reason>`;
+- `shown`: the line on screen;
+- `latency_ms`, `os_build`, `device_model`.
+
+The model is not pinned, so `os_build` identifies it. These device pairs
+are what the blinded preference test runs on.
+
 ## `check.ndjson` — VLMCheckRowV1
 
 Written when a **labeled** session that ran photo checks is finalized, with

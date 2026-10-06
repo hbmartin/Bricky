@@ -22,6 +22,9 @@ public struct EvidenceBundleReader {
         public let windowFrames: [UUID: EvidenceDepthFrameRecord]
         /// The shadow build diff when each window closed, from `diffs.ndjson`.
         public let diffRecords: [BuildDiffRecord]
+        /// Repair-wording attempts, from `wording.ndjson` (ADR 0017). Empty
+        /// for sessions without them.
+        public var wordingRecords: [RepairWordingRecordV1] = []
     }
 
     public let bundleDirectory: URL
@@ -93,6 +96,12 @@ public struct EvidenceBundleReader {
                         try decoder.decode(BuildDiffRecord.self, from: Data($0))
                     }
                 }
+                var wording: [RepairWordingRecordV1] = []
+                if let data = try? Data(contentsOf: directory.appendingPathComponent(RepairWordingRecordV1.filename)) {
+                    wording = try data.split(separator: UInt8(ascii: "\n")).map {
+                        try decoder.decode(RepairWordingRecordV1.self, from: Data($0))
+                    }
+                }
                 return Session(
                     directory: directory,
                     file: file,
@@ -101,7 +110,8 @@ public struct EvidenceBundleReader {
                     depthFrames: depthFrames,
                     verificationWindows: windows.sorted { $0.createdAt < $1.createdAt },
                     windowFrames: windowFrames,
-                    diffRecords: diffs
+                    diffRecords: diffs,
+                    wordingRecords: wording
                 )
             }
             .sorted { $0.file.createdAt < $1.file.createdAt }

@@ -1,4 +1,5 @@
 import ARKit
+import BrickyLanguage
 import RealityKit
 import RecoveryMLX
 import SwiftUI
@@ -24,6 +25,7 @@ struct ARGuideView: View {
     @AppStorage(AppConfig.Defaults.corpusCollectionEnabled) private var corpusCollectionEnabled = false
     @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
     @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
+    @AppStorage(AppConfig.Defaults.languageModelWordingEnabled) private var languageModelWordingEnabled = false
     /// Hands-free mode (ADR 0016): spoken steps and repairs, and "next",
     /// "next anyway", "back" and "repeat" by voice.
     @StateObject private var narrator = StepNarrator()
@@ -49,6 +51,9 @@ struct ARGuideView: View {
     @State private var directionStabilizer = DirectionStabilizer()
     /// What to do about a misplaced step, worded from the poses (ADR 0015).
     @State private var repairLine: String?
+    /// Template first, then the language layer's validated sentence (ADR
+    /// 0017). Built when the guide opens; nil wording means templates only.
+    @State private var wording: RepairWordingCoordinator?
 
     init(model: StoredInstructionModel, plan: InstructionPlan, step: AuthoredStep) {
         self.model = model
@@ -157,6 +162,7 @@ struct ARGuideView: View {
             .task {
                 camera.checkPermissions()
                 startVerificationEvidence()
+                startWording()
                 registration.frameObserver = { [weak verification] frame, update in
                     verification?.submit(frame: frame, registration: update)
                 }
@@ -393,7 +399,40 @@ struct ARGuideView: View {
                 at: current.timestamp
             )
         }
-        repairLine = RepairPhrasebook.sentence(for: repair.actions, direction: direction, labels: partLabels)
+        let template = RepairPhrasebook.sentence(for: repair.actions, direction: direction, labels: partLabels)
+        guard let wording, let template,
+              let facts = RepairWordingFacts(actions: repair.actions, direction: direction, labels: partLabels, template: template) else {
+            repairLine = template
+            return
+        }
+        repairLine = wording.update(facts) ?? template
+    }
+
+    /// The language layer for this visit, when the developer setting is on.
+    /// A validated sentence that lands for the repair still on screen
+    /// replaces the template there and in what Siri reads (ADR 0017).
+    private func startWording() {
+        guard wording == nil else { return }
+        let coordinator = RepairWordingCoordinator(
+            generator: RepairWordingSource.generator(enabled: languageModelWordingEnabled)
+        )
+        coordinator.onWorded = { sentence in
+            repairLine = sentence
+            session.reportVerification(verification.verification, repairSentence: sentence)
+        }
+        coordinator.onResult = { facts, result in
+            guard let recorder = verificationRecorder else { return }
+            let record = RepairWordingRecordV1(
+                sessionID: recorder.sessionID, stepID: step.id, action: facts.action.rawValue,
+                partLabel: facts.partLabel, partCount: facts.partCount, direction: facts.direction?.rawValue,
+                studs: facts.studs, turn: facts.turn?.rawValue, template: facts.template,
+                modelSentence: result.modelSentence, outcome: result.outcome.name,
+                shown: result.sentence ?? facts.template, latencyMilliseconds: result.milliseconds,
+                osBuild: DeviceIdentity.osBuild, deviceModel: DeviceIdentity.modelIdentifier, createdAt: .now
+            )
+            Task { await recorder.recordWording(record) }
+        }
+        wording = coordinator
     }
 
     /// The step's parts in sentence form, from the pack's descriptions.
@@ -489,6 +528,7 @@ struct ARGuideView: View {
         stagedVerification = nil
         verification.stop()
         repairLine = nil
+        wording?.reset()
         directionStabilizer = DirectionStabilizer()
         step = next
         Task {
@@ -593,7 +633,9 @@ struct ARGuideView: View {
                     announceStep()
                 }
             case .holdAndSpeak(let repair):
-                let sentence = repair.flatMap {
+                // The line on screen, so narration and Siri say what the
+                // user sees, including a validated model sentence.
+                let sentence = repair == nil ? nil : repairLine ?? repair.flatMap {
                     RepairPhrasebook.sentence(for: $0.actions, direction: directionStabilizer.current, labels: partLabels)
                 }
                 narrator.speak(StepNarration.hold(repairSentence: sentence))

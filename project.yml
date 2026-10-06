@@ -187,6 +187,7 @@ targets:
       - BrickyTests/SceneColourCalibrationTests.swift
       - BrickyTests/ColourAgreementTermTests.swift
       - BrickyTests/ColourTermJudgeTests.swift
+      - BrickyTests/RepairWordingCoordinatorTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:

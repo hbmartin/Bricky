@@ -33,6 +33,10 @@ enum AppConfig {
         /// Proposed): a `ColourTermMode` raw value. Off by default; the app
         /// offers Off, Shadow and Block only until real windows support more.
         static let colourTermMode = "developer.colourTermMode"
+        /// Repair sentences reworded by the on-device language model
+        /// (M3.3, ADR 0017), validated against the plan, with the template
+        /// as fallback. Off until device pairs win a blinded preference test.
+        static let languageModelWordingEnabled = "developer.languageModelWordingEnabled"
         /// Model titles in Spotlight (ADR 0016). Off by default; turning it
         /// off removes every entry.
         static let spotlightModelsEnabled = "privacy.spotlightModelsEnabled"
