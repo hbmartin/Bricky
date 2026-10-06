@@ -942,8 +942,14 @@ def score_repair(rows: list[dict[str, object]]) -> tuple[dict[str, object], list
                 and row.get("expected_direction") not in (None, "none")]
     agreeing = sum(row["produced_direction"] == row["expected_direction"] for row in directed)
     gate = count_gate("repair_plan.harmful_actions", harmful, 0, trials=len(rows))
+    # Cross-step rows (M2.9) carry no direction; a withheld plan matches an
+    # empty expectation.
+    cross_step = [row for row in rows if row.get("scope") == "cross_step"]
     report = {
         "cases": len(rows),
+        "cross_step_cases": len(cross_step),
+        "cross_step_matching_cases": sum(row["produced_actions"] == row["expected_actions"] for row in cross_step),
+        "cross_step_harmful_actions": sum(row["harmful_actions"] for row in cross_step),
         "plans_produced": sum(bool(row["produced_actions"]) for row in rows),
         "plans_matching": sum(row["produced_actions"] == row["expected_actions"] for row in rows if row["produced_actions"]),
         "harmful_actions": harmful,

@@ -66,6 +66,7 @@ FAILURE_COUNT_LEAVES = {
     "false_present_cases",
     "undetectable_false_present_cases",
     "harmful_actions",
+    "cross_step_harmful_actions",
     "direction_disagreement_cases",
     "wrong_proposal_cases",
 }

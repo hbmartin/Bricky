@@ -372,6 +372,19 @@ class RepairScoringTests(unittest.TestCase):
         self.assertEqual(report["plans_matching"], 3)
         self.assertFalse(gates[0].fails(release=True))
 
+    def test_cross_step_rows_are_counted_and_a_withheld_plan_can_match(self) -> None:
+        withheld = repair_row(scope="cross_step", expected_actions=[], produced_actions=[],
+                              expected_direction="none", produced_direction="none")
+        wrong = repair_row(harmful=2, scope="cross_step",
+                           produced_actions=[{"action": "remove", "placement": 3}],
+                           expected_direction="none", produced_direction="none")
+        report, gates = score_repair([repair_row(), withheld, wrong])
+        self.assertEqual(report["cross_step_cases"], 2)
+        self.assertEqual(report["cross_step_matching_cases"], 1)
+        self.assertEqual(report["cross_step_harmful_actions"], 2)
+        self.assertEqual(report["directed_cases"], 1, "cross-step rows carry no direction")
+        self.assertTrue(gates[0].fails(release=False))
+
     def test_repair_rows_are_not_release_evidence(self) -> None:
         code, output = MainTests.run_main([repair_row()], informational=False, require_kinds=set())
         self.assertEqual(code, 1)

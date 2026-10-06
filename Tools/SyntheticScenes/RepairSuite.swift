@@ -96,6 +96,8 @@ extension SyntheticRGBDMain {
         }
         guard !rows.isEmpty else { throw CLIError("no repair rows were generated from \(options.modelPath)") }
         let generated = rows.count
+        let crossStep = try crossStepRows(plan: plan, geometry: geometry, sampled: sampled, fixtureStem: fixtureStem)
+        rows += crossStep.rows
         rows.append(try Row.encode([
             "kind": "synthetic_summary",
             "schema_version": 1,
@@ -105,10 +107,151 @@ extension SyntheticRGBDMain {
             "steps_sampled": sampled.count,
             "generated_repair_rows": generated,
             "plans_produced": plans,
+            "generated_cross_step_rows": crossStep.rows.count,
+            "cross_step_plans": crossStep.plans,
+            "cross_step_withheld": crossStep.withheld,
         ]))
         try rows.joined(separator: "\n").appending("\n")
             .write(toFile: options.outPath, atomically: true, encoding: .utf8)
-        print("wrote \(generated) repair rows to \(options.outPath)")
+        print("wrote \(generated) in-step and \(crossStep.rows.count) cross-step repair rows to \(options.outPath)")
+    }
+
+    /// Cross-step plans (M2.9; the flag is on only here and in tests). For
+    /// each sampled step, the earlier part with the most parts resting on it
+    /// within budget is shifted, turned, missing, and missing under parts
+    /// seen in place; the part with the most beyond budget is shifted.
+    /// Pure support-graph work: no renders and no random draws, so the
+    /// in-step rows are unchanged. Each plan is replayed on the support
+    /// graph, and any step a builder could not do, or that leaves the build
+    /// different from authored, is harmful.
+    static func crossStepRows(
+        plan: InstructionPlan, geometry: PlacementGeometry, sampled: [Int], fixtureStem: String
+    ) throws -> (rows: [String], plans: Int, withheld: Int) {
+        let index = geometry.index
+        let budget = CrossStepRepairPlanner.defaultBudget
+        var rows: [String] = []
+        var plans = 0
+        var withheld = 0
+        for stepIndex in sampled {
+            let step = plan.steps[stepIndex]
+            let built = step.cumulativePlacementCount
+            let ranked = (0..<step.addedPlacementRange.lowerBound)
+                .map { (placement: $0, resting: index.blockers(of: $0).filter { $0 < built }) }
+                .filter { !$0.resting.isEmpty }
+                .sorted { $0.resting.count != $1.resting.count ? $0.resting.count > $1.resting.count : $0.placement < $1.placement }
+            var cases: [(label: String, placement: Int, state: PlacementState, observed: [Int])] = []
+            if let within = ranked.first(where: { $0.resting.count <= budget }) {
+                cases += [
+                    ("shift", within.placement, .displaced(LatticeOffset(dx: 1)), []),
+                    ("turn", within.placement, .rotated(quarterTurns: 1), []),
+                    ("missing", within.placement, .absent, []),
+                    ("missing_under_present", within.placement, .absent, within.resting),
+                ]
+            }
+            if let beyond = ranked.first(where: { $0.resting.count > budget }) {
+                cases.append(("shift_over_budget", beyond.placement, .displaced(LatticeOffset(dx: 1)), []))
+            }
+            for item in cases {
+                let anomaly = PlacementObservation(placement: item.placement, state: item.state, evidence: PlacementEvidence())
+                let observed = item.observed.map { PlacementObservation(placement: $0, state: .present, evidence: PlacementEvidence()) }
+                let repair = CrossStepRepairPlanner.plan(
+                    anomaly: anomaly, observed: observed, index: index, plan: plan,
+                    currentStepID: step.id, built: built, flags: RepairFeatureFlags(crossStep: true)
+                )
+                let produced = repair?.actions ?? []
+                plans += produced.isEmpty ? 0 : 1
+                withheld += repair?.withheld.isEmpty == false ? 1 : 0
+                let expected = expectedCrossStep(anomaly: anomaly, observed: Set(item.observed), index: index, built: built, budget: budget)
+                rows.append(try Row.encode([
+                    "kind": "repair_plan",
+                    "schema_version": 1,
+                    "provenance": "synthetic",
+                    "fixture_id": "\(fixtureStem)-s\(step.index)-xstep-p\(item.placement)-\(item.label)",
+                    "scope": "cross_step",
+                    "verdict": "cross_step",
+                    "expected_actions": expected,
+                    "produced_actions": produced.map(action),
+                    "withheld": (repair?.withheld ?? []).map(\.reason.rawValue),
+                    "harmful_actions": crossStepHarm(produced, anomaly: anomaly, index: index, built: built),
+                    "expected_direction": "none",
+                    "produced_direction": "none",
+                ]))
+            }
+        }
+        return (rows, plans, withheld)
+    }
+
+    /// The plan a careful builder would follow, found by taking off whatever
+    /// is on top first (highest authored index among the free parts), then
+    /// putting parts back lowest first. Empty where nothing should be asked.
+    static func expectedCrossStep(
+        anomaly: PlacementObservation, observed: Set<Int>, index: PlacementGeometryIndex, built: Int, budget: Int
+    ) -> [[String: Any]] {
+        let resting = Set(index.blockers(of: anomaly.placement).filter { $0 < built })
+        if anomaly.state == .absent, !resting.isDisjoint(with: observed) { return [] }
+        guard resting.count <= budget else { return [] }
+        var onBuild = resting
+        var removed: [Int] = []
+        while let free = onBuild.filter({ part in index.supports[part].allSatisfy { !onBuild.contains($0) } }).max() {
+            onBuild.remove(free)
+            removed.append(free)
+        }
+        func entry(_ name: String, _ placement: Int) -> [String: Any] { ["action": name, "placement": placement] }
+        var fix = entry(anomaly.state == .absent ? "add" : "move", anomaly.placement)
+        switch anomaly.state {
+        case .displaced(let offset): fix["offset"] = [-offset.dx, -offset.dz]
+        case .rotated: fix["action"] = "rotate"
+        default: break
+        }
+        return removed.map { entry("remove", $0) } + [fix] + removed.sorted().map { entry("re_add", $0) }
+    }
+
+    /// Replays a cross-step plan on the support graph. Harmful: touching a
+    /// part that neither is the problem nor rests on it, taking off a part
+    /// with something still on it, fixing the part under something,
+    /// a fix that does not undo the finding, putting a part back with no
+    /// support, and a plan that leaves the build different from authored.
+    static func crossStepHarm(
+        _ actions: [RepairAction], anomaly: PlacementObservation, index: PlacementGeometryIndex, built: Int
+    ) -> Int {
+        guard !actions.isEmpty else { return 0 }
+        let allowed = Set(index.blockers(of: anomaly.placement)).union([anomaly.placement])
+        var onBuild = Set(0..<built)
+        if anomaly.state == .absent { onBuild.remove(anomaly.placement) }
+        var fixed = false
+        var harm = 0
+        for act in actions {
+            let part = act.target.placement
+            guard allowed.contains(part) else {
+                harm += 1
+                continue
+            }
+            let covered = index.supports[part].contains(where: onBuild.contains)
+            switch act {
+            case .remove:
+                if !onBuild.contains(part) || covered { harm += 1 }
+                onBuild.remove(part)
+            case .reAdd:
+                let support = index.supportedBy[part].filter { $0 < built }
+                if onBuild.contains(part) || !support.allSatisfy(onBuild.contains) { harm += 1 }
+                onBuild.insert(part)
+            case .add, .move, .rotate:
+                let undoes: Bool
+                switch (act, anomaly.state) {
+                case (.add, .absent): undoes = true
+                case (.move(_, let by), .displaced(let offset)): undoes = by.dx == -offset.dx && by.dz == -offset.dz
+                case (.rotate(_, let turns), .rotated(let found)): undoes = ((turns + found) % 4 + 4) % 4 == 0
+                default: undoes = false
+                }
+                if part != anomaly.placement || covered || !undoes || fixed { harm += 1 }
+                fixed = true
+                onBuild.insert(part)
+            case .swapColour:
+                harm += 1
+            }
+        }
+        if !fixed || onBuild != Set(0..<built) { harm += 1 }
+        return harm
     }
 
     static func action(_ action: RepairAction) -> [String: Any] {

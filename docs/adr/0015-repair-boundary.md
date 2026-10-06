@@ -46,6 +46,29 @@ never invents or reorders the sequence". It needs the owner's acceptance of
 this section, and the amendments it would make to CONTEXT.md, ADR 0001 and
 ADR 0004 are not made until then.
 
+### Cross-step planner (M2.9, Proposed, flag off)
+
+`CrossStepRepairPlanner` is built and tested so the owner can judge
+something concrete. It runs only with `RepairFeatureFlags.crossStep`, which
+has no UI; with the flag off it withholds the fix (`cross_step_disabled`).
+Given one earlier part the build diff found moved, turned or missing:
+1. Take off everything resting on it, directly or through other parts, in
+   reverse authored order. Authored order is a valid build order, so its
+   reverse is a valid teardown. Only built parts count: later steps' parts
+   are not on the build and never move.
+2. Fix the part: add it, move it back by whole studs, or turn it back.
+3. Put each removed part back in authored order.
+
+It never asks for more than six parts off (`removal_budget_exceeded`). A
+missing part with parts seen in place on top of it is `implausible`, as in
+the recovery tie-break (ADR 0010): the pose or the evidence is wrong, so
+nothing is asked.
+
+`SyntheticRGBD --suite repair` adds cross-step rows on the challenge
+fixture. Each plan is replayed on the support graph, and any step a builder
+could not take, or a build left different from authored, counts as a
+harmful action. The gate is 0.
+
 ## Consequences
 
 - CONTEXT.md and ADR 0001 gain an in-step repair sentence. ADR 0004 (already

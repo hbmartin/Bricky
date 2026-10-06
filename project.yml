@@ -114,6 +114,7 @@ targets:
       - Bricky/Services/Verification/BuildDiffEngine.swift
       - Bricky/Services/Repair/CameraRelativeDirection.swift
       - Bricky/Services/Repair/RepairPlanner.swift
+      - Bricky/Services/Repair/CrossStepRepairPlanner.swift
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
@@ -156,6 +157,7 @@ targets:
       - BrickyTests/VoiceCommandGrammarTests.swift
       - BrickyTests/NextStepIntentTests.swift
       - BrickyTests/InstructionModelEntityTests.swift
+      - BrickyTests/CrossStepRepairPlannerTests.swift
       - BrickyTests/PlacementConsistencyScorerTests.swift
       - BrickyTests/SuggestedPlacementTests.swift
       - BrickyTests/RecoveryEvidenceRecorderTests.swift

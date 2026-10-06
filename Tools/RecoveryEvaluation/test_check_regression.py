@@ -119,11 +119,13 @@ class AutoGuardTests(unittest.TestCase):
     def test_counts_are_exact_and_failures_and_drops_lower_is_better(self) -> None:
         for metric in ("verification.cases", "verification.negatives", "verification.undetectable_cases",
                        "synthetic_summary.regression.steps_sampled",
-                       "synthetic_summary.regression.generated_verification_rows"):
+                       "synthetic_summary.regression.generated_verification_rows",
+                       "repair_plan.cross_step_cases", "synthetic_summary.repair.generated_cross_step_rows"):
             self.assertEqual(auto_guard(metric)["direction"], "exact", metric)
         for metric in ("verification.false_complete_cases", "verification.undetectable_false_completes",
                        "challenge.expected_failure_false_complete_cases", "placement.false_present_cases",
-                       "synthetic_summary.regression.dropped_expected_complete_below_strong"):
+                       "synthetic_summary.regression.dropped_expected_complete_below_strong",
+                       "repair_plan.cross_step_harmful_actions"):
             self.assertEqual(auto_guard(metric)["direction"], "lower_is_better", metric)
 
     def test_rates_and_latencies_are_never_auto_guarded(self) -> None:
