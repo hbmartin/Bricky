@@ -109,7 +109,10 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
             support: observation.evidence.support,
             absence: observation.evidence.absence,
             unexplained: observation.evidence.unexplained,
-            framesSeen: observation.evidence.framesSeen
+            framesSeen: observation.evidence.framesSeen,
+            colourStatus: observation.evidence.colour?.status,
+            colourNearestCode: observation.evidence.colour?.nearestCode,
+            colourAuthoredDistance: observation.evidence.colour?.authoredDistance
         )
     }
 

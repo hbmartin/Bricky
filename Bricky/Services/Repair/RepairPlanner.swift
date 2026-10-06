@@ -47,8 +47,9 @@ enum RepairPlanner {
 
     /// From the build diff, behind `buildDiffInput` until the diff has
     /// authority: absent parts are added, displaced ones moved back, turned
-    /// ones turned back. Parts the diff could not see are withheld, never
-    /// guessed; plate steps are never acted on.
+    /// ones turned back, and wrong-colour ones swapped for the authored
+    /// colour. Parts the diff could not see are withheld, never guessed;
+    /// plate steps are never acted on.
     static func plan(diff: BuildDiff, context: Context, flags: RepairFeatureFlags) -> RepairPlan? {
         guard flags.buildDiffInput else { return nil }
         let byPlacement = Dictionary(uniqueKeysWithValues: context.added.map { ($0.placement, $0) })
@@ -60,8 +61,10 @@ enum RepairPlanner {
                 continue
             }
             switch observation.state {
-            case .present, .colourMismatch:
+            case .present:
                 continue
+            case .colourMismatch:
+                actions.append(.swapColour(ref, expected: ref.colourCode))
             case .absent:
                 actions.append(.add(ref))
             case .displaced(let offset) where !offset.isVertical:

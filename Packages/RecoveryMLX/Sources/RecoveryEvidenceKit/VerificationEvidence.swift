@@ -349,8 +349,18 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
         public var absence: Int
         public var unexplained: Int
         public var framesSeen: Int
+        /// The colour term's status for the placement (`agrees`,
+        /// `disagrees`, `inconclusive_<reason>`), when it ran (M3.2).
+        public var colourStatus: String?
+        /// The other model colour it looked like, and how far the observed
+        /// colour was from the authored one, in Oklab.
+        public var colourNearestCode: Int?
+        public var colourAuthoredDistance: Float?
 
-        public init(placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int) {
+        public init(
+            placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int,
+            colourStatus: String? = nil, colourNearestCode: Int? = nil, colourAuthoredDistance: Float? = nil
+        ) {
             self.placement = placement
             self.state = state
             self.offset = offset
@@ -358,11 +368,17 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
             self.absence = absence
             self.unexplained = unexplained
             self.framesSeen = framesSeen
+            self.colourStatus = colourStatus
+            self.colourNearestCode = colourNearestCode
+            self.colourAuthoredDistance = colourAuthoredDistance
         }
 
         enum CodingKeys: String, CodingKey {
             case placement, state, offset, support, absence, unexplained
             case framesSeen = "frames_seen"
+            case colourStatus = "colour_status"
+            case colourNearestCode = "colour_nearest_code"
+            case colourAuthoredDistance = "colour_authored_distance"
         }
     }
 

@@ -31,7 +31,8 @@ enum PlacementState: Hashable, Sendable {
     case displaced(LatticeOffset)
     /// Present but turned; only for parts that do not survive the turn.
     case rotated(quarterTurns: Int)
-    /// Reserved for the RGB term (ADR 0008); depth never reports it.
+    /// Present, but the colour term sees another colour the model uses
+    /// (ADR 0008 amendment, M3.2). Depth never reports it.
     case colourMismatch
     case notObservable(NotObservableReason)
 
@@ -81,12 +82,34 @@ struct PlacementEvidence: Hashable, Sendable, Codable {
     /// Frames in which some of it was visible.
     var framesSeen = 0
     var tallies: [HypothesisTally] = []
+    /// The colour term's reading of this placement, when it ran (M3.2).
+    var colour: PlacementColour? = nil
 
     var classified: Int { support + absence + unexplained }
 
     enum CodingKeys: String, CodingKey {
-        case support, absence, unexplained, tallies
+        case support, absence, unexplained, tallies, colour
         case framesSeen = "frames_seen"
+    }
+}
+
+/// The colour term's summary for one placement: its status name
+/// (`agrees`, `disagrees`, `inconclusive_<reason>`) and the distances it
+/// was decided on, in Oklab.
+struct PlacementColour: Hashable, Sendable, Codable {
+    var status: String
+    var frames: Int
+    var authoredDistance: Float?
+    var nearestCode: Int?
+    var nearestDistance: Float?
+
+    var disagrees: Bool { status == "disagrees" }
+
+    enum CodingKeys: String, CodingKey {
+        case status, frames
+        case authoredDistance = "authored_distance"
+        case nearestCode = "nearest_code"
+        case nearestDistance = "nearest_distance"
     }
 }
 

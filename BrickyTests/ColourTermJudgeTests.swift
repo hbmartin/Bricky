@@ -230,6 +230,32 @@ final class ColourTermJudgeTests: XCTestCase {
         XCTAssertEqual(results[0].last?.verdict, .incomplete)
     }
 
+    // MARK: - Build diff (M3.2c, shadow)
+
+    func testBuildDiffNamesAColourMismatchInShadow() async throws {
+        let renderer = try makeRenderer()
+        var configuration = BuildDiffEngine.Configuration()
+        configuration.colourTable = table
+        let diff = try BuildDiffEngine(configuration: configuration, renderer: renderer, policy: .placementAware)
+        let depthOnly = try BuildDiffEngine(renderer: renderer, policy: .placementAware)
+        let swapped = try await run([diff, depthOnly], authored: delta(), depthScene: base + [delta(colour: yellow)], frames: 13)
+        let swappedDiff = await diff.lastDiff
+        let depthOnlyDiff = await depthOnly.lastDiff
+        let observed = try XCTUnwrap(swappedDiff?.observations.first)
+        XCTAssertEqual(observed.state, .colourMismatch)
+        XCTAssertEqual(observed.evidence.colour?.nearestCode, yellow)
+        XCTAssertEqual(swapped[0].last?.verdict, .incomplete, "placement-aware takes the complete away")
+        XCTAssertEqual(depthOnlyDiff?.observations.first?.state, .present, "depth alone cannot see colour")
+        XCTAssertEqual(swapped[1].last?.verdict, .complete)
+        XCTAssertNil(depthOnlyDiff?.observations.first?.evidence.colour)
+
+        let right = try await run([diff], authored: delta(), depthScene: base + [delta()], frames: 13)
+        let rightDiff = await diff.lastDiff
+        XCTAssertEqual(rightDiff?.observations.first?.state, .present)
+        XCTAssertEqual(rightDiff?.observations.first?.evidence.colour?.status, "agrees")
+        XCTAssertEqual(right[0].last?.verdict, .complete)
+    }
+
     func testModesApplyOnlyTheirAuthority() {
         let verification = StepVerification(
             stepID: "s", verdict: .uncertain(.insufficientEvidence), detectability: .marginal, deltaPixels: 50,
