@@ -135,21 +135,28 @@ extension SyntheticRGBDMain {
         for stepIndex in sampled {
             let step = plan.steps[stepIndex]
             let built = step.cumulativePlacementCount
-            let ranked = (0..<step.addedPlacementRange.lowerBound)
-                .map { (placement: $0, resting: index.blockers(of: $0).filter { $0 < built }) }
-                .filter { !$0.resting.isEmpty }
-                .sorted { $0.resting.count != $1.resting.count ? $0.resting.count > $1.resting.count : $0.placement < $1.placement }
-            var cases: [(label: String, placement: Int, state: PlacementState, observed: [Int])] = []
+            // Typed step by step: Xcode 16.4 cannot type-check this as one chain.
+            var ranked: [CrossStepCandidate] = []
+            for placement in 0..<step.addedPlacementRange.lowerBound {
+                let resting: [Int] = index.blockers(of: placement).filter { $0 < built }
+                if !resting.isEmpty { ranked.append(CrossStepCandidate(placement: placement, resting: resting)) }
+            }
+            ranked.sort { lhs, rhs in
+                if lhs.resting.count != rhs.resting.count { return lhs.resting.count > rhs.resting.count }
+                return lhs.placement < rhs.placement
+            }
+            let shift = PlacementState.displaced(LatticeOffset(dx: 1))
+            var cases: [CrossStepCase] = []
             if let within = ranked.first(where: { $0.resting.count <= budget }) {
-                cases += [
-                    ("shift", within.placement, .displaced(LatticeOffset(dx: 1)), []),
-                    ("turn", within.placement, .rotated(quarterTurns: 1), []),
-                    ("missing", within.placement, .absent, []),
-                    ("missing_under_present", within.placement, .absent, within.resting),
-                ]
+                cases.append(CrossStepCase(label: "shift", placement: within.placement, state: shift, observed: []))
+                cases.append(CrossStepCase(label: "turn", placement: within.placement, state: .rotated(quarterTurns: 1), observed: []))
+                cases.append(CrossStepCase(label: "missing", placement: within.placement, state: .absent, observed: []))
+                cases.append(CrossStepCase(
+                    label: "missing_under_present", placement: within.placement, state: .absent, observed: within.resting
+                ))
             }
             if let beyond = ranked.first(where: { $0.resting.count > budget }) {
-                cases.append(("shift_over_budget", beyond.placement, .displaced(LatticeOffset(dx: 1)), []))
+                cases.append(CrossStepCase(label: "shift_over_budget", placement: beyond.placement, state: shift, observed: []))
             }
             for item in cases {
                 let anomaly = PlacementObservation(placement: item.placement, state: item.state, evidence: PlacementEvidence())
@@ -161,7 +168,12 @@ extension SyntheticRGBDMain {
                 let produced = repair?.actions ?? []
                 plans += produced.isEmpty ? 0 : 1
                 withheld += repair?.withheld.isEmpty == false ? 1 : 0
-                let expected = expectedCrossStep(anomaly: anomaly, observed: Set(item.observed), index: index, built: built, budget: budget)
+                let expected: [[String: Any]] = expectedCrossStep(
+                    anomaly: anomaly, observed: Set(item.observed), index: index, built: built, budget: budget
+                )
+                let producedActions: [[String: Any]] = produced.map(action)
+                let withheldReasons: [String] = (repair?.withheld ?? []).map { $0.reason.rawValue }
+                let harmful: Int = crossStepHarm(produced, anomaly: anomaly, index: index, built: built)
                 rows.append(try Row.encode([
                     "kind": "repair_plan",
                     "schema_version": 1,
@@ -170,15 +182,29 @@ extension SyntheticRGBDMain {
                     "scope": "cross_step",
                     "verdict": "cross_step",
                     "expected_actions": expected,
-                    "produced_actions": produced.map(action),
-                    "withheld": (repair?.withheld ?? []).map(\.reason.rawValue),
-                    "harmful_actions": crossStepHarm(produced, anomaly: anomaly, index: index, built: built),
+                    "produced_actions": producedActions,
+                    "withheld": withheldReasons,
+                    "harmful_actions": harmful,
                     "expected_direction": "none",
                     "produced_direction": "none",
                 ]))
             }
         }
         return (rows, plans, withheld)
+    }
+
+    struct CrossStepCandidate {
+        let placement: Int
+        /// Built placements resting on it, directly or through others.
+        let resting: [Int]
+    }
+
+    struct CrossStepCase {
+        let label: String
+        let placement: Int
+        let state: PlacementState
+        /// Placements the diff saw in place.
+        let observed: [Int]
     }
 
     /// The plan a careful builder would follow, found by taking off whatever
@@ -203,7 +229,10 @@ extension SyntheticRGBDMain {
         case .rotated: fix["action"] = "rotate"
         default: break
         }
-        return removed.map { entry("remove", $0) } + [fix] + removed.sorted().map { entry("re_add", $0) }
+        var plan: [[String: Any]] = removed.map { entry("remove", $0) }
+        plan.append(fix)
+        for part in removed.sorted() { plan.append(entry("re_add", part)) }
+        return plan
     }
 
     /// Replays a cross-step plan on the support graph. Harmful: touching a
