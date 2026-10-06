@@ -2,7 +2,9 @@
 
 This device-result harness is deliberately independent of Apple's Evaluations
 framework and scores measurable outcomes directly; qualitative model-judge
-scoring is unnecessary for known authored-step labels.
+scoring is unnecessary for known authored-step labels. (The language layer's
+Evaluations suite, `BrickyLanguageEvaluations`, is a local development
+tool for repair wording, not a gate; ADR 0017.)
 
 `score_results.py` accepts mixed NDJSON keyed by an optional `kind` per row:
 
@@ -31,6 +33,22 @@ scoring is unnecessary for known authored-step labels.
 - `registration`: tracker fits against ground truth — convergence ≥ 95 % on
   unambiguous fixtures, ≤ 3 mm / ≤ 2° RMSE, ambiguity recall ≥ 90 % on
   deliberately symmetric fixtures (which never count against convergence).
+- `shadow_check` (ADR 0018, informational): the Foundation Models advisor
+  beside photo checks. It reports the advisor's standalone false-complete
+  rate with its bound, and how many more negatives the ADR needs (149 at
+  zero misses). It also reports what the only-toward-incomplete merge did:
+  flips that caught a negative or lost a complete. Rows whose merge moved
+  anything but a complete are refused. Release mode takes only staged
+  device rows from a floor device, as for `vlm_check`.
+
+Verification rows replayed with `--colour-term` also get an informational
+`colour_term` block (ADR 0008 amendment): status counts, disagreements on
+built steps, and agreements on negatives. It appears only when rows carry
+colour.
+
+`score_wording_ab.py` unblinds a repair-wording preference sheet
+(`bricky-harness wording-sheet`) and runs an exact one-sided sign test.
+MODEL PREFERRED takes at least five clean wins.
 
 ### Release mode and informational mode
 
@@ -116,15 +134,20 @@ Replay each arm to its own output file, then compare them paired:
 python3 compare_arms.py --control control.ndjson --variant feed_all.ndjson
 ```
 
-`compare_arms.py` pairs passes by trace and sessions and checks by fixture.
+`compare_arms.py` pairs passes by trace; sessions, checks and replayed
+verification windows by fixture. `--primary` picks the accuracy that
+decides: `pass_top1` (VLM arms), `session_top1` (geometric recovery),
+`check_correct` (check-target or advisor arms) or `verification_correct`
+(`--colour-term` arms).
 - **Accuracy:** it runs an exact McNemar test, Holm-corrected across
   variants. With no losses it takes at least 6 wins to reach p < 0.05.
 - **Latency:** it reports the paired latency ratio; differences under 5%
   count as none.
 - **Slot bias:** it shows the slot-letter histogram, chosen versus truth.
 - **Verdict:** it names a variant a Mac-replay flip candidate only when the
-  insufficient and check false-complete rates do not rise. Device rows are
-  still required before a default changes (ADR 0010 amendment).
+  insufficient, check false-complete and verification false-complete rates
+  do not rise. Device rows are still required before a default changes
+  (ADR 0010 amendment).
 
 
 Replay is a Mac-vs-Mac instrument (greedy guided decoding is deterministic per

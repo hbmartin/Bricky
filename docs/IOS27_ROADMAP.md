@@ -3,8 +3,7 @@
 Status: accepted as the program plan on 2026-09-25.
 - Phase 0 (no device needed) shipped in PR #10; its review findings were
   fixed in PR #11.
-- Phase 2's device-free work is on `feat/ios27-phase2` (PR #12), one commit
-  per item:
+- Phase 2's device-free work merged in PR #12, one commit per item:
   - evidence windows;
   - segmented geometry and range draws;
   - the placement index;
@@ -15,6 +14,23 @@ Status: accepted as the program plan on 2026-09-25.
   - the hands-free advance policy, voice, Siri and opt-in Spotlight
     (ADR 0016);
   - the cross-step planner, flag off and Proposed.
+- Phase 3's device-free work is on `feat/ios27-phase3` (PR #13), one commit
+  per item:
+  - one check-verdict schema, and the photo check's pose and delta box in
+    evidence;
+  - the colour tag pass, the colour table and in-scene calibration;
+  - the non-learned colour term in shadow, with block-only authority behind
+    a developer setting (ADR 0008 amendment, Proposed);
+  - repair wording by the on-device language model, validated against the
+    plan, behind a setting (ADR 0017), with an Evaluations suite and a
+    blinded preference test;
+  - the step-check advisor seam and the Foundation Models shadow check
+    (ADR 0018, Proposed).
+  - Not done:
+    - Private Cloud Compute: the owner is not eligible (ADR 0011 note).
+    - The Core AI colour CNN (M3.6): only if the non-learned term fails
+      on real data.
+    - The embedding pre-filter: needs ≥150 labelled cases.
 - Everything gated on device data stays off or in shadow until Phase 1
   measures it, using the add-on checklist in
   [NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md) §1a.
@@ -31,7 +47,8 @@ Owner decisions (answers to §7):
    problems from day one, but cross-step "remove and re-add" plans wait for
    a new ADR that amends the CONTEXT.md / ADR 0001 / ADR 0004 boundary.
    A suggested ghost placement is acceptable only when the user confirms it.
-3. VLM: decided after the Foundation Models shadow test, with data.
+3. VLM: decided after the Foundation Models shadow test, with data from
+   the phone only (owner, 2026-10-06; ADR 0018, Proposed).
 4. Release gates are judged on one-sided 95% confidence bounds. The
    authored-model diversity floor is still to be decided.
 

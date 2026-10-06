@@ -48,8 +48,8 @@ Behavior:
    is what CI exercises.
 2. For each session, replays its rank traces — by default only the
    `finalist` passes (the ones that vote); `--all-passes` replays the
-   `broad`/`narrowing`/`narrow` passes too. `check` traces are never
-   replayed.
+   `broad`/`narrowing`/`narrow` passes too. `check` traces are replayed
+   only with `--checks` (below).
 3. Each replay calls `rankWithTrace` with the recorded prompt, the recorded
    board image, and `candidateCount` from the recorded slot map — the same
    dynamic grammar the device compiled.
@@ -118,6 +118,36 @@ Rebuilds one trace's board from its capture and tiles for visual layout
 debugging. Tiles are placed in slot order; step labels derive from the
 recorded `candidate_step_indices` (internal index + 1, so step zero renders
 as "Step 0").
+
+## `wording-sheet`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness wording-sheet \
+  --bundle bundle --out-sheet sheet.csv --out-key key.csv
+python3 Tools/RecoveryEvaluation/score_wording_ab.py --sheet sheet.csv --key key.csv
+```
+
+Builds the blinded preference sheet for repair wording (ADR 0017) from the
+device's `wording.ndjson`. Each pair is an accepted model sentence and the
+template it replaced, rated once. The order and the A/B placement are
+seeded, so a sheet can be rebuilt. Give the sheet to the rater and keep the
+key. The scorer runs an exact one-sided sign test; the default flips only
+on MODEL PREFERRED from device pairs.
+
+## `fm-shadow`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness fm-shadow \
+  --bundle bundle --out fm.ndjson
+```
+
+Runs every labeled photo check in a bundle through the Foundation Models
+advisor (ADR 0018). It writes `shadow_check` rows to `--out`, and the
+advisor's standalone verdicts as `vlm_check` rows to `<out>.checks.ndjson`,
+so `compare_arms.py --primary check_correct` pairs them with a VLM replay's
+`--checks` arm. It needs macOS 27 with Apple Intelligence on. It is
+informational: a Mac is not the phone's model tier, and release mode
+refuses replay rows.
 
 ## Workflows
 
