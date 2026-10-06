@@ -63,6 +63,7 @@ let package = Package(
             dependencies: [
                 "RecoveryMLX",
                 "RecoveryEvidenceKit",
+                "BrickyLanguage",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),

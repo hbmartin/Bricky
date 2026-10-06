@@ -41,3 +41,53 @@ final class StepCheckAdviceTests: XCTestCase {
         XCTAssertNil(CheckCrop.rect(for: .init(x: 0.5, y: 0.5, width: 0, height: 0.1), imageWidth: 100, imageHeight: 100))
     }
 }
+
+#if canImport(FoundationModels)
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
+
+/// Runs the system model on two generated images; local only
+/// (`BRICKY_FM_LIVE=1`), informational: it proves the image path works on
+/// this Mac, not how the advisor judges real builds.
+final class StepCheckAdviceLiveTests: XCTestCase {
+    private func jpeg(red: CGFloat, green: CGFloat, blue: CGFloat, block: CGRect?) throws -> Data {
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: 320, height: 240, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+        context.setFillColor(CGColor(red: 0.8, green: 0.1, blue: 0.05, alpha: 1))
+        context.fill(CGRect(x: 80, y: 60, width: 160, height: 60))
+        if let block {
+            context.setFillColor(CGColor(red: red, green: green, blue: blue, alpha: 1))
+            context.fill(block)
+        }
+        let image = try XCTUnwrap(context.makeImage())
+        let data = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return data as Data
+    }
+
+    func testTheAdvisorAnswersOnImages() async throws {
+        guard ProcessInfo.processInfo.environment["BRICKY_FM_LIVE"] == "1" else {
+            throw XCTSkip("set BRICKY_FM_LIVE=1 to run the system model")
+        }
+        guard #available(macOS 27.0, iOS 27.0, *) else { throw XCTSkip("needs the 27 SDK") }
+        if let reason = FoundationModelsRepairWording.readiness() { throw XCTSkip("system model not ready: \(reason)") }
+        let block = CGRect(x: 130, y: 120, width: 60, height: 30)
+        let photo = try jpeg(red: 0.8, green: 0.1, blue: 0.05, block: nil)
+        let target = try jpeg(red: 0.0, green: 0.33, blue: 0.75, block: block)
+        let advice = await FoundationModelsStepCheckAdvisor(deadline: .seconds(20)).advise(StepCheckAdviceInput(
+            photoJPEG: photo, targetJPEG: target,
+            deltaBox: .init(x: Float(block.minX / 320), y: Float((240 - block.maxY) / 240), width: Float(block.width / 320), height: Float(block.height / 240)),
+            targetIsRegistered: true, stepNumber: 2
+        ))
+        print("LIVE_ADVICE standalone=\(advice.standalone?.rawValue ?? advice.standaloneOutcome) closed=\(advice.closed?.rawValue ?? advice.closedOutcome) ms=\(advice.milliseconds)")
+        XCTAssertTrue(advice.standaloneOutcome == "answered" || advice.standaloneOutcome.hasPrefix("failed_"))
+    }
+}
+#endif

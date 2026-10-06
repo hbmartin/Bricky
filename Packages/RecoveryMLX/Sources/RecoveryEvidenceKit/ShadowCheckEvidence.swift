@@ -116,6 +116,32 @@ public struct ShadowCheckRowV1: Codable, Sendable, Equatable {
     public var physicalCase: Bool?
     public var legalUseConfirmed: Bool?
 
+    public init(
+        provenance: String = "device", fixtureID: String, sessionID: UUID, expectedVerdict: String, primaryVerdict: String,
+        standaloneVerdict: String, closedAnswer: String?, mergedVerdict: String, advisor: String, checkTarget: String,
+        latencyMilliseconds: Int, deviceModel: String, osBuild: String?, labelKind: VLMCheckRowV1.LabelKind,
+        authoredModelID: String, stepIndex: Int, physicalCase: Bool?, legalUseConfirmed: Bool?
+    ) {
+        self.provenance = provenance
+        self.fixtureID = fixtureID
+        self.sessionID = sessionID
+        self.expectedVerdict = expectedVerdict
+        self.primaryVerdict = primaryVerdict
+        self.standaloneVerdict = standaloneVerdict
+        self.closedAnswer = closedAnswer
+        self.mergedVerdict = mergedVerdict
+        self.advisor = advisor
+        self.checkTarget = checkTarget
+        self.latencyMilliseconds = latencyMilliseconds
+        self.deviceModel = deviceModel
+        self.osBuild = osBuild
+        self.labelKind = labelKind
+        self.authoredModelID = authoredModelID
+        self.stepIndex = stepIndex
+        self.physicalCase = physicalCase
+        self.legalUseConfirmed = legalUseConfirmed
+    }
+
     enum CodingKeys: String, CodingKey {
         case kind
         case schemaVersion = "schema_version"
