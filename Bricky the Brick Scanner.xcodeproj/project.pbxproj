@@ -14,6 +14,7 @@
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
 		07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */; };
 		080E5FE0E65857D82A734117 /* VLMStepCheckServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */; };
+		084D0B13E5632C69057B21D6 /* ColourTermJudgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E988815B76E8CDA0B5F19F /* ColourTermJudgeTests.swift */; };
 		0B71252BF557DE0600EB2D47 /* RepairDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E4F225F65FE3333B524877 /* RepairDomain.swift */; };
 		0C942BD7361D1F3B543F4367 /* PhotoCheckController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */; };
 		124A64B8C70625D1B6A5677C /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E78ECCD396A43FB4FD11323B /* ZIPFoundation */; };
@@ -39,6 +40,7 @@
 		2D3348938B0DEB81054DC9F1 /* CameraRelativeDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC26F7426CD6CCC009AB773 /* CameraRelativeDirection.swift */; };
 		308A21E669DBA3515C7AEFCA /* LDConfigPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE48A54D8906A073C391EFDB /* LDConfigPaletteTests.swift */; };
 		334D9608F8A63775657C8FA6 /* PlacementGeometryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E44DAFAB62FF105D6736AE9 /* PlacementGeometryIndex.swift */; };
+		33D08BC8E905730F181BA923 /* ColourTermJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17766E91C2E178305E1E30F /* ColourTermJudge.swift */; };
 		35F42195554DFE4534FEA1C3 /* ModelDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789BB736F6B7F975CF21E99B /* ModelDelivery.swift */; };
 		3679833A1ADB6F4B521A73C3 /* PartSymmetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E271521248A9118A672048 /* PartSymmetry.swift */; };
 		368275A63ED5444679BC91C7 /* ARAlignmentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C429B08D7510B788CF6F07 /* ARAlignmentController.swift */; };
@@ -184,6 +186,7 @@
 		DB4BC1602860E165B1DD47F6 /* RegistrationFrameRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD7F68A23234CCB66B31C40 /* RegistrationFrameRelay.swift */; };
 		DBEA32129956A72845157845 /* VoiceCommandGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0149A20B72674237C037580 /* VoiceCommandGrammar.swift */; };
 		DC6E730630720F4EB447C10C /* DocumentOpenRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F266DE767284FBB651DBE152 /* DocumentOpenRouterTests.swift */; };
+		DCEA4325349A2D2C43263C3B /* ColourTermJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B17766E91C2E178305E1E30F /* ColourTermJudge.swift */; };
 		DD8A9E5B37A82D9FB35356EA /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		E05639E5AB825AAF5F586C31 /* StepJudging.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */; };
 		E0FB47420C749683B165C2AD /* RecoveryEvidenceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 97DE6E23501F711F90BCB30B /* RecoveryEvidenceKit */; };
@@ -288,6 +291,7 @@
 		6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryModelManager.swift; sourceTree = "<group>"; };
 		6D8D0B94EF81C7E575CE7801 /* Bricky.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Bricky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DCE4E27B457E2F0AF1BC8A4 /* PhotoCheckControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCheckControllerTests.swift; sourceTree = "<group>"; };
+		71E988815B76E8CDA0B5F19F /* ColourTermJudgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourTermJudgeTests.swift; sourceTree = "<group>"; };
 		74BFB5DCCE95622AB5A27E21 /* VLMStepCheckServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLMStepCheckServiceTests.swift; sourceTree = "<group>"; };
 		776DE075F6358E0E28C47B06 /* RecoveryIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryIndexingTests.swift; sourceTree = "<group>"; };
 		789BB736F6B7F975CF21E99B /* ModelDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDelivery.swift; sourceTree = "<group>"; };
@@ -322,6 +326,7 @@
 		A85570D9C6B9E304D2C6751A /* ExpectedDepthRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpectedDepthRendererTests.swift; sourceTree = "<group>"; };
 		A963BA826F108C2D675FAF21 /* RecoveryError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryError.swift; sourceTree = "<group>"; };
 		B0149A20B72674237C037580 /* VoiceCommandGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandGrammar.swift; sourceTree = "<group>"; };
+		B17766E91C2E178305E1E30F /* ColourTermJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourTermJudge.swift; sourceTree = "<group>"; };
 		B18C9BE053B07AB788E2FEF5 /* RecoveryModelManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryModelManagerTests.swift; sourceTree = "<group>"; };
 		B25E09395EE9E36968E58955 /* GeometrySignposts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometrySignposts.swift; sourceTree = "<group>"; };
 		B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometricStepVerifier.swift; sourceTree = "<group>"; };
@@ -445,6 +450,7 @@
 				2E0831737748DC2485157FA3 /* ColourAgreementTermTests.swift */,
 				DF4053022D550F95E882465C /* ColourGridSamplerTests.swift */,
 				08D9C72856B10519233940E4 /* ColourTableTests.swift */,
+				71E988815B76E8CDA0B5F19F /* ColourTermJudgeTests.swift */,
 				EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */,
 				DD13BE9532B211CFB0955EDC /* CrossStepRepairPlannerTests.swift */,
 				78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */,
@@ -549,6 +555,7 @@
 				01420896416AF40884BF4303 /* CheckCropGeometry.swift */,
 				3F9FA213F7E985EEA87CB1BB /* ColourAgreementTerm.swift */,
 				4EF9A85C00E6125B24169E24 /* ColourTable.swift */,
+				B17766E91C2E178305E1E30F /* ColourTermJudge.swift */,
 				B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */,
 				DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */,
 				646D32CA366AA8F1AED59311 /* SceneColourCalibration.swift */,
@@ -926,6 +933,7 @@
 				80FE524EF8980879BB83D865 /* ChallengeScenario.swift in Sources */,
 				CE023A53F21490265CC44002 /* ColourAgreementTerm.swift in Sources */,
 				4E11F8DC3C7B1B1B75246230 /* ColourTable.swift in Sources */,
+				DCEA4325349A2D2C43263C3B /* ColourTermJudge.swift in Sources */,
 				573456A02802F59C7B9D9143 /* CrossStepRepairPlanner.swift in Sources */,
 				C7970EE302CD3BF1B1FD2D24 /* DepthICPTracker.swift in Sources */,
 				860519B0C6B7C728F89239F9 /* ExpectedDepthRenderer.swift in Sources */,
@@ -978,6 +986,7 @@
 				1CFE2C0652A026BBFD9B9EF6 /* ColourAgreementTermTests.swift in Sources */,
 				90879D161883926A2B768D0B /* ColourGridSamplerTests.swift in Sources */,
 				9B8E7A61140A188D8CD22321 /* ColourTableTests.swift in Sources */,
+				084D0B13E5632C69057B21D6 /* ColourTermJudgeTests.swift in Sources */,
 				EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */,
 				AE8D951BDEE6C5BE09431FF7 /* CrossStepRepairPlannerTests.swift in Sources */,
 				436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */,
@@ -1046,6 +1055,7 @@
 				BB4F45C7A001264D0A04C184 /* ColourAgreementTerm.swift in Sources */,
 				60E3AE1BCB993499ED297BBE /* ColourGridSampler.swift in Sources */,
 				2551AD142FD09F3F893F9A58 /* ColourTable.swift in Sources */,
+				33D08BC8E905730F181BA923 /* ColourTermJudge.swift in Sources */,
 				A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */,
 				24FC629139DC3A7503590BED /* ContentView.swift in Sources */,
 				AB76418E2FD975CCA95115A7 /* CrossStepRepairPlanner.swift in Sources */,

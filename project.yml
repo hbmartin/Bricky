@@ -116,6 +116,7 @@ targets:
       - Bricky/Services/Verification/ColourTable.swift
       - Bricky/Services/Verification/SceneColourCalibration.swift
       - Bricky/Services/Verification/ColourAgreementTerm.swift
+      - Bricky/Services/Verification/ColourTermJudge.swift
       - Bricky/Services/Repair/CameraRelativeDirection.swift
       - Bricky/Services/Repair/RepairPlanner.swift
       - Bricky/Services/Repair/CrossStepRepairPlanner.swift
@@ -183,6 +184,7 @@ targets:
       - BrickyTests/ColourTableTests.swift
       - BrickyTests/SceneColourCalibrationTests.swift
       - BrickyTests/ColourAgreementTermTests.swift
+      - BrickyTests/ColourTermJudgeTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:
