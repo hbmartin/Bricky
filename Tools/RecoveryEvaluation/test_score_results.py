@@ -714,6 +714,31 @@ class RecoveryScoringTests(unittest.TestCase):
             validate_rows([row])
 
 
+class ColourTermReportTests(unittest.TestCase):
+    @staticmethod
+    def window(expected: str, produced: str, **colour: object) -> dict[str, object]:
+        row = {"kind": "verification", "schema_version": 1, "fixture_id": "w", "expected_verdict": expected,
+               "produced_verdict": produced, "detectability": "marginal", "latency_ms": 40}
+        row.update(colour)
+        return row
+
+    def test_colour_counts_appear_only_with_colour_rows(self) -> None:
+        plain, _ = score_verification([self.window("complete", "uncertain")])
+        self.assertNotIn("colour_term", plain)
+        rows = [
+            self.window("complete", "complete", colour_term_mode="full", colour_status="agrees"),
+            self.window("incomplete", "incomplete", colour_term_mode="full", colour_status="disagrees"),
+            self.window("incomplete", "complete", colour_term_mode="full", colour_status="agrees"),
+            self.window("complete", "incomplete", colour_term_mode="full", colour_status="disagrees"),
+        ]
+        report, _ = score_verification(rows)
+        colour = report["colour_term"]
+        self.assertEqual(colour["modes"], ["full"])
+        self.assertEqual(colour["status_counts"], {"agrees": 2, "disagrees": 2})
+        self.assertEqual(colour["disagrees_on_expected_complete"], 1)
+        self.assertEqual(colour["agrees_on_negatives"], 1)
+
+
 class VLMCheckTests(unittest.TestCase):
     @staticmethod
     def check_row(expected: str, produced: str) -> dict[str, object]:

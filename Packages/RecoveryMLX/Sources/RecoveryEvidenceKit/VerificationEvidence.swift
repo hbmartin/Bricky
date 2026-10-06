@@ -340,12 +340,19 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
     /// replay reproduced it from the window's frames alone.
     public var deviceVerdict: String?
     public var matchesDevice: Bool?
+    /// Replays with `--colour-term` (M3.2): the mode the replay ran, the
+    /// colour term's status, and the model colour it saw when it disagreed.
+    /// Informational until ADR 0008's amendment is accepted.
+    public var colourTermMode: String?
+    public var colourStatus: String?
+    public var colourNearestCode: Int?
 
     public init(
         provenance: String, fixtureID: String, expectedVerdict: String, producedVerdict: String,
         detectability: String, latencyMilliseconds: Int, latencyScope: String, deviceModel: String,
         authoredModelID: String, stepIndex: Int, deltaPixels: Int, framesUsed: Int, windowTrigger: String,
-        staged: StagedVerificationDeclaration?, deviceVerdict: String? = nil, matchesDevice: Bool? = nil
+        staged: StagedVerificationDeclaration?, deviceVerdict: String? = nil, matchesDevice: Bool? = nil,
+        colourTermMode: String? = nil, colourStatus: String? = nil, colourNearestCode: Int? = nil
     ) {
         self.provenance = provenance
         self.fixtureID = fixtureID
@@ -369,6 +376,9 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
         expectedFailure = staged?.isExpectedFailure == true ? true : nil
         self.deviceVerdict = deviceVerdict
         self.matchesDevice = matchesDevice
+        self.colourTermMode = colourTermMode
+        self.colourStatus = colourStatus
+        self.colourNearestCode = colourNearestCode
     }
 
     enum CodingKeys: String, CodingKey {
@@ -396,6 +406,9 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
         case expectedFailure = "expected_failure"
         case deviceVerdict = "device_verdict"
         case matchesDevice = "matches_device"
+        case colourTermMode = "colour_term_mode"
+        case colourStatus = "colour_status"
+        case colourNearestCode = "colour_nearest_code"
     }
 }
 

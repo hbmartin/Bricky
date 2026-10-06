@@ -29,8 +29,11 @@ enum WindowReplay {
 
     static func run(
         bundle: URL, plan: InstructionPlan, sourceIdentity: String, geometry: PlacementGeometry,
-        renderer: ExpectedDepthRenderer, judge: Judge = .verifier
+        renderer: ExpectedDepthRenderer, judge: Judge = .verifier,
+        colourTerm: ColourTermMode? = nil, colourTable: ColourTable? = nil
     ) async throws -> (rows: [String], summary: Summary) {
+        // Off is the depth-only judge, as a run without the flag.
+        let colourMode = colourTerm == .off ? nil : colourTerm
         let reader = try EvidenceBundleReader(bundleDirectory: bundle)
         let issues = reader.validate()
         guard issues.isEmpty else {
@@ -54,9 +57,17 @@ enum WindowReplay {
                     continue
                 }
                 let verifier: any StepJudging
-                switch judge {
-                case .verifier: verifier = try GeometricStepVerifier(renderer: renderer)
-                case .diff: verifier = try BuildDiffEngine(renderer: renderer, policy: .placementAware)
+                switch (judge, colourMode, colourTable) {
+                case (.verifier, let mode?, let table?):
+                    verifier = try ColourTermJudge(mode: mode, table: table, renderer: renderer)
+                case (.diff, _?, let table?):
+                    var configuration = BuildDiffEngine.Configuration()
+                    configuration.colourTable = table
+                    verifier = try BuildDiffEngine(configuration: configuration, renderer: renderer, policy: .placementAware)
+                case (.verifier, _, _):
+                    verifier = try GeometricStepVerifier(renderer: renderer)
+                case (.diff, _, _):
+                    verifier = try BuildDiffEngine(renderer: renderer, policy: .placementAware)
                 }
                 await verifier.begin(stepID: step.id, geometry: StepGeometry(step: step, geometry: geometry))
                 let started = ContinuousClock.now
@@ -72,6 +83,10 @@ enum WindowReplay {
                 guard let result else { continue }
                 if let diff = verifier as? BuildDiffEngine, let placements = await diff.lastDiff?.observations {
                     print("window \(window.windowID.uuidString.prefix(8)): " + placements.map { "p\($0.placement)=\($0.state.name)" }.joined(separator: " "))
+                }
+                let colour = await (verifier as? ColourTermJudge)?.lastAssessment
+                if let colour {
+                    print("window \(window.windowID.uuidString.prefix(8)): colour \(colour.status.name), \(colour.framesCalibrated)/\(colour.framesWithColour) frames calibrated")
                 }
                 summary.replayed += 1
                 let produced = result.verdict.evidenceName
@@ -95,7 +110,13 @@ enum WindowReplay {
                     windowTrigger: window.trigger.rawValue,
                     staged: staged,
                     deviceVerdict: window.verdict,
-                    matchesDevice: matches
+                    matchesDevice: matches,
+                    colourTermMode: colourMode?.rawValue,
+                    colourStatus: colour?.status.name,
+                    colourNearestCode: colour.flatMap { assessment in
+                        if case .disagrees(let nearest) = assessment.status { return nearest }
+                        return nil
+                    }
                 )
                 rows.append(String(decoding: try encoder.encode(row), as: UTF8.self))
             }

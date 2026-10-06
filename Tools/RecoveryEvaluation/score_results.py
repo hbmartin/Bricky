@@ -677,6 +677,9 @@ def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         "median_latency_ms": statistics.median(latencies) if latencies else None,
         "cases": len(rows),
     }
+    colour = colour_term_report(rows)
+    if colour is not None:
+        report["colour_term"] = colour
     gates += [
         # A "complete" on a delta depth cannot see is never earned evidence.
         count_gate(
@@ -700,6 +703,32 @@ def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         median_gate("verification.median_latency_ms", latencies, VERIFICATION_MEDIAN_MS),
     ]
     return report, gates
+
+
+def colour_term_report(rows: list[dict[str, object]]) -> dict[str, object] | None:
+    """Informational only (ADR 0008 amendment, Proposed): how the colour term
+    read replayed windows. Present only when rows carry it, so reports from
+    runs without colour are unchanged. Its thresholds are RECONSTRUCTED; these
+    counts are what Phase 1 tunes them on, never a gate."""
+    coloured = [row for row in rows if row.get("colour_status") is not None]
+    if not coloured:
+        return None
+    statuses: dict[str, int] = {}
+    for row in coloured:
+        statuses[str(row["colour_status"])] = statuses.get(str(row["colour_status"]), 0) + 1
+    return {
+        "modes": sorted({str(row.get("colour_term_mode")) for row in coloured}),
+        "cases": len(coloured),
+        "status_counts": dict(sorted(statuses.items())),
+        # Disagreeing with a built step would block a true complete.
+        "disagrees_on_expected_complete": sum(
+            row["colour_status"] == "disagrees" and row["expected_verdict"] == "complete" for row in coloured
+        ),
+        # Agreeing on a negative would corroborate a false complete.
+        "agrees_on_negatives": sum(
+            row["colour_status"] == "agrees" and row["expected_verdict"] != "complete" for row in coloured
+        ),
+    }
 
 
 # --- Registration (kind == "registration") -----------------------------------

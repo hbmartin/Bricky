@@ -274,7 +274,12 @@ Its fields are:
   release taxonomy.
 
 SyntheticRGBD `--replay-bundle` writes the same row with `provenance: replay`,
-`device_verdict` and `matches_device`.
+`device_verdict` and `matches_device`. With `--colour-term
+shadow|block|full` (M3.2, ADR 0008 amendment, Proposed) it judges each
+window with that colour mode and adds `colour_term_mode`, `colour_status`
+and, on a disagreement, `colour_nearest_code`. The scorer reports these as
+an informational `colour_term` block, and `compare_arms.py --primary
+verification_correct` pairs two modes' rows by window.
 
 ## `check.ndjson` — VLMCheckRowV1
 
