@@ -87,7 +87,9 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         )
     }
 
-    func recordCaptures(_ captures: [RecoveryCapture]) {
+    /// - Parameter worldFromModel: the registered model pose the captures
+    ///   were taken under, when one was locked (AR photo checks).
+    func recordCaptures(_ captures: [RecoveryCapture], worldFromModel: simd_float4x4? = nil) {
         perform("record captures") {
             try ensureStarted()
             for capture in captures {
@@ -98,7 +100,7 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 try? FileManager.default.removeItem(at: destination)
                 try FileManager.default.copyItem(at: source, to: destination)
             }
-            session.captures = captures.map(EvidenceCaptureRecord.init)
+            session.captures = captures.map { EvidenceCaptureRecord($0, worldFromModel: worldFromModel) }
             try writeSessionFile()
         }
     }
@@ -114,7 +116,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         prompt: String,
         trace: MLXGenerationTrace,
         variant: RecoveryInferenceVariant = .baseline,
-        alternateTiles: [CheckTarget: Data] = [:]
+        alternateTiles: [CheckTarget: Data] = [:],
+        checkGeometry: CheckGeometryRecord? = nil
     ) async {
         let conditions = await DeviceConditionsProbe.snapshot()
         perform("record \(pass.rawValue) pass") {
@@ -172,7 +175,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 conditions: conditions,
                 readouts: trace.readouts,
                 probe: trace.probe,
-                alternateTileRelativePaths: alternatePaths.isEmpty ? nil : alternatePaths
+                alternateTileRelativePaths: alternatePaths.isEmpty ? nil : alternatePaths,
+                checkGeometry: checkGeometry
             )
             try appendTraceRow(row)
         }

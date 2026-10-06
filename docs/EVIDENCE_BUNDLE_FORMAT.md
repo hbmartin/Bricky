@@ -105,7 +105,10 @@ Mutable over the session's life:
   `capture_id`, `image_relative_path`, `camera_transform` (16 floats,
   column-major 4×4), `camera_intrinsics` (9 floats, column-major 3×3),
   `camera_image_resolution` ([w, h]), `alignment_id`, `angle`,
-  `captured_at`.
+  `captured_at`, and optional `world_from_model` (16 floats, column-major
+  4×4, the same layout as `camera_transform`): the locked registration's
+  model pose, recorded only for AR photo checks (ADR 0007 amendment 3).
+  Verification-window poses are row-major; this one is not.
 - `staged` — nullable `StagedFixtureDeclaration`:
   `expected_completed_count` (0 = not started), `lighting`
   (`bright`/`dim`/`mixed`), `occlusion` (`none`/`partial`/`heavy`),
@@ -340,6 +343,7 @@ interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift
 | session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
 | trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`. Absent axes decode to the baseline |
 | trace (checks) | `alternate_tile_relative_paths` | the target rendered from the check target the call did not use (`guide_camera` or `registered` → tile path). Written only with evidence on, and only when that target could be rendered: `registered` needs the AR guide's locked pose |
+| trace (AR checks) | `check_geometry` | where the step's delta fell in the photo (added 2026-10-06, ADR 0007 amendment 3): `coordinate_space` (`upright_capture_normalized`: origin top-left of the upright stored photo, x right, y down, 0–1), `delta_box` (`x`, `y`, `width`, `height`; null when no delta pixel is visible), `delta_pixels`, `grid_width`, `grid_height` (the landscape render grid). Rendered on device from the photo's camera under the locked pose, after inference, with evidence on. The Mac cannot recompute it: bundles carry no instruction model |
 | trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |
 | trace | `conditions` | `DeviceConditions` at the call |
 | trace | `readouts` | per small-legal-set decision: position, chosen token, legal candidates with masked-softmax probabilities |

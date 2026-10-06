@@ -78,6 +78,51 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         ))
     }
 
+    func testCaptureRecordsTheLockedModelPoseAndCheckGeometry() async throws {
+        let recorder = makeRecorder()
+        let capture = try makeCapture()
+        var pose = matrix_identity_float4x4
+        pose.columns.3 = SIMD4(0.1, -0.2, -0.45, 1)
+        await recorder.recordCaptures([capture], worldFromModel: pose)
+        let board = root.appendingPathComponent("board.jpg")
+        try Data("jpeg-bytes".utf8).write(to: board)
+        let geometry = CheckGeometryRecord(
+            deltaBox: .init(x: 0.25, y: 0.5, width: 0.125, height: 0.25), deltaPixels: 42, gridWidth: 256, gridHeight: 192
+        )
+        await recorder.recordPass(
+            pass: .check, passIndex: 0, capture: capture,
+            candidates: [.init(slot: "A", stepIndex: 0, stepID: "m#1", jpegData: Data("tile".utf8))],
+            boardURL: board, prompt: "check prompt", trace: makeTrace(), checkGeometry: geometry
+        )
+        await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let session = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("session.json"))
+        )
+        // Column-major, the same layout as camera_transform: the translation
+        // is the last four floats.
+        let recorded = try XCTUnwrap(session.captures.first?.worldFromModel)
+        XCTAssertEqual(Array(recorded[12..<16]), [0.1, -0.2, -0.45, 1])
+        XCTAssertEqual(try loadTraceRows(sessionDirectory: sessionDirectory).first?.checkGeometry, geometry)
+
+        // Captures recorded without a lock carry no pose.
+        let unlocked = makeRecorder()
+        await unlocked.recordCaptures([try makeCapture()])
+        await unlocked.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+        let unlockedSession = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(unlocked.sessionID.uuidString)
+                .appendingPathComponent("session.json"))
+        )
+        XCTAssertNil(unlockedSession.captures.first?.worldFromModel)
+    }
+
     func testTraceRowsUseSnakeCaseKeys() async throws {
         let recorder = makeRecorder()
         let board = root.appendingPathComponent("board.jpg")

@@ -127,3 +127,28 @@ recognised as an occluder later.
 fresh verifier sees only the window's frames, while the device's had been
 accumulating since the step began, so disagreement with the device's verdict
 is reported, not treated as a defect.
+
+## Amendment 3 (2026-10-06): photo-check pose and delta box
+
+With evidence on, an AR Photo Check now records two more things:
+
+- **The model pose.** The session's capture record gains
+  `world_from_model`: the locked registration's model pose at the moment of
+  the photo, column-major like `camera_transform`.
+- **Where the delta fell.** The check's trace row gains `check_geometry`.
+  After inference, the app renders the completed build and the step's
+  additions from the photo's own camera under that pose. It records the box
+  around the visible delta, normalized to the upright stored photo, and its
+  pixel count. Nothing is asked of a model: geometry places the box.
+
+**Why.** The Foundation Models shadow test (Phase 3, ADR 0018) uses the
+pattern "locate with geometry, crop, ask a closed question". A Mac replay
+cannot locate anything: bundles never carry the instruction model or the
+part pack, so the delta cannot be re-rendered off the device. Recording the
+box on device is the only way a replay can crop.
+
+**Exposure.** A pose and four numbers per check, describing the user's own
+build. No new image is recorded. Consent and egress are unchanged: the same
+off-by-default developer toggle gates recording, and the manual share-sheet
+export remains the only way anything leaves the device. The Check Step
+screen has no registration, so its checks carry neither field.

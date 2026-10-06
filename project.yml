@@ -175,6 +175,7 @@ targets:
       - BrickyTests/InferenceArmSchedulerTests.swift
       - BrickyTests/PhotoCheckControllerTests.swift
       - BrickyTests/VLMStepCheckServiceTests.swift
+      - BrickyTests/CheckCropGeometryTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
     dependencies:

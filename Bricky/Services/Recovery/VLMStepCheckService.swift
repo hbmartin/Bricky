@@ -1,5 +1,6 @@
 import Foundation
 import RecoveryMLX
+import simd
 import UIKit
 
 /// The on-device VLM step check, shared by the Check Step screen and the AR
@@ -22,6 +23,9 @@ struct VLMStepCheckService {
         let boardJPEG: Data
         /// The variant that actually ran; its check target is the one used.
         let variant: RecoveryInferenceVariant
+        /// Where the step's delta fell in the photo. Measured only for AR
+        /// checks with evidence on, after inference.
+        var checkGeometry: CheckGeometryRecord? = nil
     }
 
     let runtime: MLXRecoveryRuntime
@@ -44,7 +48,7 @@ struct VLMStepCheckService {
         step: AuthoredStep,
         registered: ARAlignment?
     ) async throws -> Outcome {
-        await recorder?.recordCaptures([capture])
+        await recorder?.recordCaptures([capture], worldFromModel: registered?.transform)
         let target = Self.resolvedTarget(requested: variant.checkTarget, registeredAvailable: registered != nil)
         var used = variant
         used.checkTarget = target
@@ -69,6 +73,7 @@ struct VLMStepCheckService {
             scoring: used.scoring,
             imageSide: used.imageSide
         )
+        var checkGeometry: CheckGeometryRecord?
         if let recorder {
             // Rendered after inference so it never shares the GPU with the
             // model, and best-effort: a failed alternate costs the A/B one
@@ -79,6 +84,12 @@ struct VLMStepCheckService {
                    let data = rendered.jpegData(compressionQuality: 0.9) {
                     alternates[other] = data
                 }
+            }
+            // Same rules: after inference, best-effort, evidence only.
+            if let registered {
+                checkGeometry = try? await Self.checkGeometry(
+                    capture: capture, plan: plan, step: step, alignment: registered, partPackRoot: partPackRoot
+                )
             }
             // Runs before the defer removes the board, so the recorder can
             // copy the exact image the model saw.
@@ -96,15 +107,55 @@ struct VLMStepCheckService {
                 prompt: prompt,
                 trace: response.trace,
                 variant: used,
-                alternateTiles: alternates
+                alternateTiles: alternates,
+                checkGeometry: checkGeometry
             )
         }
         guard let output = response.output else { throw MLXRecoveryError.invalidStructuredOutput }
         return Outcome(
             result: StepCheckResult(rawValue: output.result) ?? .uncertain,
             boardJPEG: boardJPEG,
-            variant: used
+            variant: used,
+            checkGeometry: checkGeometry
         )
+    }
+
+    /// Renders the completed build and this step's delta from the photo's
+    /// camera under the locked registration, and records where the delta
+    /// is visible. Nil when the capture lacks camera metadata.
+    static func checkGeometry(
+        capture: RecoveryCapture,
+        plan: InstructionPlan,
+        step: AuthoredStep,
+        alignment: ARAlignment,
+        partPackRoot: URL
+    ) async throws -> CheckGeometryRecord? {
+        guard let worldFromCamera = CheckCropGeometry.matrix(columnMajor: capture.cameraTransform),
+              let grid = CheckCropGeometry.grid(
+                  cameraIntrinsics: capture.cameraIntrinsics, imageResolution: capture.cameraImageResolution
+              ),
+              let rotation = CheckCropGeometry.UprightRotation(
+                  RecoveryFrameConvention.uprightRotation(cameraTransform: worldFromCamera)
+              ) else { return nil }
+        // The same source root the AR guide uses, so the cached flatten hits.
+        let source = try InstructionModelImporter.applicationSupportRoot()
+            .appendingPathComponent("Models/\(plan.sourceSHA256)/Source")
+        let geometry = try await PlacementGeometryStore.shared.geometry(
+            for: plan, sourceRoot: source, partPackRoot: partPackRoot
+        )
+        let stepGeometry = StepGeometry(step: step, geometry: geometry)
+        let renderer = try ExpectedDepthRenderer.shared()
+        let viewFromModel = worldFromCamera.inverse * alignment.transform
+        let maps = try await renderer.render(
+            [
+                DepthRenderRequest(geometry: renderer.prepare(stepGeometry.completedSnapshot), viewFromModel: viewFromModel),
+                DepthRenderRequest(geometry: renderer.prepare(stepGeometry.deltaSnapshot), viewFromModel: viewFromModel)
+            ],
+            intrinsics: grid.intrinsics,
+            width: grid.width,
+            height: grid.height
+        )
+        return CheckCropGeometry.record(completed: maps[0].depth, delta: maps[1].depth, grid: grid, rotation: rotation)
     }
 
     private func render(
@@ -163,5 +214,19 @@ struct VLMStepCheckService {
             confirmedCompletedCount: step.index,
             confirmedAt: date
         )
+    }
+}
+
+extension CheckCropGeometry.UprightRotation {
+    /// The capture's upright rotation; nil for the mirrored orientations,
+    /// which `RecoveryFrameConvention` never returns.
+    init?(_ orientation: CGImagePropertyOrientation) {
+        switch orientation {
+        case .up: self = .up
+        case .down: self = .down
+        case .left: self = .left
+        case .right: self = .right
+        default: return nil
+        }
     }
 }

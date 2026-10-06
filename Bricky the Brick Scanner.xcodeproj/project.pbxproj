@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00F1D1DAB5C9DCB015D9449A /* VerifiedAssetDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD34A2F274065839015D22E /* VerifiedAssetDownloader.swift */; };
 		053FCDA7F00582AC6F070AD2 /* RecoveryEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3DA135D9D3F91D1E093A65 /* RecoveryEvidence.swift */; };
+		054CE3893331CC3A0B8B269B /* CheckCropGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A69B31C3BE6403EA3FD662D /* CheckCropGeometryTests.swift */; };
 		05A6361B5E4D445697B297C6 /* ModelSurfaceSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */; };
 		06020041E977D2A826879C9B /* ARGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */; };
 		07E1DCD29DA56FE27B5DFA5A /* PartDescriptionIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */; };
@@ -50,6 +51,7 @@
 		40CA5ECF1AB42C5A98E282CC /* RecoveryError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A963BA826F108C2D675FAF21 /* RecoveryError.swift */; };
 		4306F6AD9E09726F6969B388 /* RegistrationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9891FC28298A60A802423EF9 /* RegistrationController.swift */; };
 		436559C5466A8C41746D9B78 /* DepthICPTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D17D8477E45850FA1411DF /* DepthICPTrackerTests.swift */; };
+		43F46F8AD08B1F6B0AC6541E /* CheckCropGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01420896416AF40884BF4303 /* CheckCropGeometry.swift */; };
 		4754FDEC53134BF25F140095 /* VoiceCommandService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E758B5E59D009A8C2CCBD1 /* VoiceCommandService.swift */; };
 		47771ACC5564C0CF1A409814 /* GeometricRecoveryEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91AB303489EDF77D2BA230AC /* GeometricRecoveryEstimatorTests.swift */; };
 		493E1A7B4B78DDC07938C902 /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */; };
@@ -214,6 +216,7 @@
 
 /* Begin PBXFileReference section */
 		012A32F283FD29E63763912A /* RecoveryEvidenceSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceSweepTests.swift; sourceTree = "<group>"; };
+		01420896416AF40884BF4303 /* CheckCropGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckCropGeometry.swift; sourceTree = "<group>"; };
 		05743035E70D88A405DCEE91 /* SwiftParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftParityTests.swift; sourceTree = "<group>"; };
 		0739C138CFE0AC2296896C79 /* ARActivityClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARActivityClock.swift; sourceTree = "<group>"; };
 		0A0119F360F3125105431438 /* VerificationDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationDomain.swift; sourceTree = "<group>"; };
@@ -239,6 +242,7 @@
 		42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSamplerTests.swift; sourceTree = "<group>"; };
 		42FF9EE0A3BFBCADA241890F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorder.swift; sourceTree = "<group>"; };
+		4A69B31C3BE6403EA3FD662D /* CheckCropGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckCropGeometryTests.swift; sourceTree = "<group>"; };
 		4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticScene.swift; sourceTree = "<group>"; };
 		4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAndAttributionView.swift; sourceTree = "<group>"; };
 		4D6DFEE568E000231D2197B5 /* InferenceArmScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceArmScheduler.swift; sourceTree = "<group>"; };
@@ -419,6 +423,7 @@
 				B64D5192D964260754B754E0 /* ARActivityClockTests.swift */,
 				A4A8172F43A97EE6589DFE0A /* BackgroundURLSessionDeliveryTests.swift */,
 				3D7BEA1AF8BDE0EEE1DB558C /* BuildSessionControllerTests.swift */,
+				4A69B31C3BE6403EA3FD662D /* CheckCropGeometryTests.swift */,
 				5542A935AD480EE56418A2FF /* ClaudeVisionProviderTests.swift */,
 				DF4053022D550F95E882465C /* ColourGridSamplerTests.swift */,
 				EFC5C5334BE47ACB4B59BC97 /* CompositeRecoveryEstimatorTests.swift */,
@@ -520,6 +525,7 @@
 			isa = PBXGroup;
 			children = (
 				3D9C07CC11857DAD082E51AC /* BuildDiffEngine.swift */,
+				01420896416AF40884BF4303 /* CheckCropGeometry.swift */,
 				B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */,
 				DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */,
 				FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */,
@@ -939,6 +945,7 @@
 				674C28190918AF3B7E79E3A3 /* AdvancePolicyTests.swift in Sources */,
 				1D6FC09DB200353DFEEEAC57 /* BackgroundURLSessionDeliveryTests.swift in Sources */,
 				1C0634CD58489B3AFF5A450E /* BuildSessionControllerTests.swift in Sources */,
+				054CE3893331CC3A0B8B269B /* CheckCropGeometryTests.swift in Sources */,
 				C74DA129F608049AC49DD8B4 /* ClaudeVisionProviderTests.swift in Sources */,
 				90879D161883926A2B768D0B /* ColourGridSamplerTests.swift in Sources */,
 				EE346D3C99713BE45A64608A /* CompositeRecoveryEstimatorTests.swift in Sources */,
@@ -1001,6 +1008,7 @@
 				796305B1AAA9297D24D21A9A /* BuildDiffEngine.swift in Sources */,
 				FDD7C529C1461DF54478C1E1 /* BuildSessionController.swift in Sources */,
 				2D3348938B0DEB81054DC9F1 /* CameraRelativeDirection.swift in Sources */,
+				43F46F8AD08B1F6B0AC6541E /* CheckCropGeometry.swift in Sources */,
 				F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */,
 				E592BE33B71306FF60CC35D9 /* CloudAssistKeyStore.swift in Sources */,
 				59F81D7083CD030D0EFFE430 /* CloudVisionProvider.swift in Sources */,
