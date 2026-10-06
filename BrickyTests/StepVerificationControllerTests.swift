@@ -125,25 +125,29 @@ final class StepVerificationControllerTests: XCTestCase {
         return controller
     }
 
+    /// Polls until `condition` holds or five seconds pass. A fixed number of
+    /// yields ran out on slow CI runners, so a frame the test was waiting on
+    /// was replaced by the next one before it was judged.
+    private func eventually(_ condition: () async -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !(await condition()), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+    }
+
     /// Lets the worker run until the verifier has seen `count` frames.
     private func waitForIngests(_ verifier: GatedVerifier, count: Int) async {
-        for _ in 0..<1_000 where await verifier.ingested.count < count {
-            await Task.yield()
-        }
+        await eventually { await verifier.ingested.count >= count }
     }
 
     /// Submits a frame and waits until the controller has published it.
     private func judge(_ controller: StepVerificationController, at timestamp: TimeInterval) async {
         controller.submit(frame: frame(at: timestamp), registration: registration)
-        for _ in 0..<1_000 where controller.verification?.timestamp != timestamp {
-            await Task.yield()
-        }
+        await eventually { controller.verification?.timestamp == timestamp }
     }
 
     private func windows(_ collector: WindowCollector, count: Int) async -> [VerificationWindowCapture] {
-        for _ in 0..<1_000 where await collector.windows.count < count {
-            await Task.yield()
-        }
+        await eventually { await collector.windows.count >= count }
         return await collector.windows
     }
 
@@ -206,9 +210,7 @@ final class StepVerificationControllerTests: XCTestCase {
     }
 
     private func shadowIngests(_ shadow: ShadowFake, count: Int) async -> [TimeInterval] {
-        for _ in 0..<1_000 where await shadow.ingested.count < count {
-            await Task.yield()
-        }
+        await eventually { await shadow.ingested.count >= count }
         return await shadow.ingested
     }
 
@@ -217,7 +219,7 @@ final class StepVerificationControllerTests: XCTestCase {
         let controller = await shadowed(shadow)
         await judge(controller, at: 1.0)
         _ = await shadowIngests(shadow, count: 1)
-        for _ in 0..<100 where controller.lastShadowVerdict == nil { await Task.yield() }
+        await eventually { controller.lastShadowVerdict != nil }
         XCTAssertEqual(controller.verification?.verdict, .complete, "the user sees the verifier, never the shadow")
         XCTAssertEqual(controller.lastShadowVerdict?.verdict, .incomplete)
         XCTAssertNotNil(controller.lastShadowDiff)
