@@ -76,12 +76,13 @@ struct SyntheticRGBDMain {
         /// Prints colour-order vs timeline-order render differences per step
         /// and exits (M2.0 diagnostic).
         var checkRenderOrder = false
+        var checkTagRender = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order] [--check-tag-render]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -90,6 +91,11 @@ struct SyntheticRGBDMain {
             let flag = arguments[index]
             if flag == "--check-render-order" {
                 options.checkRenderOrder = true
+                index += 1
+                continue
+            }
+            if flag == "--check-tag-render" {
+                options.checkTagRender = true
                 index += 1
                 continue
             }
@@ -158,6 +164,10 @@ struct SyntheticRGBDMain {
         let renderer = try ExpectedDepthRenderer()
         if options.checkRenderOrder {
             try await RenderOrderCheck.run(plan: plan, engine: engine, renderer: renderer)
+            return
+        }
+        if options.checkTagRender {
+            try await TagRenderCheck.run(plan: plan, engine: engine, renderer: renderer)
             return
         }
         if let bundle = options.replayBundle {

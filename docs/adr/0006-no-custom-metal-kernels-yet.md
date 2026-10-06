@@ -40,6 +40,14 @@ into it directly. This is still the same render pipeline. The
 placement-ID attachment, the peel pass and instanced hypothesis draws
 (M2.1) remain the amendment to come, gated on the device verifier trace.
 
+Note, 2026-10-06: the renderer has a second, ordinary vertex/fragment
+pipeline, the colour tag pass (M3.1). It projects exactly as the depth pass
+does and writes each surface's LDraw colour code + 1 to an R32Uint target,
+from a per-vertex tag buffer. It compiles from its own source into its own
+library, so the depth shader, its pipeline and its maps are unchanged; a
+batch may mix depth and tag passes, and its depth maps stay bit-identical
+to depth alone (CI's `--check-tag-render`). Still no compute kernel.
+
 ## Consequences
 
 The `apple-metal-tensorops` review does not cause speculative kernel work. The

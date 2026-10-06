@@ -45,6 +45,7 @@
 		37A85FEF359A09F1AD6BCCDB /* StepVerificationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B73BA67D8C2B7D09A5AD136 /* StepVerificationControllerTests.swift */; };
 		37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */; };
 		387935CAFEDCB161503ED44B /* VLMStepCheckService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7905762DAE8B79A6E95EDE5 /* VLMStepCheckService.swift */; };
+		3C53C4212AC8562D0CC9A1B0 /* TagRenderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154274B40728D547EBC06DE3 /* TagRenderCheck.swift */; };
 		3D9FE5C5BA94A1C65FD67C46 /* RecoveryEvidenceRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2176FBCE36D372EB0A3020C /* RecoveryEvidenceRecorderTests.swift */; };
 		3EA3E6B538AB252790E57BEB /* SegmentedGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59C150279D554E993FD1F3A /* SegmentedGeometryTests.swift */; };
 		3FC0F0CDA8C903029A2A10AB /* PlacementGeometryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E44DAFAB62FF105D6736AE9 /* PlacementGeometryIndex.swift */; };
@@ -223,6 +224,7 @@
 		0A7255416EAA67E75793A6A9 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		0C237B2E908EC68999D4995F /* DeviceConditionsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConditionsProbe.swift; sourceTree = "<group>"; };
 		0F8380712AB853B0D3B8DEE7 /* PlacementGeometryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStoreTests.swift; sourceTree = "<group>"; };
+		154274B40728D547EBC06DE3 /* TagRenderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagRenderCheck.swift; sourceTree = "<group>"; };
 		16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStore.swift; sourceTree = "<group>"; };
 		17A88BC5946D30CDACA646CE /* AdvancePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancePolicy.swift; sourceTree = "<group>"; };
 		18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSampler.swift; sourceTree = "<group>"; };
@@ -515,6 +517,7 @@
 				F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
 				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
+				154274B40728D547EBC06DE3 /* TagRenderCheck.swift */,
 				5E5EA1EFFD9AB9F835837462 /* WindowReplay.swift */,
 			);
 			name = SyntheticScenes;
@@ -931,6 +934,7 @@
 				52BE7D12B49EA96661D09A29 /* SuggestedPlacementEstimator.swift in Sources */,
 				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
 				7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */,
+				3C53C4212AC8562D0CC9A1B0 /* TagRenderCheck.swift in Sources */,
 				A4E421D3C410671D3D2B696E /* VerificationDomain.swift in Sources */,
 				F9CD6433176BD57E93572C24 /* VerificationEvidenceReplay.swift in Sources */,
 				D321BD8AD9CCC19A470C60F2 /* WindowReplay.swift in Sources */,
