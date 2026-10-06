@@ -414,11 +414,13 @@ struct ARGuideView: View {
     }
 
     /// With evidence on, records verification windows for this visit and
-    /// asks the relay for the colour and occluder channels they keep.
+    /// asks the relay for the colour and occluder channels they keep. The
+    /// colour term (M3.2) needs the colour plane even with evidence off
+    /// (ADR 0007 amendment 3).
     private func startVerificationEvidence() {
         guard evidenceCaptureEnabled, verificationRecorder == nil,
               let recorder = makePhotoCheckRecorder(staged: nil) else {
-            camera.registrationRelay.setAuxiliaryChannels([])
+            camera.registrationRelay.setAuxiliaryChannels(verification.colourTermMode == .off ? [] : [.colour])
             return
         }
         verificationRecorder = recorder

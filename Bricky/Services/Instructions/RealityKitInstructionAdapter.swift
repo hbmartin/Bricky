@@ -75,6 +75,9 @@ enum LDrawPalette {
         installed = definitions
     }
 
+    /// The installed palette, for the RGB term's colour table (M3.2).
+    static var installedDefinitions: [Int: LDrawColorDefinition] { installed }
+
     static func definition(_ code: Int) -> LDrawColorDefinition? {
         guard code < directColorThreshold else { return nil }
         return installed[code]

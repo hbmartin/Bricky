@@ -47,6 +47,9 @@ struct VerificationWindowCapture: Sendable {
     /// The shadow build diff when it closed, if one ran (M2.3).
     var shadowDiff: BuildDiff? = nil
     var shadowVerdict: StepVerification? = nil
+    /// The colour term's mode and reading, when it ran (M3.2).
+    var colourTermMode: ColourTermMode? = nil
+    var colourAssessment: ColourAssessment? = nil
 }
 
 /// Where the verification controller sends windows; the evidence recorder

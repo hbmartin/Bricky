@@ -152,3 +152,18 @@ build. No new image is recorded. Consent and egress are unchanged: the same
 off-by-default developer toggle gates recording, and the manual share-sheet
 export remains the only way anything leaves the device. The Check Step
 screen has no registration, so its checks carry neither field.
+
+**The colour plane feeds the colour term (added with C8, 2026-10-06).**
+Amendment 2 said neither auxiliary channel feeds any verdict. That changes
+for the colour plane only, and only behind a developer setting:
+- **The term.** The RGB term (ADR 0008 amendment, Proposed) reads it. Off
+  by default; in Shadow it only records, and in Block only it may take a
+  `complete` away.
+- **When it is extracted.** When the term is on, the relay extracts the
+  colour plane even with evidence capture off, so the term can run.
+- **Where it goes.** The plane stays in memory for the visit and is written
+  nowhere unless evidence capture is also on. It never leaves the device
+  except in a manually exported bundle.
+- **The mask.** The occluder mask is still recorded only.
+- **Cost.** Relay extraction p95 with evidence off is a Phase 1 check
+  (`NEXT_STEPS_AND_FOLLOWUP.md` §1a).

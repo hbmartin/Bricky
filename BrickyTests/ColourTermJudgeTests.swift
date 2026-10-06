@@ -91,8 +91,13 @@ final class ColourTermJudgeTests: XCTestCase {
         )
     }
 
+    /// One renderer for every scene and judge here: building one per frame
+    /// (a device, a queue and two shader compiles each) exhausted the
+    /// simulator's test host.
+    private static let sharedRenderer = Result { try ExpectedDepthRenderer() }
+
     private func makeRenderer() throws -> ExpectedDepthRenderer {
-        do { return try ExpectedDepthRenderer() } catch { throw XCTSkip("Metal unavailable in this test environment") }
+        do { return try Self.sharedRenderer.get() } catch { throw XCTSkip("Metal unavailable in this test environment") }
     }
 
     /// Depth from `depthScene`; colour painted from a tag render of

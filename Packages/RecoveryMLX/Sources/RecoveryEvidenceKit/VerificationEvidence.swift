@@ -42,12 +42,16 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
     public var completeFraction: Float
     public var incompleteFraction: Float
     public var staged: StagedVerificationDeclaration?
+    /// The colour term's reading when the window closed, when it ran
+    /// (M3.2, ADR 0007 amendment 3). The verdict above already reflects its
+    /// mode: unchanged in shadow, possibly blocked in block only.
+    public var colourTerm: ColourTermRecord?
 
     public init(
         windowID: UUID, sessionID: UUID, stepID: String, stepIndex: Int, trigger: Trigger, createdAt: Date,
         frames: [VerificationWindowFrame], verdict: String, offsetStuds: [Int]?, uncertainReason: String?,
         detectability: String, deltaPixels: Int, framesUsed: Int, completeFraction: Float,
-        incompleteFraction: Float, staged: StagedVerificationDeclaration?
+        incompleteFraction: Float, staged: StagedVerificationDeclaration?, colourTerm: ColourTermRecord? = nil
     ) {
         self.windowID = windowID
         self.sessionID = sessionID
@@ -65,6 +69,7 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         self.completeFraction = completeFraction
         self.incompleteFraction = incompleteFraction
         self.staged = staged
+        self.colourTerm = colourTerm
     }
 
     enum CodingKeys: String, CodingKey {
@@ -85,6 +90,65 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         case completeFraction = "complete_fraction"
         case incompleteFraction = "incomplete_fraction"
         case staged
+        case colourTerm = "colour_term"
+    }
+}
+
+/// The colour term's reading of a step (ADR 0008 amendment, Proposed): its
+/// mode, overall status (`agrees`, `disagrees`, `inconclusive_<reason>`),
+/// and the evidence per authored colour, distances in Oklab.
+public struct ColourTermRecord: Codable, Sendable, Equatable {
+    public struct Group: Codable, Sendable, Equatable {
+        public var code: Int
+        public var status: String
+        public var pixels: Int
+        public var frames: Int
+        public var authoredDistance: Float?
+        public var nearestCode: Int?
+        public var nearestDistance: Float?
+        public var beneathCode: Int?
+
+        public init(
+            code: Int, status: String, pixels: Int, frames: Int, authoredDistance: Float?, nearestCode: Int?,
+            nearestDistance: Float?, beneathCode: Int?
+        ) {
+            self.code = code
+            self.status = status
+            self.pixels = pixels
+            self.frames = frames
+            self.authoredDistance = authoredDistance
+            self.nearestCode = nearestCode
+            self.nearestDistance = nearestDistance
+            self.beneathCode = beneathCode
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case code, status, pixels, frames
+            case authoredDistance = "authored_distance"
+            case nearestCode = "nearest_code"
+            case nearestDistance = "nearest_distance"
+            case beneathCode = "beneath_code"
+        }
+    }
+
+    public var mode: String
+    public var status: String
+    public var framesWithColour: Int
+    public var framesCalibrated: Int
+    public var groups: [Group]
+
+    public init(mode: String, status: String, framesWithColour: Int, framesCalibrated: Int, groups: [Group]) {
+        self.mode = mode
+        self.status = status
+        self.framesWithColour = framesWithColour
+        self.framesCalibrated = framesCalibrated
+        self.groups = groups
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mode, status, groups
+        case framesWithColour = "frames_with_colour"
+        case framesCalibrated = "frames_calibrated"
     }
 }
 

@@ -200,6 +200,13 @@ A `VerificationWindowRecord` holds:
   both fractions. `frames_used` counts every frame since the step began,
   not only the window's;
 - `staged`: the declared truth, or null;
+- `colour_term` (optional, added 2026-10-06; ADR 0007 amendment 3): when
+  the developer colour check is on, its `mode` (`shadow` or `block_only`),
+  overall `status` (`agrees`, `disagrees`, `inconclusive_<reason>`),
+  `frames_with_colour`, `frames_calibrated`, and `groups`, one per authored
+  colour: `code`, `status`, `pixels`, `frames`, and the Oklab distances
+  `authored_distance` and `nearest_distance`, plus `nearest_code` and
+  `beneath_code`. The verdict above already reflects the mode;
 - `frames`, oldest first.
 
 Each entry in `frames` has `frame_id`, `registration_state`,
@@ -237,10 +244,12 @@ row with these fields:
 - `window_id`, `step_id` and `frames_used`;
 - `placements`, one entry per placement the step adds:
   - `placement`, the timeline index;
-  - `state`: `present`, `absent`, `displaced`, `rotated` or
-    `not_observable`;
+  - `state`: `present`, `absent`, `displaced`, `rotated`,
+    `colour_mismatch` (with the colour check on) or `not_observable`;
   - `offset`: `[dx, dz, dy, quarter_turns]`, for `displaced` and `rotated`;
   - the `support`, `absence` and `unexplained` votes, and `frames_seen`;
+  - with the colour check on: `colour_status`, `colour_nearest_code` and
+    `colour_authored_distance`;
 - `adapter_verdict`: the placement-aware verdict, which is logged only;
 - `verifier_verdict`: what the user was shown.
 

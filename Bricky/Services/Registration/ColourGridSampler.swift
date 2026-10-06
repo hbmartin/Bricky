@@ -1,9 +1,10 @@
 import CoreVideo
 import Foundation
 
-/// Box-filters the camera image onto the LiDAR depth grid, so a verification
-/// window keeps the colour evidence the RGB term will need (ADR 0008) at the
-/// depth map's resolution. Evidence only: nothing reads it for a verdict.
+/// Box-filters the camera image onto the LiDAR depth grid: the colour plane
+/// that verification windows keep (ADR 0007 amendment 2) and the RGB term
+/// reads (ADR 0008 amendment, M3.2), at the depth map's resolution. Only the
+/// colour term reads it for a verdict, with the authority its mode allows.
 ///
 /// Averaging happens in Y′CbCr before conversion, so a cell's colour is
 /// gamma-space, not linear-light, mean. That is a known bias at strong edges

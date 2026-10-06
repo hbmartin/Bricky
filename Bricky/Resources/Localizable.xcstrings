@@ -75,12 +75,32 @@
         }
       }
     },
+    "Can block a complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can block a complete"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Checking…"
+          }
+        }
+      }
+    },
+    "Colour check in the AR guide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colour check in the AR guide"
           }
         }
       }
@@ -311,6 +331,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Say “next anyway” to go on."
+          }
+        }
+      }
+    },
+    "Shadow (recorded only)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadow (recorded only)"
           }
         }
       }

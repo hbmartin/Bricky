@@ -29,6 +29,10 @@ enum AppConfig {
         /// Spoken steps and voice commands in the AR guide (M2.8,
         /// ADR 0016). Off until the Phase 1 hands-free checks pass.
         static let handsFreeEnabled = "developer.handsFreeEnabled"
+        /// The RGB term's say over step verdicts (M3.2, ADR 0008 amendment,
+        /// Proposed): a `ColourTermMode` raw value. Off by default; the app
+        /// offers Off, Shadow and Block only until real windows support more.
+        static let colourTermMode = "developer.colourTermMode"
         /// Model titles in Spotlight (ADR 0016). Off by default; turning it
         /// off removes every entry.
         static let spotlightModelsEnabled = "privacy.spotlightModelsEnabled"

@@ -318,6 +318,36 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertEqual(record.verifierVerdict, "incomplete")
     }
 
+    func testAWindowCarriesTheColourTermReading() async throws {
+        let recorder = makeRecorder()
+        var capture = windowCapture(samples: (0..<2).map { windowSample(timestamp: TimeInterval($0)) }, trigger: .confirm, staged: nil)
+        capture.colourTermMode = .shadow
+        capture.colourAssessment = ColourAssessment(
+            status: .disagrees(nearestCode: 14),
+            groups: [.init(code: 1, status: .disagrees(nearestCode: 14), pixels: 120, frames: 4, observedOklab: nil,
+                           authoredDistance: 0.31, nearestCode: 14, nearestDistance: 0.02, beneathCode: 4)],
+            framesWithColour: 4, framesCalibrated: 4
+        )
+        await recorder.record(capture)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows/\(capture.windowID.uuidString).json")
+        let record = try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: url))
+        let colour = try XCTUnwrap(record.colourTerm)
+        XCTAssertEqual(colour.mode, "shadow")
+        XCTAssertEqual(colour.status, "disagrees")
+        XCTAssertEqual(colour.groups.first?.nearestCode, 14)
+        XCTAssertEqual(colour.groups.first?.beneathCode, 4)
+        XCTAssertTrue(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"colour_term\""))
+
+        // Without the term, the window says nothing about colour.
+        let plain = windowCapture(samples: (0..<2).map { windowSample(timestamp: TimeInterval($0)) }, trigger: .confirm, staged: nil)
+        await recorder.record(plain)
+        let plainURL = url.deletingLastPathComponent().appendingPathComponent("\(plain.windowID.uuidString).json")
+        XCTAssertNil(try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: plainURL)).colourTerm)
+    }
+
     private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {
         VerificationWindowSample(
             frameID: UUID(),
