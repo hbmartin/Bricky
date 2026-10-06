@@ -315,6 +315,8 @@ struct RecoveryEstimate: Codable, Hashable, Sendable {
     }
 }
 
+/// Mirrors `CheckVerdictV1` (RecoveryEvidenceKit), the one declaration of
+/// what a check may answer; `VLMStepCheckServiceTests` holds the two equal.
 enum StepCheckResult: String, Codable, Sendable, CaseIterable {
     case complete
     case incomplete

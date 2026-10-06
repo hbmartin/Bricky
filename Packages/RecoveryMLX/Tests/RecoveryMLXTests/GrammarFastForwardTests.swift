@@ -134,7 +134,7 @@ final class GrammarFastForwardTests: XCTestCase {
     }
 
     func testCheckGrammarAcceptsOnlyItsVerdicts() throws {
-        let schema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
+        let schema = VerdictSchemasV1.checkGrammarJSON
         XCTAssertTrue(try drive(#"{"result":"complete"}"#, schema: schema).accepted)
         XCTAssertFalse(try drive(#"{"result":"done"}"#, schema: schema).accepted)
     }

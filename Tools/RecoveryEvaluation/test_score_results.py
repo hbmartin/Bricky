@@ -3,11 +3,13 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from score_results import (
+    CHECK_VERDICTS,
     DORMANT,
     FAIL,
     MINIMUM_AUTHORED_MODELS,
@@ -727,6 +729,19 @@ class VLMCheckTests(unittest.TestCase):
         report = MainTests.report_json(output)["vlm_check"]
         self.assertEqual(report["complete_recall"], 0.5)
         self.assertEqual(report["uncertain_rate"], 0.25)
+
+    def test_check_verdicts_mirror_the_kit_schema(self) -> None:
+        source = (Path(__file__).resolve().parents[2] / "Packages/RecoveryMLX/Sources/RecoveryEvidenceKit"
+                  / "VerdictSchemasV1.swift").read_text()
+        literal = re.search(r'checkGrammarJSON = #"(.*?)"#', source)
+        self.assertIsNotNone(literal)
+        schema = json.loads(literal.group(1))
+        self.assertEqual(set(schema["properties"]["result"]["enum"]), CHECK_VERDICTS)
+
+    def test_vlm_check_refuses_a_step_verdict_a_check_cannot_give(self) -> None:
+        code, output = MainTests.run_main([self.check_row("incomplete", "misplaced")])
+        self.assertEqual(code, 1)
+        self.assertIn("invalid produced_verdict", output)
 
     @classmethod
     def device_row(cls, fixture: str, **overrides: object) -> dict[str, object]:

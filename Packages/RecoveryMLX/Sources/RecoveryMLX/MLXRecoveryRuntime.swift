@@ -4,6 +4,7 @@ import MLXGuidedGeneration
 import MLXLMCommon
 import MLXVLM
 import os
+import RecoveryEvidenceKit
 import Tokenizers
 
 public struct MLXRankOutput: Codable, Sendable {
@@ -46,7 +47,7 @@ public actor MLXRecoveryRuntime {
         let letters = rankSlotLetters.prefix(count).map { "\"\($0)\"" }.joined(separator: ",")
         return #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":[\#(letters)]},"minItems":1,"maxItems":\#(count),"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
     }
-    private static let checkSchema = #"{"type":"object","properties":{"result":{"type":"string","enum":["complete","incomplete","uncertain"]}},"required":["result"],"additionalProperties":false}"#
+    private static let checkSchema = VerdictSchemasV1.checkGrammarJSON
 
     private static let signposter = OSSignposter(subsystem: "com.bricky.app", category: "Inference")
 

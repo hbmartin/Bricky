@@ -125,6 +125,9 @@ VERIFICATION_REQUIRED_FIELDS = {
     "latency_ms",
 }
 VERDICTS = {"complete", "incomplete", "misplaced", "uncertain"}
+# What a photo step check may answer. Mirrors CheckVerdictV1 in
+# RecoveryEvidenceKit/VerdictSchemasV1.swift; a test holds the two equal.
+CHECK_VERDICTS = {"complete", "incomplete", "uncertain"}
 DETECTABILITY = {"strong", "marginal", "undetectable"}
 
 REGISTRATION_REQUIRED_FIELDS = {
@@ -860,7 +863,7 @@ def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
             raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
         if row["expected_verdict"] not in {"complete", "incomplete"}:
             raise SystemExit(f"{label} expected_verdict must be complete or incomplete")
-        if row["produced_verdict"] not in VERDICTS:
+        if row["produced_verdict"] not in CHECK_VERDICTS:
             raise SystemExit(f"{label} has an invalid produced_verdict")
         require_valid_latency(row, label)
     negatives = [row for row in rows if row["expected_verdict"] == "incomplete"]

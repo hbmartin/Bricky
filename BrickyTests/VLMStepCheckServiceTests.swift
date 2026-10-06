@@ -26,6 +26,11 @@ final class VLMStepCheckServiceTests: XCTestCase {
         )
     }
 
+    func testStepCheckResultMirrorsTheSchemaSource() {
+        XCTAssertEqual(StepCheckResult.allCases.map(\.rawValue), VerdictSchemasV1.checkVerdictValues)
+        XCTAssertEqual(StepCheckResult.allCases.map(\.rawValue), CheckVerdictV1.allCases.map(\.rawValue))
+    }
+
     func testRegisteredFallsBackToTheGuideCameraOutsideAR() {
         XCTAssertEqual(VLMStepCheckService.resolvedTarget(requested: .registered, registeredAvailable: false), .guideCamera)
         XCTAssertEqual(VLMStepCheckService.resolvedTarget(requested: .registered, registeredAvailable: true), .registered)
