@@ -9,8 +9,12 @@ enum ColourMath {
         channel <= 0.04045 ? channel / 12.92 : Float(pow(Double((channel + 0.055) / 1.055), 2.4))
     }
 
+    /// `linear(srgb:)` for every 8-bit value: the colour term converts
+    /// thousands of pixels per frame.
+    private static let linearTable: [Float] = (0...255).map { linear(srgb: Float($0) / 255) }
+
     static func linear(rgb8 red: UInt8, _ green: UInt8, _ blue: UInt8) -> SIMD3<Float> {
-        SIMD3(linear(srgb: Float(red) / 255), linear(srgb: Float(green) / 255), linear(srgb: Float(blue) / 255))
+        SIMD3(linearTable[Int(red)], linearTable[Int(green)], linearTable[Int(blue)])
     }
 
     /// `0xRRGGBB` as linear light.
