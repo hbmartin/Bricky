@@ -92,5 +92,23 @@ with the adapter loaded. That design waits for an adapter worth shipping.
 
 ## Measured on the smoke run
 
-_(filled by the end-to-end smoke commit: library versions, parity
-tolerances, and peak training memory on the development Mac.)_
+Measured 2026-10-07 on the development Mac (M2 Pro, 34 GB). This was the
+pipeline run step by step on a 48-session synthetic bundle; `run_smoke.py`
+chains the same steps.
+- **Versions:**
+  - Python side: mlx 0.32.3, mlx-vlm 0.7.6, Python 3.12.14.
+  - Swift side: the app's vendored MLX core 0.31.1, mlx-swift-lm d2424294.
+- **Training:** 30 steps, rank 8, alpha 16 (scale 2.0), learning rate 1e-4,
+  504 tensors over all 36 decoder layers. Peak memory 17.3 GB, 7 minutes.
+  Held-out first-slot accuracy (one of four authored models held out) went
+  from 5/12 to 12/12. That is a toy counting task, not evidence.
+- **Loading and identity:** the converted adapter loads in Swift. A zero-B
+  adapter reproduces the baseline replay bit for bit, both generated text
+  and probe probabilities.
+- **Parity** (`parity_check.py`, 12 held-out boards, 36 log-odds points):
+  - Swift's change against Python's has slope 0.989: pass.
+  - The ×2-scale canary has slope 0.49: it fails, as required.
+  - Prompt and image tokens match exactly (1,096 and 1,024).
+- **Open: the base models disagree.** Before any adapter, Python's and
+  Swift's slot log-odds differ by 0.99 nats mean and 2.75 max. This is
+  owed before real training (NEXT_STEPS §5).
