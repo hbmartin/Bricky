@@ -183,6 +183,11 @@ final class StudIndexTests: XCTestCase {
         XCTAssertEqual(behind.first?.visible, false)
     }
 
+    func testTheDefaultDetectorHasNoOpinion() async throws {
+        let heatmap = try await NoStudKeypointDetector().heatmap(rgb: [UInt8](repeating: 0, count: 12), width: 2, height: 2)
+        XCTAssertNil(heatmap)
+    }
+
     func testCatalogClassifiesKnownNames() {
         XCTAssertEqual(StudPrimitiveCatalog.kind(of: "stud.dat"), .stud(.top))
         XCTAssertEqual(StudPrimitiveCatalog.kind(of: "8/stud.dat"), .stud(.top))

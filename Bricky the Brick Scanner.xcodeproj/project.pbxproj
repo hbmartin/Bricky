@@ -33,6 +33,7 @@
 		250C0092CCEC5506012D16F0 /* StudLabelPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 373F6D3288A0F6CC6D0C5EF3 /* StudLabelPolicy.swift */; };
 		2551AD142FD09F3F893F9A58 /* ColourTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF9A85C00E6125B24169E24 /* ColourTable.swift */; };
 		2630C5E428A876A96E7D5223 /* PlacementConsistencyScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A6BA79AD21470FA8712D3E /* PlacementConsistencyScorerTests.swift */; };
+		26F08D961571D81112E28BD4 /* StudKeypointDetecting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8713A6FAF7E7D5F59A5370A5 /* StudKeypointDetecting.swift */; };
 		271578DD5E6BCC1F1A5E75F7 /* RecoveryCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6BF6E5BE1A476D53811AAB /* RecoveryCaptureTests.swift */; };
 		27307B0BB50EAE558ED586F6 /* StagedVerificationSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9C5503ADE56BC2B1323B82 /* StagedVerificationSetupView.swift */; };
 		293C6D045FF8FD453DBD6ADB /* LDRAW_ATTRIBUTION.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5B8BBE0A42939F7845F1BF7A /* LDRAW_ATTRIBUTION.txt */; };
@@ -147,6 +148,7 @@
 		928AE5089033880C101A5680 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FF9EE0A3BFBCADA241890F /* LibraryView.swift */; };
 		930D797BEC44649EA3BEF778 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7255416EAA67E75793A6A9 /* AppConfig.swift */; };
 		93912D673DC1EB075282CC6B /* ShadowCheckRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B865A9B4E680A30866687996 /* ShadowCheckRunnerTests.swift */; };
+		9454CE36F9DCE15D2200C1D5 /* CoreAIStudKeypointDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32BAA5A9385D2A5869C0B45 /* CoreAIStudKeypointDetector.swift */; };
 		966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571268454507EF3A2A480B47 /* LDConfigPalette.swift */; };
 		985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D271EAE0C286D78BFCEA8B4B /* LDrawGeometryEngine.swift */; };
 		98FF8D1D4B1A7BAC9DB8F4FE /* NextStepIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78B5B562CA2B3FD2B2E37CD /* NextStepIntentTests.swift */; };
@@ -335,6 +337,7 @@
 		854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryScenario.swift; sourceTree = "<group>"; };
 		85778E2B3323B8DD913494D2 /* DeviceFloor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceFloor.swift; sourceTree = "<group>"; };
 		868429598B01C6397EDFA9F1 /* RepairPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepairPlanner.swift; sourceTree = "<group>"; };
+		8713A6FAF7E7D5F59A5370A5 /* StudKeypointDetecting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudKeypointDetecting.swift; sourceTree = "<group>"; };
 		8808DAC04133426DEB721CA7 /* CaptureStudLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureStudLabels.swift; sourceTree = "<group>"; };
 		89E271521248A9118A672048 /* PartSymmetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartSymmetry.swift; sourceTree = "<group>"; };
 		8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HierarchicalRecoveryEstimator.swift; sourceTree = "<group>"; };
@@ -354,6 +357,7 @@
 		9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeRecoveryEstimator.swift; sourceTree = "<group>"; };
 		9FD263BC9A34E0AD6E6F4EB3 /* ARGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARGuideView.swift; sourceTree = "<group>"; };
 		A02540321DE5FCA1E19A1661 /* WordingRecording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordingRecording.swift; sourceTree = "<group>"; };
+		A32BAA5A9385D2A5869C0B45 /* CoreAIStudKeypointDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAIStudKeypointDetector.swift; sourceTree = "<group>"; };
 		A377413BF2084446EFA7A660 /* InstructionDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionDomain.swift; sourceTree = "<group>"; };
 		A4A8172F43A97EE6589DFE0A /* BackgroundURLSessionDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundURLSessionDeliveryTests.swift; sourceTree = "<group>"; };
 		A7905762DAE8B79A6E95EDE5 /* VLMStepCheckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLMStepCheckService.swift; sourceTree = "<group>"; };
@@ -607,12 +611,14 @@
 				3F9FA213F7E985EEA87CB1BB /* ColourAgreementTerm.swift */,
 				4EF9A85C00E6125B24169E24 /* ColourTable.swift */,
 				B17766E91C2E178305E1E30F /* ColourTermJudge.swift */,
+				A32BAA5A9385D2A5869C0B45 /* CoreAIStudKeypointDetector.swift */,
 				B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */,
 				DEDD34E438F3113F2A0711D8 /* PhotoCheckController.swift */,
 				646D32CA366AA8F1AED59311 /* SceneColourCalibration.swift */,
 				0CCA0CEE6E4FF3435D43586C /* ShadowCheckRunner.swift */,
 				FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */,
 				1982584DC887B6D9531AD75A /* StepVerificationController.swift */,
+				8713A6FAF7E7D5F59A5370A5 /* StudKeypointDetecting.swift */,
 				373F6D3288A0F6CC6D0C5EF3 /* StudLabelPolicy.swift */,
 				59AADE68549F7806130D18F6 /* VerificationWindowBuffer.swift */,
 			);
@@ -1129,6 +1135,7 @@
 				33D08BC8E905730F181BA923 /* ColourTermJudge.swift in Sources */,
 				A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */,
 				24FC629139DC3A7503590BED /* ContentView.swift in Sources */,
+				9454CE36F9DCE15D2200C1D5 /* CoreAIStudKeypointDetector.swift in Sources */,
 				AB76418E2FD975CCA95115A7 /* CrossStepRepairPlanner.swift in Sources */,
 				F87F021E9BD346DA403E37E6 /* DepthICPTracker.swift in Sources */,
 				B32CAE22F89C14FA415846FD /* DeviceConditionsProbe.swift in Sources */,
@@ -1199,6 +1206,7 @@
 				746777971652139DFDB10DD3 /* StorageAndAttributionView.swift in Sources */,
 				CADB2E8758CA0F30AAB71B50 /* StorageLayout.swift in Sources */,
 				87DFC90521DF5F220560D602 /* StudDomain.swift in Sources */,
+				26F08D961571D81112E28BD4 /* StudKeypointDetecting.swift in Sources */,
 				245B44D7CC246750DBFC76F3 /* StudLabelPolicy.swift in Sources */,
 				F7C4A5D65A89E52B0C14975A /* SuggestedPlacementEstimator.swift in Sources */,
 				8213770525FB912F7F418D55 /* UIImage+Orientation.swift in Sources */,

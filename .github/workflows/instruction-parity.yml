@@ -247,6 +247,17 @@ jobs:
           if ! xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
             xcodebuild -downloadComponent MetalToolchain
           fi
+      # The Core AI stud keypoint seam (ADR 0020) is under canImport(CoreAI),
+      # which the Simulator SDK lacks, so the build below compiles it out.
+      # Type-check it against the device SDK instead: seconds, where a full
+      # generic iOS build would recompile mlx-swift. The probe fails if the
+      # SDK has no Core AI at all.
+      - name: Type-check the Core AI seam against the device SDK
+        run: |
+          xcrun --sdk iphoneos swiftc -typecheck -target arm64-apple-ios27.0 -swift-version 5 \
+            Bricky/Services/Verification/StudKeypointDetecting.swift \
+            Bricky/Services/Verification/CoreAIStudKeypointDetector.swift \
+            Tools/CI/CoreAIProbe.swift
       # The floor device (ADR 0012) is the test device. The runner image
       # does not pre-create an iPhone 17 Pro, but Xcode 27 ships its device
       # type, so create one when it is missing.

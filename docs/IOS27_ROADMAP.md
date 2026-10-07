@@ -241,7 +241,7 @@ Why Core AI. On iPhone the Neural Engine's lasting advantage isn't speed. At mat
    - Encode the capture and the N candidate renders, then compare them by cosine similarity. Do that maths in Swift/vDSP, not inside the model graph: optimize() miscompiles distance/Gram forms (open issue ⚠️).
    - It narrows 8 candidates to 3 before any VLM call, which could cut 5–8 VLM calls per recovery to 1–2.
    - Evidence bundles already contain matching tiles, captures and labels for contrastive fine-tuning.
-3. Stud keypoint heatmap. It would resolve the 8 mm stud-grid aliasing and sharpen "misplaced" verdicts. LDraw stud primitives give free synthetic labels, but expect a gap between synthetic and real images. ICP itself stays CPU/simd.
+3. Stud keypoint heatmap. (Entry measurement, labels and seam: ADR 0020, Proposed.) It would resolve the 8 mm stud-grid aliasing and sharpen "misplaced" verdicts. LDraw stud primitives give free synthetic labels, but expect a gap between synthetic and real images. ICP itself stays CPU/simd.
 
 Core AI operational traps:
 - coreai-build exits 0 for any architecture ⚠️. Ahead-of-time compile for h18p specifically.
