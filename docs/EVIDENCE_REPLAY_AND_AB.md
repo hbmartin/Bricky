@@ -149,6 +149,23 @@ so `compare_arms.py --primary check_correct` pairs them with a VLM replay's
 informational: a Mac is not the phone's model tier, and release mode
 refuses replay rows.
 
+## `synth-bundle`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness synth-bundle \
+  --out smoke-bundle --authored-models 4 --builds-per-model 2 --sessions 6 --seed 7
+```
+
+Writes a synthetic smoke bundle for the LoRA pipeline's end-to-end test
+(ADR 0019): boards of stacked coloured blocks, one more block per step, as in
+the weights-gated tests. Each session is staged at a known step with one
+finalist board of up to four candidate steps around it, in a seeded slot
+order, with the verbatim baseline rank prompt and grammar. Authored models
+differ in palette and physical builds in block width, so the exporter's split
+has something to split. The same seed writes the same bytes. Its device model
+is `synthetic:bricky-harness`: a pipeline fixture, not a sensor model, refused
+by every release and training path.
+
 ## `lattice-rows`
 
 ```sh

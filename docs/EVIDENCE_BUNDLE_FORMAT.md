@@ -92,6 +92,13 @@ bricky-evidence-<yyyyMMdd-HHmmss>.zip
 | `model_revision` | string | pinned revision SHA (ADR 0013) |
 | `session_ids` | [uuid] | what the user selected for export |
 
+**Synthetic smoke bundles.** `bricky-harness synth-bundle` writes bundles for
+the training pipeline's end-to-end test (ADR 0019). Their `device_model` is
+`synthetic:bricky-harness` in the manifest and every session, and their
+traces record `raw_output` `""` and `termination` `not_run`: no phone and no
+model ever saw them. Every release path and the training exporter refuse
+them; they are fixtures, never evidence.
+
 ## `session.json` — EvidenceSessionFile
 
 Identity and environment: `session_version`, `session_id`, `created_at`,
@@ -203,7 +210,7 @@ what keeps it from winning, and it cannot also carry the reason.
 | `max_tokens` | int | budget in force |
 | `raw_output` | string | full model text, including truncated prefixes |
 | `decode_error` | string? | nil when `raw_output` decoded against the schema |
-| `termination` | string | `accepted`, `max_tokens_exhausted`, `premature_eos` |
+| `termination` | string | `accepted`, `max_tokens_exhausted`, `premature_eos`; `not_run` only in synthetic smoke bundles |
 | `generated_tokens` | int? | nil on abnormal termination (loop throws before counting) |
 | `latency_ms` | int | wall clock around the guided loop |
 | `memory_footprint_bytes` | int64? | `phys_footprint` at record time |

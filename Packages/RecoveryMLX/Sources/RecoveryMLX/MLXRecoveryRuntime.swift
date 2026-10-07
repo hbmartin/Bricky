@@ -42,7 +42,7 @@ public actor MLXRecoveryRuntime {
     /// never emit a slot letter that has no tile on the board. A fixed A–H
     /// enum lets a 3-tile board legally answer "H", which the estimator then
     /// drops without a trace.
-    static func rankSchema(slotCount: Int) -> String {
+    public static func rankSchema(slotCount: Int) -> String {
         let count = min(max(slotCount, 1), rankSlotLetters.count)
         let letters = rankSlotLetters.prefix(count).map { "\"\($0)\"" }.joined(separator: ",")
         return #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":[\#(letters)]},"minItems":1,"maxItems":\#(count),"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
