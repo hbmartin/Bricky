@@ -288,7 +288,7 @@ Separately, and not from the skills (verify first): Vision's hand-pose request c
    - Don't use Memory.snapshot() for admission; it reports MLX's allocator, not what jetsam measures ✅.
    - Add hysteresis, cancel queued passes when memory is critical, and confirm an unload freed memory by re-sampling about 500 ms later.
 7. Try Qwen3-VL-2B as a fast tier. Same family, processor and grammar, with about half the weights, which is nearer Apple's under-2 GB guidance. A/B it on MLX before considering anything else.
-8. Training, later.
+8. Training, later. (Tooling and the variant seam: ADR 0019, Proposed.)
    - Use mlx-vlm LoRA only. mlx_lm's save_config deletes vision_config ✅.
    - Swift and Python LoRA scale defaults differ (10 vs 20) ⚠️.
    - Split train and test by authored model.
