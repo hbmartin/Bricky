@@ -31,6 +31,27 @@ Status: accepted as the program plan on 2026-09-25.
     - The Core AI colour CNN (M3.6): only if the non-learned term fails
       on real data.
     - The embedding pre-filter: needs ≥150 labelled cases.
+- Phase 4's device-free work is on `feat/ios27-phase4` (PR #14), one commit
+  per item. The Qwen3-VL-2B fast tier is deferred (owner, 2026-10-06).
+  - **Stud keypoints, measure first** (ADR 0020, Proposed):
+    - the lattice runner-up, contests and tallies reach evidence;
+    - a synthetic lattice suite;
+    - device lattice rows and the `STUD_KEYPOINTS_ENTRY` readout;
+    - stud identity through the flatten, stud-ID renders, geometry-only
+      labels, and pseudo-labels for photo captures;
+    - a Core AI detector seam that nothing calls.
+  - **LoRA** (ADR 0019, Proposed):
+    - physical-build labels;
+    - an `adapter` variant axis, with `compare_arms.py` refusing mixed
+      weights and unrestricted adapter arms;
+    - runtime adapter loading;
+    - a stdlib exporter;
+    - a `Tools/Training` uv project;
+    - an end-to-end smoke with Python/Swift parity.
+  - **Not done:**
+    - any trained model or adapter, because the entry criteria are unmet;
+    - the embedding pre-filter, which needs at least 150 labelled cases;
+    - the 2B tier.
 - Everything gated on device data stays off or in shadow until Phase 1
   measures it, using the add-on checklist in
   [NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md) §1a.
@@ -445,7 +466,8 @@ Silent failures to plan for:
   - the embedding pre-filter once there are 150 or more labelled cases;
   - the Foundation Models shadow test;
   - Private Cloud Compute, if eligible.
-- Phase 4: mlx-vlm LoRA, the 2B tier, stud keypoints.
+- Phase 4: mlx-vlm LoRA, the 2B tier, stud keypoints. (Device-free work in
+  PR #14; the 2B tier deferred.)
 
 Decisions I need to make:
 1. Floor: 17 Pro/Pro Max only, or LiDAR as the app floor with a 12 GB-class gate for the VLM?

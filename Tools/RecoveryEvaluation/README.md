@@ -33,6 +33,25 @@ tool for repair wording, not a gate; ADR 0017.)
 - `registration`: tracker fits against ground truth — convergence ≥ 95 % on
   unambiguous fixtures, ≤ 3 mm / ≤ 2° RMSE, ambiguity recall ≥ 90 % on
   deliberately symmetric fixtures (which never count against convergence).
+  It also counts:
+  - `unexpected_ambiguity_cases`, the other half of recall;
+  - `pitch_off_cases`, poses that settled within 2 mm of a whole stud
+    pitch at true yaw;
+  - the lattice runner-up histogram.
+
+  The synthetic lattice suite (`--suite lattice`) is where ambiguity is
+  expected.
+- `lattice_window` (ADR 0020, informational), from `bricky-harness
+  lattice-rows`. It reports device windows' lattice margins, ambiguous
+  frames and staged confusions, and every run prints `STUD_KEYPOINTS_ENTRY`:
+  - **MET** when the one-sided 95% lower bound on lattice trouble is at
+    least 5%;
+  - **NOT_MET** when the upper bound is under 5%;
+  - **UNMEASURED** otherwise, including with no rows at all.
+
+  It needs at least 30 staged device windows from 3 sessions.
+- `stud_labels` and `stud_label_capture` (SyntheticRGBD label output) are
+  accepted and never scored.
 - `shadow_check` (ADR 0018, informational): the Foundation Models advisor
   beside photo checks. It reports the advisor's standalone false-complete
   rate with its bound, and how many more negatives the ADR needs (149 at
