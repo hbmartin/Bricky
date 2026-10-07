@@ -298,6 +298,51 @@ final class GeometricStepVerifierTests: XCTestCase {
         }
     }
 
+    func testStudOffsetCarriesItsLatticeContests() async throws {
+        for judge in judges {
+            let verification = try await runVerifier(
+                judge: judge.make, sceneBuffers: completedSnapshot.buffers + [deltaBuffer(shiftX: 0.008)]
+            )
+            let contests = try XCTUnwrap(verification.latticeContests, judge.name)
+            XCTAssertEqual(contests.map(\.offsetStuds), [SIMD2(1, 0), SIMD2(-1, 0), SIMD2(0, 1), SIMD2(0, -1)], judge.name)
+            // The contest the verdict was decided on favours the shift.
+            XCTAssertGreaterThan(contests[0].winsShifted, contests[0].winsComplete, judge.name)
+        }
+    }
+
+    /// `replacingVerdict` rebuilds the struct field by field, and both the
+    /// colour term and the diff policy go through it. Every field is set
+    /// to a non-default value here, so a field added later and not copied
+    /// fails this test instead of vanishing from evidence.
+    func testReplacingVerdictPreservesEveryOtherField() {
+        var original = StepVerification(
+            stepID: "main.ldr#4", verdict: .complete, detectability: .marginal, deltaPixels: 321, framesUsed: 17,
+            completeFraction: 0.75, incompleteFraction: 0.125,
+            registrationQuality: RegistrationQuality(
+                rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 1.5, latticeRunnerUp: .shiftZNegative
+            ),
+            timestamp: 42
+        )
+        var pose = matrix_identity_float4x4
+        pose.columns.3 = SIMD4(0.1, 0.2, 0.3, 1)
+        original.worldFromModel = pose
+        original.worldFromCamera = pose * pose
+        original.latticeContests = [LatticeContest(offsetStuds: SIMD2(1, 0), winsComplete: 9, winsShifted: 2)]
+
+        let replaced = original.replacingVerdict(.incomplete)
+        XCTAssertEqual(replaced.verdict, .incomplete)
+        let before = Mirror(reflecting: original).children.map { ($0.label ?? "?", String(describing: $0.value)) }
+        let after = Dictionary(uniqueKeysWithValues: Mirror(reflecting: replaced).children.map {
+            ($0.label ?? "?", String(describing: $0.value))
+        })
+        XCTAssertEqual(before.count, after.count)
+        for (label, value) in before {
+            XCTAssertNotEqual(value, "nil", "\(label) is unset here, so this test cannot guard it")
+            guard label != "verdict" else { continue }
+            XCTAssertEqual(after[label], value, label)
+        }
+    }
+
     // MARK: - Build diff (M2.3)
 
     private func fields(_ v: StepVerification) -> [String] {

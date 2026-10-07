@@ -36,6 +36,16 @@ enum StepVerdict: Sendable, Codable, Equatable {
     var isComplete: Bool { self == .complete }
 }
 
+/// One ±1-stud lattice contest the verifier accumulated since the step
+/// began: pixels where the authored and the shifted placement predict
+/// different depth, and which of the two the observation matched there.
+struct LatticeContest: Sendable, Equatable {
+    /// The alternative's offset in studs along the model's x and z.
+    let offsetStuds: SIMD2<Int>
+    let winsComplete: Int
+    let winsShifted: Int
+}
+
 /// One verification outcome with the evidence that produced it. Advisory by
 /// contract: the user confirms every step (ADR 0001); nothing auto-advances.
 struct StepVerification: Sendable {
@@ -55,6 +65,9 @@ struct StepVerification: Sendable {
     /// to move a part from where the user stands (M2.4).
     var worldFromModel: simd_float4x4? = nil
     var worldFromCamera: simd_float4x4? = nil
+    /// The lattice contests behind the verdict, for evidence windows. Never
+    /// read by a verdict; nil from judges that hold no lattice tallies.
+    var latticeContests: [LatticeContest]? = nil
 }
 
 extension StepVerdict {

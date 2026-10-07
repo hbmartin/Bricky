@@ -51,6 +51,41 @@ final class LatticeEvidenceTests: XCTestCase {
         }
     }
 
+    func testContestsAndTalliesAreSnakeCaseAndOptional() throws {
+        let window = VerificationWindowRecord(
+            windowID: UUID(), sessionID: UUID(), stepID: "m#3", stepIndex: 2, trigger: .confirm,
+            createdAt: Date(timeIntervalSince1970: 0), frames: [frame(runnerUp: nil)], verdict: "misplaced",
+            offsetStuds: [1, 0], uncertainReason: nil, detectability: "strong", deltaPixels: 140, framesUsed: 12,
+            completeFraction: 0.1, incompleteFraction: 0.2, staged: nil,
+            latticeContests: [LatticeContestRecord(offsetStuds: [1, 0], winsComplete: 3, winsShifted: 11)]
+        )
+        let encoded = try json(window)
+        XCTAssertTrue(encoded.contains(#""lattice_contests""#))
+        XCTAssertTrue(encoded.contains(#""offset_studs":[1,0]"#))
+        XCTAssertTrue(encoded.contains(#""wins_complete":3"#))
+        XCTAssertTrue(encoded.contains(#""wins_shifted":11"#))
+
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: EvidenceSchema.encoder().encode(window)) as? [String: Any]
+        )
+        object.removeValue(forKey: "lattice_contests")
+        let old = try EvidenceSchema.decoder().decode(
+            VerificationWindowRecord.self, from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertNil(old.latticeContests)
+
+        let placement = BuildDiffRecord.Placement(
+            placement: 2, state: "displaced", offset: [1, 0, 0, 0], support: 5, absence: 1, unexplained: 0, framesSeen: 4,
+            tallies: [HypothesisTallyRecord(offset: [1, 0, 0, 0], winsPresent: 2, winsAlternative: 9)]
+        )
+        let placementJSON = try json(placement)
+        XCTAssertTrue(placementJSON.contains(#""tallies":[{"#))
+        XCTAssertTrue(placementJSON.contains(#""wins_present":2"#))
+        XCTAssertTrue(placementJSON.contains(#""wins_alternative":9"#))
+        let legacy = #"{"placement":2,"state":"present","support":5,"absence":1,"unexplained":0,"frames_seen":4}"#
+        XCTAssertNil(try EvidenceSchema.decoder().decode(BuildDiffRecord.Placement.self, from: Data(legacy.utf8)).tallies)
+    }
+
     func testRecordsFromBeforeTheRunnerUpStillDecode() throws {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: EvidenceSchema.encoder().encode(frame(runnerUp: "shift_z_pos"))) as? [String: Any]

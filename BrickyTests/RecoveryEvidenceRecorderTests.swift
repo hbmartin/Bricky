@@ -296,6 +296,52 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertEqual(record.latticeRunnerUp, "yaw_180")
     }
 
+    func testWindowRecordsLatticeContests() async throws {
+        let recorder = makeRecorder()
+        var verification = verificationResult(.misplaced(offsetStuds: SIMD2(1, 0)), timestamp: 0)
+        verification.latticeContests = [
+            LatticeContest(offsetStuds: SIMD2(1, 0), winsComplete: 3, winsShifted: 11),
+            LatticeContest(offsetStuds: SIMD2(0, -1), winsComplete: 7, winsShifted: 0),
+        ]
+        await recorder.record(VerificationWindowCapture(
+            windowID: UUID(), stepID: "main.ldr#3", stepIndex: 2, trigger: .confirm,
+            samples: [windowSample(timestamp: 0)], verification: verification,
+            staged: nil, ingestMillisecondsSinceBegin: 70, createdAt: .now
+        ))
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let windowURL = try XCTUnwrap(FileManager.default.contentsOfDirectory(
+            at: sessionDirectory.appendingPathComponent("windows"), includingPropertiesForKeys: nil
+        ).first { $0.pathExtension == "json" })
+        let window = try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: windowURL))
+        XCTAssertEqual(window.latticeContests, [
+            LatticeContestRecord(offsetStuds: [1, 0], winsComplete: 3, winsShifted: 11),
+            LatticeContestRecord(offsetStuds: [0, -1], winsComplete: 7, winsShifted: 0),
+        ])
+    }
+
+    func testPlacementRecordKeepsTallies() {
+        let observation = PlacementObservation(
+            placement: 4,
+            state: .displaced(LatticeOffset(dx: 1)),
+            evidence: PlacementEvidence(support: 12, absence: 3, tallies: [
+                HypothesisTally(offset: LatticeOffset(dx: 1), winsPresent: 2, winsAlternative: 9),
+                HypothesisTally(offset: LatticeOffset(quarterTurns: 1), winsPresent: 5, winsAlternative: 1),
+            ])
+        )
+        let record = RecoveryEvidenceRecorder.placementRecord(observation)
+        XCTAssertEqual(record.tallies, [
+            HypothesisTallyRecord(offset: [1, 0, 0, 0], winsPresent: 2, winsAlternative: 9),
+            HypothesisTallyRecord(offset: [0, 0, 0, 1], winsPresent: 5, winsAlternative: 1),
+        ])
+        let bare = RecoveryEvidenceRecorder.placementRecord(PlacementObservation(
+            placement: 1, state: .present, evidence: PlacementEvidence(support: 4)
+        ))
+        XCTAssertNil(bare.tallies, "no contest, no field")
+    }
+
     func testWindowFramesAreDeduplicatedAndStagedClosesWriteARow() async throws {
         let recorder = makeRecorder()
         let samples = (0..<4).map { index in windowSample(timestamp: TimeInterval(index)) }

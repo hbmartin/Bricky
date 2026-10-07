@@ -50,7 +50,8 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
                 staged: window.staged,
                 colourTerm: window.colourTermMode.map { mode in
                     Self.colourTermRecord(mode: mode, assessment: window.colourAssessment)
-                }
+                },
+                latticeContests: verification.latticeContests.map(Self.latticeContestRecords)
             )
             try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
                 .write(to: sessionDirectory.appendingPathComponent("windows/\(window.windowID.uuidString).json"), options: .atomic)
@@ -134,8 +135,25 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
             framesSeen: observation.evidence.framesSeen,
             colourStatus: observation.evidence.colour?.status,
             colourNearestCode: observation.evidence.colour?.nearestCode,
-            colourAuthoredDistance: observation.evidence.colour?.authoredDistance
+            colourAuthoredDistance: observation.evidence.colour?.authoredDistance,
+            tallies: observation.evidence.tallies.isEmpty ? nil : observation.evidence.tallies.map { tally in
+                HypothesisTallyRecord(
+                    offset: [tally.offset.dx, tally.offset.dz, tally.offset.dy, tally.offset.quarterTurns],
+                    winsPresent: tally.winsPresent,
+                    winsAlternative: tally.winsAlternative
+                )
+            }
         )
+    }
+
+    static func latticeContestRecords(_ contests: [LatticeContest]) -> [LatticeContestRecord] {
+        contests.map { contest in
+            LatticeContestRecord(
+                offsetStuds: [contest.offsetStuds.x, contest.offsetStuds.y],
+                winsComplete: contest.winsComplete,
+                winsShifted: contest.winsShifted
+            )
+        }
     }
 
     /// Windows written to this session so far.

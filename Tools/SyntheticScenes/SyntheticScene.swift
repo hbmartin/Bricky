@@ -562,7 +562,7 @@ enum Row {
         latencyMilliseconds: Int
     ) throws -> String {
         let produced = producedVerdict(verification.verdict)
-        return try encode([
+        var row: [String: Any] = [
             "kind": "verification",
             "provenance": "synthetic",
             "schema_version": 1,
@@ -572,7 +572,20 @@ enum Row {
             "detectability": verification.detectability.rawValue,
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
-        ])
+        ]
+        if let contests = verification.latticeContests { row["lattice_contests"] = latticeContests(contests) }
+        return try encode(row)
+    }
+
+    /// Lattice contests in the evidence-window layout.
+    static func latticeContests(_ contests: [LatticeContest]) -> [[String: Any]] {
+        contests.map { contest in
+            [
+                "offset_studs": [contest.offsetStuds.x, contest.offsetStuds.y],
+                "wins_complete": contest.winsComplete,
+                "wins_shifted": contest.winsShifted,
+            ]
+        }
     }
 
     static func challenge(
@@ -583,7 +596,7 @@ enum Row {
         verification: StepVerification,
         latencyMilliseconds: Int
     ) throws -> String {
-        try encode([
+        var row: [String: Any] = [
             "kind": "verification_challenge",
             "provenance": "synthetic",
             "schema_version": 1,
@@ -595,7 +608,9 @@ enum Row {
             "detectability": verification.detectability.rawValue,
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
-        ])
+        ]
+        if let contests = verification.latticeContests { row["lattice_contests"] = latticeContests(contests) }
+        return try encode(row)
     }
 
     /// One `placement` row per observed placement of a shadow diff.
@@ -636,6 +651,15 @@ enum Row {
             default: break
             }
             if let challengeClass { row["challenge_class"] = challengeClass }
+            if !observation.evidence.tallies.isEmpty {
+                row["tallies"] = observation.evidence.tallies.map { tally in
+                    [
+                        "offset": [tally.offset.dx, tally.offset.dz, tally.offset.dy, tally.offset.quarterTurns],
+                        "wins_present": tally.winsPresent,
+                        "wins_alternative": tally.winsAlternative,
+                    ]
+                }
+            }
             return try encode(row)
         }
     }

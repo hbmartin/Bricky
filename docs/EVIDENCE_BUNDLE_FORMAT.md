@@ -221,6 +221,12 @@ A `VerificationWindowRecord` holds:
   colour: `code`, `status`, `pixels`, `frames`, and the Oklab distances
   `authored_distance` and `nearest_distance`, plus `nearest_code` and
   `beneath_code`. The verdict above already reflects the mode;
+- `lattice_contests` (optional, added 2026-10-07): the verifier's four
+  ±1-stud contests, one entry per alternative: `offset_studs` (`[dx, dz]`),
+  `wins_complete` and `wins_shifted`, the exclusive-evidence pixels that
+  matched the authored and the shifted placement, counted since the step
+  began like `frames_used`. A `misplaced` verdict is decided on these; stud
+  keypoints (ADR 0020) must show they are where the verifier goes wrong;
 - `frames`, oldest first.
 
 Each entry in `frames` has `frame_id`, `registration_state`,
@@ -265,6 +271,10 @@ row with these fields:
   - the `support`, `absence` and `unexplained` votes, and `frames_seen`;
   - with the colour check on: `colour_status`, `colour_nearest_code` and
     `colour_authored_distance`;
+  - `tallies` (optional, added 2026-10-07): each alternative's contest
+    against the placement as authored, as `offset` (the layout above),
+    `wins_present` and `wins_alternative`. Absent when no alternative was
+    discriminable;
 - `adapter_verdict`: the placement-aware verdict, which is logged only;
 - `verifier_verdict`: what the user was shown.
 

@@ -409,7 +409,14 @@ actor GeometricStepVerifier {
             registrationQuality: registration.quality,
             timestamp: timestamp,
             worldFromModel: registration.worldFromModel,
-            worldFromCamera: camera
+            worldFromCamera: camera,
+            latticeContests: Self.latticeOffsets.indices.map { slot in
+                LatticeContest(
+                    offsetStuds: Self.latticeOffsets[slot],
+                    winsComplete: alternativeWinsComplete[slot],
+                    winsShifted: alternativeWinsShifted[slot]
+                )
+            }
         )
     }
 }

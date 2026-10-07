@@ -420,7 +420,8 @@ extension StepVerification {
             registrationQuality: registrationQuality,
             timestamp: timestamp,
             worldFromModel: worldFromModel,
-            worldFromCamera: worldFromCamera
+            worldFromCamera: worldFromCamera,
+            latticeContests: latticeContests
         )
     }
 }
