@@ -626,7 +626,10 @@ public enum ProbeScoring {
                 mass[option, default: 0] += candidate.probability / Double(matches.count)
             }
         }
-        let total = mass.values.reduce(0, +)
+        // Summed in the options' own order: a dictionary's iteration order
+        // differs between instances, and a float sum in a different order
+        // can differ in its last bit, so two identical calls disagreed.
+        let total = options.reduce(0) { $0 + (mass[$1] ?? 0) }
         guard total > 0 else { return mass }
         return mass.mapValues { $0 / total }
     }

@@ -20,7 +20,7 @@ struct BrickyHarness: AsyncParsableCommand {
         device rows. Score results with:
         uv run python Tools/RecoveryEvaluation/score_results.py <out> --allow-small-corpus
         """,
-        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self, LatticeRows.self, SynthBundle.self]
+        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self, LatticeRows.self, SynthBundle.self, AdapterTemplateCommand.self]
     )
 }
 
@@ -95,6 +95,9 @@ struct Replay: AsyncParsableCommand {
     @Option(help: #"A full inference variant as JSON, e.g. {"decode":"feed_all","vote":"borda_dedup"}; overrides --decode and --vote."#)
     var variant: String?
 
+    @Option(name: .customLong("adapter"), help: "A converted LoRA adapter directory (ADR 0019), applied unfused over --model-dir; recorded as adapter=<name>@<sha12>.")
+    var adapterDirectory: String?
+
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
         var resolved = RecoveryInferenceVariant(
@@ -131,7 +134,29 @@ struct Replay: AsyncParsableCommand {
         let modelURL = URL(fileURLWithPath: modelDirectory)
         let runtime = MLXRecoveryRuntime()
         let encoder = EvidenceSchema.encoder()
-        let variant = try resolvedVariant()
+        var variant = try resolvedVariant()
+        if let adapterDirectory {
+            let adapter: RecoveryAdapter
+            do {
+                adapter = try RecoveryAdapter.load(directory: URL(fileURLWithPath: adapterDirectory))
+            } catch {
+                throw ValidationError("\(error)")
+            }
+            guard adapter.provenance.baseModelRevision == modelRevision else {
+                throw ValidationError("the adapter was trained on \(adapter.provenance.baseModelRevision), not --model-revision \(modelRevision)")
+            }
+            if let named = variant.adapter, named != adapter.identity {
+                throw ValidationError("--variant names adapter \(named), but --adapter is \(adapter.identity)")
+            }
+            variant.adapter = adapter.identity
+            await runtime.useAdapter(adapter)
+            print("adapter \(adapter.identity) (sha256 \(adapter.sha256)), layers \(adapter.layers.first ?? -1)…\(adapter.layers.last ?? -1)")
+            if adapter.provenance.smoke {
+                print("WARNING: \(adapter.identity) is a smoke adapter: a pipeline fixture, never evidence")
+            }
+        } else if let named = variant.adapter {
+            throw ValidationError("--variant names adapter \(named); pass its directory with --adapter")
+        }
         // These change pixels: only a board rebuilt from tiles can show them.
         if !recompose, variant.slotOrder != .sorted || variant.boardLayout != .v1 || variant.labels != .slotAndStep {
             throw ValidationError("--slot-order rotated, --board v2, and --labels slot need --recompose to rebuild the boards.")

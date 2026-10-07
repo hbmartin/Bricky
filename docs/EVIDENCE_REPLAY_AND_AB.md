@@ -105,6 +105,7 @@ The traces sidecar (`ReplayTraceResult`) carries, per call:
 | `--prompt-style baseline\|dynamic_range`, `--image-side N` | Replace recorded prompts (`dynamic_range` names only the slots on the board); resize boards to N px before the vision encoder |
 | `--unique-slots` | Mask slot letters already in the ranking (`unique_slots`); needs the forked decoder |
 | `--scoring generate\|probe` | `probe` reads the decision's probabilities from one prefill over a canonical answer prefix instead of generating JSON; pair with `--vote logprob` to pool views by log probability |
+| `--adapter DIR` | Apply a converted LoRA adapter unfused over `--model-dir` (ADR 0019). The adapter is refused unless its config spells out rank, scale and keys and carries a `bricky` block whose `base_model_revision` equals `--model-revision`, its tensors cover exactly the model's last `num_layers` decoder layers, and its dtype is the model's. Rows record `adapter=<name>@<sha12>` in `variant_id`; a smoke adapter prints a warning |
 | `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`
@@ -148,6 +149,24 @@ so `compare_arms.py --primary check_correct` pairs them with a VLM replay's
 `--checks` arm. It needs macOS 27 with Apple Intelligence on. It is
 informational: a Mac is not the phone's model tier, and release mode
 refuses replay rows.
+
+## `adapter-template`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness adapter-template \
+  --model-dir model --model-revision <sha> --out zero-b [--rank 8 --scale 20 --layers N]
+```
+
+Loads the pinned model and writes what a converted adapter for it must look
+like: `template.json` lists every tensor's name and shape
+(`language_model.model.layers.<n>.<key>.lora_a` is `[in, rank]`, `lora_b` is
+`[rank, out]`) and the dtype it must be stored in (BF16 for the pinned 4-bit
+model). `convert_adapter.py` checks its output against it. The same directory
+is a zero-B smoke adapter: B is zero in the model's dtype, so replaying it
+must reproduce the baseline byte for byte. That is the check that the adapter
+path adds nothing of its own (`RecoveryAdapterSmokeTests`). An adapter stored
+in float32 would not: `QLoRALinear` adds `scale·x·A·B` to the layer's output,
+and a float32 term promotes every later activation.
 
 ## `synth-bundle`
 
