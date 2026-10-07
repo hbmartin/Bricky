@@ -207,6 +207,27 @@ class ExportTests(unittest.TestCase):
             "slot_order=rotated,board=v2,labels=slot,prompt=dynamic_range,image_side=768",
         )
 
+    def test_board_paths_cannot_leave_the_bundle(self) -> None:
+        secret = self.root / "secret.jpg"
+        secret.write_bytes(b"not a board")
+        bundle = make_bundle(self.root, many_models(4) + [{"sha": "escape"}])
+        # Point the last session's board outside the bundle, and make
+        # another session's board a symlink to the same file.
+        sessions = sorted((bundle / "sessions").iterdir())
+        traces = sessions[-1] / "traces.ndjson"
+        row = json.loads(traces.read_text())
+        row["board_relative_path"] = "../../../secret.jpg"
+        traces.write_text(json.dumps(row) + "\n")
+        linked = json.loads((sessions[0] / "traces.ndjson").read_text())
+        (sessions[0] / linked["board_relative_path"]).unlink()
+        (sessions[0] / linked["board_relative_path"]).symlink_to(secret)
+        code, _ = run(bundle, "--out", self.root / "out", "--smoke", "--copy-images")
+        self.assertEqual(code, 0)
+        manifest = json.loads((self.root / "out" / "manifest.json").read_text())
+        self.assertEqual(manifest["exclusions"], {"board_outside_session": 2})
+        copied = {path.read_bytes() for path in (self.root / "out" / "images").iterdir()}
+        self.assertNotIn(b"not a board", copied)
+
     def test_copy_images_rewrites_paths(self) -> None:
         run(make_bundle(self.root, many_models(4)), "--out", self.root / "out", "--smoke", "--copy-images")
         for pair in read_jsonl(self.root / "out" / "train.jsonl"):

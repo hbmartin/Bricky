@@ -20,7 +20,7 @@ for use: every Phase 4 entry criterion waits on Phase 1 device data.
   - The tag pass renders stud ids, with depth bit-identical and a CI gate
     that also checks the stud catalog against the pinned pack.
   - SyntheticRGBD writes geometry-only labels, and pseudo-labels for real
-  photo captures, refusing poses near a lattice alias.
+    photo captures, refusing poses near a lattice alias.
   - A Core AI detector seam is type-checked against the device SDK in CI.
 - **LoRA tooling** (ADR 0019, Proposed).
   - Staged sessions can label their physical build.

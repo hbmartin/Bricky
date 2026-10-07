@@ -52,6 +52,9 @@ actor CoreAIStudKeypointDetector: StudKeypointDetecting {
 
     func heatmap(rgb: [UInt8], width: Int, height: Int) async throws -> StudHeatmap? {
         guard let function else { return nil }
+        guard width > 0, height > 0, rgb.count == width * height * 3 else {
+            throw DetectorError.unexpectedInput("rgb has \(rgb.count) bytes for \(width)x\(height)")
+        }
         guard case .ndArray(let declared)? = function.descriptor.inputDescriptor(of: Self.inputName) else {
             throw DetectorError.unexpectedInput(Self.inputName)
         }

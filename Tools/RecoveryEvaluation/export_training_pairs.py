@@ -125,11 +125,21 @@ def session_exclusion(session: Session, *, smoke: bool) -> str | None:
     return None
 
 
+def contained(path: Path, root: Path) -> bool:
+    """Whether `path`, symlinks resolved, stays inside `root`. Bundles come
+    from elsewhere: a crafted relative path must not reach a file outside
+    them, or --copy-images would copy it into the training data."""
+    return path.resolve().is_relative_to(root.resolve())
+
+
 def load_sessions(bundles: list[Path], export: Export, *, smoke: bool) -> None:
     for bundle in bundles:
         manifest = json.loads((bundle / "evidence_bundle.json").read_text())
         for session_id in manifest["session_ids"]:
             directory = bundle / "sessions" / str(session_id)
+            if not contained(directory, bundle / "sessions"):
+                export.exclude("session_outside_bundle")
+                continue
             session = Session(
                 session_id=str(session_id),
                 directory=directory,
@@ -159,6 +169,9 @@ def pairs_for(session: Session, export: Export, *, smoke: bool, wanted_variant: 
             export.exclude("truth_not_on_board")
             continue
         board = session.directory / str(trace["board_relative_path"])
+        if not contained(board, session.directory):
+            export.exclude("board_outside_session")
+            continue
         if not board.exists():
             export.exclude("missing_board")
             continue
