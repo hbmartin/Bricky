@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — iOS 27 Phase 3: colour, wording and a second opinion (all off by default)
+
+Nothing here changes what a user sees unless a developer setting turns it
+on, and nothing has authority before Phase 1 device data exists.
+
+- **Colour check** (ADR 0008 amendment, Proposed). The expected-depth
+  renderer gains a colour tag pass, with depth unchanged and a CI gate for
+  it. A non-learned colour term compares the step's depth-confirmed pixels,
+  calibrated against the parts already built, with the authored colour. In
+  the AR guide it can run in shadow, or block a complete when the colour is
+  another one the model uses. The shadow build diff names wrong-colour
+  placements. Real windows replay through each mode on a Mac.
+- **Repair wording** (ADR 0017). Repairs can be reworded by the on-device
+  language model. The sentence must repeat the plan's facts and add
+  nothing, and the template shows first and stays on any failure. Device
+  pairs feed a blinded preference test.
+- **Second opinion on photo checks** (ADR 0018, Proposed). The Foundation
+  Models advisor judges each AR photo check after the VLM, recorded only,
+  with a merge that may only take a complete away. Device rows decide
+  whether the VLM ever leaves the step check.
+- **Evidence.** Photo checks record the model pose and where the step's
+  parts fell in the photo. New files: `wording.ndjson`,
+  `shadow-checks.ndjson` and `shadow_check.ndjson`.
+- **One source for the check verdict.** The MLX grammar's bytes are pinned,
+  and the cloud schema, app enum and scorer mirror it.
+- **Private Cloud Compute** was considered and is not available to this
+  developer account (ADR 0011 note).
+
 ## Unreleased — Corpus provenance and regression gating
 
 - Recovery estimates now record which pipeline produced them

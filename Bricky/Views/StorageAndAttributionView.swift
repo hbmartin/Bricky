@@ -11,6 +11,9 @@ struct StorageAndAttributionView: View {
     @AppStorage(AppConfig.Defaults.idleUnloadEnabled) private var idleUnloadEnabled = false
     @AppStorage(AppConfig.Defaults.suggestedPlacementEnabled) private var suggestedPlacementEnabled = false
     @AppStorage(AppConfig.Defaults.handsFreeEnabled) private var handsFreeEnabled = false
+    @AppStorage(AppConfig.Defaults.colourTermMode) private var colourTermMode = ColourTermMode.off.rawValue
+    @AppStorage(AppConfig.Defaults.languageModelWordingEnabled) private var languageModelWordingEnabled = false
+    @AppStorage(AppConfig.Defaults.fmShadowCheckEnabled) private var fmShadowCheckEnabled = false
     @AppStorage(AppConfig.Defaults.spotlightModelsEnabled) private var spotlightModelsEnabled = false
     @State private var apiKeyDraft = ""
     @State private var apiKeyStored = CloudAssistKeyStore.hasKey
@@ -113,6 +116,16 @@ struct StorageAndAttributionView: View {
                 Toggle("Unload model after 5 idle minutes", isOn: $idleUnloadEnabled)
                 Toggle("Offer a suggested ghost position", isOn: $suggestedPlacementEnabled)
                 Toggle("Hands-free in the AR guide", isOn: $handsFreeEnabled)
+                // Full stays replay-only until real windows support it
+                // (ADR 0008 amendment, Proposed).
+                Picker("Colour check in the AR guide", selection: $colourTermMode) {
+                    Text("Off").tag(ColourTermMode.off.rawValue)
+                    Text("Shadow (recorded only)").tag(ColourTermMode.shadow.rawValue)
+                    Text("Can block a complete").tag(ColourTermMode.blockOnly.rawValue)
+                }
+                Toggle("Reword repairs with the on-device language model", isOn: $languageModelWordingEnabled)
+                Toggle("Second opinion on photo checks, recorded only", isOn: $fmShadowCheckEnabled)
+                    .disabled(!evidenceCaptureEnabled)
                 if let relief = recoveryModel.lastPressureRelief {
                     LabeledContent(
                         "Last memory-pressure unload",

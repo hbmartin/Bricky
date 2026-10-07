@@ -1,4 +1,5 @@
 import Foundation
+import RecoveryEvidenceKit
 
 /// A cloud vision second opinion on one explicitly consented frame
 /// (ADR 0011). Implementations receive exactly one JPEG plus minimal step
@@ -57,14 +58,14 @@ struct ClaudeVisionProvider: CloudVisionProvider {
         guessing; a wrong "complete" is the worst outcome. Do not diagnose \
         individual missing parts. Give a one-sentence rationale.
         """
-        // The schema mirrors the local grammar exactly (`result` over the
-        // same enum), so both providers decode into StepCheckResult.
+        // The schema mirrors the local grammar (`result` over the same enum,
+        // from VerdictSchemasV1), so both providers decode into StepCheckResult.
         let schema: [String: Any] = [
             "type": "object",
             "properties": [
                 "result": [
                     "type": "string",
-                    "enum": StepCheckResult.allCases.map(\.rawValue),
+                    "enum": VerdictSchemasV1.checkVerdictValues,
                 ],
                 "rationale": ["type": "string"],
             ],

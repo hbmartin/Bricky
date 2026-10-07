@@ -311,6 +311,8 @@ public struct EvidenceTraceRow: Codable, Sendable {
     /// the call did not use (`CheckTarget` raw value → tile path), so a
     /// replay can A/B the target on identical photos.
     public let alternateTileRelativePaths: [String: String]?
+    /// AR photo checks only: where the step's delta fell in the photo.
+    public let checkGeometry: CheckGeometryRecord?
 
     public init(
         traceVersion: Int, traceID: UUID, sessionID: UUID, pass: RecoveryPassKind, passIndex: Int,
@@ -321,7 +323,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         latencyMilliseconds: Int, memoryFootprintBytes: Int64?, modelRevision: String, createdAt: Date,
         variant: RecoveryInferenceVariant? = nil, inference: InferenceTelemetry? = nil,
         conditions: DeviceConditions? = nil, readouts: [DecisionReadout]? = nil, probe: ProbeReadout? = nil,
-        alternateTileRelativePaths: [String: String]? = nil
+        alternateTileRelativePaths: [String: String]? = nil, checkGeometry: CheckGeometryRecord? = nil
     ) {
         self.traceVersion = traceVersion
         self.traceID = traceID
@@ -351,6 +353,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         self.readouts = readouts
         self.probe = probe
         self.alternateTileRelativePaths = alternateTileRelativePaths
+        self.checkGeometry = checkGeometry
     }
 
     enum CodingKeys: String, CodingKey {
@@ -382,6 +385,7 @@ public struct EvidenceTraceRow: Codable, Sendable {
         case readouts
         case probe
         case alternateTileRelativePaths = "alternate_tile_relative_paths"
+        case checkGeometry = "check_geometry"
     }
 
     /// The target this call's board was drawn from; rows written before the
@@ -408,7 +412,9 @@ public struct EvidenceTraceRow: Codable, Sendable {
             latencyMilliseconds: latencyMilliseconds, memoryFootprintBytes: memoryFootprintBytes,
             modelRevision: modelRevision, createdAt: createdAt, variant: retargetedVariant, inference: inference,
             conditions: conditions, readouts: readouts, probe: probe,
-            alternateTileRelativePaths: [checkTarget.rawValue: tileRelativePaths["A"]].compactMapValues { $0 }
+            alternateTileRelativePaths: [checkTarget.rawValue: tileRelativePaths["A"]].compactMapValues { $0 },
+            // The photo and its geometry are the same whichever tile is used.
+            checkGeometry: checkGeometry
         )
     }
 }
@@ -424,11 +430,16 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
     public let alignmentID: UUID
     public let angle: String
     public let capturedAt: Date
+    /// The registered model pose the capture was taken under, when one was
+    /// locked (AR photo checks): 16 floats, column-major, the same layout as
+    /// `cameraTransform`. Verification window poses are row-major; this one
+    /// is not.
+    public let worldFromModel: [Float]?
 
     public init(
         captureID: UUID, imageRelativePath: String, cameraTransform: [Float],
         cameraIntrinsics: [Float], cameraImageResolution: [Float], alignmentID: UUID,
-        angle: String, capturedAt: Date
+        angle: String, capturedAt: Date, worldFromModel: [Float]? = nil
     ) {
         self.captureID = captureID
         self.imageRelativePath = imageRelativePath
@@ -438,6 +449,7 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         self.alignmentID = alignmentID
         self.angle = angle
         self.capturedAt = capturedAt
+        self.worldFromModel = worldFromModel
     }
 
     enum CodingKeys: String, CodingKey {
@@ -449,6 +461,7 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         case alignmentID = "alignment_id"
         case angle
         case capturedAt = "captured_at"
+        case worldFromModel = "world_from_model"
     }
 }
 

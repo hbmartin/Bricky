@@ -26,6 +26,17 @@ final class VLMStepCheckServiceTests: XCTestCase {
         )
     }
 
+    func testTheVLMServiceIsTheStepCheckAdvisor() {
+        // The seam ADR 0018 decides on: the VLM answers through it today.
+        let advisor: any StepCheckAdvisor.Type = VLMStepCheckService.self
+        XCTAssertTrue(advisor == VLMStepCheckService.self)
+    }
+
+    func testStepCheckResultMirrorsTheSchemaSource() {
+        XCTAssertEqual(StepCheckResult.allCases.map(\.rawValue), VerdictSchemasV1.checkVerdictValues)
+        XCTAssertEqual(StepCheckResult.allCases.map(\.rawValue), CheckVerdictV1.allCases.map(\.rawValue))
+    }
+
     func testRegisteredFallsBackToTheGuideCameraOutsideAR() {
         XCTAssertEqual(VLMStepCheckService.resolvedTarget(requested: .registered, registeredAvailable: false), .guideCamera)
         XCTAssertEqual(VLMStepCheckService.resolvedTarget(requested: .registered, registeredAvailable: true), .registered)

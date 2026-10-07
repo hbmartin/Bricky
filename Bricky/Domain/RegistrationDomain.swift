@@ -24,9 +24,11 @@ struct RegistrationFrameInput: Sendable {
     let depthIntrinsics: simd_float3x3
     let worldFromCamera: simd_float4x4
     let timestamp: TimeInterval
-    /// Evidence-only channels, filled only while evidence capture is on and
-    /// never read by tracking or verdicts (ADR 0007 amendment 2). RGB8,
-    /// interleaved, the camera image box-filtered onto the depth grid.
+    /// Auxiliary channels, filled only when asked for: while evidence
+    /// capture is on (ADR 0007 amendment 2), or the colour plane alone while
+    /// the colour term runs (amendment 3). Tracking never reads them; only
+    /// the colour term reads `colour`, with the authority its mode allows.
+    /// RGB8, interleaved, the camera image box-filtered onto the depth grid.
     var colour: [UInt8]? = nil
     /// How `colour` was converted, e.g. `rgb8_bt709_full`.
     var colourEncoding: String? = nil

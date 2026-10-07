@@ -58,6 +58,8 @@ CHALLENGE_KIND = "verification_challenge"
 # false-complete rate, reported beside the geometric verifier's. Mac replay
 # rows, so never release evidence.
 VLM_CHECK_KIND = "vlm_check"
+# The Foundation Models advisor beside photo checks, in shadow (ADR 0018).
+SHADOW_CHECK_KIND = "shadow_check"
 # Per-placement build diff rows (M2.3): what the shadow diff concluded about
 # each authored placement. Informational until real windows exist.
 PLACEMENT_KIND = "placement"
@@ -125,6 +127,9 @@ VERIFICATION_REQUIRED_FIELDS = {
     "latency_ms",
 }
 VERDICTS = {"complete", "incomplete", "misplaced", "uncertain"}
+# What a photo step check may answer. Mirrors CheckVerdictV1 in
+# RecoveryEvidenceKit/VerdictSchemasV1.swift; a test holds the two equal.
+CHECK_VERDICTS = {"complete", "incomplete", "uncertain"}
 DETECTABILITY = {"strong", "marginal", "undetectable"}
 
 REGISTRATION_REQUIRED_FIELDS = {
@@ -674,6 +679,9 @@ def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         "median_latency_ms": statistics.median(latencies) if latencies else None,
         "cases": len(rows),
     }
+    colour = colour_term_report(rows)
+    if colour is not None:
+        report["colour_term"] = colour
     gates += [
         # A "complete" on a delta depth cannot see is never earned evidence.
         count_gate(
@@ -697,6 +705,32 @@ def score_verification(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         median_gate("verification.median_latency_ms", latencies, VERIFICATION_MEDIAN_MS),
     ]
     return report, gates
+
+
+def colour_term_report(rows: list[dict[str, object]]) -> dict[str, object] | None:
+    """Informational only (ADR 0008 amendment, Proposed): how the colour term
+    read replayed windows. Present only when rows carry it, so reports from
+    runs without colour are unchanged. Its thresholds are RECONSTRUCTED; these
+    counts are what Phase 1 tunes them on, never a gate."""
+    coloured = [row for row in rows if row.get("colour_status") is not None]
+    if not coloured:
+        return None
+    statuses: dict[str, int] = {}
+    for row in coloured:
+        statuses[str(row["colour_status"])] = statuses.get(str(row["colour_status"]), 0) + 1
+    return {
+        "modes": sorted({str(row.get("colour_term_mode")) for row in coloured}),
+        "cases": len(coloured),
+        "status_counts": dict(sorted(statuses.items())),
+        # Disagreeing with a built step would block a true complete.
+        "disagrees_on_expected_complete": sum(
+            row["colour_status"] == "disagrees" and row["expected_verdict"] == "complete" for row in coloured
+        ),
+        # Agreeing on a negative would corroborate a false complete.
+        "agrees_on_negatives": sum(
+            row["colour_status"] == "agrees" and row["expected_verdict"] != "complete" for row in coloured
+        ),
+    }
 
 
 # --- Registration (kind == "registration") -----------------------------------
@@ -828,7 +862,7 @@ def score_challenge(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def validate_vlm_check_release(rows: list[dict[str, object]]) -> None:
+def validate_vlm_check_release(rows: list[dict[str, object]], kind: str = VLM_CHECK_KIND) -> None:
     """Step-check rows enter a release corpus only from a device session with
     a label declared before capture. Mac replays (provenance `replay`) are
     refused as for every kind. So are confirmed labels: a step is confirmed
@@ -836,7 +870,7 @@ def validate_vlm_check_release(rows: list[dict[str, object]]) -> None:
     complete and would understate the false-complete rate."""
     fixtures: set[str] = set()
     for index, row in enumerate(rows, start=1):
-        label = f"release {VLM_CHECK_KIND} row {index}"
+        label = f"release {kind} row {index}"
         if row.get("provenance") != "device":
             raise SystemExit(f"{label} has provenance {row.get('provenance')!r}; release needs 'device'")
         unique_fixture(row, fixtures, label)
@@ -860,7 +894,7 @@ def score_vlm_check(rows: list[dict[str, object]]) -> dict[str, object]:
             raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
         if row["expected_verdict"] not in {"complete", "incomplete"}:
             raise SystemExit(f"{label} expected_verdict must be complete or incomplete")
-        if row["produced_verdict"] not in VERDICTS:
+        if row["produced_verdict"] not in CHECK_VERDICTS:
             raise SystemExit(f"{label} has an invalid produced_verdict")
         require_valid_latency(row, label)
     negatives = [row for row in rows if row["expected_verdict"] == "incomplete"]
@@ -1021,13 +1055,68 @@ def challenge_lines(report: dict[str, object]) -> list[str]:
     return lines
 
 
+def score_shadow_check(rows: list[dict[str, object]]) -> dict[str, object]:
+    """The advisor's case for ADR 0018, informational until device rows
+    exist: its standalone false-complete rate on staged negatives (the
+    decision needs the bound under 2% with at least 149 negatives), and what
+    its only-toward-incomplete merge did to the primary verdicts."""
+    for index, row in enumerate(rows, start=1):
+        label = f"{SHADOW_CHECK_KIND} row {index}"
+        required = {"fixture_id", "expected_verdict", "primary_verdict", "standalone_verdict", "merged_verdict", "latency_ms"}
+        missing = sorted(required - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if row["expected_verdict"] not in {"complete", "incomplete"}:
+            raise SystemExit(f"{label} expected_verdict must be complete or incomplete")
+        if row["primary_verdict"] not in CHECK_VERDICTS or row["merged_verdict"] not in CHECK_VERDICTS:
+            raise SystemExit(f"{label} has an invalid primary or merged verdict")
+        if row["standalone_verdict"] not in CHECK_VERDICTS | {"none"}:
+            raise SystemExit(f"{label} has an invalid standalone_verdict")
+        if row["primary_verdict"] != "complete" and row["merged_verdict"] != row["primary_verdict"]:
+            raise SystemExit(f"{label} merged a {row['primary_verdict']} verdict; the advisor may only take a complete away")
+        require_valid_latency(row, label)
+    answered = [row for row in rows if row["standalone_verdict"] != "none"]
+    negatives = [row for row in answered if row["expected_verdict"] == "incomplete"]
+    positives = [row for row in answered if row["expected_verdict"] == "complete"]
+    standalone_false_completes = sum(row["standalone_verdict"] == "complete" for row in negatives)
+    gate = rate_gate(
+        "shadow_check.standalone_false_complete_rate", standalone_false_completes, len(negatives),
+        ceiling=VERIFICATION_FALSE_COMPLETE_CEILING, required=False,
+    )
+    all_negatives = [row for row in rows if row["expected_verdict"] == "incomplete"]
+    flips = [row for row in rows if row["merged_verdict"] != row["primary_verdict"]]
+    closed: dict[str, int] = {}
+    for row in rows:
+        answer = str(row.get("closed_answer") or "none")
+        closed[answer] = closed.get(answer, 0) + 1
+    needed = zero_miss_minimum(gate) or 0
+    return {
+        "cases": len(rows),
+        "answered": len(answered),
+        "negatives": len(negatives),
+        "standalone_false_complete_cases": standalone_false_completes,
+        "standalone_false_complete_rate": gate.value,
+        "standalone_false_complete_upper_95": gate.bound,
+        "negatives_still_needed": max(0, needed - len(negatives)),
+        "standalone_complete_recall": (
+            sum(row["standalone_verdict"] == "complete" for row in positives) / len(positives) if positives else None
+        ),
+        "primary_false_complete_cases": sum(row["primary_verdict"] == "complete" for row in all_negatives),
+        "merged_false_complete_cases": sum(row["merged_verdict"] == "complete" for row in all_negatives),
+        "flips": len(flips),
+        "flips_caught_a_negative": sum(row["expected_verdict"] == "incomplete" for row in flips),
+        "flips_lost_a_complete": sum(row["expected_verdict"] == "complete" for row in flips),
+        "closed_answers": dict(sorted(closed.items())),
+    }
+
+
 # --- Entry -------------------------------------------------------------------
 
 
 def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     kinds: dict[str, list[dict[str, object]]] = {
         kind: [] for kind in KINDS + SUMMARY_KINDS + (
-            CHALLENGE_KIND, VLM_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
+            CHALLENGE_KIND, VLM_CHECK_KIND, SHADOW_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
             PLACEMENT_SUGGESTION_KIND,
         )
     }
@@ -1136,6 +1225,8 @@ def main(
             raise SystemExit(f"{CHALLENGE_KIND} rows are a synthetic challenge set and are not release evidence")
         if kinds[VLM_CHECK_KIND]:
             validate_vlm_check_release(kinds[VLM_CHECK_KIND])
+        if kinds[SHADOW_CHECK_KIND]:
+            validate_vlm_check_release(kinds[SHADOW_CHECK_KIND], kind=SHADOW_CHECK_KIND)
         if any(row.get("provenance") != "device" for row in kinds[PLACEMENT_KIND]):
             raise SystemExit(f"{PLACEMENT_KIND} rows other than device rows are not release evidence")
         if kinds[REPAIR_KIND]:
@@ -1164,6 +1255,8 @@ def main(
         report[CHALLENGE_KIND] = score_challenge(kinds[CHALLENGE_KIND])
     if kinds[VLM_CHECK_KIND]:
         report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
+    if kinds[SHADOW_CHECK_KIND]:
+        report[SHADOW_CHECK_KIND] = score_shadow_check(kinds[SHADOW_CHECK_KIND])
     placement_gates: list[Gate] = []
     if kinds[PLACEMENT_KIND]:
         report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
@@ -1199,6 +1292,14 @@ def main(
         print(
             f"VLM_CHECK_FALSE_COMPLETE {shown} ({check['false_complete_cases']}/{check['negatives']} negatives, "
             f"upper95={format_number(check['false_complete_upper_95'])})"
+        )
+    if SHADOW_CHECK_KIND in report:
+        shadow = report[SHADOW_CHECK_KIND]
+        shown = UNMEASURED if shadow["standalone_false_complete_rate"] is None else f"{shadow['standalone_false_complete_rate']:.4f}"
+        print(
+            f"SHADOW_CHECK_STANDALONE_FALSE_COMPLETE {shown} ({shadow['standalone_false_complete_cases']}/"
+            f"{shadow['negatives']} negatives, upper95={format_number(shadow['standalone_false_complete_upper_95'])}; "
+            f"{shadow['negatives_still_needed']} more negatives at zero misses for ADR 0018)"
         )
     if PLACEMENT_KIND in report:
         placement = report[PLACEMENT_KIND]

@@ -78,6 +78,51 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         ))
     }
 
+    func testCaptureRecordsTheLockedModelPoseAndCheckGeometry() async throws {
+        let recorder = makeRecorder()
+        let capture = try makeCapture()
+        var pose = matrix_identity_float4x4
+        pose.columns.3 = SIMD4(0.1, -0.2, -0.45, 1)
+        await recorder.recordCaptures([capture], worldFromModel: pose)
+        let board = root.appendingPathComponent("board.jpg")
+        try Data("jpeg-bytes".utf8).write(to: board)
+        let geometry = CheckGeometryRecord(
+            deltaBox: .init(x: 0.25, y: 0.5, width: 0.125, height: 0.25), deltaPixels: 42, gridWidth: 256, gridHeight: 192
+        )
+        await recorder.recordPass(
+            pass: .check, passIndex: 0, capture: capture,
+            candidates: [.init(slot: "A", stepIndex: 0, stepID: "m#1", jpegData: Data("tile".utf8))],
+            boardURL: board, prompt: "check prompt", trace: makeTrace(), checkGeometry: geometry
+        )
+        await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let session = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("session.json"))
+        )
+        // Column-major, the same layout as camera_transform: the translation
+        // is the last four floats.
+        let recorded = try XCTUnwrap(session.captures.first?.worldFromModel)
+        XCTAssertEqual(Array(recorded[12..<16]), [0.1, -0.2, -0.45, 1])
+        XCTAssertEqual(try loadTraceRows(sessionDirectory: sessionDirectory).first?.checkGeometry, geometry)
+
+        // Captures recorded without a lock carry no pose.
+        let unlocked = makeRecorder()
+        await unlocked.recordCaptures([try makeCapture()])
+        await unlocked.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+        let unlockedSession = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(unlocked.sessionID.uuidString)
+                .appendingPathComponent("session.json"))
+        )
+        XCTAssertNil(unlockedSession.captures.first?.worldFromModel)
+    }
+
     func testTraceRowsUseSnakeCaseKeys() async throws {
         let recorder = makeRecorder()
         let board = root.appendingPathComponent("board.jpg")
@@ -271,6 +316,58 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertEqual(record.placements.first?.offset, [1, 0, 0, 0])
         XCTAssertEqual(record.adapterVerdict, "misplaced")
         XCTAssertEqual(record.verifierVerdict, "incomplete")
+    }
+
+    func testAWindowCarriesTheColourTermReading() async throws {
+        let recorder = makeRecorder()
+        var capture = windowCapture(samples: (0..<2).map { windowSample(timestamp: TimeInterval($0)) }, trigger: .confirm, staged: nil)
+        capture.colourTermMode = .shadow
+        capture.colourAssessment = ColourAssessment(
+            status: .disagrees(nearestCode: 14),
+            groups: [.init(code: 1, status: .disagrees(nearestCode: 14), pixels: 120, frames: 4, observedOklab: nil,
+                           authoredDistance: 0.31, nearestCode: 14, nearestDistance: 0.02, beneathCode: 4)],
+            framesWithColour: 4, framesCalibrated: 4
+        )
+        await recorder.record(capture)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows/\(capture.windowID.uuidString).json")
+        let record = try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: url))
+        let colour = try XCTUnwrap(record.colourTerm)
+        XCTAssertEqual(colour.mode, "shadow")
+        XCTAssertEqual(colour.status, "disagrees")
+        XCTAssertEqual(colour.groups.first?.nearestCode, 14)
+        XCTAssertEqual(colour.groups.first?.beneathCode, 4)
+        XCTAssertTrue(String(decoding: try Data(contentsOf: url), as: UTF8.self).contains("\"colour_term\""))
+
+        // Without the term, the window says nothing about colour.
+        let plain = windowCapture(samples: (0..<2).map { windowSample(timestamp: TimeInterval($0)) }, trigger: .confirm, staged: nil)
+        await recorder.record(plain)
+        let plainURL = url.deletingLastPathComponent().appendingPathComponent("\(plain.windowID.uuidString).json")
+        XCTAssertNil(try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: plainURL)).colourTerm)
+    }
+
+    func testWordingAttemptsGoToTheirOwnFile() async throws {
+        let recorder = makeRecorder()
+        let record = RepairWordingRecordV1(
+            sessionID: recorder.sessionID, stepID: "main.ldr#3", action: "move", partLabel: "red Brick 2 x 4",
+            partCount: 1, direction: "your_left", studs: 1, turn: nil,
+            template: "Move the red Brick 2 x 4 one stud to your left.",
+            modelSentence: "Slide the red Brick 2 x 4 one stud to your left.", outcome: "accepted",
+            shown: "Slide the red Brick 2 x 4 one stud to your left.", latencyMilliseconds: 900,
+            osBuild: "24A430", deviceModel: "iPhone18,1", createdAt: Date(timeIntervalSince1970: 0)
+        )
+        await recorder.recordWording(record)
+        await recorder.recordWording(record)
+        let url = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent(RepairWordingRecordV1.filename)
+        let lines = try Data(contentsOf: url).split(separator: UInt8(ascii: "\n"))
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(try EvidenceSchema.decoder().decode(RepairWordingRecordV1.self, from: Data(lines[0])), record)
+        XCTAssertTrue(String(decoding: lines[0], as: UTF8.self).contains(#""model_sentence""#))
     }
 
     private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {

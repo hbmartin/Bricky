@@ -34,6 +34,10 @@ actor BuildDiffEngine: StepJudging {
         var plateHeight: Float = 0.0032
         /// The verifier's 1.5 mm "in front of" margin.
         var frontMargin: Float = 0.0015
+        /// With a table, the colour term also reads each placement (M3.2)
+        /// and may name a colour mismatch. Nil leaves the diff depth-only.
+        var colourTable: ColourTable? = nil
+        var colourTerm = ColourAgreementTerm.Configuration()
     }
 
     private let configuration: Configuration
@@ -46,6 +50,9 @@ actor BuildDiffEngine: StepJudging {
     private var countedFrames = 0
     private var cursor = 0
     private var generation = 0
+    private var colourTerm: ColourAgreementTerm?
+    /// Per placement, the colour evidence of the passes that voted on it.
+    private var colourEvidence: [Int: [ColourAgreementTerm.FrameEvidence]] = [:]
     /// How `ingest` turns the diff into a verdict. Only `.legacyEquivalent`
     /// is ever user-facing; `.placementAware` is logged in shadow.
     var policy: DiffStepVerdictAdapter.Policy = .legacyEquivalent
@@ -61,7 +68,10 @@ actor BuildDiffEngine: StepJudging {
         self.policy = policy
         let renderer = try renderer ?? ExpectedDepthRenderer.shared()
         self.renderer = renderer
-        verifier = try GeometricStepVerifier(configuration: configuration.verifier, renderer: renderer)
+        var verifierConfiguration = configuration.verifier
+        // The colour term reads the tags the verifier renders in its batch.
+        if configuration.colourTable != nil { verifierConfiguration.renderColourTags = true }
+        verifier = try GeometricStepVerifier(configuration: verifierConfiguration, renderer: renderer)
     }
 
     func setPolicy(_ policy: DiffStepVerdictAdapter.Policy) {
@@ -73,6 +83,12 @@ actor BuildDiffEngine: StepJudging {
         self.stepID = stepID
         self.geometry = geometry
         timeline = geometry.segments.map { renderer.prepare($0) }
+        colourTerm = configuration.colourTable.map { table in
+            ColourAgreementTerm(
+                table: table, billOfMaterials: ColourTermJudge.billOfMaterials(geometry),
+                configuration: configuration.colourTerm
+            )
+        }
         clear()
         await verifier.begin(stepID: stepID, geometry: geometry)
     }
@@ -85,6 +101,7 @@ actor BuildDiffEngine: StepJudging {
 
     private func clear() {
         evidence = [:]
+        colourEvidence = [:]
         countedFrames = 0
         cursor = 0
         lastDiff = nil
@@ -225,6 +242,7 @@ actor BuildDiffEngine: StepJudging {
         let minimumConfidence = configuration.verifier.minimumConfidence
         var record = evidence[placement] ?? PlacementEvidence()
         var visible = false
+        var footprint = [Bool](repeating: false, count: colourTerm == nil ? 0 : alone.depth.count)
         for index in alone.depth.indices where alone.depth[index] > 0 {
             let expected = alone.depth[index]
             let behind = maps.completed.depth[index]
@@ -232,6 +250,7 @@ actor BuildDiffEngine: StepJudging {
             // Another of the step's placements in front hides this one.
             if !single, maps.delta.depth[index] > 0, maps.delta.depth[index] < expected - margin { continue }
             visible = true
+            if !footprint.isEmpty { footprint[index] = true }
             guard maps.observedConfidence[index] >= minimumConfidence else { continue }
             let depth = maps.observedDepth[index]
             guard depth.isFinite, depth > 0 else { continue }
@@ -244,6 +263,15 @@ actor BuildDiffEngine: StepJudging {
             }
         }
         if visible { record.framesSeen += 1 }
+        // The colour of this placement's own visible footprint, eroded as
+        // the colour term erodes the whole delta.
+        if visible, let colourTerm, let colourFrame = ColourTermJudge.colourFrame(maps) {
+            let region = ColourAgreementTerm.eroded(footprint, width: alone.width, height: alone.height)
+            var frames = colourEvidence[placement] ?? []
+            frames.append(colourTerm.evidence(from: colourFrame, region: region))
+            if frames.count > ColourTermJudge.maximumFrames { frames.removeFirst(frames.count - ColourTermJudge.maximumFrames) }
+            colourEvidence[placement] = frames
+        }
         for (offset, alternative) in alternatives {
             var tally = record.tallies.first { $0.offset == offset } ?? HypothesisTally(offset: offset)
             for index in alone.depth.indices where alone.depth[index] > 0 || alternative.depth[index] > 0 {
@@ -282,12 +310,26 @@ actor BuildDiffEngine: StepJudging {
 
     // MARK: - Diff
 
+    static func summary(_ assessment: ColourAssessment) -> PlacementColour {
+        let group = assessment.groups.first
+        return PlacementColour(
+            status: assessment.status.name,
+            frames: group?.frames ?? 0,
+            authoredDistance: group?.authoredDistance,
+            nearestCode: group?.nearestCode,
+            nearestDistance: group?.nearestDistance
+        )
+    }
+
     private func makeDiff(group: StepVerification) -> BuildDiff {
         let placements = geometry.map { Array($0.deltaPlacements) } ?? []
         return BuildDiff(
             stepID: stepID,
             observations: placements.map { placement in
-                let record = evidence[placement] ?? PlacementEvidence()
+                var record = evidence[placement] ?? PlacementEvidence()
+                if let colourTerm, let frames = colourEvidence[placement] {
+                    record.colour = Self.summary(colourTerm.assess(frames))
+                }
                 return PlacementObservation(
                     placement: placement,
                     state: classify(record, group: group),
@@ -325,7 +367,10 @@ actor BuildDiffEngine: StepJudging {
         // Present is the per-placement complete, and as hard to earn
         // (ADR 0008): never under marginal detectability.
         if support >= configuration.supportFloor, absence <= configuration.contraryCeiling {
-            return groupDetectability == .strong ? .present : .notObservable(.insufficientEvidence)
+            guard groupDetectability == .strong else { return .notObservable(.insufficientEvidence) }
+            // Depth sees the part where it belongs; the colour term sees
+            // another colour the model uses there.
+            return record.colour?.disagrees == true ? .colourMismatch : .present
         }
         if absence >= configuration.absenceFloor, absence > support { return .absent }
         return .notObservable(.insufficientEvidence)
@@ -336,7 +381,8 @@ actor BuildDiffEngine: StepJudging {
 /// only user-facing policy, returns the verifier's verdict unchanged.
 /// `.placementAware` may only take a `complete` away: a placement the diff
 /// sees as turned, absent, or displaced makes the step uncertain or
-/// misplaced. It never makes anything complete.
+/// misplaced, and one in the wrong colour makes it incomplete. It never
+/// makes anything complete.
 enum DiffStepVerdictAdapter {
     enum Policy: Sendable {
         case legacyEquivalent
@@ -351,6 +397,8 @@ enum DiffStepVerdictAdapter {
                 return legacy.replacingVerdict(.misplaced(offsetStuds: SIMD2(offset.dx, offset.dz)))
             case .rotated, .absent:
                 return legacy.replacingVerdict(.uncertain(.insufficientEvidence))
+            case .colourMismatch:
+                return legacy.replacingVerdict(.incomplete)
             default:
                 continue
             }

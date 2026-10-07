@@ -42,12 +42,16 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
     public var completeFraction: Float
     public var incompleteFraction: Float
     public var staged: StagedVerificationDeclaration?
+    /// The colour term's reading when the window closed, when it ran
+    /// (M3.2, ADR 0007 amendment 3). The verdict above already reflects its
+    /// mode: unchanged in shadow, possibly blocked in block only.
+    public var colourTerm: ColourTermRecord?
 
     public init(
         windowID: UUID, sessionID: UUID, stepID: String, stepIndex: Int, trigger: Trigger, createdAt: Date,
         frames: [VerificationWindowFrame], verdict: String, offsetStuds: [Int]?, uncertainReason: String?,
         detectability: String, deltaPixels: Int, framesUsed: Int, completeFraction: Float,
-        incompleteFraction: Float, staged: StagedVerificationDeclaration?
+        incompleteFraction: Float, staged: StagedVerificationDeclaration?, colourTerm: ColourTermRecord? = nil
     ) {
         self.windowID = windowID
         self.sessionID = sessionID
@@ -65,6 +69,7 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         self.completeFraction = completeFraction
         self.incompleteFraction = incompleteFraction
         self.staged = staged
+        self.colourTerm = colourTerm
     }
 
     enum CodingKeys: String, CodingKey {
@@ -85,6 +90,65 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         case completeFraction = "complete_fraction"
         case incompleteFraction = "incomplete_fraction"
         case staged
+        case colourTerm = "colour_term"
+    }
+}
+
+/// The colour term's reading of a step (ADR 0008 amendment, Proposed): its
+/// mode, overall status (`agrees`, `disagrees`, `inconclusive_<reason>`),
+/// and the evidence per authored colour, distances in Oklab.
+public struct ColourTermRecord: Codable, Sendable, Equatable {
+    public struct Group: Codable, Sendable, Equatable {
+        public var code: Int
+        public var status: String
+        public var pixels: Int
+        public var frames: Int
+        public var authoredDistance: Float?
+        public var nearestCode: Int?
+        public var nearestDistance: Float?
+        public var beneathCode: Int?
+
+        public init(
+            code: Int, status: String, pixels: Int, frames: Int, authoredDistance: Float?, nearestCode: Int?,
+            nearestDistance: Float?, beneathCode: Int?
+        ) {
+            self.code = code
+            self.status = status
+            self.pixels = pixels
+            self.frames = frames
+            self.authoredDistance = authoredDistance
+            self.nearestCode = nearestCode
+            self.nearestDistance = nearestDistance
+            self.beneathCode = beneathCode
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case code, status, pixels, frames
+            case authoredDistance = "authored_distance"
+            case nearestCode = "nearest_code"
+            case nearestDistance = "nearest_distance"
+            case beneathCode = "beneath_code"
+        }
+    }
+
+    public var mode: String
+    public var status: String
+    public var framesWithColour: Int
+    public var framesCalibrated: Int
+    public var groups: [Group]
+
+    public init(mode: String, status: String, framesWithColour: Int, framesCalibrated: Int, groups: [Group]) {
+        self.mode = mode
+        self.status = status
+        self.framesWithColour = framesWithColour
+        self.framesCalibrated = framesCalibrated
+        self.groups = groups
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mode, status, groups
+        case framesWithColour = "frames_with_colour"
+        case framesCalibrated = "frames_calibrated"
     }
 }
 
@@ -276,12 +340,19 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
     /// replay reproduced it from the window's frames alone.
     public var deviceVerdict: String?
     public var matchesDevice: Bool?
+    /// Replays with `--colour-term` (M3.2): the mode the replay ran, the
+    /// colour term's status, and the model colour it saw when it disagreed.
+    /// Informational until ADR 0008's amendment is accepted.
+    public var colourTermMode: String?
+    public var colourStatus: String?
+    public var colourNearestCode: Int?
 
     public init(
         provenance: String, fixtureID: String, expectedVerdict: String, producedVerdict: String,
         detectability: String, latencyMilliseconds: Int, latencyScope: String, deviceModel: String,
         authoredModelID: String, stepIndex: Int, deltaPixels: Int, framesUsed: Int, windowTrigger: String,
-        staged: StagedVerificationDeclaration?, deviceVerdict: String? = nil, matchesDevice: Bool? = nil
+        staged: StagedVerificationDeclaration?, deviceVerdict: String? = nil, matchesDevice: Bool? = nil,
+        colourTermMode: String? = nil, colourStatus: String? = nil, colourNearestCode: Int? = nil
     ) {
         self.provenance = provenance
         self.fixtureID = fixtureID
@@ -305,6 +376,9 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
         expectedFailure = staged?.isExpectedFailure == true ? true : nil
         self.deviceVerdict = deviceVerdict
         self.matchesDevice = matchesDevice
+        self.colourTermMode = colourTermMode
+        self.colourStatus = colourStatus
+        self.colourNearestCode = colourNearestCode
     }
 
     enum CodingKeys: String, CodingKey {
@@ -332,6 +406,9 @@ public struct VerificationRowV1: Codable, Sendable, Equatable {
         case expectedFailure = "expected_failure"
         case deviceVerdict = "device_verdict"
         case matchesDevice = "matches_device"
+        case colourTermMode = "colour_term_mode"
+        case colourStatus = "colour_status"
+        case colourNearestCode = "colour_nearest_code"
     }
 }
 
@@ -349,8 +426,18 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
         public var absence: Int
         public var unexplained: Int
         public var framesSeen: Int
+        /// The colour term's status for the placement (`agrees`,
+        /// `disagrees`, `inconclusive_<reason>`), when it ran (M3.2).
+        public var colourStatus: String?
+        /// The other model colour it looked like, and how far the observed
+        /// colour was from the authored one, in Oklab.
+        public var colourNearestCode: Int?
+        public var colourAuthoredDistance: Float?
 
-        public init(placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int) {
+        public init(
+            placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int,
+            colourStatus: String? = nil, colourNearestCode: Int? = nil, colourAuthoredDistance: Float? = nil
+        ) {
             self.placement = placement
             self.state = state
             self.offset = offset
@@ -358,11 +445,17 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
             self.absence = absence
             self.unexplained = unexplained
             self.framesSeen = framesSeen
+            self.colourStatus = colourStatus
+            self.colourNearestCode = colourNearestCode
+            self.colourAuthoredDistance = colourAuthoredDistance
         }
 
         enum CodingKeys: String, CodingKey {
             case placement, state, offset, support, absence, unexplained
             case framesSeen = "frames_seen"
+            case colourStatus = "colour_status"
+            case colourNearestCode = "colour_nearest_code"
+            case colourAuthoredDistance = "colour_authored_distance"
         }
     }
 

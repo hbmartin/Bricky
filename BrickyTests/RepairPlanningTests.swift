@@ -130,6 +130,15 @@ final class RepairPlanningTests: XCTestCase {
         XCTAssertFalse(plan.actions.contains { $0.target.placement == 2 }, "an earlier step's part is not this plan's")
     }
 
+    func testAWrongColourPartIsSwappedForTheAuthoredColour() throws {
+        let diff = BuildDiff(stepID: "main.ldr#3", observations: [
+            PlacementObservation(placement: 5, state: .colourMismatch, evidence: PlacementEvidence())
+        ], framesUsed: 9)
+        let plan = try XCTUnwrap(RepairPlanner.plan(diff: diff, context: context, flags: RepairFeatureFlags(buildDiffInput: true)))
+        XCTAssertEqual(plan.actions, [.swapColour(ref(5), expected: ref(5).colourCode)])
+        XCTAssertNil(RepairPlanner.plan(diff: diff, context: context, flags: RepairFeatureFlags()), "behind buildDiffInput")
+    }
+
     func testUnseenPartsAreWithheldNotGuessed() throws {
         let diff = BuildDiff(stepID: "main.ldr#3", observations: [
             PlacementObservation(placement: 5, state: .notObservable(.occluded), evidence: PlacementEvidence()),

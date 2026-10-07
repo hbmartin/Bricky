@@ -350,4 +350,19 @@ final class StepVerificationControllerTests: XCTestCase {
         XCTAssertTrue(ingested.isEmpty)
         XCTAssertNil(controller.verification)
     }
+
+    // MARK: - Colour term (M3.2)
+
+    func testColourTermModeComesFromSettingsAndFullIsHeldAtBlockOnly() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "colour-term-\(UUID().uuidString)"))
+        XCTAssertEqual(StepVerificationController.storedColourTermMode(defaults), .off)
+        for (stored, expected) in [("shadow", ColourTermMode.shadow), ("block_only", .blockOnly), ("full", .blockOnly), ("garbage", .off)] {
+            defaults.set(stored, forKey: AppConfig.Defaults.colourTermMode)
+            XCTAssertEqual(StepVerificationController.storedColourTermMode(defaults), expected, stored)
+        }
+        let controller = StepVerificationController(colourTermMode: { .shadow })
+        XCTAssertEqual(controller.colourTermMode, .shadow)
+        XCTAssertEqual(StepVerificationController(colourTermMode: { .off }).colourTermMode, .off)
+    }
+
 }

@@ -64,6 +64,15 @@ final class PartDescriptionIndexTests: XCTestCase {
         XCTAssertTrue(missing.isFallback)
     }
 
+    func testAFallbackTitleIsHeldToTheHeaderRules() async throws {
+        let hostile = "evil\u{0}\n" + String(repeating: "a", count: 200) + ".dat"
+        let fallback = await index().description(for: hostile)
+        XCTAssertTrue(fallback.isFallback)
+        XCTAssertFalse(fallback.title.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) })
+        XCTAssertLessThanOrEqual(fallback.title.count, PartDescriptionIndex.maximumTitleLength)
+        XCTAssertEqual(fallback.reference, hostile, "lookups keep the real reference")
+    }
+
     func testColourNames() {
         XCTAssertEqual(PartNaming.colourName(code: 71, definitionName: "Light_Bluish_Grey"), "Light bluish grey")
         XCTAssertEqual(PartNaming.colourName(code: 4, definitionName: "Red"), "Red")

@@ -97,6 +97,43 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual((verdict.accuracy["session_top1"].wins, verdict.accuracy["session_top1"].losses), (6, 0))
         self.assertIn("FLIP CANDIDATE: accuracy win", verdict.decision)
 
+    def test_verification_windows_pair_by_window_and_guard_false_complete(self) -> None:
+        # Colour-term arms: SyntheticRGBD --replay-bundle rows, one per window.
+        def window(index: int, expected: str, produced: str) -> dict[str, object]:
+            return {"kind": "verification", "fixture_id": f"w{index}", "expected_verdict": expected,
+                    "produced_verdict": produced, "detectability": "marginal"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control_rows = [window(i, "complete", "uncertain") for i in range(20)] + [window(99, "incomplete", "incomplete")]
+            variant_rows = [window(i, "complete", "complete") for i in range(20)] + [window(99, "incomplete", "incomplete")]
+            write(root / "control.ndjson", control_rows)
+            write(root / "variant.ndjson", variant_rows)
+            control, variant = Arm.load(root / "control.ndjson"), Arm.load(root / "variant.ndjson")
+            self.assertEqual(len(control.verifications), 21)
+            self.assertEqual(control.sessions, {}, "verification rows are not sessions")
+            verdict = compare(control, [variant], primary="verification_correct")[0]
+            self.assertEqual((verdict.accuracy["verification_correct"].wins, verdict.accuracy["verification_correct"].losses), (20, 0))
+            self.assertIn("FLIP CANDIDATE: accuracy win", verdict.decision)
+            # A variant that completes a negative window holds, whatever it wins.
+            variant_rows[-1] = window(99, "incomplete", "complete")
+            write(root / "variant.ndjson", variant_rows)
+            held = compare(control, [Arm.load(root / "variant.ndjson")], primary="verification_correct")[0]
+            self.assertEqual(held.verification_false_complete, (0.0, 1.0))
+            self.assertIn("HOLD", held.decision)
+
+    def test_check_primary_pairs_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, right in (("control", 10), ("variant", 20)):
+                write(root / f"{name}.ndjson", [])
+                write(root / f"{name}.ndjson.checks.ndjson", [
+                    {"fixture_id": f"c{i}", "expected_verdict": "complete",
+                     "produced_verdict": "complete" if i < right else "uncertain"} for i in range(20)
+                ])
+            verdict = compare(Arm.load(root / "control.ndjson"), [Arm.load(root / "variant.ndjson")], primary="check_correct")[0]
+            self.assertEqual(verdict.accuracy["check_correct"].wins, 10)
+            self.assertIn("FLIP CANDIDATE", verdict.decision)
+
     def test_slot_histogram_exposes_positional_bias(self) -> None:
         control, _ = self.arms(
             [pass_row(0, False, chosen="B", truth="A"), pass_row(1, True, chosen="B", truth="B"),

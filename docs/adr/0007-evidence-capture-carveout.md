@@ -127,3 +127,43 @@ recognised as an occluder later.
 fresh verifier sees only the window's frames, while the device's had been
 accumulating since the step began, so disagreement with the device's verdict
 is reported, not treated as a defect.
+
+## Amendment 3 (2026-10-06): photo-check pose and delta box
+
+With evidence on, an AR Photo Check now records two more things:
+
+- **The model pose.** The session's capture record gains
+  `world_from_model`: the locked registration's model pose at the moment of
+  the photo, column-major like `camera_transform`.
+- **Where the delta fell.** The check's trace row gains `check_geometry`.
+  After inference, the app renders the completed build and the step's
+  additions from the photo's own camera under that pose. It records the box
+  around the visible delta, normalized to the upright stored photo, and its
+  pixel count. Nothing is asked of a model: geometry places the box.
+
+**Why.** The Foundation Models shadow test (Phase 3, ADR 0018) uses the
+pattern "locate with geometry, crop, ask a closed question". A Mac replay
+cannot locate anything: bundles never carry the instruction model or the
+part pack, so the delta cannot be re-rendered off the device. Recording the
+box on device is the only way a replay can crop.
+
+**Exposure.** A pose and four numbers per check, describing the user's own
+build. No new image is recorded. Consent and egress are unchanged: the same
+off-by-default developer toggle gates recording, and the manual share-sheet
+export remains the only way anything leaves the device. The Check Step
+screen has no registration, so its checks carry neither field.
+
+**The colour plane feeds the colour term (added with C8, 2026-10-06).**
+Amendment 2 said neither auxiliary channel feeds any verdict. That changes
+for the colour plane only, and only behind a developer setting:
+- **The term.** The RGB term (ADR 0008 amendment, Proposed) reads it. Off
+  by default; in Shadow it only records, and in Block only it may take a
+  `complete` away.
+- **When it is extracted.** When the term is on, the relay extracts the
+  colour plane even with evidence capture off, so the term can run.
+- **Where it goes.** The plane stays in memory for the visit and is written
+  nowhere unless evidence capture is also on. It never leaves the device
+  except in a manually exported bundle.
+- **The mask.** The occluder mask is still recorded only.
+- **Cost.** Relay extraction p95 with evidence off is a Phase 1 check
+  (`NEXT_STEPS_AND_FOLLOWUP.md` §1a).

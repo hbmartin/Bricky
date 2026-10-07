@@ -38,7 +38,11 @@ plans are proposed, not accepted. Steps 3–6 are built
 device evidence yet: every rate and latency below is unmeasured on an
 iPhone 17 Pro until the Phase 1 corpus exists ([IOS27_ROADMAP.md](docs/IOS27_ROADMAP.md)).
 The VLM path changes only through recorded inference variants, and a
-default flips only on a paired A/B (ADR 0010 amendment).
+default flips only on a paired A/B (ADR 0010 amendment). Phase 3 added, all
+off or in shadow behind developer settings: a non-learned colour check
+beside the verifier (ADR 0008 amendment, Proposed), repair wording by the
+on-device language model (ADR 0017), and a Foundation Models second opinion
+on photo checks (ADR 0018, Proposed).
 
 ## Glossary
 
@@ -113,8 +117,8 @@ default flips only on a paired A/B (ADR 0010 amendment).
   It runs as a shadow judge until it has authority (ADR 0008 amendment).
 - **Placement state** — one placement's finding in a build diff
   (`PlacementState`): present, absent, displaced by whole studs, rotated
-  (asymmetric parts only), or not observable. Plate-height offsets are
-  observe-only; colour waits for the RGB term.
+  (asymmetric parts only), colour mismatch (with the colour check on), or
+  not observable. Plate-height offsets are observe-only.
 - **Shadow judge** — a second judge fed the same frames after the
   authoritative one (`ShadowStepJudging`), only while evidence capture is
   on. Logged and written to evidence (`diffs.ndjson`), never shown.
@@ -123,9 +127,10 @@ default flips only on a paired A/B (ADR 0010 amendment).
   an override and a step exit while evidence capture is on (ADR 0007
   amendment 2). `SyntheticRGBD --replay-bundle` replays windows on a Mac.
 - **Repair plan** — `RepairPlanner`'s deterministic actions for the current
-  step's parts: add, move by whole studs, or turn (ADR 0015). Worded by
-  `RepairPhrasebook` from the String Catalog, with directions from poses,
-  never from a model. Cross-step plans (`CrossStepRepairPlanner`) are
+  step's parts: add, move by whole studs, turn, or swap for the authored
+  colour (ADR 0015). Worded by `RepairPhrasebook` from the String Catalog,
+  or, behind a developer setting, by a validated language-layer sentence
+  (ADR 0017). Directions come from poses, never from a model. Cross-step plans (`CrossStepRepairPlanner`) are
   Proposed and stay behind an off flag.
 - **Suggested placement** — a ghost pose fitted to the depth under the
   reticle (`SuggestedPlacementEstimator`). Offered only behind a developer
@@ -135,6 +140,33 @@ default flips only on a paired A/B (ADR 0010 amendment).
   It holds on a negative check, advances on complete, uncertain or no
   check, only browses off the frontier, and refuses when no guide is on
   screen (ADR 0016).
+- **Tag pass** — the expected-depth renderer's second pipeline, writing each
+  surface's LDraw colour code + 1 (0 is background) beside depth (M3.1,
+  ADR 0006 note). Depth beside it is bit-identical to depth alone.
+- **Colour term** — `ColourAgreementTerm`, the non-learned RGB half of
+  ADR 0008. It compares the delta's depth-confirmed pixels, in calibrated
+  Oklab, with the authored colour, the nearest other colour the model uses,
+  and the colour beneath. The answer is agrees, disagrees (naming the other
+  colour) or inconclusive (with a reason). Its say over the verdict is a
+  `ColourTermMode`: off, shadow, block only (may take a complete away), or
+  full (replay only: may also corroborate a marginal delta that depth
+  calls present). Colour never completes anything on its own.
+- **Scene colour calibration** — the per-channel gain the colour term fits
+  from parts already built ("the completed parts are the colour chart").
+  It needs at least two colours.
+- **Language layer** — the on-device system model phrasing a repair the
+  planner already decided (ADR 0017). It gets the facts in the Prompt and
+  must repeat them; the template shows first and stays on any failure.
+- **Wording validator** — `RepairWordingValidator`: a generated sentence
+  may not add a direction, number, colour, rotation sense or forbidden word
+  that the facts lack.
+- **Step-check advisor** — what answers a photo check (`StepCheckAdvisor`).
+  Today it is the VLM. The Foundation Models advisor runs beside it only
+  as a shadow check (ADR 0018).
+- **Shadow check** — that advisor's run after an AR photo check: a
+  standalone verdict, a closed "is the part there?" on the geometry crop,
+  and a merge that may only take a complete away. Recorded
+  (`shadow-checks.ndjson`, `shadow_check` rows), never shown.
 
 ## Source of truth
 
@@ -310,6 +342,36 @@ SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --replay-bundle bundle \
 # Pixels that differ between colour-ordered and timeline-ordered draws:
 SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --out order.ndjson \
   --check-render-order
+
+# The colour tag pass beside depth (blocking in CI): depth unchanged, tags
+# decode to the step's colours, coverage matches.
+SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --out tags.ndjson \
+  --check-tag-render
+
+# Colour-term arms on real windows (synthetic scenes carry no colour, so
+# this needs a device bundle), paired by window:
+SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --replay-bundle bundle \
+  --out shadow.ndjson --colour-term shadow
+SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --replay-bundle bundle \
+  --out full.ndjson --colour-term full
+python3 compare_arms.py --control shadow.ndjson --variant full.ndjson \
+  --primary verification_correct
+
+# Repair wording: a blinded sheet from device wording.ndjson pairs, then
+# the sign test once the rater has filled in `choice`:
+swift run --package-path ../../Packages/RecoveryMLX bricky-harness wording-sheet \
+  --bundle bundle --out-sheet sheet.csv --out-key key.csv
+python3 score_wording_ab.py --sheet sheet.csv --key key.csv
+
+# Photo checks through the Foundation Models advisor on a macOS 27 Mac
+# (informational; ADR 0018 is decided by device rows):
+swift run --package-path ../../Packages/RecoveryMLX bricky-harness fm-shadow \
+  --bundle bundle --out fm.ndjson
+python3 compare_arms.py --control vlm.ndjson --variant fm.ndjson --primary check_correct
+
+# The language layer's live tests and Evaluations suite (macOS 27 only):
+BRICKY_FM_LIVE=1 swift test --package-path ../../Packages/RecoveryMLX \
+  --filter "RepairWordingLiveTests|StepCheckAdviceLiveTests|RepairWordingEvaluationTests"
 ```
 
 ## Release gates still requiring physical assets or devices
@@ -343,3 +405,9 @@ SyntheticRGBD model.ldr --ldraw-root /path/to/ldraw --out order.ndjson \
 - 🔴 GAP — step-check false-complete has a device producer
   (`check.ndjson`, staged labels only) but no rows yet: Phase 1 must
   collect staged check sessions, including negatives.
+- 🔴 GAP — the colour term's authority (ADR 0008 amendment, Proposed) needs
+  ≥40 real staged verification fixtures with colour swaps and marginal
+  steps; its thresholds are RECONSTRUCTED until then.
+- 🔴 GAP — ADR 0018 needs ≥149 staged device negatives with the shadow
+  check on; repair wording's default needs a blinded preference win on
+  device pairs (ADR 0017). Both are re-run per OS build.

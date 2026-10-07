@@ -31,7 +31,12 @@ studs, or turn it about its own centre. Rules:
   camera looks straight down. No model decides a direction or an offset.
 - Wording comes from fixed templates in the String Catalog
   (`RepairPhrasebook`). The phrasebook never uses "automatic", "detected",
-  "found" or "locked on" (CONTRIBUTING).
+  "found" or "locked on" (CONTRIBUTING). Amended 2026-10-06 (ADR 0017):
+  behind an off-by-default developer setting, the on-device language model
+  may reword a template. It is given the plan's facts and must repeat them;
+  `RepairWordingValidator` rejects any sentence that adds a direction,
+  number, colour, rotation sense or forbidden word, and the template is
+  shown instead. No model decides what to do, which way, or how far.
 - Repairs are text only. Any AR arrow or overlay that points needs a
   US11393153B2 design-around review first (ADR 0008 note).
 - Until the build diff has authority (ADR 0008 amendment), user-facing

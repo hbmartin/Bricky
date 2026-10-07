@@ -46,7 +46,10 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
                 framesUsed: verification.framesUsed,
                 completeFraction: verification.completeFraction,
                 incompleteFraction: verification.incompleteFraction,
-                staged: window.staged
+                staged: window.staged,
+                colourTerm: window.colourTermMode.map { mode in
+                    Self.colourTermRecord(mode: mode, assessment: window.colourAssessment)
+                }
             )
             try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
                 .write(to: sessionDirectory.appendingPathComponent("windows/\(window.windowID.uuidString).json"), options: .atomic)
@@ -96,6 +99,24 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
 
     static let diffRowsFilename = "diffs.ndjson"
 
+    /// The colour term's reading as the window records it; a mode with no
+    /// assessment yet reads as no colour.
+    static func colourTermRecord(mode: ColourTermMode, assessment: ColourAssessment?) -> ColourTermRecord {
+        ColourTermRecord(
+            mode: mode.rawValue,
+            status: (assessment?.status ?? .inconclusive(.noColour)).name,
+            framesWithColour: assessment?.framesWithColour ?? 0,
+            framesCalibrated: assessment?.framesCalibrated ?? 0,
+            groups: (assessment?.groups ?? []).map { group in
+                ColourTermRecord.Group(
+                    code: group.code, status: group.status.name, pixels: group.pixels, frames: group.frames,
+                    authoredDistance: group.authoredDistance, nearestCode: group.nearestCode,
+                    nearestDistance: group.nearestDistance, beneathCode: group.beneathCode
+                )
+            }
+        )
+    }
+
     static func placementRecord(_ observation: PlacementObservation) -> BuildDiffRecord.Placement {
         let offset: [Int]? = switch observation.state {
         case .displaced(let offset): [offset.dx, offset.dz, offset.dy, offset.quarterTurns]
@@ -109,7 +130,10 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
             support: observation.evidence.support,
             absence: observation.evidence.absence,
             unexplained: observation.evidence.unexplained,
-            framesSeen: observation.evidence.framesSeen
+            framesSeen: observation.evidence.framesSeen,
+            colourStatus: observation.evidence.colour?.status,
+            colourNearestCode: observation.evidence.colour?.nearestCode,
+            colourAuthoredDistance: observation.evidence.colour?.authoredDistance
         )
     }
 

@@ -4,6 +4,7 @@
 // rest of the app uses the types unqualified.
 import Foundation
 @_exported import RecoveryEvidenceKit
+import simd
 
 /// What `GeometricRecoveryEstimator` needs from an evidence recorder. A
 /// protocol rather than `RecoveryEvidenceRecorder` itself, because the
@@ -17,7 +18,7 @@ protocol GeometricFitRecording: Actor {
 extension EvidenceCaptureRecord {
     /// Bridges the app's domain capture into the interchange record. The
     /// image path is rewritten to the session-relative copy the recorder makes.
-    init(_ capture: RecoveryCapture) {
+    init(_ capture: RecoveryCapture, worldFromModel: simd_float4x4? = nil) {
         self.init(
             captureID: capture.id,
             imageRelativePath: "captures/\(capture.id.uuidString).jpg",
@@ -26,7 +27,11 @@ extension EvidenceCaptureRecord {
             cameraImageResolution: capture.cameraImageResolution,
             alignmentID: capture.alignmentID,
             angle: capture.angle.rawValue,
-            capturedAt: capture.capturedAt
+            capturedAt: capture.capturedAt,
+            // Column-major, as `cameraTransform` is recorded.
+            worldFromModel: worldFromModel.map { matrix in
+                (0..<4).flatMap { column in (0..<4).map { row in matrix[column][row] } }
+            }
         )
     }
 }

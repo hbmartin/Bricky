@@ -67,7 +67,10 @@ struct ChallengeScenario {
         }, expectation: .verdict("misplaced")),
         .init(label: "colour_swap", edit: .placement { placement in
             replacement(of: placement, colour: placement.colorCode == 4 ? 1 : 4)
-        }, expectation: .verdict("misplaced"), expectedFailure: true),
+        // Caught means not complete; incomplete matches the device's
+        // staged `wrong_colour` declaration. Depth alone cannot see colour,
+        // so it stays an expected failure here (no synthetic colour exists).
+        }, expectation: .verdict("incomplete"), expectedFailure: true),
     ]
 
     /// Rotates a placement about its own origin around LDraw's vertical axis.

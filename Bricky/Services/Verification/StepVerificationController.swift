@@ -28,6 +28,11 @@ final class StepVerificationController: ObservableObject {
 
     private let makeVerifier: () throws -> any StepJudging
     private var verifier: (any StepJudging)?
+    /// The colour term's latest reading when the verifier carries it
+    /// (M3.2). Logged and recorded in evidence windows; never shown.
+    private(set) var lastColourAssessment: ColourAssessment?
+    /// The mode the current verifier was built with.
+    private(set) var colourTermMode: ColourTermMode = .off
     /// The build diff in shadow (M2.3): judges the same frames after the
     /// verifier, only while evidence capture is on, and is never published.
     private let makeShadow: () throws -> any ShadowStepJudging
@@ -68,15 +73,45 @@ final class StepVerificationController: ObservableObject {
     private let windowSpacing: TimeInterval = 3
 
     init(
-        makeVerifier: @escaping () throws -> any StepJudging = { try GeometricStepVerifier() },
-        makeShadow: @escaping () throws -> any ShadowStepJudging = { try BuildDiffEngine(policy: .placementAware) },
+        makeVerifier: (() throws -> any StepJudging)? = nil,
+        makeShadow: (() throws -> any ShadowStepJudging)? = nil,
         shadowEnabled: @escaping () -> Bool = {
             UserDefaults.standard.bool(forKey: AppConfig.Defaults.evidenceCaptureEnabled)
-        }
+        },
+        colourTermMode: @escaping () -> ColourTermMode = { StepVerificationController.storedColourTermMode() },
+        colourTable: @escaping @MainActor () -> ColourTable = { ColourTable(definitions: LDrawPalette.installedDefinitions) }
     ) {
-        self.makeVerifier = makeVerifier
-        self.makeShadow = makeShadow
+        // The colour term (M3.2) is read once, when the AR guide opens: a
+        // verifier keeps its mode for the visit.
+        let mode = colourTermMode()
+        self.colourTermMode = mode
+        if let makeVerifier {
+            self.makeVerifier = makeVerifier
+        } else {
+            self.makeVerifier = {
+                guard mode != .off else { return try GeometricStepVerifier() }
+                return try ColourTermJudge(mode: mode, table: MainActor.assumeIsolated { colourTable() })
+            }
+        }
+        if let makeShadow {
+            self.makeShadow = makeShadow
+        } else {
+            self.makeShadow = {
+                var configuration = BuildDiffEngine.Configuration()
+                // The shadow diff reads colour per placement whenever the
+                // term is on at all.
+                if mode != .off { configuration.colourTable = MainActor.assumeIsolated { colourTable() } }
+                return try BuildDiffEngine(configuration: configuration, policy: .placementAware)
+            }
+        }
         self.shadowEnabled = shadowEnabled
+    }
+
+    /// The developer setting, with Full (replay-only until ADR 0008's
+    /// amendment is accepted) held at Block only.
+    nonisolated static func storedColourTermMode(_ defaults: UserDefaults = .standard) -> ColourTermMode {
+        let stored = ColourTermMode(rawValue: defaults.string(forKey: AppConfig.Defaults.colourTermMode) ?? "") ?? .off
+        return stored == .full ? .blockOnly : stored
     }
 
     var statusLabel: String? {
@@ -141,6 +176,7 @@ final class StepVerificationController: ObservableObject {
             await verifier.begin(stepID: stepID, geometry: geometry)
             lastShadowDiff = nil
             lastShadowVerdict = nil
+            lastColourAssessment = nil
             if shadowEnabled(), let judge = try? shadow ?? makeShadow() {
                 shadow = judge
                 await judge.begin(stepID: stepID, geometry: geometry)
@@ -190,9 +226,22 @@ final class StepVerificationController: ObservableObject {
                 ))
             }
             publish(result, at: next.frame.timestamp)
+            await readColourTerm(generation: ingestGeneration)
             await judgeInShadow(next.frame, next.registration, authoritative: result, generation: ingestGeneration)
         }
         worker = nil
+    }
+
+    /// Keeps the colour term's latest reading (M3.2) for logs and evidence
+    /// windows. Read after the verdict is published, so it never delays it.
+    private func readColourTerm(generation ingestGeneration: Int) async {
+        guard let judge = verifier as? ColourTermJudge else { return }
+        let assessment = await judge.lastAssessment
+        guard ingestGeneration == generation else { return }
+        if case .disagrees(let nearest) = assessment?.status, lastColourAssessment?.status != assessment?.status {
+            logger.notice("Colour term (\(self.colourTermMode.rawValue, privacy: .public)) disagrees: nearest colour \(nearest, privacy: .public)")
+        }
+        lastColourAssessment = assessment
     }
 
     /// Runs the shadow on the frame the verifier just judged. Its errors are
@@ -273,7 +322,9 @@ final class StepVerificationController: ObservableObject {
             ingestMillisecondsSinceBegin: ingestMillisecondsSinceBegin,
             createdAt: .now,
             shadowDiff: lastShadowDiff,
-            shadowVerdict: lastShadowVerdict
+            shadowVerdict: lastShadowVerdict,
+            colourTermMode: colourTermMode == .off ? nil : colourTermMode,
+            colourAssessment: lastColourAssessment
         )
         Task { await windowSink.record(capture) }
     }
@@ -298,6 +349,7 @@ final class StepVerificationController: ObservableObject {
         resetWindow()
         lastShadowDiff = nil
         lastShadowVerdict = nil
+        lastColourAssessment = nil
         if let verifier {
             Task { await verifier.resetEvidence() }
         }

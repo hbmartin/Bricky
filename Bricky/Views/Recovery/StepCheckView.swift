@@ -228,7 +228,7 @@ struct StepCheckView: View {
         recordedStaged = staged
         let sessionRecorder = makeRecorderIfEnabled(staged: staged)
         recorder = sessionRecorder
-        let service = VLMStepCheckService(
+        let service: any StepCheckAdvisor = VLMStepCheckService(
             runtime: recoveryModel.runtime,
             modelDirectory: modelDirectory,
             partPackRoot: pack,

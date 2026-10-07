@@ -1,6 +1,6 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-10-05. Companion to
+Last revised 2026-10-06. Companion to
 [EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
 program that supersedes much of the sequencing below — honest gates first,
 then device measurement, then the placement-level build diff — is
@@ -94,6 +94,30 @@ evidence bundle or the PR that flips the flag.
 7. **Wording.** The owner reviews the phrasebook and narration on screen
    and in VoiceOver. "About one stud" and the forbidden words stay absent.
 
+**Phase 3 add-ons** (built 2026-10-06, all off or in shadow behind developer
+settings):
+
+8. **Colour check, in Shadow** (ADR 0008 amendment, Proposed):
+   - relay colour extraction p95 ≤ 3 ms with evidence capture **off**;
+   - at least 40 staged verification fixtures, including `wrong_colour` and
+     marginal steps, recorded with evidence on so windows carry
+     `colour_term`;
+   - then Mac `--colour-term` replays to tune the RECONSTRUCTED thresholds;
+   - Block only on device only after the replays show no lost completes.
+9. **Photo check geometry** (ADR 0007 amendment 3): AR photo checks record
+   `world_from_model` and `check_geometry`. Overlay the box on a few photos
+   and confirm it frames the step's parts.
+10. **Foundation Models shadow check** (ADR 0018, Proposed): staged check
+    sessions with "Second opinion on photo checks, recorded only" on, until
+    the scorer reports 0 more negatives needed (149 at zero misses). Record
+    the advisor's availability, latency and refusals, and the thermal state
+    with AR running. Repeat per OS build.
+11. **Repair wording** (ADR 0017): with "Reword repairs with the on-device
+    language model" and evidence on, collect `wording.ndjson` pairs. Then
+    run `bricky-harness wording-sheet`, have the owner rate the sheet
+    blind, and score it with `score_wording_ab.py`. The default flips only
+    on MODEL PREFERRED. Re-run per OS build.
+
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
 Each was explicitly deferred during the design session because the harness
@@ -113,36 +137,52 @@ A former "check token budget" row was withdrawn on 2026-09-25: its premise
 (a 64-token closing-bias soft zone) does not exist, because the bias is never
 passed (§1 item 2).
 
-## 2a. The RGB support term (owed, ADR 0008)
+## 2a. The RGB support term (built in shadow, authority owed, ADR 0008)
 
-The challenge suite (2026-09-25) now measures the blind spots this term
-and the placement-level diff are meant to close. On `challenge.ldr` at
-seed 7, a colour swap reads complete on 3 of 3 strong steps (the expected
-failure). More urgently, **a brick one plate (3.2 mm) too high also reads
-complete on 3 of 3 strong steps**: the 6 mm depth tolerance swallows the
-offset. That is a false-complete class inside today's product boundary,
-and it is guarded in `fixtures/challenge/baseline.json` so a fix reads as
-an improvement.
+The challenge suite (2026-09-25) measures the blind spots this term and
+the placement-level diff are meant to close. On `challenge.ldr` at seed 7:
+- **Colour swap.** It reads complete on 3 of 3 strong steps, the expected
+  failure.
+- **Plate offset.** More urgently, a brick one plate (3.2 mm) too high also
+  reads complete on 3 of 3 strong steps: the 6 mm depth tolerance swallows
+  the offset. That is a false-complete class inside today's product
+  boundary. It is guarded in `fixtures/challenge/baseline.json`, so a fix
+  reads as an improvement.
 
-`GeometricStepVerifier` refuses a `complete` verdict under marginal
-detectability because ADR 0008 requires depth **and RGB** agreement there and
-the RGB half was never built. Measured on the real-tower fixture: 6 marginal
-cases, complete-recall 0.0 — the gate fails every run and only
-`continue-on-error` hides it. Marginal+complete fixtures are out of corpus
-scope until this lands (ADR 0008 amendment).
+`GeometricStepVerifier` still refuses `complete` under marginal
+detectability: ADR 0008 requires depth **and RGB** agreement there.
+Measured on the real-tower fixture, that gives 6 marginal cases with
+complete-recall 0.0, and the marginal gates stay dormant.
 
-What it needs, in order:
+**What Phase 3 built** (2026-10-06, ADR 0008 amendment, Proposed):
+1. **The colour plane.** On `RegistrationFrameInput` since M2.2. It is now
+   also extracted whenever the developer colour check is on.
+2. **The expected colour.** The renderer's tag pass (ADR 0006 note), with
+   `ColourTable` turning LDConfig into linear-light and Oklab colours, or
+   the reason a finish cannot be judged.
+3. **The term.** `ColourAgreementTerm`, non-learned: in-scene calibration
+   from the completed parts, median calibrated Oklab, and comparison with
+   the authored colour, the nearest other model colour, and the colour
+   beneath.
+4. **Its authority.** `ColourTermJudge` and `ColourTermMode`: Off (the
+   default), Shadow and Block only in the app; Full in replay only. In the
+   build diff, a wrong-colour placement becomes `colourMismatch`.
+5. **No synthetic colour sensor.** The 2026-08-07 amendment listed one as
+   a prerequisite; the approved approach replaces it. The term is
+   non-learned, its thresholds are RECONSTRUCTED, its tests check mechanics
+   on ideal colour only, and it is tuned on real windows. Synthetic scenes
+   carry no colour, so `colour_swap` stays an expected failure there.
 
-1. A colour plane on `RegistrationFrameInput` — the relay copies depth,
-   confidence, intrinsics and pose only, no image.
-2. An expected-colour render pass; `ExpectedDepthRenderer` emits depth only,
-   its colour attachment being an R32Float depth carrier.
-   `ModelSurfaceSample.colorCodes` already exists for this and is read by
-   nobody.
-3. The verifier agreement term itself.
-4. A synthetic **colour** sensor model — which is why this waits for depth
-   calibration (ADR 0014) rather than racing it. Building the term against an
-   invented colour model would repeat the mistake being corrected.
+**What is owed** (Phase 1, then an ADR 0008 decision):
+- At least 40 real staged verification fixtures, including `wrong_colour`
+  and marginal steps, recorded with the colour check in Shadow.
+- `SyntheticRGBD --replay-bundle --colour-term shadow|block|full` arms,
+  paired with `compare_arms.py --primary verification_correct`.
+- The exit for authority: marginal complete-recall at least 0.70 (the
+  dormant gates turn back on), colour swaps caught, and false-complete
+  still 0.
+- A Core AI colour model (M3.6) only if this non-learned term fails that
+  gate on real data.
 
 ## 3. Corpus goals
 

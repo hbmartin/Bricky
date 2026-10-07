@@ -72,16 +72,20 @@ struct SyntheticRGBDMain {
         /// generating synthetic scenes.
         var replayBundle: String?
         var replayJudge = WindowReplay.Judge.verifier
+        /// The colour term's mode for replayed windows (M3.2); nil leaves
+        /// the judge depth-only, as the device ran before the term existed.
+        var colourTerm: ColourTermMode?
         var recoveryArm = RecoveryArm.control
         /// Prints colour-order vs timeline-order render differences per step
         /// and exits (M2.0 diagnostic).
         var checkRenderOrder = false
+        var checkTagRender = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff]] [--check-render-order]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -90,6 +94,11 @@ struct SyntheticRGBDMain {
             let flag = arguments[index]
             if flag == "--check-render-order" {
                 options.checkRenderOrder = true
+                index += 1
+                continue
+            }
+            if flag == "--check-tag-render" {
+                options.checkTagRender = true
                 index += 1
                 continue
             }
@@ -114,12 +123,22 @@ struct SyntheticRGBDMain {
             case "--judge":
                 guard let judge = WindowReplay.Judge(rawValue: value) else { throw CLIError("invalid value for --judge: \(value)") }
                 options.replayJudge = judge
+            case "--colour-term":
+                guard let mode = ColourTermMode(rawValue: value == "block" ? ColourTermMode.blockOnly.rawValue : value) else {
+                    throw CLIError("invalid value for --colour-term: \(value)")
+                }
+                options.colourTerm = mode
             default: throw CLIError("unknown flag \(flag)")
             }
             index += 2
         }
         guard !options.ldrawRoot.isEmpty, !options.outPath.isEmpty else {
             throw CLIError("--ldraw-root and --out are required")
+        }
+        // Synthetic scenes carry no colour, and none may be invented
+        // (ADR 0008, ADR 0014): the colour term only replays real windows.
+        if options.colourTerm != nil, options.replayBundle == nil {
+            throw CLIError("--colour-term needs --replay-bundle: synthetic scenes have no colour")
         }
         return options
     }
@@ -160,6 +179,10 @@ struct SyntheticRGBDMain {
             try await RenderOrderCheck.run(plan: plan, engine: engine, renderer: renderer)
             return
         }
+        if options.checkTagRender {
+            try await TagRenderCheck.run(plan: plan, engine: engine, renderer: renderer)
+            return
+        }
         if let bundle = options.replayBundle {
             // The model's directory must hold exactly the files that were
             // imported, so its identity matches the bundle's sessions.
@@ -171,7 +194,9 @@ struct SyntheticRGBDMain {
                     for: plan, sourceRoot: sourceDirectory, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
                 ),
                 renderer: renderer,
-                judge: options.replayJudge
+                judge: options.replayJudge,
+                colourTerm: options.colourTerm,
+                colourTable: ColourTable(definitions: try LDConfigPalette.load(libraryURL: URL(fileURLWithPath: options.ldrawRoot)))
             )
             try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
                 .write(toFile: options.outPath, atomically: true, encoding: .utf8)

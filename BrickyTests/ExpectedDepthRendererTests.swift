@@ -356,6 +356,92 @@ final class ExpectedDepthRendererTests: XCTestCase {
         XCTAssertEqual(timeline[0].depth, colour.depth)
     }
 
+    // MARK: - Tag pass (M3.1)
+
+    func testTagPassesLeaveDepthBitIdentical() async throws {
+        let renderer = try makeRenderer()
+        let plain = renderer.prepare(layeredSnapshot)
+        let tagged = renderer.prepare(layeredSnapshot, tagged: true)
+        let requests = [request(plain), request(plain, surface: .farthest), request(tagged, distanceOffset: 0.1)]
+        let alone = try await renderer.render(requests, intrinsics: intrinsics, width: width, height: height)
+        let mixed = try await renderer.render(
+            requests, tags: [request(tagged), request(tagged, distanceOffset: 0.1)],
+            intrinsics: intrinsics, width: width, height: height
+        )
+        XCTAssertEqual(mixed.depth.count, requests.count)
+        XCTAssertEqual(mixed.tags.count, 2)
+        for index in requests.indices {
+            XCTAssertEqual(
+                mixed.depth[index].depth.map(\.bitPattern), alone[index].depth.map(\.bitPattern), "request \(index)"
+            )
+        }
+    }
+
+    func testTagsCarryCodePlusOneIncludingBlack() async throws {
+        let renderer = try makeRenderer()
+        // Black (code 0) in front, red (4) behind and wider.
+        let snapshot = InstructionGeometrySnapshot(
+            buffers: facingQuad(distance: 0.3, colorCode: 0) + facingQuad(distance: 0.15, colorCode: 4).map { buffer in
+                LDrawGeometryBuffer(
+                    colorCode: buffer.colorCode,
+                    positions: buffer.positions.map { SIMD3($0.x * 4, $0.y * 4, -0.6) },
+                    normals: buffer.normals, indices: buffer.indices
+                )
+            },
+            bounds: nil
+        )
+        let result = try await renderer.render(
+            [], tags: [request(renderer.prepare(snapshot, tagged: true))], intrinsics: intrinsics, width: width, height: height
+        )
+        let map = try XCTUnwrap(result.tags.first)
+        XCTAssertEqual(map.tags[96 * width + 128], 1, "black is code 0, tag 1")
+        XCTAssertEqual(map.colourCode(at: 96 * width + 128), 0)
+        XCTAssertEqual(map.colourCode(at: 96 * width + 128 + 60), 4, "the wider red quad shows beside the black one")
+        XCTAssertEqual(map.tags[5 * width + 5], 0, "background")
+        XCTAssertNil(map.colourCode(at: 5 * width + 5))
+        XCTAssertEqual(ExpectedDepthRenderer.tag(for: 0x2FF8800), 0x2FF8801, "direct colours fit")
+        XCTAssertEqual(ExpectedDepthRenderer.tag(for: -1), 0)
+    }
+
+    func testTagCoverageMatchesDepthCoverage() async throws {
+        let renderer = try makeRenderer()
+        let geometry = renderer.prepare(layeredSnapshot, tagged: true)
+        let probe = request(geometry, distanceOffset: 0.05)
+        let result = try await renderer.render([probe], tags: [probe], intrinsics: intrinsics, width: width, height: height)
+        let depthCovered = result.depth[0].depth.map { $0 > 0 }
+        let tagCovered = result.tags[0].tags.map { $0 != 0 }
+        let covered = depthCovered.filter { $0 }.count
+        let mismatched = zip(depthCovered, tagCovered).filter { $0 != $1 }.count
+        XCTAssertGreaterThan(covered, 1_000)
+        // Separate compiles may round triangle edges differently; the colour
+        // term erodes its mask by a pixel for exactly this reason.
+        XCTAssertLessThanOrEqual(mismatched, 8, "\(mismatched) of \(covered) covered pixels disagree")
+    }
+
+    func testTagRangesFollowPlacements() async throws {
+        let renderer = try makeRenderer()
+        let segments = segments
+        let geometry = renderer.prepare(segments, tagged: true)
+        let result = try await renderer.render(
+            [], tags: [
+                DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4, ranges: [segments.vertexRange(1)]),
+                DepthRenderRequest(geometry: geometry, viewFromModel: matrix_identity_float4x4)
+            ],
+            intrinsics: intrinsics, width: width, height: height
+        )
+        let alone = Set(result.tags[0].tags.filter { $0 != 0 })
+        XCTAssertEqual(alone, [2], "placement 1 is blue (code 1)")
+        let all = Set(result.tags[1].tags.filter { $0 != 0 })
+        XCTAssertEqual(all, [2, 5])
+        do {
+            _ = try await renderer.render(
+                [], tags: [DepthRenderRequest(geometry: renderer.prepare(segments), viewFromModel: matrix_identity_float4x4)],
+                intrinsics: intrinsics, width: width, height: height
+            )
+            XCTFail("untagged geometry cannot be tag-rendered")
+        } catch {}
+    }
+
     func testSharedRendererIsOneInstance() throws {
         do {
             let first = try ExpectedDepthRenderer.shared()

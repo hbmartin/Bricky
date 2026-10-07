@@ -1,4 +1,5 @@
 import ArgumentParser
+import BrickyLanguage
 import CoreGraphics
 import Foundation
 import RecoveryEvidenceKit
@@ -19,7 +20,7 @@ struct BrickyHarness: AsyncParsableCommand {
         device rows. Score results with:
         uv run python Tools/RecoveryEvaluation/score_results.py <out> --allow-small-corpus
         """,
-        subcommands: [Replay.self, Recompose.self]
+        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self]
     )
 }
 
@@ -334,6 +335,177 @@ struct Replay: AsyncParsableCommand {
             data.append(UInt8(ascii: "\n"))
         }
         try data.write(to: url, options: .atomic)
+    }
+}
+
+struct WordingSheet: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "wording-sheet",
+        abstract: "Build the blinded repair-wording preference sheet from device wording.ndjson pairs (ADR 0017).",
+        discussion: """
+        Give the sheet to the rater and keep the key. Each row places the
+        template and the model's sentence as A or B at random; the rater
+        fills `choice` with A, B or =. Then:
+        python3 Tools/RecoveryEvaluation/score_wording_ab.py --sheet <sheet> --key <key>
+        Device pairs only decide the default (a Mac is not the phone's model tier).
+        """
+    )
+
+    @Option(help: "An unzipped evidence bundle directory; repeat for several.")
+    var bundle: [String]
+
+    @Option(name: .customLong("out-sheet"), help: "CSV for the rater.")
+    var outSheet: String
+
+    @Option(name: .customLong("out-key"), help: "CSV that unblinds the sheet; keep it from the rater.")
+    var outKey: String
+
+    @Option(help: "Seed for the pair order and A/B placement.")
+    var seed: UInt64 = 7
+
+    mutating func run() throws {
+        var records: [RepairWordingRecordV1] = []
+        for path in bundle {
+            let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: path))
+            records += try reader.loadSessions().flatMap(\.wordingRecords)
+        }
+        let (pairs, summary) = WordingPreferenceSheet.pairs(from: records, seed: seed)
+        try WordingPreferenceSheet.sheetCSV(pairs).write(toFile: outSheet, atomically: true, encoding: .utf8)
+        try WordingPreferenceSheet.keyCSV(pairs).write(toFile: outKey, atomically: true, encoding: .utf8)
+        print("""
+        wording attempts \(summary.attempts): \(summary.accepted) accepted, \(summary.identical) identical to the template, \
+        \(summary.duplicates) repeats; \(summary.pairs) pairs on the sheet
+        """)
+    }
+}
+
+struct FMShadow: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "fm-shadow",
+        abstract: "Replay a bundle's photo checks through the Foundation Models advisor (informational, ADR 0018).",
+        discussion: """
+        Needs macOS 27 with Apple Intelligence on. Writes shadow_check rows
+        (provenance replay) to --out, and vlm_check-shaped rows of the
+        advisor's standalone verdict to <out>.checks.ndjson, so
+        compare_arms.py --primary check_correct can pair it with a VLM
+        replay. A Mac is not the phone's model tier: these rows guide prompt
+        work and never decide ADR 0018, and release mode refuses them.
+        """
+    )
+
+    @Option(help: "Path to an unzipped evidence bundle directory.")
+    var bundle: String
+
+    @Option(help: "Output NDJSON path for shadow_check rows; <out>.checks.ndjson is written beside it.")
+    var out: String
+
+    mutating func run() async throws {
+        #if canImport(FoundationModels)
+        guard #available(macOS 27.0, *) else {
+            throw ValidationError("fm-shadow needs macOS 27: the system model's image input is 27-only")
+        }
+        if let reason = FoundationModelsRepairWording.readiness() {
+            throw ValidationError("the system model is not ready (\(reason)); turn on Apple Intelligence")
+        }
+        let advisor = FoundationModelsStepCheckAdvisor()
+        let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: bundle))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var shadowLines: [Data] = []
+        var checkLines: [Data] = []
+        var skipped = 0
+        let host = "replay:\(DeviceIdentity.modelIdentifier)"
+        let osBuild = DeviceIdentity.osBuild
+        for session in try reader.loadSessions() {
+            let truth = session.file.groundTruth
+            let labelKind: VLMCheckRowV1.LabelKind? = switch truth.kind {
+            case .staged: .staged
+            case .confirmed: .confirmed
+            case .unlabeled: nil
+            }
+            for row in session.traceRows where row.pass == .check {
+                guard let labelKind,
+                      let expected = ReplayAggregation.expectedCheckVerdict(row: row, expectedCompletedCount: truth.expectedCompletedCount),
+                      let stepIndex = row.candidateStepIndices["A"],
+                      let captureID = row.captureID,
+                      let tile = row.tileRelativePaths["A"],
+                      let photo = try? Data(contentsOf: session.directory.appendingPathComponent("captures/\(captureID.uuidString).jpg")),
+                      let target = try? Data(contentsOf: session.directory.appendingPathComponent(tile)) else {
+                    skipped += 1
+                    continue
+                }
+                let advice = await advisor.advise(StepCheckAdviceInput(
+                    photoJPEG: photo, targetJPEG: target, deltaBox: row.checkGeometry?.deltaBox,
+                    targetIsRegistered: row.checkTarget == .registered, stepNumber: stepIndex + 1
+                ))
+                let primary = CheckVerdictV1(rawValue: ReplayDecision(rawOutput: row.rawOutput)?.result ?? "") ?? .uncertain
+                let shadow = ShadowCheckRowV1(
+                    provenance: "replay", fixtureID: row.traceID.uuidString, sessionID: session.file.sessionID,
+                    expectedVerdict: expected, primaryVerdict: primary.rawValue,
+                    standaloneVerdict: advice.standalone?.rawValue ?? "none", closedAnswer: advice.closed?.rawValue,
+                    mergedVerdict: ShadowMerge.merge(primary: primary, advice: advice).rawValue,
+                    advisor: "foundation_models", checkTarget: row.checkTarget.rawValue,
+                    latencyMilliseconds: advice.milliseconds, deviceModel: host, osBuild: osBuild,
+                    labelKind: labelKind, authoredModelID: session.file.authoredModelID.uuidString, stepIndex: stepIndex,
+                    physicalCase: session.file.staged?.physicalCase, legalUseConfirmed: session.file.staged?.legalUseConfirmed
+                )
+                shadowLines.append(try encoder.encode(shadow))
+                checkLines.append(try encoder.encode(FMShadowCheckRow(
+                    fixtureID: row.traceID.uuidString, sessionID: session.file.sessionID, expectedVerdict: expected,
+                    producedVerdict: advice.standalone?.rawValue ?? "uncertain", decodeFailed: advice.standalone == nil,
+                    latencyMilliseconds: advice.milliseconds, variantID: "fm_shadow", modelRevision: "system:\(osBuild ?? "unknown")",
+                    deviceModel: host
+                )))
+                print("check \(row.traceID.uuidString.prefix(8)): VLM \(primary.rawValue), advisor \(advice.standalone?.rawValue ?? advice.standaloneOutcome), closed \(advice.closed?.rawValue ?? advice.closedOutcome)")
+            }
+        }
+        try Self.write(shadowLines, to: URL(fileURLWithPath: out))
+        try Self.write(checkLines, to: URL(fileURLWithPath: "\(out).checks.ndjson"))
+        print("advised \(shadowLines.count) labeled checks (\(skipped) skipped: unlabeled or missing images); informational only")
+        #else
+        throw ValidationError("built without FoundationModels: build bricky-harness with Xcode 27")
+        #endif
+    }
+
+    private static func write(_ lines: [Data], to url: URL) throws {
+        var data = Data()
+        for line in lines {
+            data.append(line)
+            data.append(UInt8(ascii: "\n"))
+        }
+        try data.write(to: url, options: .atomic)
+    }
+}
+
+/// The advisor's standalone verdict as a `vlm_check` replay row, so a paired
+/// comparison against the VLM's replay arm is one compare_arms call.
+struct FMShadowCheckRow: Encodable {
+    let kind = "vlm_check"
+    let schemaVersion = 1
+    let provenance = "replay"
+    let fixtureID: String
+    let sessionID: UUID
+    let expectedVerdict: String
+    let producedVerdict: String
+    let decodeFailed: Bool
+    let latencyMilliseconds: Int
+    let variantID: String
+    let modelRevision: String
+    let deviceModel: String
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case schemaVersion = "schema_version"
+        case provenance
+        case fixtureID = "fixture_id"
+        case sessionID = "session_id"
+        case expectedVerdict = "expected_verdict"
+        case producedVerdict = "produced_verdict"
+        case decodeFailed = "decode_failed"
+        case latencyMilliseconds = "latency_ms"
+        case variantID = "variant_id"
+        case modelRevision = "model_revision"
+        case deviceModel = "device_model"
     }
 }
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from score_results import (
+    CHECK_VERDICTS,
     DORMANT,
     FAIL,
     MINIMUM_AUTHORED_MODELS,
@@ -712,6 +714,75 @@ class RecoveryScoringTests(unittest.TestCase):
             validate_rows([row])
 
 
+class ColourTermReportTests(unittest.TestCase):
+    @staticmethod
+    def window(expected: str, produced: str, **colour: object) -> dict[str, object]:
+        row = {"kind": "verification", "schema_version": 1, "fixture_id": "w", "expected_verdict": expected,
+               "produced_verdict": produced, "detectability": "marginal", "latency_ms": 40}
+        row.update(colour)
+        return row
+
+    def test_colour_counts_appear_only_with_colour_rows(self) -> None:
+        plain, _ = score_verification([self.window("complete", "uncertain")])
+        self.assertNotIn("colour_term", plain)
+        rows = [
+            self.window("complete", "complete", colour_term_mode="full", colour_status="agrees"),
+            self.window("incomplete", "incomplete", colour_term_mode="full", colour_status="disagrees"),
+            self.window("incomplete", "complete", colour_term_mode="full", colour_status="agrees"),
+            self.window("complete", "incomplete", colour_term_mode="full", colour_status="disagrees"),
+        ]
+        report, _ = score_verification(rows)
+        colour = report["colour_term"]
+        self.assertEqual(colour["modes"], ["full"])
+        self.assertEqual(colour["status_counts"], {"agrees": 2, "disagrees": 2})
+        self.assertEqual(colour["disagrees_on_expected_complete"], 1)
+        self.assertEqual(colour["agrees_on_negatives"], 1)
+
+
+class ShadowCheckTests(unittest.TestCase):
+    @staticmethod
+    def shadow_row(expected: str, primary: str, standalone: str, merged: str | None = None, **extra: object) -> dict[str, object]:
+        row = {"kind": "shadow_check", "schema_version": 1, "fixture_id": f"s-{expected}-{primary}-{standalone}",
+               "expected_verdict": expected, "primary_verdict": primary, "standalone_verdict": standalone,
+               "merged_verdict": merged or primary, "closed_answer": None, "latency_ms": 2_000}
+        row.update(extra)
+        return row
+
+    def test_standalone_false_complete_and_merge_effects(self) -> None:
+        rows = [
+            self.shadow_row("incomplete", "complete", "complete"),
+            self.shadow_row("incomplete", "complete", "incomplete", merged="incomplete", closed_answer="absent"),
+            self.shadow_row("complete", "complete", "incomplete", merged="incomplete"),
+            self.shadow_row("complete", "uncertain", "complete"),
+            self.shadow_row("incomplete", "incomplete", "none"),
+        ]
+        code, output = MainTests.run_main(rows)
+        self.assertEqual(code, 0)
+        self.assertIn("SHADOW_CHECK_STANDALONE_FALSE_COMPLETE 0.5000 (1/2 negatives", output)
+        self.assertIn("147 more negatives at zero misses for ADR 0018", output)
+        report = MainTests.report_json(output)["shadow_check"]
+        self.assertEqual(report["answered"], 4)
+        self.assertEqual((report["primary_false_complete_cases"], report["merged_false_complete_cases"]), (2, 1))
+        self.assertEqual((report["flips_caught_a_negative"], report["flips_lost_a_complete"]), (1, 1))
+        self.assertEqual(report["closed_answers"], {"absent": 1, "none": 4})
+
+    def test_a_merge_that_completes_is_refused(self) -> None:
+        code, output = MainTests.run_main([self.shadow_row("incomplete", "uncertain", "complete", merged="complete")])
+        self.assertEqual(code, 1)
+        self.assertIn("may only take a complete away", output)
+
+    def test_release_accepts_only_staged_device_rows(self) -> None:
+        device = self.shadow_row("incomplete", "incomplete", "incomplete") | {
+            "provenance": "device", "device_model": "iPhone18,1", "label_kind": "staged", "physical_case": True,
+            "legal_use_confirmed": True, "authored_model_id": "model-1"}
+        code, output = MainTests.run_main([device], informational=False, require_kinds=set())
+        self.assertEqual(code, 0, output)
+        replay = dict(device, provenance="replay", device_model="replay:Mac14,9")
+        code, output = MainTests.run_main([replay], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("release shadow_check row 1 has provenance 'replay'", output)
+
+
 class VLMCheckTests(unittest.TestCase):
     @staticmethod
     def check_row(expected: str, produced: str) -> dict[str, object]:
@@ -727,6 +798,19 @@ class VLMCheckTests(unittest.TestCase):
         report = MainTests.report_json(output)["vlm_check"]
         self.assertEqual(report["complete_recall"], 0.5)
         self.assertEqual(report["uncertain_rate"], 0.25)
+
+    def test_check_verdicts_mirror_the_kit_schema(self) -> None:
+        source = (Path(__file__).resolve().parents[2] / "Packages/RecoveryMLX/Sources/RecoveryEvidenceKit"
+                  / "VerdictSchemasV1.swift").read_text()
+        literal = re.search(r'checkGrammarJSON = #"(.*?)"#', source)
+        self.assertIsNotNone(literal)
+        schema = json.loads(literal.group(1))
+        self.assertEqual(set(schema["properties"]["result"]["enum"]), CHECK_VERDICTS)
+
+    def test_vlm_check_refuses_a_step_verdict_a_check_cannot_give(self) -> None:
+        code, output = MainTests.run_main([self.check_row("incomplete", "misplaced")])
+        self.assertEqual(code, 1)
+        self.assertIn("invalid produced_verdict", output)
 
     @classmethod
     def device_row(cls, fixture: str, **overrides: object) -> dict[str, object]:

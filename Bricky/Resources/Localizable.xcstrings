@@ -75,12 +75,32 @@
         }
       }
     },
+    "Can block a complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can block a complete"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Checking…"
+          }
+        }
+      }
+    },
+    "Colour check in the AR guide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colour check in the AR guide"
           }
         }
       }
@@ -305,12 +325,42 @@
         }
       }
     },
+    "Reword repairs with the on-device language model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reword repairs with the on-device language model"
+          }
+        }
+      }
+    },
     "Say “next anyway” to go on.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Say “next anyway” to go on."
+          }
+        }
+      }
+    },
+    "Second opinion on photo checks, recorded only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Second opinion on photo checks, recorded only"
+          }
+        }
+      }
+    },
+    "Shadow (recorded only)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadow (recorded only)"
           }
         }
       }

@@ -113,3 +113,80 @@ may only take a "complete" away, and is logged and recorded
 Note (2026-10-05): repair wording is text only (ADR 0015). Any AR arrow or
 pointing overlay needs a US11393153B2 design-around review before it is built,
 for the same reason ghosts here are never wireframe.
+
+## Amendment (2026-10-06, Proposed): a non-learned RGB term with asymmetric authority
+
+Status: **Proposed**. The term is built and runs in shadow; its authority
+waits for real windows.
+
+**What exists now (Phase 3, M3.1–M3.2).** The 2026-08-07 amendment listed
+what the RGB half needed. All of it now exists except a colour sensor model,
+which this amendment replaces with something that needs none:
+- **A colour plane.** `RegistrationFrameInput.colour`: the camera image
+  box-filtered onto the 256×192 depth grid (ADR 0007 amendment 2). It is
+  that grid's resolution, not "full camera resolution" as the decision
+  above says, and a gamma-space mean, not linear light.
+- **An expected-colour render.** The renderer's tag pass writes each
+  surface's LDraw colour code (ADR 0006 note, 2026-10-06), so the verifier
+  knows which authored colour every pixel should show.
+- **The term.** `ColourAgreementTerm`, non-learned, in four steps:
+  1. **Calibrate in the scene.** The parts already built are the colour
+     chart: a per-channel gain fitted from their visible, depth-confirmed
+     pixels, refused with fewer than two colours.
+  2. **Measure.** Take the median calibrated Oklab colour of the delta's
+     visible, depth-confirmed pixels.
+  3. **Compare** it with the authored colour, the nearest other colour in
+     the model's bill of materials, and the colour beneath.
+  4. **Decide.** It disagrees when another model colour is clearly closer.
+     It agrees only when it is close to the authored colour, clearly closer
+     than every rival, and discriminative: an authored colour like what is
+     beneath it, or like another model colour, corroborates nothing.
+     Otherwise it is inconclusive, and says why.
+
+**No synthetic colour sensor.** The 2026-08-07 objection stands: tuning
+against an invented colour sensor would repeat the mistake ADR 0014
+corrects. The term's thresholds are RECONSTRUCTED, and its tests check
+mechanics only, on ideal colour painted from tag maps. The synthetic suites
+carry no colour, so the term abstains there and the challenge suite's
+`colour_swap` stays an expected failure until real windows say otherwise.
+
+**Asymmetric authority** (`ColourTermJudge`, `ColourTermMode`):
+- **Block only.** A colour disagreement may turn `complete` into
+  `incomplete`.
+- **Full.** Additionally, colour agreement may turn a marginal delta that
+  depth alone would call present into `complete`. Depth must already vote
+  complete with nothing contrary; detectability being marginal is the only
+  thing standing in the way.
+- Colour never completes anything that depth does not support, never
+  decides a direction or an offset, and never changes a strong-
+  detectability complete into anything but incomplete.
+- In the build diff, a placement that depth sees as present but colour
+  reads as another model colour becomes `colourMismatch`. The placement-
+  aware adapter maps it to `incomplete`, and the repair planner (behind its
+  flag) to "swap for the authored colour".
+
+**Where it runs.**
+- **App.** A developer picker with Off (default), Shadow and Block only.
+  Full is for replay arms only until this amendment is accepted.
+- **Replay.** `SyntheticRGBD --replay-bundle --colour-term
+  off|shadow|block|full` replays real windows through each mode, and
+  `compare_arms.py --primary verification_correct` pairs them.
+- **Bit identity.** Shadow mode is bit-identical to the verifier frame by
+  frame. On a device the extra tag passes slow each ingest, and the
+  controller keeps only the newest frame, so a live session's frame
+  timeline can differ from a session without the term. That is a cost to
+  measure, not a verdict change.
+
+**Entry and exit for authority.**
+- **Entry.** At least 40 real staged verification fixtures, including
+  colour swaps (`wrong_colour`) and marginal steps. They come from Phase 1
+  sessions with the term in Shadow.
+- **Marginal fixtures.** Staged fixtures that declare a marginal step
+  complete are re-admitted for colour arms only. They remain out of scope
+  for the depth-only corpus.
+- **Exit.** Marginal complete-recall of at least 0.70, which turns the
+  dormant gates back on. Colour-swap rows flip from expected failure to
+  caught. False-complete stays 0. Every comparison is paired against Shadow
+  on the same windows.
+- **Not in reach yet.** A learned colour model (Core AI, M3.6) comes in only
+  if this non-learned term fails that gate on real data.

@@ -35,3 +35,22 @@ per-image consent", which the consent UX enforces structurally. Only users
 willing to obtain an API key benefit, and that is accepted: cloud assist is
 an escape hatch, not a load-bearing feature, and adding a relay later
 remains possible behind the same provider protocol.
+
+## Note (2026-10-06): Private Cloud Compute considered, not available
+
+The iOS 27 roadmap (§4.4 idea 3) proposed Apple's Private Cloud Compute
+model as a second consented provider: no user API key, image input, and no
+per-request cost to the developer. Apple grants it only to developers who
+meet all three conditions:
+- enrolled in the App Store Small Business Program;
+- fewer than 2 million lifetime first-time downloads across all their apps;
+- holding the managed `com.apple.developer.private-cloud-compute`
+  entitlement.
+
+On 2026-10-06 the owner confirmed that Bricky's developer account is not
+eligible. No amendment is made: Anthropic stays the only provider, and the
+rules above (per-image consent, no fallback chains) are unchanged.
+`CloudVisionProvider` remains the seam if eligibility ever changes. Even
+then, the PCC model would have to be constructed behind a compile-time flag,
+because building it without the entitlement is a `fatalError`, not a
+thrown error.

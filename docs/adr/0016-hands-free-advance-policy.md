@@ -70,7 +70,10 @@ it for voice now and for Siri / App Intents (M2.8b).
 text-to-speech API for apps (Apple staff, forum thread 834149). The
 narrator speaks:
 - the step on screen: one part by name, several by count;
-- why "next" held, with the repair sentence from `RepairPhrasebook`;
+- why "next" held, with the repair sentence on screen: the
+  `RepairPhrasebook` template, or the validated language-layer sentence
+  when that setting is on (ADR 0017), so the voice never says something
+  the screen does not;
 - refusals.
 
 All of these strings live in the String Catalog under the same forbidden-word

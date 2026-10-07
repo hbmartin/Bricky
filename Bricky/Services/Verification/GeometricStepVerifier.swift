@@ -35,6 +35,10 @@ actor GeometricStepVerifier {
         var latticeFrameStride = 3
         var minimumConfidence: UInt8 = 1
         var studPitch: Float = 0.008
+        /// Also render the completed and delta colour tags in the frame's
+        /// base batch (M3.1), for the colour term. Plumbing only: verdicts
+        /// and depth maps are identical either way.
+        var renderColourTags = false
     }
 
     private let configuration: Configuration
@@ -81,8 +85,8 @@ actor GeometricStepVerifier {
         deltaSnapshot: InstructionGeometrySnapshot
     ) {
         self.stepID = stepID
-        completedGeometry = renderer.prepare(completedSnapshot)
-        deltaGeometry = renderer.prepare(deltaSnapshot)
+        completedGeometry = renderer.prepare(completedSnapshot, tagged: configuration.renderColourTags)
+        deltaGeometry = renderer.prepare(deltaSnapshot, tagged: configuration.renderColourTags)
         resetEvidence()
     }
 
@@ -106,6 +110,15 @@ actor GeometricStepVerifier {
         let delta: ExpectedDepthMap
         let observedDepth: [Float32]
         let observedConfidence: [UInt8]
+        /// With `renderColourTags`: the nearest surfaces' colour tags, and
+        /// the frame's colour plane when it has one.
+        var completedTags: ExpectedTagMap? = nil
+        var deltaTags: ExpectedTagMap? = nil
+        var colour: [UInt8]? = nil
+        /// The depth votes would call this frame's verdict complete, but
+        /// detectability is marginal, which blocks complete until the RGB
+        /// term corroborates (ADR 0008). Read by `ColourTermJudge`.
+        var depthPresentUnderMarginal = false
     }
 
     /// Scores one depth frame under the registered pose and returns the
@@ -151,16 +164,37 @@ actor GeometricStepVerifier {
         // brick, the honest expected depth change is the ray span through
         // the delta itself, not a fixed optimistic constant that would
         // inflate thin overhanging deltas to strong detectability.
-        let baseMaps = try await renderer.render(
-            [
-                DepthRenderRequest(geometry: completedGeometry, viewFromModel: viewFromModel),
-                DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel),
-                DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel, surface: .farthest)
-            ],
-            intrinsics: frame.depthIntrinsics,
-            width: frame.width,
-            height: frame.height
-        )
+        let baseRequests = [
+            DepthRenderRequest(geometry: completedGeometry, viewFromModel: viewFromModel),
+            DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel),
+            DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel, surface: .farthest)
+        ]
+        // With colour tags, the same batch (one await, so no new reentrancy
+        // window) also carries the two tag passes; the depth maps are
+        // bit-identical to the depth-only batch.
+        let baseMaps: [ExpectedDepthMap]
+        var tagMaps: [ExpectedTagMap] = []
+        if configuration.renderColourTags {
+            let rendered = try await renderer.render(
+                baseRequests,
+                tags: [
+                    DepthRenderRequest(geometry: completedGeometry, viewFromModel: viewFromModel),
+                    DepthRenderRequest(geometry: deltaGeometry, viewFromModel: viewFromModel)
+                ],
+                intrinsics: frame.depthIntrinsics,
+                width: frame.width,
+                height: frame.height
+            )
+            baseMaps = rendered.depth
+            tagMaps = rendered.tags
+        } else {
+            baseMaps = try await renderer.render(
+                baseRequests,
+                intrinsics: frame.depthIntrinsics,
+                width: frame.width,
+                height: frame.height
+            )
+        }
         guard generation == evidenceGeneration else {
             return (assessment(verdict: .uncertain(.insufficientEvidence), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), nil)
         }
@@ -289,16 +323,25 @@ actor GeometricStepVerifier {
         }
 
         framesUsed += 1
-        let maps = FrameMaps(
+        let decision = verdictDetail()
+        var maps = FrameMaps(
             viewFromModel: viewFromModel, completed: completedMap, delta: deltaMap,
             observedDepth: observed, observedConfidence: observedConfidence
         )
-        return (assessment(verdict: verdict(), registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), maps)
+        if tagMaps.count == 2 {
+            maps.completedTags = tagMaps[0]
+            maps.deltaTags = tagMaps[1]
+            maps.colour = frame.colour
+        }
+        maps.depthPresentUnderMarginal = decision.depthPresentUnderMarginal
+        return (assessment(verdict: decision.verdict, registration: registration, timestamp: frame.timestamp, camera: frame.worldFromCamera), maps)
     }
 
-    private func verdict() -> StepVerdict {
+    /// The verdict, and whether depth alone would have called it complete
+    /// had detectability been strong rather than marginal.
+    private func verdictDetail() -> (verdict: StepVerdict, depthPresentUnderMarginal: Bool) {
         guard framesUsed >= configuration.minimumFrames, classifiedVotes > 0 else {
-            return .uncertain(.insufficientEvidence)
+            return (.uncertain(.insufficientEvidence), false)
         }
         let completeFraction = Float(completeVotes) / Float(classifiedVotes)
         let incompleteFraction = Float(incompleteVotes) / Float(classifiedVotes)
@@ -325,27 +368,28 @@ actor GeometricStepVerifier {
             // Misplaced is a strong claim: under marginal detectability the
             // disagreement strips sit within noise of the tolerance.
             guard lastDetectability == .strong else {
-                return .uncertain(.insufficientEvidence)
+                return (.uncertain(.insufficientEvidence), false)
             }
-            return .misplaced(offsetStuds: Self.latticeOffsets[bestMisplacedSlot])
+            return (.misplaced(offsetStuds: Self.latticeOffsets[bestMisplacedSlot]), false)
         }
 
         // Complete is the hardest verdict to earn (ADR 0008): strong
         // detectability only, a dominant vote, near-absent contrary
         // evidence, and clear dominance over every discriminable lattice
-        // alternative. Marginal detectability blocks complete until RGB
-        // corroboration exists.
-        if lastDetectability == .strong,
-           !completeBlocked,
-           completeFraction >= configuration.completeVoteFloor,
-           incompleteFraction <= configuration.completeContraryCeiling {
-            return .complete
+        // alternative. Marginal detectability blocks complete here; only
+        // the colour term may corroborate it (`ColourTermJudge`).
+        let depthSaysComplete = !completeBlocked
+            && completeFraction >= configuration.completeVoteFloor
+            && incompleteFraction <= configuration.completeContraryCeiling
+        if lastDetectability == .strong, depthSaysComplete {
+            return (.complete, false)
         }
+        let marginalPresent = lastDetectability == .marginal && depthSaysComplete
         if incompleteFraction >= configuration.incompleteVoteFloor,
            incompleteFraction > completeFraction {
-            return .incomplete
+            return (.incomplete, marginalPresent)
         }
-        return .uncertain(.insufficientEvidence)
+        return (.uncertain(.insufficientEvidence), marginalPresent)
     }
 
     private func assessment(

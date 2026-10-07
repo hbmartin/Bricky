@@ -105,7 +105,10 @@ Mutable over the session's life:
   `capture_id`, `image_relative_path`, `camera_transform` (16 floats,
   column-major 4×4), `camera_intrinsics` (9 floats, column-major 3×3),
   `camera_image_resolution` ([w, h]), `alignment_id`, `angle`,
-  `captured_at`.
+  `captured_at`, and optional `world_from_model` (16 floats, column-major
+  4×4, the same layout as `camera_transform`): the locked registration's
+  model pose, recorded only for AR photo checks (ADR 0007 amendment 3).
+  Verification-window poses are row-major; this one is not.
 - `staged` — nullable `StagedFixtureDeclaration`:
   `expected_completed_count` (0 = not started), `lighting`
   (`bright`/`dim`/`mixed`), `occlusion` (`none`/`partial`/`heavy`),
@@ -197,6 +200,13 @@ A `VerificationWindowRecord` holds:
   both fractions. `frames_used` counts every frame since the step began,
   not only the window's;
 - `staged`: the declared truth, or null;
+- `colour_term` (optional, added 2026-10-06; ADR 0007 amendment 3): when
+  the developer colour check is on, its `mode` (`shadow` or `block_only`),
+  overall `status` (`agrees`, `disagrees`, `inconclusive_<reason>`),
+  `frames_with_colour`, `frames_calibrated`, and `groups`, one per authored
+  colour: `code`, `status`, `pixels`, `frames`, and the Oklab distances
+  `authored_distance` and `nearest_distance`, plus `nearest_code` and
+  `beneath_code`. The verdict above already reflects the mode;
 - `frames`, oldest first.
 
 Each entry in `frames` has `frame_id`, `registration_state`,
@@ -234,10 +244,12 @@ row with these fields:
 - `window_id`, `step_id` and `frames_used`;
 - `placements`, one entry per placement the step adds:
   - `placement`, the timeline index;
-  - `state`: `present`, `absent`, `displaced`, `rotated` or
-    `not_observable`;
+  - `state`: `present`, `absent`, `displaced`, `rotated`,
+    `colour_mismatch` (with the colour check on) or `not_observable`;
   - `offset`: `[dx, dz, dy, quarter_turns]`, for `displaced` and `rotated`;
   - the `support`, `absence` and `unexplained` votes, and `frames_seen`;
+  - with the colour check on: `colour_status`, `colour_nearest_code` and
+    `colour_authored_distance`;
 - `adapter_verdict`: the placement-aware verdict, which is logged only;
 - `verifier_verdict`: what the user was shown.
 
@@ -262,7 +274,60 @@ Its fields are:
   release taxonomy.
 
 SyntheticRGBD `--replay-bundle` writes the same row with `provenance: replay`,
-`device_verdict` and `matches_device`.
+`device_verdict` and `matches_device`. With `--colour-term
+shadow|block|full` (M3.2, ADR 0008 amendment, Proposed) it judges each
+window with that colour mode and adds `colour_term_mode`, `colour_status`
+and, on a disagreement, `colour_nearest_code`. The scorer reports these as
+an informational `colour_term` block, and `compare_arms.py --primary
+verification_correct` pairs two modes' rows by window.
+
+## `wording.ndjson` — RepairWordingRecordV1
+
+Written by the AR guide with evidence capture on and the developer setting
+"Reword repairs with the on-device language model" on (ADR 0017): one row
+per finished wording attempt. Fields:
+- `record_id`, `session_id`, `step_id`, `created_at`;
+- the facts: `action`, `part_label`, `part_count`, `direction`, `studs`,
+  `turn`;
+- `template`: the String Catalog sentence;
+- `model_sentence`: what the model wrote, accepted or not (null when it
+  wrote nothing);
+- `outcome`: `accepted`, `rejected_<reason>`, `unavailable_<reason>` or
+  `failed_<reason>`;
+- `shown`: the line on screen;
+- `latency_ms`, `os_build`, `device_model`.
+
+The model is not pinned, so `os_build` identifies it. These device pairs
+are what the blinded preference test runs on.
+
+## `shadow-checks.ndjson` and `shadow_check.ndjson` — the step-check advisor
+
+With evidence capture on and the developer setting "Second opinion on photo
+checks, recorded only" on, the AR guide's Photo Check runs the Foundation
+Models advisor beside the VLM, in shadow (ADR 0018). It starts after the VLM
+returns, and the user only ever sees the VLM's verdict.
+
+- `shadow-checks.ndjson` (`ShadowCheckTraceV1`), one line per run, with:
+  - `shadow_id`, `session_id`, `capture_id`, `step_index`, `advisor`
+    (`foundation_models`) and `check_target`;
+  - `primary_verdict`: what the user saw;
+  - `standalone_verdict` and `standalone_outcome`: the advisor's own
+    complete / incomplete / uncertain, or why it gave none;
+  - `closed_answer` and `closed_outcome`: present / absent / cannot_tell on
+    the photo and the registered render, both cropped to `check_geometry`'s
+    box; skipped without a box or at the guide camera;
+  - `merged_verdict`: the primary verdict after the merge, which may only
+    turn a complete into an incomplete;
+  - `had_delta_box`, `latency_ms`, `os_build`, `device_model`, `created_at`.
+  It is a file of its own, not a new `pass` in `traces.ndjson`, whose
+  reader is strict.
+- `shadow_check.ndjson` (`ShadowCheckRowV1`, kind `shadow_check`): written at
+  finalize for labeled sessions, one row per run. It has the expected
+  verdict (the check's rule), the three verdicts, the closed answer, and the
+  release fields of `vlm_check`. Release mode accepts only staged device
+  rows from a floor device. The scorer prints the standalone false-complete
+  rate first, with how many more negatives ADR 0018 needs (149 at zero
+  misses).
 
 ## `check.ndjson` — VLMCheckRowV1
 
@@ -340,6 +405,7 @@ interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift
 | session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
 | trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`. Absent axes decode to the baseline |
 | trace (checks) | `alternate_tile_relative_paths` | the target rendered from the check target the call did not use (`guide_camera` or `registered` → tile path). Written only with evidence on, and only when that target could be rendered: `registered` needs the AR guide's locked pose |
+| trace (AR checks) | `check_geometry` | where the step's delta fell in the photo (added 2026-10-06, ADR 0007 amendment 3): `coordinate_space` (`upright_capture_normalized`: origin top-left of the upright stored photo, x right, y down, 0–1), `delta_box` (`x`, `y`, `width`, `height`; null when no delta pixel is visible), `delta_pixels`, `grid_width`, `grid_height` (the landscape render grid). Rendered on device from the photo's camera under the locked pose, after inference, with evidence on. The Mac cannot recompute it: bundles carry no instruction model |
 | trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |
 | trace | `conditions` | `DeviceConditions` at the call |
 | trace | `readouts` | per small-legal-set decision: position, chosen token, legal candidates with masked-softmax probabilities |

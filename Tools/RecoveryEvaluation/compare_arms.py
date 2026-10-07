@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Paired A/B comparison of bricky-harness replay arms (ADR 0010 amendment).
 
-Each arm is a `bricky-harness replay --out ARM.ndjson` output. Its sidecars
-(`ARM.ndjson.traces.ndjson`, `ARM.ndjson.checks.ndjson`) are read too when
-present. Rows are paired across arms by identity — trace for passes, fixture
-for sessions and checks — so every comparison is on the same evidence:
+Each arm is a `bricky-harness replay --out ARM.ndjson` output, or a
+`SyntheticRGBD --replay-bundle --out ARM.ndjson` output of verification
+windows. Its sidecars (`ARM.ndjson.traces.ndjson`, `ARM.ndjson.checks.ndjson`)
+are read too when present. Rows are paired across arms by identity — trace
+for passes, fixture for sessions, checks and windows — so every comparison is
+on the same evidence:
 
     python3 compare_arms.py --control control.ndjson --variant feed_all.ndjson
     python3 compare_arms.py --control c.ndjson --variant a.ndjson --variant b.ndjson
@@ -48,16 +50,20 @@ class Arm:
     sessions: dict[str, dict[str, object]]
     passes: dict[str, dict[str, object]]
     checks: dict[str, dict[str, object]]
+    # Replayed verification windows (`kind: verification`), by window id.
+    verifications: dict[str, dict[str, object]] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> "Arm":
         def keyed(rows: list[dict[str, object]], key: str) -> dict[str, dict[str, object]]:
             return {str(row[key]): row for row in rows if key in row}
+        rows = read_ndjson(path)
         return cls(
             name=path.name,
-            sessions=keyed(read_ndjson(path), "fixture_id"),
+            sessions=keyed([row for row in rows if row.get("kind") != "verification"], "fixture_id"),
             passes=keyed(read_ndjson(Path(f"{path}.traces.ndjson")), "trace_id"),
             checks=keyed(read_ndjson(Path(f"{path}.checks.ndjson")), "fixture_id"),
+            verifications=keyed([row for row in rows if row.get("kind") == "verification"], "fixture_id"),
         )
 
 
@@ -109,7 +115,9 @@ def session_top1(row: dict[str, object]) -> bool:
 
 
 def compare_accuracy(control: Arm, variant: Arm) -> dict[str, Paired]:
-    results = {"pass_top1": Paired(), "session_top1": Paired(), "check_correct": Paired()}
+    results = {
+        "pass_top1": Paired(), "session_top1": Paired(), "check_correct": Paired(), "verification_correct": Paired(),
+    }
     for trace_id, variant_row in variant.passes.items():
         control_row = control.passes.get(trace_id)
         if control_row is None:
@@ -126,6 +134,13 @@ def compare_accuracy(control: Arm, variant: Arm) -> dict[str, Paired]:
         if fixture in control.checks:
             control_row = control.checks[fixture]
             results["check_correct"].add(
+                control_row["produced_verdict"] == control_row["expected_verdict"],
+                variant_row["produced_verdict"] == variant_row["expected_verdict"],
+            )
+    for fixture, variant_row in variant.verifications.items():
+        if fixture in control.verifications:
+            control_row = control.verifications[fixture]
+            results["verification_correct"].add(
                 control_row["produced_verdict"] == control_row["expected_verdict"],
                 variant_row["produced_verdict"] == variant_row["expected_verdict"],
             )
@@ -154,6 +169,11 @@ def insufficient_rate(arm: Arm, fixtures: set[str]) -> float | None:
 
 def check_false_complete_rate(arm: Arm, fixtures: set[str]) -> float | None:
     negatives = [arm.checks[f] for f in fixtures if arm.checks[f]["expected_verdict"] == "incomplete"]
+    return rate(negatives, lambda row: row["produced_verdict"] == "complete")
+
+
+def verification_false_complete_rate(arm: Arm, fixtures: set[str]) -> float | None:
+    negatives = [arm.verifications[f] for f in fixtures if arm.verifications[f]["expected_verdict"] != "complete"]
     return rate(negatives, lambda row: row["produced_verdict"] == "complete")
 
 
@@ -186,6 +206,7 @@ class Verdict:
     insufficient: tuple[float | None, float | None]
     false_complete: tuple[float | None, float | None]
     notes: list[str] = field(default_factory=list)
+    verification_false_complete: tuple[float | None, float | None] = (None, None)
     # Which paired accuracy decides: per pass (VLM replays) or per session
     # (geometric recovery, which has no passes).
     primary_level: str = "pass_top1"
@@ -193,10 +214,14 @@ class Verdict:
     @property
     def decision(self) -> str:
         primary = self.accuracy[self.primary_level]
-        regressed = worse(self.insufficient[1], self.insufficient[0]) or worse(self.false_complete[1], self.false_complete[0])
+        regressed = (
+            worse(self.insufficient[1], self.insufficient[0])
+            or worse(self.false_complete[1], self.false_complete[0])
+            or worse(self.verification_false_complete[1], self.verification_false_complete[0])
+        )
         if regressed:
             return "HOLD (insufficient or false-complete rate rose)"
-        unit = "passes" if self.primary_level == "pass_top1" else "sessions"
+        unit = PRIMARY_UNITS[self.primary_level]
         if primary.pairs == 0:
             return f"UNMEASURED (no paired {unit} with the truth available)"
         if primary.pairs < MINIMUM_PAIRS:
@@ -209,6 +234,11 @@ class Verdict:
         return "HOLD"
 
 
+PRIMARY_UNITS = {
+    "pass_top1": "passes", "session_top1": "sessions", "check_correct": "checks", "verification_correct": "windows",
+}
+
+
 def compare(control: Arm, variants: list[Arm], primary: str = "pass_top1") -> list[Verdict]:
     accuracies = [compare_accuracy(control, variant) for variant in variants]
     adjusted = holm([accuracy[primary].p_value for accuracy in accuracies])
@@ -216,6 +246,7 @@ def compare(control: Arm, variants: list[Arm], primary: str = "pass_top1") -> li
     for variant, accuracy, p in zip(variants, accuracies, adjusted):
         sessions = set(control.sessions) & set(variant.sessions)
         checks = set(control.checks) & set(variant.checks)
+        windows = set(control.verifications) & set(variant.verifications)
         verdicts.append(Verdict(
             variant=variant.name,
             adjusted_p=p,
@@ -224,6 +255,9 @@ def compare(control: Arm, variants: list[Arm], primary: str = "pass_top1") -> li
             insufficient=(insufficient_rate(control, sessions), insufficient_rate(variant, sessions)),
             false_complete=(check_false_complete_rate(control, checks), check_false_complete_rate(variant, checks)),
             primary_level=primary,
+            verification_false_complete=(
+                verification_false_complete_rate(control, windows), verification_false_complete_rate(variant, windows)
+            ),
         ))
     return verdicts
 
@@ -238,10 +272,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--variant", type=Path, action="append", required=True)
     parser.add_argument(
         "--primary",
-        choices=("pass_top1", "session_top1"),
+        choices=tuple(PRIMARY_UNITS),
         default="pass_top1",
-        help="the paired accuracy that decides: per replayed pass (VLM arms) or per session "
-        "(geometric recovery arms, e.g. SyntheticRGBD --suite recovery)",
+        help="the paired accuracy that decides: per replayed pass (VLM arms), per session "
+        "(geometric recovery arms, e.g. SyntheticRGBD --suite recovery), per check "
+        "(check-target or advisor arms), or per verification window (--colour-term arms)",
     )
     arguments = parser.parse_args(argv)
 
@@ -264,6 +299,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"  insufficient rate {describe(verdict.insufficient[0])} -> {describe(verdict.insufficient[1])}")
         print(f"  check false-complete {describe(verdict.false_complete[0])} -> {describe(verdict.false_complete[1])}")
+        print(
+            f"  verification false-complete {describe(verdict.verification_false_complete[0])} -> "
+            f"{describe(verdict.verification_false_complete[1])}"
+        )
         print(f"  slots {slot_histogram(variant)}")
         print(f"  VERDICT {verdict.decision}")
     return 0
