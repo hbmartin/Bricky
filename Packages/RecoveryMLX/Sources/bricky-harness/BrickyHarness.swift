@@ -98,6 +98,9 @@ struct Replay: AsyncParsableCommand {
     @Option(name: .customLong("adapter"), help: "A converted LoRA adapter directory (ADR 0019), applied unfused over --model-dir; recorded as adapter=<name>@<sha12>.")
     var adapterDirectory: String?
 
+    @Flag(name: .customLong("no-warm-up"), help: "Skip the warm-up inference the app runs at admission. The first call after a load is not bit-reproducible across processes, so without it the first replayed row can differ between identical runs.")
+    var noWarmUp = false
+
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
         var resolved = RecoveryInferenceVariant(
@@ -156,6 +159,20 @@ struct Replay: AsyncParsableCommand {
             }
         } else if let named = variant.adapter {
             throw ValidationError("--variant names adapter \(named); pass its directory with --adapter")
+        }
+        // The app never records the first inference after a load: admission
+        // runs a warm-up call first. Run the same call, on the bundle's first
+        // board, so the replay is reproducible from its first row. Only the
+        // inference matters here, so an answer that does not decode (the
+        // model can pad the check with whitespace to its token limit on an
+        // odd board) is noted, not fatal.
+        if !noWarmUp, let first = sessions.lazy.compactMap({ session in
+            session.traceRows.first.map { session.directory.appendingPathComponent($0.boardRelativePath) }
+        }).first {
+            let warm = try await runtime.checkStepWithTrace(
+                imageURL: first, prompt: MLXRecoveryRuntime.warmUpPrompt, modelDirectory: modelURL
+            )
+            print("warmed up on \(first.lastPathComponent)" + (warm.output == nil ? " (its answer did not decode)" : ""))
         }
         // These change pixels: only a board rebuilt from tiles can show them.
         if !recompose, variant.slotOrder != .sorted || variant.boardLayout != .v1 || variant.labels != .slotAndStep {

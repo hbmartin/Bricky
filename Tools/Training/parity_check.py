@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
-"""Check that Python and Swift agree on what an adapter does (ADR 0019).
+"""Check that the Swift runtime applies a converted adapter as Python does
+(ADR 0019).
 
-    python3 parity_check.py --python-base base.jsonl --python-adapter adapted.jsonl \\
-        --swift-base base.ndjson.traces.ndjson --swift-adapter adapted.ndjson.traces.ndjson \\
-        [--swift-canary canary.ndjson.traces.ndjson]
+    python3 parity_check.py --python-base base.jsonl --python-adapter adapted.jsonl \
+        --swift-base base.ndjson.traces.ndjson --swift-adapter adapted.ndjson.traces.ndjson \
+        --swift-canary canary.ndjson.traces.ndjson
 
 Inputs are eval_first_slot.py outputs and `bricky-harness replay --scoring
-probe` trace sidecars of the same boards. The two runtimes do not share a
-build of MLX, so raw probabilities differ a little; what must agree is the
-change the adapter makes. For every board and every slot other than the
-truth, the change in log-odds against the truth slot is computed on each
-side; the least-squares slope of Swift's change on Python's must lie in
-[0.9, 1.1]. Log-odds between slot letters do not depend on how either side
-normalises. A canary adapter written at twice the scale must fail the same
-check: that is what shows the check would catch a 10-against-20 scale
-mix-up. Prompt and image token counts must match exactly. Stdlib only.
+probe` trace sidecars of the same boards: the adapter at one scale on both
+sides, and a canary of the same adapter at twice that scale in Swift. For
+every board and every slot other than the truth, the change the adapter
+makes to the log-odds against the truth slot is compared, Python against
+Swift. Log-odds between slot letters do not depend on how either side
+normalises.
+
+Run it in the linear regime: convert the adapter with a small
+--scale-multiplier (the smoke uses 0.02). A trained adapter moves log-odds
+by ~10 nats, where doubling its scale no longer doubles its effect.
+
+It fails (plumbing) when:
+- prompt or image token counts differ;
+- the changes do not correlate (r < 0.9): Swift is not applying the same
+  adapter;
+- the doubled-scale canary is not clearly stronger than the adapter
+  (slope ratio < 1.5): a scale mix-up such as Swift's defaults of 10 or 20
+  against mlx-vlm's alpha / rank would go unseen.
+It reports, without failing, the transfer slope (Swift's change against
+Python's at the same scale) beside the slope of Swift's base log-odds on
+Python's. They differ from 1 when the two runtimes compute different
+models. ADR 0019 requires the transfer slope in [0.9, 1.1] before any
+real training, not for the smoke. Stdlib only.
 """
 
 from __future__ import annotations
@@ -25,9 +40,13 @@ import math
 import sys
 from pathlib import Path
 
-SLOPE_RANGE = (0.9, 1.1)
+# What ADR 0019 asks of the transfer slope before real training.
+TRANSFER_RANGE = (0.9, 1.1)
 # Changes smaller than this (in nats) carry no slope information.
 MINIMUM_EFFECT = 0.05
+MINIMUM_CORRELATION = 0.9
+# A doubled scale must show at least this much stronger in Swift.
+MINIMUM_CANARY_RATIO = 1.5
 
 
 def read_jsonl(path: Path) -> list[dict[str, object]]:
@@ -63,7 +82,7 @@ def compare(
         ("swift_base", swift_base), ("swift_adapter", swift_adapter),
     )}
     shared = sorted(set.intersection(*(set(rows) for rows in by_id.values())))
-    points, base_errors, token_mismatches = [], [], []
+    points, base_errors, token_mismatches, base_pairs = [], [], [], []
     for trace_id in shared:
         truth = str(by_id["python_base"][trace_id]["truth_slot"])
         python_base_odds = log_odds(dict(by_id["python_base"][trace_id]["slot_logprobs"]), truth)
@@ -74,6 +93,7 @@ def compare(
             if slot not in swift_base_odds or slot not in swift_adapter_odds:
                 continue
             base_errors.append(abs(python_base_odds[slot] - swift_base_odds[slot]))
+            base_pairs.append((python_base_odds[slot], swift_base_odds[slot]))
             points.append((
                 python_adapter_odds[slot] - python_base_odds[slot],
                 swift_adapter_odds[slot] - swift_base_odds[slot],
@@ -92,6 +112,8 @@ def compare(
     denominator = sum(x * x for x, _ in informative)
     slope = sum(x * y for x, y in informative) / denominator if denominator else None
     return {
+        "correlation": correlation(informative),
+        "base_log_odds_slope": regression_slope(base_pairs),
         "boards": len(shared),
         "points": len(points),
         "informative_points": len(informative),
@@ -102,9 +124,62 @@ def compare(
     }
 
 
+def correlation(points: list[tuple[float, float]]) -> float | None:
+    """Pearson r of Swift's changes on Python's, or None with too few."""
+    if len(points) < 3:
+        return None
+    mean_x = sum(x for x, _ in points) / len(points)
+    mean_y = sum(y for _, y in points) / len(points)
+    covariance = sum((x - mean_x) * (y - mean_y) for x, y in points)
+    spread_x = math.sqrt(sum((x - mean_x) ** 2 for x, _ in points))
+    spread_y = math.sqrt(sum((y - mean_y) ** 2 for _, y in points))
+    return covariance / (spread_x * spread_y) if spread_x and spread_y else None
+
+
+def regression_slope(points: list[tuple[float, float]]) -> float | None:
+    """Ordinary least-squares slope of y on x, with an intercept."""
+    if len(points) < 3:
+        return None
+    mean_x = sum(x for x, _ in points) / len(points)
+    mean_y = sum(y for _, y in points) / len(points)
+    spread = sum((x - mean_x) ** 2 for x, _ in points)
+    return sum((x - mean_x) * (y - mean_y) for x, y in points) / spread if spread else None
+
+
+def verdict(adapter: dict[str, object], canary: dict[str, object] | None) -> tuple[list[str], list[str]]:
+    """(failures, notes) for one adapter and its doubled-scale canary."""
+    failures, notes = [], []
+    if adapter["token_mismatches"]:
+        failures.append(f"{len(adapter['token_mismatches'])} boards differ in prompt or image tokens")
+    if adapter["informative_points"] == 0 or adapter["slope"] is None:
+        failures.append("the adapter changed nothing measurable, so parity proves nothing")
+        return failures, notes
+    r = adapter["correlation"]
+    if r is None or r < MINIMUM_CORRELATION:
+        failures.append(f"Swift's changes do not follow Python's (r={r}): not the same adapter")
+    if canary is None or canary["slope"] is None:
+        failures.append("no canary: a scale mix-up would go unseen")
+    elif canary["slope"] / adapter["slope"] < MINIMUM_CANARY_RATIO:
+        failures.append(
+            f"the doubled-scale canary is not clearly stronger ({canary['slope']:.3f} against "
+            f"{adapter['slope']:.3f}): the check cannot see a scale mix-up"
+        )
+    if not TRANSFER_RANGE[0] <= adapter["slope"] <= TRANSFER_RANGE[1]:
+        notes.append(
+            f"TRANSFER GAP: Swift shows {adapter['slope']:.3f} of Python's effect (base log-odds slope "
+            f"{adapter['base_log_odds_slope']:.3f}); ADR 0019 needs [0.9, 1.1] before real training"
+        )
+    return failures, notes
+
+
 def agrees(result: dict[str, object]) -> bool:
-    slope = result["slope"]
-    return slope is not None and SLOPE_RANGE[0] <= slope <= SLOPE_RANGE[1] and not result["token_mismatches"]
+    """Whether the effects correlate and the token counts match: the
+    plumbing half of `verdict`, without the canary."""
+    r = result["correlation"]
+    return (
+        result["slope"] is not None and r is not None and r >= MINIMUM_CORRELATION
+        and not result["token_mismatches"]
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -113,27 +188,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--python-adapter", type=Path, required=True)
     parser.add_argument("--swift-base", type=Path, required=True)
     parser.add_argument("--swift-adapter", type=Path, required=True)
-    parser.add_argument("--swift-canary", type=Path, help="a replay of the same adapter at twice its scale")
+    parser.add_argument("--swift-canary", type=Path, required=True, help="a replay of the same adapter at twice its scale")
     parser.add_argument("--report", type=Path)
     arguments = parser.parse_args(argv)
 
     python_base, python_adapter = read_jsonl(arguments.python_base), read_jsonl(arguments.python_adapter)
     swift_base = read_jsonl(arguments.swift_base)
-    report = {"adapter": compare(python_base, python_adapter, swift_base, read_jsonl(arguments.swift_adapter))}
-    failures = []
-    if not agrees(report["adapter"]):
-        failures.append("the adapter's effect differs between Python and Swift")
-    if report["adapter"]["informative_points"] == 0:
-        failures.append("the adapter changed nothing measurable, so parity proves nothing")
-    if arguments.swift_canary:
-        report["canary"] = compare(python_base, python_adapter, swift_base, read_jsonl(arguments.swift_canary))
-        if agrees(report["canary"]):
-            failures.append("the doubled-scale canary passed: the check cannot see a scale mix-up")
-    report["failures"] = failures
+    report = {
+        "adapter": compare(python_base, python_adapter, swift_base, read_jsonl(arguments.swift_adapter)),
+        "canary": compare(python_base, python_adapter, swift_base, read_jsonl(arguments.swift_canary)),
+    }
+    failures, notes = verdict(report["adapter"], report["canary"])
+    report["failures"], report["notes"] = failures, notes
     text = json.dumps(report, indent=2, sort_keys=True)
     print(text)
     if arguments.report:
         arguments.report.write_text(text + "\n")
+    for note in notes:
+        print(note)
     print("PARITY " + ("FAIL: " + "; ".join(failures) if failures else "PASS"))
     return 1 if failures else 0
 

@@ -65,6 +65,9 @@ baseline's encoding and id are unchanged when no adapter is set.
 2. At least 150 staged or confirmed sessions are exported, with at least
    2 split components on each side.
 3. The scorer's baseline is stable.
+4. The Mac trainer and the device runtime compute the same model: on a
+   linear-regime adapter, `parity_check.py`'s transfer slope (Swift's
+   effect against Python's) is in [0.9, 1.1]. Today it is 0.73; see below.
 
 **Exit (before an adapter becomes the default).**
 1. An exact McNemar win against the baseline on held-out authored models,
@@ -92,23 +95,44 @@ with the adapter loaded. That design waits for an adapter worth shipping.
 
 ## Measured on the smoke run
 
-Measured 2026-10-07 on the development Mac (M2 Pro, 34 GB). This was the
-pipeline run step by step on a 48-session synthetic bundle; `run_smoke.py`
-chains the same steps.
+Measured 2026-10-07 on the development Mac (M2 Pro, 34 GB), on a 48-session
+synthetic bundle (`run_smoke.py`).
 - **Versions:**
   - Python side: mlx 0.32.3, mlx-vlm 0.7.6, Python 3.12.14.
   - Swift side: the app's vendored MLX core 0.31.1, mlx-swift-lm d2424294.
-- **Training:** 30 steps, rank 8, alpha 16 (scale 2.0), learning rate 1e-4,
-  504 tensors over all 36 decoder layers. Peak memory 17.3 GB, 7 minutes.
-  Held-out first-slot accuracy (one of four authored models held out) went
-  from 5/12 to 12/12. That is a toy counting task, not evidence.
-- **Loading and identity:** the converted adapter loads in Swift. A zero-B
-  adapter reproduces the baseline replay bit for bit, both generated text
-  and probe probabilities.
-- **Parity** (`parity_check.py`, 12 held-out boards, 36 log-odds points):
-  - Swift's change against Python's has slope 0.989: pass.
-  - The ×2-scale canary has slope 0.49: it fails, as required.
+- **Training:**
+  - 30 steps: rank 8, alpha 16 (scale 2.0), learning rate 1e-4, 504
+    tensors over all 36 decoder layers.
+  - Peak memory 17.3 GB, about 7 minutes.
+  - Held-out first-slot accuracy went from 5/12 to 12/12, with one of four
+    authored models held out. This is a toy counting task, not evidence.
+- **Loading and identity:**
+  - The converted adapter loads in Swift.
+  - A zero-B adapter reproduces the baseline replay bit for bit on 48/48
+    boards: generated text and probe probabilities alike. Both replays warm
+    up first, as the app does at admission.
+  - Without the warm-up, the first inference after a model load differed
+    between two otherwise identical baseline replays. That was the only
+    call that differed, so the harness now warms up by default.
+- **Parity must be measured in the linear regime.**
+  - The trained adapter moves slot log-odds by about 10 nats.
+  - There, doubling its scale no longer doubles its effect: at 0.1 of its
+    scale the effect is 3.4 times the 0.02 effect, not 5.
+  - A ×2 canary at full scale once passed the original slope check by
+    coincidence (slope 1.0), and the matched slope wandered (0.88–0.99).
+  - The check therefore runs at 0.02 of the adapter's scale, where doubling
+    the scale gives 2.3 times the effect in Python.
+- **Parity at 0.02** (12 held-out boards, 35–36 log-odds points):
+  - Swift's changes follow Python's: r = 0.95 at 0.02, 0.97 at 0.04.
+  - The ×2 canary is clearly stronger: slope 1.69 against 0.73, a ratio of
+    2.3, matching Python's own 2.3.
   - Prompt and image tokens match exactly (1,096 and 1,024).
-- **Open: the base models disagree.** Before any adapter, Python's and
-  Swift's slot log-odds differ by 0.99 nats mean and 2.75 max. This is
-  owed before real training (NEXT_STEPS §5).
+  - So the converted adapter is applied as Python applies it, and a scale
+    mix-up would show.
+- **Open: transfer gap.** At the same scale, Swift shows 0.73 of Python's
+  effect. Before any adapter is applied, Swift's slot log-odds are 0.79 times
+  Python's (r 0.88), a mean difference of 0.99 nats (max 2.75), with
+  identical tokens. The two runtimes compute a measurably different model,
+  so a Python-trained adapter would act about a quarter weaker on the
+  device. Entry criterion 4 holds real training until this is explained
+  (NEXT_STEPS §5).

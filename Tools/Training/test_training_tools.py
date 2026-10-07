@@ -8,7 +8,7 @@ import math
 import unittest
 
 from convert_adapter import check_name, parse_name, plan, swift_config
-from parity_check import agrees, compare
+from parity_check import agrees, compare, verdict
 
 KEYS = ["self_attn.q_proj", "self_attn.v_proj"]
 
@@ -110,14 +110,18 @@ class ParityTests(unittest.TestCase):
         return dict(self.base, A=self.base["A"] + amount)
 
     def rows(self, swift_gain: float, *, offset: float = 0.0):
+        # Each board moves by its own amount, as real boards do.
+        shifts = [0.5, 1.0, 1.5]
         python_base = [python_row(f"t{i}", self.base) for i in range(3)]
-        python_adapter = [python_row(f"t{i}", self.shifted(0.5)) for i in range(3)]
+        python_adapter = [python_row(f"t{i}", self.shifted(shifts[i])) for i in range(3)]
         # Swift differs from Python by a constant per letter (different
         # MLX builds), which must not matter.
         swift_base_logprobs = {letter: value + offset * index for index, (letter, value) in enumerate(self.base.items())}
-        swift_adapter_logprobs = dict(swift_base_logprobs, A=swift_base_logprobs["A"] + 0.5 * swift_gain)
         swift_base = [swift_row(f"t{i}", swift_base_logprobs) for i in range(3)]
-        swift_adapter = [swift_row(f"t{i}", swift_adapter_logprobs) for i in range(3)]
+        swift_adapter = [
+            swift_row(f"t{i}", dict(swift_base_logprobs, A=swift_base_logprobs["A"] + shifts[i] * swift_gain))
+            for i in range(3)
+        ]
         return python_base, python_adapter, swift_base, swift_adapter
 
     def test_matching_effects_agree_despite_a_base_offset(self) -> None:
@@ -126,16 +130,48 @@ class ParityTests(unittest.TestCase):
         self.assertGreater(result["base_log_odds_error_max"], 0.1)
         self.assertTrue(agrees(result))
 
-    def test_a_doubled_scale_is_caught(self) -> None:
-        result = compare(*self.rows(2.0))
-        self.assertAlmostEqual(result["slope"], 2.0, places=6)
-        self.assertFalse(agrees(result))
+    def test_a_doubled_scale_canary_must_stand_out(self) -> None:
+        matched, doubled = compare(*self.rows(1.0)), compare(*self.rows(2.0))
+        self.assertAlmostEqual(doubled["slope"], 2.0, places=6)
+        self.assertEqual(verdict(matched, doubled), ([], []))
+        # A canary no stronger than the adapter means the check is blind
+        # to a scale mix-up.
+        failures, _ = verdict(matched, matched)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("canary", failures[0])
+        failures, _ = verdict(matched, None)
+        self.assertIn("no canary", failures[0])
+
+    def test_a_transfer_gap_is_reported_not_failed(self) -> None:
+        # Swift applies the same adapter (same pattern, doubling shows) but
+        # its model is less sensitive: a note for ADR 0019, not a failure.
+        weaker, weaker_doubled = compare(*self.rows(0.73)), compare(*self.rows(1.46))
+        failures, notes = verdict(weaker, weaker_doubled)
+        self.assertEqual(failures, [])
+        self.assertEqual(len(notes), 1)
+        self.assertIn("TRANSFER GAP", notes[0])
 
     def test_token_count_mismatch_fails(self) -> None:
         python_base, python_adapter, swift_base, swift_adapter = self.rows(1.0)
         python_base[0]["image_tokens"] = 256
         result = compare(python_base, python_adapter, swift_base, swift_adapter)
         self.assertEqual(len(result["token_mismatches"]), 1)
+        self.assertFalse(agrees(result))
+
+    def test_a_scattered_cloud_fails_even_with_a_unit_slope(self) -> None:
+        # A saturated adapter: Swift's changes are as large as Python's but
+        # land in no particular pattern, so the slope alone would pass.
+        python_shifts = [(-10.0, -12.0), (-11.0, -9.0), (-12.0, -10.0), (-9.0, -11.0)]
+        python_base, python_adapter, swift_base, swift_adapter = [], [], [], []
+        for index, (python_shift, swift_shift) in enumerate(python_shifts):
+            trace = f"t{index}"
+            python_base.append(python_row(trace, self.base))
+            python_adapter.append(python_row(trace, dict(self.base, A=self.base["A"] - python_shift)))
+            swift_base.append(swift_row(trace, self.base))
+            swift_adapter.append(swift_row(trace, dict(self.base, A=self.base["A"] - swift_shift)))
+        result = compare(python_base, python_adapter, swift_base, swift_adapter)
+        self.assertAlmostEqual(result["slope"], 1.0, delta=0.1)
+        self.assertLess(result["correlation"], 0.9)
         self.assertFalse(agrees(result))
 
     def test_an_adapter_that_changes_nothing_has_no_slope(self) -> None:

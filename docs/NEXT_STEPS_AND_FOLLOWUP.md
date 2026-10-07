@@ -327,16 +327,23 @@ are unchanged.**
   `compare_arms.py --restrict` scores it on the held-out split only.
 - **Smoke run.** `Tools/Training/run_smoke.py` proved it end to end on a
   synthetic bundle: the converted adapter loads, Python and Swift agree on
-  its effect, a doubled-scale canary does not, and a zero-B adapter replays
-  the baseline bit for bit. Numbers are in ADR 0019.
+  how it changes the slot log-odds, a doubled-scale canary stands out, and
+  a zero-B adapter replays the baseline bit for bit. Numbers are in ADR 0019.
 - **Owed before real training:**
-  - **The base models disagree.** On identical boards and token counts,
-    Python and Swift differ by about 1 nat (mean) in slot log-odds before
-    any adapter is applied. The adapter's effect transfers (slope ≈ 1), but
-    an adapter trained against one preprocessing and deployed on the other
-    is a risk. Suspects, in order: image decode and resampling (PIL against
-    CoreImage), MLX 0.32.3 against the vendored 0.31.1, and model-code
-    differences between mlx-vlm and mlx-swift-lm.
+  - **The base models disagree, and adapters transfer weaker.** On
+    identical boards and token counts:
+    - Swift's slot log-odds are about 0.79 times Python's before any
+      adapter is applied (a mean difference of about 1 nat).
+    - A linear-regime adapter's effect in Swift is 0.73 of its effect in
+      Python.
+    - ADR 0019 entry criterion 4 holds real training until the transfer
+      slope is in [0.9, 1.1].
+    - Suspects, in order: image decode and resampling (PIL against
+      CoreImage), MLX 0.32.3 against the vendored 0.31.1, and model-code
+      differences between mlx-vlm and mlx-swift-lm (for example, deepstack
+      features or rope positions).
+    - Start by comparing the two sides' pixel values and first-layer
+      activations on one board.
   - **Adapter delivery to the app.** It is undesigned (ADR 0019): a pinned,
     hashed asset, and admission with the adapter loaded.
 

@@ -106,6 +106,7 @@ The traces sidecar (`ReplayTraceResult`) carries, per call:
 | `--unique-slots` | Mask slot letters already in the ranking (`unique_slots`); needs the forked decoder |
 | `--scoring generate\|probe` | `probe` reads the decision's probabilities from one prefill over a canonical answer prefix instead of generating JSON; pair with `--vote logprob` to pool views by log probability |
 | `--adapter DIR` | Apply a converted LoRA adapter unfused over `--model-dir` (ADR 0019). The adapter is refused unless its config spells out rank, scale and keys and carries a `bricky` block whose `base_model_revision` equals `--model-revision`, its tensors cover exactly the model's last `num_layers` decoder layers, and its dtype is the model's. Rows record `adapter=<name>@<sha12>` in `variant_id`; a smoke adapter prints a warning |
+| `--no-warm-up` | Skip the warm-up inference that `replay` runs first, on the bundle's first board, as the app runs one at admission (the same check call; here its answer need not decode). The first inference after a model load is not bit-reproducible across processes, so without the warm-up the first replayed row can differ between identical runs |
 | `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`

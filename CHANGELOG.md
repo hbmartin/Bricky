@@ -30,7 +30,12 @@ for use: every Phase 4 entry criterion waits on Phase 1 device data.
     baseline bit for bit.
   - A stdlib exporter splits pairs by authored model and physical build.
   - `Tools/Training` trains with mlx-vlm, converts, scores and checks
-    Python/Swift parity.
+    Python/Swift parity. Replays warm up first, as the app does at
+    admission: the first inference after a load is not bit-reproducible.
+  - **Open finding:** Swift applies the converted adapter as Python does
+    (r 0.95; a ×2 canary stands out), but shows only 0.73 of its effect,
+    and the base models already differ (slope 0.79). ADR 0019 now requires
+    this transfer gap closed before any real training.
   - `compare_arms.py` refuses arms on different weights, and adapter arms
     scored on their own training data.
 - **Fix.** `ProbeScoring.group` summed probabilities in dictionary order,

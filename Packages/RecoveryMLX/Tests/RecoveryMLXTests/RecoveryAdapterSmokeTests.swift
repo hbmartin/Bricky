@@ -26,6 +26,14 @@ final class RecoveryAdapterSmokeTests: XCTestCase {
         let plain = MLXRecoveryRuntime()
         let adapted = MLXRecoveryRuntime()
         await adapted.useAdapter(adapter)
+        // The first call after a load is not bit-reproducible; the app and
+        // the harness both warm up before anything is recorded. On this toy
+        // board the check answer pads with whitespace to its token limit and
+        // does not decode, with or without the adapter, so only the call is
+        // made, as the harness does.
+        for runtime in [plain, adapted] {
+            _ = try await runtime.checkStepWithTrace(imageURL: board, prompt: MLXRecoveryRuntime.warmUpPrompt, modelDirectory: model)
+        }
         let identity = await adapted.adapterIdentity
         XCTAssertEqual(identity, adapter.identity)
         for scoring in [ScoringMode.generate, .probe] {

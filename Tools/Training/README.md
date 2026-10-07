@@ -53,11 +53,32 @@ cd Tools/Training && uv sync    # mlx 0.32.3, mlx-vlm 0.7.6 (uv.lock)
   tensor or wrong dtype is refused.
 - **Parity:** `parity_check.py`. Python and Swift share no MLX build, so it
   compares the change the adapter makes to each slot's log-odds against the
-  truth slot. Swift's change against Python's must have a slope in
-  [0.9, 1.1], and prompt and image token counts must match exactly. A
-  canary converted at twice the scale must fail the same check.
+  truth slot. It separates plumbing from transfer.
+  - **Plumbing fails the check:**
+    - prompt and image token counts must match exactly;
+    - the adapter must change the log-odds measurably;
+    - Swift's changes must follow Python's, with a correlation of at least
+      0.9;
+    - a canary converted at twice the scale must be clearly stronger in
+      Swift (at least 1.5 times the matched slope). A scale mix-up would
+      show here.
+  - **Transfer is reported, not failed.** The slope of Swift's change
+    against Python's should be in [0.9, 1.1]. Outside that, the check
+    prints `TRANSFER GAP` with the base runtimes' own slope beside it. ADR
+    0019 entry criterion 4 needs it in range before real training.
+  - **Measure it in the linear regime.** The check runs on the adapter
+    converted at 0.02 of its scale (`--scale-multiplier 0.02`) and the
+    canary at 0.04.
+    - A trained adapter moves log-odds by about 10 nats. There the response
+      saturates: at 0.1 of its scale the effect is 3.4 times the 0.02
+      effect, not 5.
+    - Early runs at full scale passed a ×2 canary by coincidence (slope 1.0).
 - **Identity:** a zero-B adapter reproduces the baseline bit for bit
-  (`RecoveryAdapterSmokeTests`, and the C9 replay).
+  (`RecoveryAdapterSmokeTests`, and the replays).
+  - Replays warm up first, as the app does at admission. The first
+    inference after a model load is not bit-reproducible across processes:
+    two baseline replays of one bundle differed on exactly that call, and
+    on no other.
 
 Smoke adapters are named `smoke-…`. The release scorer refuses them, and
 they are never committed.

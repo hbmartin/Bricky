@@ -190,12 +190,12 @@ public actor MLXRecoveryRuntime {
     }
 
     /// Production-sized fit test. Loading weights alone is not admission.
+    /// The admission fit test's prompt. A replay warms up with the same
+    /// call (`checkStepWithTrace`) but does not need its answer to decode.
+    public static let warmUpPrompt = "Return uncertain. This is a device fit test."
+
     public func warmUp(imageURL: URL, modelDirectory: URL) async throws {
-        _ = try await checkStep(
-            imageURL: imageURL,
-            prompt: "Return uncertain. This is a device fit test.",
-            modelDirectory: modelDirectory
-        )
+        _ = try await checkStep(imageURL: imageURL, prompt: Self.warmUpPrompt, modelDirectory: modelDirectory)
     }
 
     public func unload() async {
