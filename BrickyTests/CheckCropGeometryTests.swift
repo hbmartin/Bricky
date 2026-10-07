@@ -73,6 +73,38 @@ final class CheckCropGeometryTests: XCTestCase {
         XCTAssertNil(CheckCropGeometry.UprightRotation(.upMirrored))
     }
 
+    /// The Mac's copy of the device's upright rule must agree with it for
+    /// every way the phone can be held, and for the straight-down fallback.
+    func testUprightRotationMatchesFrameConvention() {
+        func camera(x: SIMD3<Float>, y: SIMD3<Float>, z: SIMD3<Float>) -> simd_float4x4 {
+            simd_float4x4(columns: (SIMD4(x, 0), SIMD4(y, 0), SIMD4(z, 0), SIMD4(0, 0, 0, 1)))
+        }
+        let held: [(String, simd_float4x4)] = [
+            ("landscape", camera(x: SIMD3(1, 0, 0), y: SIMD3(0, 1, 0), z: SIMD3(0, 0, 1))),
+            ("landscape flipped", camera(x: SIMD3(-1, 0, 0), y: SIMD3(0, -1, 0), z: SIMD3(0, 0, 1))),
+            ("portrait upside down", camera(x: SIMD3(0, 1, 0), y: SIMD3(-1, 0, 0), z: SIMD3(0, 0, 1))),
+            ("portrait", camera(x: SIMD3(0, -1, 0), y: SIMD3(1, 0, 0), z: SIMD3(0, 0, 1))),
+            ("straight down", camera(x: SIMD3(1, 0, 0), y: SIMD3(0, 0, -1), z: SIMD3(0, 1, 0))),
+        ]
+        for (label, transform) in held {
+            XCTAssertEqual(
+                CheckCropGeometry.uprightRotation(worldFromCamera: transform),
+                CheckCropGeometry.UprightRotation(RecoveryFrameConvention.uprightRotation(cameraTransform: transform)),
+                label
+            )
+        }
+    }
+
+    func testUprightPointMatchesTheBoxMapping() {
+        let point = SIMD2<Float>(0.125, 0.75)
+        for rotation in [CheckCropGeometry.UprightRotation.up, .down, .left, .right] {
+            let box = CheckCropGeometry.upright(
+                CheckGeometryRecord.Box(x: point.x, y: point.y, width: 0, height: 0), rotation: rotation
+            )
+            XCTAssertEqual(CheckCropGeometry.upright(point: point, rotation: rotation), SIMD2(box.x, box.y), "\(rotation)")
+        }
+    }
+
     func testMatrixRoundTripsColumnMajor() throws {
         var transform = matrix_identity_float4x4
         transform.columns.3 = SIMD4(1, 2, 3, 1)

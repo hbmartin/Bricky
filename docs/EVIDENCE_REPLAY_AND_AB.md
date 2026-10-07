@@ -213,6 +213,35 @@ criterion is MET when the one-sided 95% lower bound on that rate is at least
 5%, and NOT_MET when the upper bound is under 5% (about 59 clean windows).
 Anything else reads UNMEASURED with its reason; it never gates a release.
 
+## Stud labels for photo captures (SyntheticRGBD)
+
+```sh
+SyntheticRGBD model.ldr --ldraw-root ldraw --out labels.ndjson \
+  --stud-labels-bundle bundle [--include-confirmed]
+```
+
+Not a harness command: it needs the instruction model and the part pack,
+which bundles never carry, so it runs in SyntheticRGBD beside
+`--replay-bundle`, against the same files that were imported (sessions of
+another model are skipped). For each AR photo capture it writes one
+`stud_label_capture` row (provenance `pseudo_registered`):
+- **What is labelled:** the authored top studs of what the staged
+  declaration says was built.
+- **How they are placed:** projected through the locked model pose the
+  photo was taken under, onto the stored upright photo (`x`, `y`
+  normalized).
+- **Which are visible:** visibility comes from a stud-ID render at the
+  photo's own camera.
+- **What is written:** the image is referenced by path, never copied.
+
+`StudLabelPolicy` refuses, and records why: no staged truth (confirmed
+sessions only with `--include-confirmed`), no locked pose, no registration
+snapshot, not locked, or a lattice margin under 1.5.
+
+A pose locked one pitch off would label every stud one pitch off,
+consistently and silently, so these are pseudo-labels: check them by eye
+before anything trains on them (ADR 0020).
+
 ## Workflows
 
 ### Diagnosing a device failure

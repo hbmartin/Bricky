@@ -87,12 +87,15 @@ struct SyntheticRGBDMain {
         /// geometry-only label rows.
         var checkStudLabels = false
         var exportStudLabels = false
+        /// Pseudo-labels for a bundle's AR photo captures.
+        var studLabelsBundle: String?
+        var includeConfirmed = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels] [--stud-labels-bundle <unzipped bundle> [--include-confirmed]]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -119,6 +122,11 @@ struct SyntheticRGBDMain {
                 index += 1
                 continue
             }
+            if flag == "--include-confirmed" {
+                options.includeConfirmed = true
+                index += 1
+                continue
+            }
             guard index + 1 < arguments.count else { throw CLIError("missing value for \(flag)") }
             let value = arguments[index + 1]
             switch flag {
@@ -134,6 +142,7 @@ struct SyntheticRGBDMain {
                 guard let suite = Suite(rawValue: value) else { throw CLIError("invalid value for --suite: \(value)") }
                 options.suite = suite
             case "--replay-bundle": options.replayBundle = value
+            case "--stud-labels-bundle": options.studLabelsBundle = value
             case "--recovery-arm":
                 guard let arm = RecoveryArm(rawValue: value) else { throw CLIError("invalid value for --recovery-arm: \(value)") }
                 options.recoveryArm = arm
@@ -209,6 +218,16 @@ struct SyntheticRGBDMain {
         if options.exportStudLabels {
             try await StudLabels.export(
                 plan: plan, engine: engine, renderer: renderer, fixtureStem: fixtureStem, outPath: options.outPath
+            )
+            return
+        }
+        if let bundle = options.studLabelsBundle {
+            // As with --replay-bundle, the model's directory must hold
+            // exactly the files that were imported.
+            try await CaptureStudLabels.run(
+                bundle: URL(fileURLWithPath: bundle), plan: plan,
+                sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles), engine: engine, renderer: renderer,
+                includeConfirmed: options.includeConfirmed, outPath: options.outPath
             )
             return
         }
