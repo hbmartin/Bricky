@@ -1388,6 +1388,11 @@ def main(
     if not allow_mixed_arms:
         require_single_arm(kinds["recovery"])
     if release:
+        smoke = [row for row in rows if "adapter=smoke-" in str(row.get("variant_id", ""))]
+        if smoke:
+            raise SystemExit(
+                f"{len(smoke)} rows ran a smoke adapter (ADR 0019): pipeline fixtures, never release evidence"
+            )
         for kind in SUMMARY_KINDS:
             if kinds[kind]:
                 raise SystemExit(f"{kind} rows describe a synthetic corpus and are not release evidence")

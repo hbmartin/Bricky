@@ -219,6 +219,16 @@ bricky-harness replay --bundle bundle --model-dir model --model-revision <sha> \
 
 CONTRIBUTING makes this mandatory for prompt or board-layout changes.
 
+`compare_arms.py` refuses two kinds of comparison before computing anything:
+- **Different weights.** Arms whose `model_revision`s differ (session, check
+  and, since 2026-10-07, trace sidecar rows all carry it) are refused unless
+  `--allow-mixed-revisions`, for a pin bump measured on purpose. Older trace
+  sidecars without the field only warn.
+- **An adapter scored on its own training data.** An arm whose `variant_id`
+  names an `adapter=` (ADR 0019) is refused unless `--restrict
+  split_manifest.json` limits every arm to the exporter's held-out test
+  sessions.
+
 ## Determinism and parity caveats
 
 - **Replay is a Mac-vs-Mac instrument.** Greedy guided decoding is

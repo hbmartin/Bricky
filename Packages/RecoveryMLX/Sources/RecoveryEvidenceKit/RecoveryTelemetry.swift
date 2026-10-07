@@ -376,6 +376,9 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
     public var checkTarget: CheckTarget
     /// A/B arm label when the developer arm picker scheduled this call.
     public var armID: String?
+    /// A LoRA adapter loaded over the pinned weights (ADR 0019), as
+    /// `<name>@<first 12 hex of its SHA-256>`. Nil is the pinned model alone.
+    public var adapter: String?
 
     public static let baselineImageSide = 1_024
 
@@ -384,7 +387,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         scoring: ScoringMode = .generate, slotOrder: SlotOrder = .sorted, boardLayout: BoardLayoutVersion = .v1,
         labels: TileLabelStyle = .slotAndStep, promptStyle: PromptStyle = .baseline,
         imageSide: Int = RecoveryInferenceVariant.baselineImageSide, checkTarget: CheckTarget = .guideCamera,
-        armID: String? = nil
+        armID: String? = nil, adapter: String? = nil
     ) {
         self.decode = decode
         self.vote = vote
@@ -397,6 +400,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         self.imageSide = imageSide
         self.checkTarget = checkTarget
         self.armID = armID
+        self.adapter = adapter
     }
 
     public init(from decoder: Decoder) throws {
@@ -412,6 +416,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         imageSide = try container.decodeIfPresent(Int.self, forKey: .imageSide) ?? Self.baselineImageSide
         checkTarget = try container.decodeIfPresent(CheckTarget.self, forKey: .checkTarget) ?? .guideCamera
         armID = try container.decodeIfPresent(String.self, forKey: .armID)
+        adapter = try container.decodeIfPresent(String.self, forKey: .adapter)
     }
 
     public static let baseline = RecoveryInferenceVariant()
@@ -429,6 +434,23 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         if vote == .logprob, scoring != .probe {
             throw InvalidCombination(description: "vote=logprob needs scoring=probe: generated calls carry no slot probabilities")
         }
+        if let adapter, !Self.isValidAdapterIdentity(adapter) {
+            throw InvalidCombination(description: "adapter must be <name>@<12 hex>, name in [a-z0-9._-]: \(adapter)")
+        }
+    }
+
+    /// `<name>@<12 lowercase hex>`, with the name in `[a-z0-9._-]`: nothing
+    /// that could break `id`'s `axis=value,axis=value` form.
+    public static func isValidAdapterIdentity(_ identity: String) -> Bool {
+        let parts = identity.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, parts[1].count == 12 else { return false }
+        let nameOK = parts[0].unicodeScalars.allSatisfy { scalar in
+            ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar) || ".-_".unicodeScalars.contains(scalar)
+        }
+        let hashOK = parts[1].unicodeScalars.allSatisfy { scalar in
+            ("0"..."9").contains(scalar) || ("a"..."f").contains(scalar)
+        }
+        return nameOK && hashOK
     }
 
     public var id: String {
@@ -443,6 +465,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         if promptStyle != .baseline { parts.append("prompt=\(promptStyle.rawValue)") }
         if imageSide != Self.baselineImageSide { parts.append("image_side=\(imageSide)") }
         if checkTarget != .guideCamera { parts.append("check_target=\(checkTarget.rawValue)") }
+        if let adapter { parts.append("adapter=\(adapter)") }
         return parts.isEmpty ? "baseline" : parts.joined(separator: ",")
     }
 
@@ -458,6 +481,7 @@ public struct RecoveryInferenceVariant: Codable, Sendable, Equatable {
         case imageSide = "image_side"
         case checkTarget = "check_target"
         case armID = "arm_id"
+        case adapter
     }
 }
 

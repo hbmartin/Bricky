@@ -5,7 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compare_arms import Arm, compare, holm, mcnemar_exact, slot_histogram
+import contextlib
+import io
+
+from compare_arms import Arm, compare, holm, main, mcnemar_exact, slot_histogram
 
 
 def write(path: Path, rows: list[dict[str, object]]) -> None:
@@ -141,6 +144,68 @@ class ComparisonTests(unittest.TestCase):
             [],
         )
         self.assertEqual(slot_histogram(control), {"chosen": {"A": 0, "B": 3, "C": 0}, "truth": {"A": 1, "B": 1, "C": 1}})
+
+
+class ArmHygieneTests(unittest.TestCase):
+    """Arms that ran different weights, or an adapter scored on the data it
+    trained on, are refused before any statistic is computed."""
+
+    def run_main(self, control_rows, variant_rows, *extra: str) -> tuple[int, str]:
+        directory = Path(tempfile.mkdtemp())
+        control, variant = directory / "control.ndjson", directory / "variant.ndjson"
+        write(control, []); write(Path(f"{control}.traces.ndjson"), control_rows)
+        write(variant, []); write(Path(f"{variant}.traces.ndjson"), variant_rows)
+        manifest = directory / "split_manifest.json"
+        manifest.write_text(json.dumps({
+            "schema": "bricky.split_manifest.v1",
+            "train": {"session_ids": ["s-train"]},
+            "test": {"session_ids": ["s-test"]},
+        }))
+        arguments = ["--control", str(control), "--variant", str(variant)]
+        arguments += [str(manifest) if value == "MANIFEST" else value for value in extra]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = main(arguments)
+        return code, output.getvalue()
+
+    @staticmethod
+    def rows(revision: str | None, variant_id: str = "baseline", session: str = "s-test", count: int = 20):
+        rows = []
+        for index in range(count):
+            row = pass_row(index, True)
+            row.update({"variant_id": variant_id, "session_id": session})
+            if revision is not None:
+                row["model_revision"] = revision
+            rows.append(row)
+        return rows
+
+    def test_mixed_model_revisions_refused(self) -> None:
+        code, output = self.run_main(self.rows("rev-a"), self.rows("rev-b"))
+        self.assertEqual(code, 2)
+        self.assertIn("different model revisions", output)
+        code, _ = self.run_main(self.rows("rev-a"), self.rows("rev-b"), "--allow-mixed-revisions")
+        self.assertEqual(code, 0)
+
+    def test_sidecars_without_a_revision_only_warn(self) -> None:
+        code, output = self.run_main(self.rows(None), self.rows("rev-a"))
+        self.assertEqual(code, 0)
+        self.assertIn("with no model_revision", output)
+
+    def test_adapter_arm_requires_restrict(self) -> None:
+        adapter = self.rows("rev-a", variant_id="scoring=probe,adapter=first-slot@0123456789ab")
+        code, output = self.run_main(self.rows("rev-a"), adapter)
+        self.assertEqual(code, 2)
+        self.assertIn("held-out split", output)
+        code, _ = self.run_main(self.rows("rev-a"), adapter, "--restrict", "MANIFEST")
+        self.assertEqual(code, 0)
+
+    def test_restrict_limits_pairs(self) -> None:
+        held_out = self.rows("rev-a", session="s-test", count=4)
+        trained = [dict(row, trace_id=f"x{index}", session_id="s-train") for index, row in enumerate(self.rows("rev-a"))]
+        code, output = self.run_main(held_out + trained, held_out + trained, "--restrict", "MANIFEST")
+        self.assertEqual(code, 0)
+        self.assertIn("restricted to 1 held-out sessions", output)
+        self.assertIn("pass_top1: 4 pairs", output)
 
 
 if __name__ == "__main__":

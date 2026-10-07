@@ -179,7 +179,8 @@ struct Replay: AsyncParsableCommand {
                 traceLines.append(try encoder.encode(ReplayTraceResult(
                     row: row, trace: response.trace, promptOverridden: promptOverride != nil, recomposed: recompose,
                     variant: variant, decision: decision,
-                    outcome: ReplayAggregation.passOutcome(row: row, decision: decision, expectedStepID: expectedStepID)
+                    outcome: ReplayAggregation.passOutcome(row: row, decision: decision, expectedStepID: expectedStepID),
+                    modelRevision: modelRevision
                 )))
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
@@ -621,10 +622,14 @@ struct ReplayTraceResult: Codable {
     let outcome: ReplayAggregation.PassOutcome
     let inference: InferenceTelemetry?
     let readouts: [DecisionReadout]?
+    /// The weights this replay ran (`--model-revision`), so `compare_arms.py`
+    /// can refuse to pair arms that ran different models.
+    let modelRevision: String?
 
     init(
         row: EvidenceTraceRow, trace: MLXGenerationTrace, promptOverridden: Bool, recomposed: Bool,
-        variant: RecoveryInferenceVariant, decision: ReplayDecision?, outcome: ReplayAggregation.PassOutcome
+        variant: RecoveryInferenceVariant, decision: ReplayDecision?, outcome: ReplayAggregation.PassOutcome,
+        modelRevision: String?
     ) {
         traceID = row.traceID
         sessionID = row.sessionID
@@ -644,6 +649,7 @@ struct ReplayTraceResult: Codable {
         self.outcome = outcome
         inference = trace.inference
         readouts = trace.readouts
+        self.modelRevision = modelRevision
     }
 
     enum CodingKeys: String, CodingKey {
@@ -665,6 +671,7 @@ struct ReplayTraceResult: Codable {
         case outcome
         case inference
         case readouts
+        case modelRevision = "model_revision"
     }
 }
 

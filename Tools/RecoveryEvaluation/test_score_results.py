@@ -1041,6 +1041,15 @@ def lattice_rows(count: int, troubled: int, sessions: int = 3) -> list[dict[str,
     return rows
 
 
+class SmokeAdapterTests(unittest.TestCase):
+    def test_smoke_adapter_refused_in_release(self) -> None:
+        row = benchmark_row()
+        row["variant_id"] = "scoring=probe,adapter=smoke-1@0123456789ab"
+        code, output = MainTests.run_main([row], informational=False, require_kinds=set())
+        self.assertEqual(code, 1)
+        self.assertIn("smoke adapter", output)
+
+
 class LatticeEntryTests(unittest.TestCase):
     def test_entry_unmeasured_without_device_rows(self) -> None:
         self.assertEqual(lattice_entry_line(None), "STUD_KEYPOINTS_ENTRY UNMEASURED (0 device windows, need 30)")
