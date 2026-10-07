@@ -148,6 +148,28 @@ decides: `pass_top1` (VLM arms), `session_top1` (geometric recovery),
   insufficient, check false-complete and verification false-complete rates
   do not rise. Device rows are still required before a default changes
   (ADR 0010 amendment).
+- **Refusals:** arms that ran different `model_revision`s
+  (`--allow-mixed-revisions` overrides), and an adapter arm without
+  `--restrict split_manifest.json` (ADR 0019).
+
+### Training pairs (ADR 0019)
+
+```sh
+python3 export_training_pairs.py bundle [bundle ...] --out pairs [--copy-images]
+```
+
+Writes LoRA training pairs: one per rank trace whose board held the truth,
+with the exact stored board, the verbatim prompt, and a target that starts
+with the probe's prefix and names the truth slot first. Train and test are
+split by authored model and physical build, transitively, into
+`train.jsonl` and `test.jsonl`, with `split_manifest.json` for
+`compare_arms.py --restrict` and `manifest.json` recording inputs,
+exclusions and the leakage check. It refuses unlabeled, judged, `replay:`
+and `synthetic:` sessions, sessions without legal-use confirmation, fewer
+than 150 labelled sessions, fewer than two split components per side, and
+any identity found on both sides. `--smoke` accepts synthetic bundles and
+marks every pair smoke, for the pipeline test only. The trainer lives in
+`Tools/Training/`.
 
 
 Replay is a Mac-vs-Mac instrument (greedy guided decoding is deterministic per
