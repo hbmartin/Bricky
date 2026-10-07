@@ -752,6 +752,32 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         require_valid_latency(row, f"registration row {index}")
 
 
+# A stud pitch, and how close a final pose must sit to a whole number of
+# pitches (with yaw near truth) to count as a lattice slip rather than noise.
+STUD_PITCH_M = 0.008
+PITCH_OFF_TOLERANCE_M = 0.002
+PITCH_OFF_MAX_YAW_DEGREES = 5.0
+
+
+def lattice_slip(row: dict[str, object]) -> tuple[int, int] | None:
+    """The whole-pitch offset `(kx, kz)` a registration settled at, or None
+    when it sits at truth, between pitches, at a turned yaw, or the row has
+    no signed x/z error (rows from before 2026-10-07)."""
+    dx, dz = row.get("translation_error_x_m"), row.get("translation_error_z_m")
+    if not (is_number(dx) and is_number(dz)):
+        return None
+    if float(row["yaw_error_degrees"]) >= PITCH_OFF_MAX_YAW_DEGREES:
+        return None
+    kx, kz = round(float(dx) / STUD_PITCH_M), round(float(dz) / STUD_PITCH_M)
+    if (kx, kz) == (0, 0):
+        return None
+    if abs(float(dx) - kx * STUD_PITCH_M) > PITCH_OFF_TOLERANCE_M:
+        return None
+    if abs(float(dz) - kz * STUD_PITCH_M) > PITCH_OFF_TOLERANCE_M:
+        return None
+    return kx, kz
+
+
 def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
     validate_registration_rows(rows)
     # A genuinely symmetric fixture cannot converge to a unique truth; it is
@@ -766,12 +792,36 @@ def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         sum(row["reported_ambiguous"] for row in ambiguous_expected) / len(ambiguous_expected)
         if ambiguous_expected else None
     )
+    # Lattice aliasing (Phase 4): a solve that settles a whole stud pitch
+    # off at the right yaw is the failure stud keypoints exist to fix. Only
+    # rows that carry signed x/z error can be judged.
+    lattice_measured = [
+        row for row in rows
+        if is_number(row.get("translation_error_x_m")) and is_number(row.get("translation_error_z_m"))
+    ]
+    slips = [slip for slip in (lattice_slip(row) for row in lattice_measured) if slip is not None]
+    by_runner_up: dict[str, int] = {}
+    for row in rows:
+        runner_up = row.get("lattice_runner_up")
+        if isinstance(runner_up, str):
+            by_runner_up[runner_up] = by_runner_up.get(runner_up, 0) + 1
     report: dict[str, object] = {
         "cases": len(rows),
         "convergence_rate": convergence_rate,
         "translation_rmse_m": rmse(translation_errors),
         "yaw_rmse_degrees": rmse(yaw_errors),
         "ambiguity_recall": ambiguity_recall,
+        "ambiguity_expected_cases": len(ambiguous_expected),
+        # The other half of ambiguity recall: a tracker that called every
+        # pose ambiguous would recall perfectly while refusing to verify
+        # anything (the safe side of ADR 0009, but still a failure).
+        "unexpected_ambiguity_cases": sum(
+            1 for row in rows if row["reported_ambiguous"] and not row["ambiguity_expected"]
+        ),
+        "lattice_measured_cases": len(lattice_measured),
+        "pitch_off_cases": len(slips),
+        "one_pitch_off_cases": sum(1 for kx, kz in slips if abs(kx) + abs(kz) == 1),
+        "by_runner_up": by_runner_up,
     }
     gates = [
         rate_gate(

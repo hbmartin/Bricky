@@ -15,6 +15,7 @@ from score_results import (
     MINIMUM_AUTHORED_MODELS,
     PASS,
     REGISTRATION_YAW_RMSE_DEGREES,
+    STUD_PITCH_M,
     UNMEASURED,
     VERIFICATION_UNCERTAIN_ON_CORRECT_CEILING,
     clopper_pearson_lower,
@@ -99,8 +100,10 @@ def registration_row(
     yaw: float = 0.5,
     ambiguity_expected: bool = False,
     reported_ambiguous: bool = False,
+    error_xz: tuple[float, float] | None = None,
+    runner_up: str | None = None,
 ) -> dict[str, object]:
-    return {
+    row: dict[str, object] = {
         "kind": "registration",
         "schema_version": 1,
         "fixture_id": "fixture",
@@ -111,6 +114,11 @@ def registration_row(
         "reported_ambiguous": reported_ambiguous,
         "latency_ms": 90,
     }
+    if error_xz is not None:
+        row["translation_error_x_m"], row["translation_error_z_m"] = error_xz
+    if runner_up is not None:
+        row["lattice_runner_up"] = runner_up
+    return row
 
 
 class RowValidationTests(unittest.TestCase):
@@ -618,6 +626,43 @@ class RegistrationScoringTests(unittest.TestCase):
         gate = gate_named(gates, "registration.translation_rmse_m")
         self.assertEqual(gate.status(release=False), PASS)
         self.assertEqual(gate.status(release=True), UNMEASURED)
+
+    def test_a_whole_pitch_off_counts_as_a_slip_and_noise_does_not(self) -> None:
+        pitch = STUD_PITCH_M
+        rows = [
+            registration_row(error_xz=(pitch + 0.001, 0.0005)),       # one pitch along x
+            registration_row(error_xz=(-0.0004, -pitch - 0.0015)),    # one pitch along -z
+            registration_row(error_xz=(2 * pitch, pitch)),            # a diagonal slip
+            registration_row(error_xz=(pitch / 2, 0.0)),              # between pitches: not a slip
+            registration_row(error_xz=(0.001, -0.001)),               # at truth
+            registration_row(error_xz=(pitch, 0.0), yaw=180.0),       # a half turn is not a slip
+            registration_row(),                                       # an old row: not measured
+        ]
+        report, _ = score_registration(rows)
+        self.assertEqual(report["lattice_measured_cases"], 6)
+        self.assertEqual(report["pitch_off_cases"], 3)
+        self.assertEqual(report["one_pitch_off_cases"], 2)
+
+    def test_runner_ups_and_expected_ambiguity_are_counted(self) -> None:
+        rows = [
+            registration_row(runner_up="yaw_180"),
+            registration_row(runner_up="yaw_180", ambiguity_expected=True, reported_ambiguous=True),
+            registration_row(runner_up="shift_x_pos"),
+            registration_row(),
+        ]
+        report, _ = score_registration(rows)
+        self.assertEqual(report["by_runner_up"], {"yaw_180": 2, "shift_x_pos": 1})
+        self.assertEqual(report["ambiguity_expected_cases"], 1)
+        self.assertEqual(report["unexpected_ambiguity_cases"], 0)
+
+    def test_calling_everything_ambiguous_is_counted_against_recall(self) -> None:
+        rows = (
+            [registration_row(ambiguity_expected=True, reported_ambiguous=True) for _ in range(3)]
+            + [registration_row(reported_ambiguous=True) for _ in range(4)]
+        )
+        report, _ = score_registration(rows)
+        self.assertEqual(report["ambiguity_recall"], 1.0)
+        self.assertEqual(report["unexpected_ambiguity_cases"], 4)
 
     def test_sweep_without_ambiguity_fixtures_cannot_pass_release(self) -> None:
         # The synthetic sweep sets no ambiguity-expected rows; that gate used

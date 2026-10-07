@@ -1,0 +1,33 @@
+0 Lattice-aliasing fixture (iOS 27 Phase 4). The lattice suite renders each
+0 step's addition as a scene on its own, so the steps deliberately overlap.
+0 Step 1, a lone 2x2 brick: depth-identical under quarter and half turns.
+0 Step 2, a lone 2x4 brick: depth-identical under a half turn.
+0 Step 3, an L of a 2x4 and a 2x2: no alternative is depth-identical.
+0 Step 4, a 4x4 layer of 2x2 bricks: square, so the turns are identical,
+0 and a one-stud shift moves only its outer rows.
+0 Name: lattice.ldr
+0 !LDRAW_ORG Model
+1 4 0 0 0 1 0 0 0 1 0 0 0 1 3003.dat
+0 STEP
+1 1 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+0 STEP
+1 14 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 2 -20 0 40 1 0 0 0 1 0 0 0 1 3003.dat
+0 STEP
+1 4 -60 0 -60 1 0 0 0 1 0 0 0 1 3003.dat
+1 1 -60 0 -20 1 0 0 0 1 0 0 0 1 3003.dat
+1 14 -60 0 20 1 0 0 0 1 0 0 0 1 3003.dat
+1 2 -60 0 60 1 0 0 0 1 0 0 0 1 3003.dat
+1 1 -20 0 -60 1 0 0 0 1 0 0 0 1 3003.dat
+1 14 -20 0 -20 1 0 0 0 1 0 0 0 1 3003.dat
+1 2 -20 0 20 1 0 0 0 1 0 0 0 1 3003.dat
+1 4 -20 0 60 1 0 0 0 1 0 0 0 1 3003.dat
+1 14 20 0 -60 1 0 0 0 1 0 0 0 1 3003.dat
+1 2 20 0 -20 1 0 0 0 1 0 0 0 1 3003.dat
+1 4 20 0 20 1 0 0 0 1 0 0 0 1 3003.dat
+1 1 20 0 60 1 0 0 0 1 0 0 0 1 3003.dat
+1 2 60 0 -60 1 0 0 0 1 0 0 0 1 3003.dat
+1 4 60 0 -20 1 0 0 0 1 0 0 0 1 3003.dat
+1 1 60 0 20 1 0 0 0 1 0 0 0 1 3003.dat
+1 14 60 0 60 1 0 0 0 1 0 0 0 1 3003.dat
+0 STEP

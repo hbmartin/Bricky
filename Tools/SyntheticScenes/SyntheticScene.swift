@@ -341,6 +341,39 @@ struct SyntheticScene {
         return true
     }
 
+    /// The fraction of covered pixels, over the views `depthEquivalent`
+    /// checks, where two snapshots' noise-free depth differs by more than
+    /// `tolerance` or only one has depth. Zero exactly when
+    /// `depthEquivalent` holds.
+    func depthDifferenceFraction(
+        _ lhs: InstructionGeometrySnapshot,
+        _ rhs: InstructionGeometrySnapshot,
+        tolerance: Float = 0.0005
+    ) throws -> Float {
+        var covered = 0
+        var differing = 0
+        for pose in viewPoses + [overheadPose] {
+            let maps = try [lhs, rhs].map { snapshot in
+                try renderer.render(
+                    snapshot: snapshot,
+                    viewFromModel: pose.inverse,
+                    intrinsics: intrinsics,
+                    width: width,
+                    height: height
+                )
+            }
+            for index in maps[0].depth.indices {
+                let (a, b) = (maps[0].depth[index], maps[1].depth[index])
+                guard a > 0 || b > 0 else { continue }
+                covered += 1
+                if (a > 0) != (b > 0) || abs(a - b) > tolerance {
+                    differing += 1
+                }
+            }
+        }
+        return covered > 0 ? Float(differing) / Float(covered) : 0
+    }
+
     func frame(
         of physical: InstructionGeometrySnapshot,
         worldFromCamera: simd_float4x4,
@@ -528,7 +561,8 @@ enum Row {
     static func registration(
         fixture: String,
         ambiguityExpected: Bool,
-        outcome: RegistrationOutcome
+        outcome: RegistrationOutcome,
+        extra: [String: Any] = [:]
     ) throws -> String {
         var row: [String: Any] = [
             "kind": "registration",
@@ -552,6 +586,7 @@ enum Row {
         if let runnerUp = outcome.latticeRunnerUp {
             row["lattice_runner_up"] = runnerUp.rawValue
         }
+        row.merge(extra) { current, _ in current }
         return try encode(row)
     }
 

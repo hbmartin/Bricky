@@ -52,6 +52,9 @@ struct SyntheticRGBDMain {
         case recovery
         /// Suggested ghost placement on and off the build (M2.7).
         case placement
+        /// Stud-lattice aliasing in registration, one scene per step
+        /// (Phase 4).
+        case lattice
     }
 
     /// Which recovery configuration the suite runs: the control, or the
@@ -85,7 +88,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -205,6 +208,10 @@ struct SyntheticRGBDMain {
         }
         if options.suite == .placement {
             try await runPlacementSuggestion(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
+            return
+        }
+        if options.suite == .lattice {
+            try await runLattice(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
             return
         }
         if options.suite == .recovery {

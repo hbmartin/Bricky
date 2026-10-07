@@ -150,6 +150,7 @@
 		9D7ACF0F2E8D2F1593C5E815 /* DocumentOpenRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98464475033BC29B697EFBA7 /* DocumentOpenRouter.swift */; };
 		9DE438082506FECE775C82EC /* RepairWordingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F37ACAD29B959B70A3D202C /* RepairWordingCoordinatorTests.swift */; };
 		9FC206A96141C9443E1463DD /* PlacementGeometryIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D85D9DF4E02BB4A87D0838 /* PlacementGeometryIndexTests.swift */; };
+		A0FB83DB8643D11E78D0CB69 /* LatticeSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCE494721D07BAB964EA55D /* LatticeSuite.swift */; };
 		A1170C9EDFA39219C5560DAB /* ARActivityClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0739C138CFE0AC2296896C79 /* ARActivityClock.swift */; };
 		A16DE176BDDA46AB0D92A356 /* RegistrationDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43D9F5AEDD14501EF693D3F /* RegistrationDomain.swift */; };
 		A2316DBE6DE90A730B70EADA /* CompositeRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8978CD54AF696C96CF8F61 /* CompositeRecoveryEstimator.swift */; };
@@ -408,6 +409,7 @@
 		F9E0C06C1D36EF546795CC50 /* RepairWordingFacts+Plan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RepairWordingFacts+Plan.swift"; sourceTree = "<group>"; };
 		FA208C3104EBC0C53A2BF2C9 /* UIImage+Orientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Orientation.swift"; sourceTree = "<group>"; };
 		FA6E8238C88C99ED483EF2F0 /* PartDescriptionIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartDescriptionIndexTests.swift; sourceTree = "<group>"; };
+		FCCE494721D07BAB964EA55D /* LatticeSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeSuite.swift; sourceTree = "<group>"; };
 		FDAC9E4F476BE10D5E3A4550 /* StepJudging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepJudging.swift; sourceTree = "<group>"; };
 		FDEFFDD5FBF9ECFB558763D8 /* GuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideView.swift; sourceTree = "<group>"; };
 		FFB2218C634FDB7588BDFB29 /* RecoveryBenchmarkWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBenchmarkWriter.swift; sourceTree = "<group>"; };
@@ -559,6 +561,7 @@
 			isa = PBXGroup;
 			children = (
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
+				FCCE494721D07BAB964EA55D /* LatticeSuite.swift */,
 				E4CFE86754EB7B84DB29503C /* PlacementSuggestionSuite.swift */,
 				854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
@@ -976,6 +979,7 @@
 				966AD30459BA432E74B2DE78 /* LDConfigPalette.swift in Sources */,
 				985CAD80B8CD8DC1E81F51BF /* LDrawGeometryEngine.swift in Sources */,
 				61E1632A92471EFB69675435 /* LDrawInstructionParser.swift in Sources */,
+				A0FB83DB8643D11E78D0CB69 /* LatticeSuite.swift in Sources */,
 				D6DBB32B222C8A07BA765476 /* ModelSurfaceSampler.swift in Sources */,
 				56B00421E0CFE61591E9E38C /* PartSymmetry.swift in Sources */,
 				C66B2FB30349B3152262E03D /* PlacementConsistencyScorer.swift in Sources */,

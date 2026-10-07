@@ -124,6 +124,22 @@ jobs:
         run: |
           python3 ../RecoveryEvaluation/score_results.py \
             "$RUNNER_TEMP/challenge.ndjson" --informational
+      # Stud-lattice aliasing (Phase 4): one scene per step, ambiguity truth
+      # from noise-free renders, its own RNG stream and baseline. Blocking on
+      # regression only; whether real LiDAR aliases is a device question.
+      - name: Run SyntheticRGBD lattice suite
+        working-directory: Tools/SyntheticScenes
+        run: |
+          "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+            fixtures/lattice/lattice.ldr \
+            --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+            --out "$RUNNER_TEMP/lattice.ndjson" --seed 7 --suite lattice
+      - name: Check lattice regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/lattice.ndjson" \
+            --baseline fixtures/lattice/baseline.json
       # The colour-code tag pass (M3.1). No suite draws it, because synthetic
       # scenes carry no colour, so this is the only place its shader is
       # compiled and run on this toolchain: depth must stay bit-identical
