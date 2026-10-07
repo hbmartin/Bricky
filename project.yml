@@ -191,6 +191,7 @@ targets:
       - BrickyTests/ShadowCheckRunnerTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
+      - BrickyTests/PhysicalBuildLabelStoreTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

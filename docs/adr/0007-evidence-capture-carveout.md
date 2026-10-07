@@ -177,3 +177,7 @@ few numbers from the solver, describing the user's own build; no image,
 depth or new channel is recorded. They exist so Phase 1 can measure stud
 lattice aliasing, the entry criterion for stud keypoints. Consent and egress
 are unchanged.
+
+Sessions may also carry `physical_build_id`, a short label the person
+declares for the build they photograph (ADR 0019). It names an object on
+their table, not a person or a place, and it is chosen, never derived.

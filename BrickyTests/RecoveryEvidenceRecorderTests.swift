@@ -342,6 +342,50 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(bare.tallies, "no contest, no field")
     }
 
+    func testStagedPhysicalSessionsCarryTheirBuildLabel() async throws {
+        let suite = "RecoveryEvidenceRecorderTests.buildLabels"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let labels = PhysicalBuildLabelStore(defaults: defaults)
+        labels.setLabel("b-1a2b", forInstruction: "abc123")
+        func recorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder {
+            RecoveryEvidenceRecorder(
+                root: root, instructionSHA256: "abc123", authoredModelID: UUID(), modelTitle: "Test Model",
+                stepCount: 12, staged: staged, buildLabels: labels
+            )
+        }
+        func declaration(physical: Bool) -> StagedFixtureDeclaration {
+            StagedFixtureDeclaration(
+                expectedCompletedCount: 3, lighting: .bright, occlusion: .none, physicalCase: physical, legalUseConfirmed: true
+            )
+        }
+        func finalizedBuild(_ recorder: RecoveryEvidenceRecorder, truth: EvidenceGroundTruth) async throws -> String? {
+            await recorder.recordCaptures([try makeCapture()])
+            await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: truth)
+            let url = root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(recorder.sessionID.uuidString)
+                .appendingPathComponent("session.json")
+            return try EvidenceSchema.decoder().decode(EvidenceSessionFile.self, from: Data(contentsOf: url)).physicalBuildID
+        }
+
+        let stagedTruth = EvidenceGroundTruth(kind: .staged, expectedCompletedCount: 3)
+        let staged = try await finalizedBuild(recorder(staged: declaration(physical: true)), truth: stagedTruth)
+        XCTAssertEqual(staged, "b-1a2b")
+        // A staged declaration without a physical build has nothing to label.
+        let screen = try await finalizedBuild(recorder(staged: declaration(physical: false)), truth: stagedTruth)
+        XCTAssertNil(screen)
+        // A confirmed recovery takes the last label declared for the model;
+        // an unlabeled session takes none.
+        let confirmed = try await finalizedBuild(
+            recorder(staged: nil), truth: EvidenceGroundTruth(kind: .confirmed, expectedCompletedCount: 2)
+        )
+        XCTAssertEqual(confirmed, "b-1a2b")
+        let unlabeled = try await finalizedBuild(recorder(staged: nil), truth: .unlabeled)
+        XCTAssertNil(unlabeled)
+    }
+
     func testWindowFramesAreDeduplicatedAndStagedClosesWriteARow() async throws {
         let recorder = makeRecorder()
         let samples = (0..<4).map { index in windowSample(timestamp: TimeInterval(index)) }

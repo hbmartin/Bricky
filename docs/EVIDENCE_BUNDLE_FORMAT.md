@@ -133,6 +133,14 @@ Mutable over the session's life:
   (`geometric` / `composite` / `vlm`), and `model_revision`. The last two are
   the estimate's own, not the session header's — see `benchmark.ndjson`.
 - `analysis_error` — nullable string when the run threw.
+- `physical_build_id` — optional (added 2026-10-07, ADR 0019): the
+  physical build the session photographed, as a slug matching
+  `[a-z0-9-]{1,32}` that the person declares on the staged-fixture sheet
+  (or `b-` plus four hex digits from "New Build"). It is remembered per
+  instruction model, so a re-shot build keeps its label. Staged sessions of
+  a physical build carry it; a confirmed recovery takes the last label
+  declared for its model. Training data is split by it as well as by
+  authored model, so sessions sharing either stay on one side.
 
 ## `fits.ndjson` — GeometricFitRecord (one line per scored candidate)
 
