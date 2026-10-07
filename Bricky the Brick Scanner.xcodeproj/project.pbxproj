@@ -216,6 +216,7 @@
 		F55E19809F6164C82D80F3B0 /* RepairSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */; };
 		F582737BBC060D6FEAA5A6EF /* GeometricStepVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D01074414F0990A70EBA52 /* GeometricStepVerifier.swift */; };
 		F5BB3B2923F97A6E7A77A68B /* CloudAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221350A237B70B0CD3A866D0 /* CloudAssist.swift */; };
+		F5E9EA6051816DEFD8214F7A /* StudLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A26B5F88DE0440CE72F3D2D /* StudLabels.swift */; };
 		F6FFC9536615EB832DB586AA /* RecoveryModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C09ECD30206EB778FAF23AE /* RecoveryModelManager.swift */; };
 		F7157EC1FC7E871C6D0E1F80 /* RepairPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868429598B01C6397EDFA9F1 /* RepairPlanner.swift */; };
 		F7C4A5D65A89E52B0C14975A /* SuggestedPlacementEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9711E9D6637C920FE2E7946E /* SuggestedPlacementEstimator.swift */; };
@@ -279,6 +280,7 @@
 		42FA5CFEEB253EB07369F885 /* ModelSurfaceSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSurfaceSamplerTests.swift; sourceTree = "<group>"; };
 		42FF9EE0A3BFBCADA241890F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		4517B0DDDB8B6879220326CA /* RecoveryEvidenceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEvidenceRecorder.swift; sourceTree = "<group>"; };
+		4A26B5F88DE0440CE72F3D2D /* StudLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudLabels.swift; sourceTree = "<group>"; };
 		4A69B31C3BE6403EA3FD662D /* CheckCropGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckCropGeometryTests.swift; sourceTree = "<group>"; };
 		4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticScene.swift; sourceTree = "<group>"; };
 		4CA56BD07350B7600F870727 /* StorageAndAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAndAttributionView.swift; sourceTree = "<group>"; };
@@ -577,6 +579,7 @@
 				854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
 				F5CA6CD2FFE2004812FA3E08 /* RepairSuite.swift */,
+				4A26B5F88DE0440CE72F3D2D /* StudLabels.swift */,
 				57CB3C01AEE1347539DE731F /* SyntheticRGBDMain.swift */,
 				4CA14D5B03B1ACAB8A8FA99B /* SyntheticScene.swift */,
 				154274B40728D547EBC06DE3 /* TagRenderCheck.swift */,
@@ -1011,6 +1014,7 @@
 				2C7628A53E2FBBBFBA76F85D /* SegmentedGeometry.swift in Sources */,
 				2C9A30B4610F957904A1AF69 /* StepJudging.swift in Sources */,
 				40901A73BCFB084F800CEFD1 /* StudDomain.swift in Sources */,
+				F5E9EA6051816DEFD8214F7A /* StudLabels.swift in Sources */,
 				52BE7D12B49EA96661D09A29 /* SuggestedPlacementEstimator.swift in Sources */,
 				37ADF35F20C1E84AE5516C4C /* SyntheticRGBDMain.swift in Sources */,
 				7AB5F77FA777B755ACCDB8DF /* SyntheticScene.swift in Sources */,

@@ -329,6 +329,33 @@ final class ExpectedDepthRenderer: @unchecked Sendable {
         )
     }
 
+    /// As `prepare(_:tagged: true)`, with tags the caller chooses, one per
+    /// triangle (Phase 4: `StudIndex.triangleStud`, a stud's index + 1 and
+    /// 0 for a surface that is no stud's). The same shader and pipeline draw
+    /// them; only the values differ. A count that does not match the
+    /// triangles leaves the tags unuploaded, so the first tag render fails
+    /// with `renderFailed` instead of drawing ids against the wrong faces.
+    func prepare(_ segments: SegmentedGeometry, triangleTags: [UInt32]) -> DepthGeometry {
+        guard segments.vertexCount > 0 else { return DepthGeometry(buffer: nil, vertexCount: 0, isTagged: true) }
+        var packed = [Float32]()
+        packed.reserveCapacity(segments.vertexCount * 3)
+        for vertex in segments.positions {
+            packed.append(vertex.x)
+            packed.append(vertex.y)
+            packed.append(vertex.z)
+        }
+        let buffer = device.makeBuffer(bytes: packed, length: packed.count * MemoryLayout<Float32>.stride)
+        guard triangleTags.count * 3 == segments.vertexCount else {
+            return DepthGeometry(buffer: buffer, vertexCount: segments.vertexCount, isTagged: true)
+        }
+        var tags = [UInt32]()
+        tags.reserveCapacity(segments.vertexCount)
+        for tag in triangleTags {
+            tags.append(contentsOf: repeatElement(tag, count: 3))
+        }
+        return DepthGeometry(buffer: buffer, vertexCount: segments.vertexCount, tagBuffer: makeTagBuffer(tags), isTagged: true)
+    }
+
     /// Code + 1, so LDraw 0 (Black) is not background. Direct colours
     /// (`0x2RRGGBB`) fit; a negative code, which LDraw never assigns, reads
     /// as background rather than as a colour.

@@ -152,6 +152,18 @@ jobs:
               --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
               --out "$RUNNER_TEMP/tag-render.ndjson" --check-tag-render
           done
+      # Stud labels (Phase 4, ADR 0020): the stud-ID tag pass leaves depth
+      # bit-identical, every id names a stud, CPU projection lands on its
+      # raster, every stud primitive in the pinned pack is classified, and
+      # known parts have their known top-stud counts.
+      - name: Check the stud tag pass and catalog
+        working-directory: Tools/SyntheticScenes
+        run: |
+          for fixture in fixtures/challenge/challenge.ldr fixtures/real-tower/tower.ldr; do
+            "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" "$fixture" \
+              --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+              --out "$RUNNER_TEMP/stud-labels.ndjson" --check-stud-labels
+          done
       # Repairs (M2.4, M2.9): in-step plans undo a one-stud shift, worded
       # from each view and screen rotation; cross-step plans are replayed on
       # the support graph. Any harmful action fails.

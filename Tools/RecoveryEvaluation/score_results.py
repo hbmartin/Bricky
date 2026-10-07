@@ -70,6 +70,9 @@ LATTICE_ENTRY_MINIMUM_WINDOWS = 30
 LATTICE_ENTRY_MINIMUM_SESSIONS = 3
 LATTICE_ENTRY_RATE = 0.05
 LATTICE_ENTRY_SCENARIOS = {"complete", "shifted_one_stud"}
+# Geometry-only stud labels (SyntheticRGBD --export-stud-labels): training
+# and audit material for ADR 0020, never scored.
+STUD_LABELS_KIND = "stud_labels"
 # Per-placement build diff rows (M2.3): what the shadow diff concluded about
 # each authored placement. Informational until real windows exist.
 PLACEMENT_KIND = "placement"
@@ -1287,7 +1290,7 @@ def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]
     kinds: dict[str, list[dict[str, object]]] = {
         kind: [] for kind in KINDS + SUMMARY_KINDS + (
             CHALLENGE_KIND, VLM_CHECK_KIND, SHADOW_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
-            PLACEMENT_SUGGESTION_KIND, LATTICE_WINDOW_KIND,
+            PLACEMENT_SUGGESTION_KIND, LATTICE_WINDOW_KIND, STUD_LABELS_KIND,
         )
     }
     for index, row in enumerate(rows, start=1):

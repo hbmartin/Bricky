@@ -128,6 +128,61 @@ final class StudIndexTests: XCTestCase {
         XCTAssertEqual(again.positions, plain.positions)
     }
 
+    func testProjectionMatchesTheShaderConvention() throws {
+        var intrinsics = matrix_identity_float3x3
+        intrinsics[0][0] = 210
+        intrinsics[1][1] = 210
+        intrinsics[2][0] = 128
+        intrinsics[2][1] = 96
+        // The camera at the origin looks down −Z, +Y up, image y down.
+        let projected = try XCTUnwrap(StudProjection.project(
+            SIMD3(0.1, 0.05, -1), viewFromModel: matrix_identity_float4x4, intrinsics: intrinsics
+        ))
+        XCTAssertEqual(projected.u, 149, accuracy: 1e-4)
+        XCTAssertEqual(projected.v, 85.5, accuracy: 1e-4)
+        XCTAssertEqual(projected.depth, 1, accuracy: 1e-6)
+        XCTAssertNil(StudProjection.project(SIMD3(0, 0, 1), viewFromModel: matrix_identity_float4x4, intrinsics: intrinsics))
+    }
+
+    func testVisibilityNeedsTheIDNearbyEnoughPixelsAndAgreeingDepth() {
+        let index = StudIndex(studs: [
+            StudInstance(placement: 0, primitive: "stud.dat", role: .top, keypoint: SIMD3(0, 0, -1),
+                         axis: SIMD3(0, 0, 1), scale: 1, colourCode: 4),
+            StudInstance(placement: 0, primitive: "stud.dat", role: .top, keypoint: SIMD3(0.01, 0, -1),
+                         axis: SIMD3(0, 0, -1), scale: 1, colourCode: 4),
+        ], triangleStud: [])
+        var intrinsics = matrix_identity_float3x3
+        intrinsics[0][0] = 100
+        intrinsics[1][1] = 100
+        intrinsics[2][0] = 4
+        intrinsics[2][1] = 4
+        // An 8×8 view: stud 1 owns a 3×3 patch round the centre at its own
+        // depth; stud 2's keypoint (one pixel right) shows stud 1, so it is
+        // hidden.
+        var ids = [UInt32](repeating: 0, count: 64)
+        var depth = [Float32](repeating: 0, count: 64)
+        for y in 3...5 {
+            for x in 3...5 {
+                ids[y * 8 + x] = 1
+                depth[y * 8 + x] = 1
+            }
+        }
+        let labels = StudVisibility.labels(
+            index: index, studs: [0, 1], viewFromModel: matrix_identity_float4x4, intrinsics: intrinsics,
+            ids: ids, depth: depth, width: 8, height: 8
+        )
+        XCTAssertEqual(labels.map(\.visible), [true, false])
+        XCTAssertEqual(labels.map(\.pixels), [9, 0])
+        XCTAssertEqual(labels.map(\.upFacing), [true, false], "only the first stud's axis points at the camera")
+        // The same id with the wrong depth is a stud seen through something.
+        depth = depth.map { $0 > 0 ? 0.9 : 0 }
+        let behind = StudVisibility.labels(
+            index: index, studs: [0], viewFromModel: matrix_identity_float4x4, intrinsics: intrinsics,
+            ids: ids, depth: depth, width: 8, height: 8
+        )
+        XCTAssertEqual(behind.first?.visible, false)
+    }
+
     func testCatalogClassifiesKnownNames() {
         XCTAssertEqual(StudPrimitiveCatalog.kind(of: "stud.dat"), .stud(.top))
         XCTAssertEqual(StudPrimitiveCatalog.kind(of: "8/stud.dat"), .stud(.top))

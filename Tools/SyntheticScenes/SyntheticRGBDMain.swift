@@ -83,12 +83,16 @@ struct SyntheticRGBDMain {
         /// and exits (M2.0 diagnostic).
         var checkRenderOrder = false
         var checkTagRender = false
+        /// Stud labels (Phase 4): check the stud pass and catalog, or write
+        /// geometry-only label rows.
+        var checkStudLabels = false
+        var exportStudLabels = false
     }
 
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -102,6 +106,16 @@ struct SyntheticRGBDMain {
             }
             if flag == "--check-tag-render" {
                 options.checkTagRender = true
+                index += 1
+                continue
+            }
+            if flag == "--check-stud-labels" {
+                options.checkStudLabels = true
+                index += 1
+                continue
+            }
+            if flag == "--export-stud-labels" {
+                options.exportStudLabels = true
                 index += 1
                 continue
             }
@@ -184,6 +198,18 @@ struct SyntheticRGBDMain {
         }
         if options.checkTagRender {
             try await TagRenderCheck.run(plan: plan, engine: engine, renderer: renderer)
+            return
+        }
+        if options.checkStudLabels {
+            try await StudLabels.check(
+                plan: plan, engine: engine, renderer: renderer, partPackRoot: URL(fileURLWithPath: options.ldrawRoot)
+            )
+            return
+        }
+        if options.exportStudLabels {
+            try await StudLabels.export(
+                plan: plan, engine: engine, renderer: renderer, fixtureStem: fixtureStem, outPath: options.outPath
+            )
             return
         }
         if let bundle = options.replayBundle {

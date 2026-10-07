@@ -103,3 +103,83 @@ struct StudIndex: Sendable, Equatable {
         studs.filter { placements.contains($0.placement) }
     }
 }
+
+/// Where a stud's keypoint lands in an image, by the expected-depth
+/// shader's own projection (ARKit camera: +X right, +Y up, looking down
+/// −Z; pixel intrinsics, image y down).
+enum StudProjection {
+    /// Pixel coordinates (u right, v down; pixel `i` covers [i, i+1)) and
+    /// linear depth of a model-frame point, or nil behind the camera.
+    static func project(
+        _ point: SIMD3<Float>, viewFromModel: simd_float4x4, intrinsics: simd_float3x3
+    ) -> (u: Float, v: Float, depth: Float)? {
+        let camera = viewFromModel * SIMD4(point, 1)
+        let depth = -camera.z
+        guard depth > 0 else { return nil }
+        return (
+            intrinsics[0][0] * camera.x / depth + intrinsics[2][0],
+            intrinsics[1][1] * (-camera.y) / depth + intrinsics[2][1],
+            depth
+        )
+    }
+}
+
+/// One stud's label in one rendered view: geometry only, never an image.
+struct StudLabel: Sendable, Equatable {
+    /// Index into `StudIndex.studs`.
+    let stud: Int
+    let u: Float
+    let v: Float
+    let depth: Float
+    /// Pixels of the stud-ID map carrying this stud.
+    let pixels: Int
+    /// Its top faces the camera.
+    let upFacing: Bool
+    /// Seen: its id within a pixel of the keypoint, enough pixels of it, and
+    /// the rendered depth there within 2 mm of the keypoint's.
+    let visible: Bool
+}
+
+/// Decides which studs a view can see from the stud-ID and depth renders
+/// of the same geometry (ADR 0006 tag pass). Occlusion comes from the
+/// rasterizer: a stud under a brick above has no pixels.
+enum StudVisibility {
+    static let minimumPixels = 3
+    static let depthTolerance: Float = 0.002
+
+    static func labels(
+        index: StudIndex, studs: [Int], viewFromModel: simd_float4x4, intrinsics: simd_float3x3,
+        ids: [UInt32], depth: [Float32], width: Int, height: Int
+    ) -> [StudLabel] {
+        var counts: [UInt32: Int] = [:]
+        for id in ids where id != 0 { counts[id, default: 0] += 1 }
+        let camera = viewFromModel.inverse * SIMD4<Float>(0, 0, 0, 1)
+        return studs.compactMap { ordinal -> StudLabel? in
+            let stud = index.studs[ordinal]
+            guard let projected = StudProjection.project(stud.keypoint, viewFromModel: viewFromModel, intrinsics: intrinsics) else {
+                return nil
+            }
+            let id = UInt32(ordinal + 1)
+            let column = Int(projected.u.rounded(.down))
+            let row = Int(projected.v.rounded(.down))
+            var near = false
+            var depthAgrees = false
+            for dy in -1...1 {
+                for dx in -1...1 {
+                    let x = column + dx
+                    let y = row + dy
+                    guard x >= 0, y >= 0, x < width, y < height, ids[y * width + x] == id else { continue }
+                    near = true
+                    if abs(depth[y * width + x] - projected.depth) <= depthTolerance { depthAgrees = true }
+                }
+            }
+            let toCamera = SIMD3(camera.x, camera.y, camera.z) - stud.keypoint
+            let pixels = counts[id, default: 0]
+            return StudLabel(
+                stud: ordinal, u: projected.u, v: projected.v, depth: projected.depth, pixels: pixels,
+                upFacing: simd_dot(stud.axis, toCamera) > 0,
+                visible: near && depthAgrees && pixels >= minimumPixels
+            )
+        }
+    }
+}
