@@ -35,6 +35,11 @@ for use: every Phase 4 entry criterion waits on Phase 1 device data.
     scored on their own training data.
 - **Fix.** `ProbeScoring.group` summed probabilities in dictionary order,
   so two identical probe calls could differ in the last bit.
+- **Fix.** Background model delivery published first and checked for
+  running transfers second. A download finishing in between was started
+  again: a second multi-GB transfer. It now checks first. The test that
+  hung CI for 40 minutes on this race now places the finish
+  deterministically instead of sleeping.
 
 ## Unreleased — iOS 27 Phase 3: colour, wording and a second opinion (all off by default)
 
