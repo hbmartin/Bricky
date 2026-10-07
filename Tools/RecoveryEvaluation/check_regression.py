@@ -69,6 +69,11 @@ FAILURE_COUNT_LEAVES = {
     "cross_step_harmful_actions",
     "direction_disagreement_cases",
     "wrong_proposal_cases",
+    # A registration that settles a whole stud pitch off, or calls an
+    # unambiguous pose ambiguous (Phase 4).
+    "pitch_off_cases",
+    "one_pitch_off_cases",
+    "unexpected_ambiguity_cases",
 }
 
 

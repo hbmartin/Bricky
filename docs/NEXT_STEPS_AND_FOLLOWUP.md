@@ -118,6 +118,27 @@ settings):
     blind, and score it with `score_wording_ab.py`. The default flips only
     on MODEL PREFERRED. Re-run per OS build.
 
+**Phase 4 add-ons** (built 2026-10-07; measurement, labels and tooling only):
+
+12. **Lattice aliasing** (ADR 0020, the stud-keypoint entry criterion), with
+    evidence capture on:
+    - at least 30 staged closing windows of `complete` and
+      `shifted_one_stud` builds, over at least 3 sessions;
+    - then `bricky-harness lattice-rows --bundle … --out lattice.ndjson`
+      and `score_results.py lattice.ndjson --informational`;
+    - record the `STUD_KEYPOINTS_ENTRY` line. MET opens ADR 0020's model
+      work; NOT_MET closes it until the verifier changes.
+13. **Physical build labels** (ADR 0019): give every staged session a
+    build label; reuse it when the same build is photographed again, and
+    press "New Build" after taking it apart.
+14. **Stud labels** (ADR 0020): run `SyntheticRGBD --stud-labels-bundle` on
+    staged photo-check bundles. Overlay the labels on 50 photos and check
+    the studs by eye. Record the refusal counts; many `aliasing_risk`
+    refusals are themselves lattice evidence.
+15. **LoRA** (ADR 0019): nothing on the device until at least 150 labelled
+    sessions exist. Before the first real training run, explain the
+    Python/Swift base disagreement the smoke run measured (§5).
+
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
 Each was explicitly deferred during the design session because the harness
@@ -296,6 +317,35 @@ boards, prompts, and grammar schemas are all present, so training pairs
 without re-rendering. Keep the adapter evaluation on the same
 `score_results.py` gates; a fine-tuned model is just another A/B variant to
 the harness.
+
+**Tooling built (2026-10-07, ADR 0019, Proposed); the prerequisites above
+are unchanged.**
+- **Pipeline.** `export_training_pairs.py` (stdlib, CI-tested) writes pairs
+  split by authored model and physical build. Then `Tools/Training` (uv:
+  mlx-vlm 0.7.6, mlx 0.32.3) trains, converts and scores. `bricky-harness
+  replay --adapter` replays the result as an `adapter=` variant, and
+  `compare_arms.py --restrict` scores it on the held-out split only.
+- **Smoke run.** `Tools/Training/run_smoke.py` proved it end to end on a
+  synthetic bundle: the converted adapter loads, Python and Swift agree on
+  how it changes the slot log-odds, a doubled-scale canary stands out, and
+  a zero-B adapter replays the baseline bit for bit. Numbers are in ADR 0019.
+- **Owed before real training:**
+  - **The base models disagree, and adapters transfer weaker.** On
+    identical boards and token counts:
+    - Swift's slot log-odds are about 0.79 times Python's before any
+      adapter is applied (a mean difference of about 1 nat).
+    - A linear-regime adapter's effect in Swift is 0.73 of its effect in
+      Python.
+    - ADR 0019 entry criterion 4 holds real training until the transfer
+      slope is in [0.9, 1.1].
+    - Suspects, in order: image decode and resampling (PIL against
+      CoreImage), MLX 0.32.3 against the vendored 0.31.1, and model-code
+      differences between mlx-vlm and mlx-swift-lm (for example, deepstack
+      features or rope positions).
+    - Start by comparing the two sides' pixel values and first-layer
+      activations on one board.
+  - **Adapter delivery to the app.** It is undesigned (ADR 0019): a pinned,
+    hashed asset, and admission with the adapter loaded.
 
 ## 6. Format-evolution reminders
 

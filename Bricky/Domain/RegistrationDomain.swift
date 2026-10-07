@@ -65,6 +65,18 @@ enum RegistrationState: String, Sendable, Codable {
     case lost
 }
 
+/// One competing lattice hypothesis the tracker scores against the current
+/// pose (ADR 0009), named in the model frame: ±1 stud along the model's x or
+/// z axis, or a yaw about the model centroid.
+enum LatticeAlternative: String, Sendable, Codable, CaseIterable {
+    case shiftXPositive = "shift_x_pos"
+    case shiftXNegative = "shift_x_neg"
+    case shiftZPositive = "shift_z_pos"
+    case shiftZNegative = "shift_z_neg"
+    case yaw180 = "yaw_180"
+    case yaw90 = "yaw_90"
+}
+
 /// Fit-quality evidence for the current registration estimate.
 struct RegistrationQuality: Sendable, Codable, Equatable {
     /// Root-mean-square point-to-plane residual over inliers, meters.
@@ -78,6 +90,11 @@ struct RegistrationQuality: Sendable, Codable, Equatable {
     /// 0 records that no sweep ran (the fit was below the loss floor) and
     /// likewise must never read as distinctive.
     let latticeMargin: Float
+    /// The alternative that set `latticeMargin`: the hypothesis that came
+    /// closest to explaining the depth. Evidence only — the lock rule reads
+    /// the margin alone. Nil when no sweep ran, or when every alternative
+    /// left the image and none could compete.
+    var latticeRunnerUp: LatticeAlternative? = nil
 
     static let none = RegistrationQuality(rmsResidual: .infinity, inlierFraction: 0, latticeMargin: 1)
 }

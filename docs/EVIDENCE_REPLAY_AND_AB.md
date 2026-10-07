@@ -105,6 +105,8 @@ The traces sidecar (`ReplayTraceResult`) carries, per call:
 | `--prompt-style baseline\|dynamic_range`, `--image-side N` | Replace recorded prompts (`dynamic_range` names only the slots on the board); resize boards to N px before the vision encoder |
 | `--unique-slots` | Mask slot letters already in the ranking (`unique_slots`); needs the forked decoder |
 | `--scoring generate\|probe` | `probe` reads the decision's probabilities from one prefill over a canonical answer prefix instead of generating JSON; pair with `--vote logprob` to pool views by log probability |
+| `--adapter DIR` | Apply a converted LoRA adapter unfused over `--model-dir` (ADR 0019). The adapter is refused unless its config spells out rank, scale and keys and carries a `bricky` block whose `base_model_revision` equals `--model-revision`, its tensors cover exactly the model's last `num_layers` decoder layers, and its dtype is the model's. Rows record `adapter=<name>@<sha12>` in `variant_id`; a smoke adapter prints a warning |
+| `--no-warm-up` | Skip the warm-up inference that `replay` runs first, on the bundle's first board, as the app runs one at admission (the same check call; here its answer need not decode). The first inference after a model load is not bit-reproducible across processes, so without the warm-up the first replayed row can differ between identical runs |
 | `--decode legacy\|upstream\|feed_all` | Decoder (`RecoveryGuidedDecoder`). `legacy` is the app default and byte-identical to the pinned loop (`upstream`); `feed_all` feeds every sampled token to the KV cache. Replay traces record the mode, decode telemetry, and the model's distribution at small-legal-set decisions (`readouts`) |
 
 ## `recompose`
@@ -149,6 +151,98 @@ so `compare_arms.py --primary check_correct` pairs them with a VLM replay's
 informational: a Mac is not the phone's model tier, and release mode
 refuses replay rows.
 
+## `adapter-template`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness adapter-template \
+  --model-dir model --model-revision <sha> --out zero-b [--rank 8 --scale 20 --layers N]
+```
+
+Loads the pinned model and writes what a converted adapter for it must look
+like: `template.json` lists every tensor's name and shape
+(`language_model.model.layers.<n>.<key>.lora_a` is `[in, rank]`, `lora_b` is
+`[rank, out]`) and the dtype it must be stored in (BF16 for the pinned 4-bit
+model). `convert_adapter.py` checks its output against it. The same directory
+is a zero-B smoke adapter: B is zero in the model's dtype, so replaying it
+must reproduce the baseline byte for byte. That is the check that the adapter
+path adds nothing of its own (`RecoveryAdapterSmokeTests`). An adapter stored
+in float32 would not: `QLoRALinear` adds `scale·x·A·B` to the layer's output,
+and a float32 term promotes every later activation.
+
+## `synth-bundle`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness synth-bundle \
+  --out smoke-bundle --authored-models 4 --builds-per-model 2 --sessions 6 --seed 7
+```
+
+Writes a synthetic smoke bundle for the LoRA pipeline's end-to-end test
+(ADR 0019): boards of stacked coloured blocks, one more block per step, as in
+the weights-gated tests. Each session is staged at a known step with one
+finalist board of up to four candidate steps around it, in a seeded slot
+order, with the verbatim baseline rank prompt and grammar. Authored models
+differ in palette and physical builds in block width, so the exporter's split
+has something to split. The same seed writes the same bytes. Its device model
+is `synthetic:bricky-harness`: a pipeline fixture, not a sensor model, refused
+by every release and training path.
+
+## `lattice-rows`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness lattice-rows \
+  --bundle bundle --out lattice.ndjson
+python3 Tools/RecoveryEvaluation/score_results.py lattice.ndjson --informational
+```
+
+Writes one `lattice_window` row per verification window: frame counts by
+registration state, the margins of the frames where the lattice sweep ran,
+how often each alternative set the margin, the verifier's ±1-stud contests,
+and the staged truth. No model and no weights. The scorer's `lattice_window`
+section summarises device rows, and every run prints the stud-keypoint
+entry line (ADR 0020):
+
+```
+STUD_KEYPOINTS_ENTRY UNMEASURED (0 device windows, need 30)
+```
+
+Only device windows (an iPhone, not a replay or synthetic session) that
+closed on a staged `complete` or `shifted_one_stud` build count. A window is
+lattice trouble when the verifier refused for `poseAmbiguous`, at least half
+its frames were ambiguous, a complete build was called misplaced, or a
+shifted one complete. With at least 30 such windows from 3 sessions, the
+criterion is MET when the one-sided 95% lower bound on that rate is at least
+5%, and NOT_MET when the upper bound is under 5% (about 59 clean windows).
+Anything else reads UNMEASURED with its reason; it never gates a release.
+
+## Stud labels for photo captures (SyntheticRGBD)
+
+```sh
+SyntheticRGBD model.ldr --ldraw-root ldraw --out labels.ndjson \
+  --stud-labels-bundle bundle [--include-confirmed]
+```
+
+Not a harness command: it needs the instruction model and the part pack,
+which bundles never carry, so it runs in SyntheticRGBD beside
+`--replay-bundle`, against the same files that were imported (sessions of
+another model are skipped). For each AR photo capture it writes one
+`stud_label_capture` row (provenance `pseudo_registered`):
+- **What is labelled:** the authored top studs of what the staged
+  declaration says was built.
+- **How they are placed:** projected through the locked model pose the
+  photo was taken under, onto the stored upright photo (`x`, `y`
+  normalized).
+- **Which are visible:** visibility comes from a stud-ID render at the
+  photo's own camera.
+- **What is written:** the image is referenced by path, never copied.
+
+`StudLabelPolicy` refuses, and records why: no staged truth (confirmed
+sessions only with `--include-confirmed`), no locked pose, no registration
+snapshot, not locked, or a lattice margin under 1.5.
+
+A pose locked one pitch off would label every stud one pitch off,
+consistently and silently, so these are pseudo-labels: check them by eye
+before anything trains on them (ADR 0020).
+
 ## Workflows
 
 ### Diagnosing a device failure
@@ -190,6 +284,16 @@ bricky-harness replay --bundle bundle --model-dir model --model-revision <sha> \
 ```
 
 CONTRIBUTING makes this mandatory for prompt or board-layout changes.
+
+`compare_arms.py` refuses two kinds of comparison before computing anything:
+- **Different weights.** Arms whose `model_revision`s differ (session, check
+  and, since 2026-10-07, trace sidecar rows all carry it) are refused unless
+  `--allow-mixed-revisions`, for a pin bump measured on purpose. Older trace
+  sidecars without the field only warn.
+- **An adapter scored on its own training data.** An arm whose `variant_id`
+  names an `adapter=` (ADR 0019) is refused unless `--restrict
+  split_manifest.json` limits every arm to the exporter's held-out test
+  sessions.
 
 ## Determinism and parity caveats
 

@@ -60,6 +60,22 @@ CHALLENGE_KIND = "verification_challenge"
 VLM_CHECK_KIND = "vlm_check"
 # The Foundation Models advisor beside photo checks, in shadow (ADR 0018).
 SHADOW_CHECK_KIND = "shadow_check"
+# One verification window's lattice evidence (bricky-harness lattice-rows,
+# iOS 27 Phase 4): read for the stud-keypoint entry criterion (ADR 0020),
+# never a release gate.
+LATTICE_WINDOW_KIND = "lattice_window"
+# The entry rule: enough staged device windows from enough sessions, and a
+# one-sided 95% bound on the lattice-trouble rate on one side of 5%.
+LATTICE_ENTRY_MINIMUM_WINDOWS = 30
+LATTICE_ENTRY_MINIMUM_SESSIONS = 3
+LATTICE_ENTRY_RATE = 0.05
+LATTICE_ENTRY_SCENARIOS = {"complete", "shifted_one_stud"}
+# Geometry-only stud labels (SyntheticRGBD --export-stud-labels): training
+# and audit material for ADR 0020, never scored.
+STUD_LABELS_KIND = "stud_labels"
+# Pseudo-labels for real photo captures (SyntheticRGBD --stud-labels-bundle),
+# also never scored.
+STUD_LABEL_CAPTURE_KIND = "stud_label_capture"
 # Per-placement build diff rows (M2.3): what the shadow diff concluded about
 # each authored placement. Informational until real windows exist.
 PLACEMENT_KIND = "placement"
@@ -752,6 +768,32 @@ def validate_registration_rows(rows: list[dict[str, object]]) -> None:
         require_valid_latency(row, f"registration row {index}")
 
 
+# A stud pitch, and how close a final pose must sit to a whole number of
+# pitches (with yaw near truth) to count as a lattice slip rather than noise.
+STUD_PITCH_M = 0.008
+PITCH_OFF_TOLERANCE_M = 0.002
+PITCH_OFF_MAX_YAW_DEGREES = 5.0
+
+
+def lattice_slip(row: dict[str, object]) -> tuple[int, int] | None:
+    """The whole-pitch offset `(kx, kz)` a registration settled at, or None
+    when it sits at truth, between pitches, at a turned yaw, or the row has
+    no signed x/z error (rows from before 2026-10-07)."""
+    dx, dz = row.get("translation_error_x_m"), row.get("translation_error_z_m")
+    if not (is_number(dx) and is_number(dz)):
+        return None
+    if float(row["yaw_error_degrees"]) >= PITCH_OFF_MAX_YAW_DEGREES:
+        return None
+    kx, kz = round(float(dx) / STUD_PITCH_M), round(float(dz) / STUD_PITCH_M)
+    if (kx, kz) == (0, 0):
+        return None
+    if abs(float(dx) - kx * STUD_PITCH_M) > PITCH_OFF_TOLERANCE_M:
+        return None
+    if abs(float(dz) - kz * STUD_PITCH_M) > PITCH_OFF_TOLERANCE_M:
+        return None
+    return kx, kz
+
+
 def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
     validate_registration_rows(rows)
     # A genuinely symmetric fixture cannot converge to a unique truth; it is
@@ -766,12 +808,36 @@ def score_registration(rows: list[dict[str, object]]) -> tuple[dict[str, object]
         sum(row["reported_ambiguous"] for row in ambiguous_expected) / len(ambiguous_expected)
         if ambiguous_expected else None
     )
+    # Lattice aliasing (Phase 4): a solve that settles a whole stud pitch
+    # off at the right yaw is the failure stud keypoints exist to fix. Only
+    # rows that carry signed x/z error can be judged.
+    lattice_measured = [
+        row for row in rows
+        if is_number(row.get("translation_error_x_m")) and is_number(row.get("translation_error_z_m"))
+    ]
+    slips = [slip for slip in (lattice_slip(row) for row in lattice_measured) if slip is not None]
+    by_runner_up: dict[str, int] = {}
+    for row in rows:
+        runner_up = row.get("lattice_runner_up")
+        if isinstance(runner_up, str):
+            by_runner_up[runner_up] = by_runner_up.get(runner_up, 0) + 1
     report: dict[str, object] = {
         "cases": len(rows),
         "convergence_rate": convergence_rate,
         "translation_rmse_m": rmse(translation_errors),
         "yaw_rmse_degrees": rmse(yaw_errors),
         "ambiguity_recall": ambiguity_recall,
+        "ambiguity_expected_cases": len(ambiguous_expected),
+        # The other half of ambiguity recall: a tracker that called every
+        # pose ambiguous would recall perfectly while refusing to verify
+        # anything (the safe side of ADR 0009, but still a failure).
+        "unexpected_ambiguity_cases": sum(
+            1 for row in rows if row["reported_ambiguous"] and not row["ambiguity_expected"]
+        ),
+        "lattice_measured_cases": len(lattice_measured),
+        "pitch_off_cases": len(slips),
+        "one_pitch_off_cases": sum(1 for kx, kz in slips if abs(kx) + abs(kz) == 1),
+        "by_runner_up": by_runner_up,
     }
     gates = [
         rate_gate(
@@ -1110,6 +1176,116 @@ def score_shadow_check(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+# --- Lattice windows (kind == "lattice_window") -----------------------------
+
+
+def lattice_trouble(row: dict[str, object]) -> bool:
+    """A staged window the stud lattice went wrong on: the verifier refused
+    for an ambiguous pose, at least half its frames were ambiguous, a
+    complete build was called one stud off, or a one-stud shift complete."""
+    frames = int(row["frames"])
+    return (
+        row.get("uncertain_reason") == "poseAmbiguous"
+        or (frames > 0 and 2 * int(row["ambiguous_frames"]) >= frames)
+        or (row.get("staged_scenario") == "complete" and row["verdict"] == "misplaced")
+        or (row.get("staged_scenario") == "shifted_one_stud" and row["verdict"] == "complete")
+    )
+
+
+def lattice_entry(population: list[dict[str, object]]) -> dict[str, object]:
+    """The stud-keypoint entry readout. MET needs the lower bound at or
+    above 5%; NOT MET, the upper bound below it; anything else, including
+    no rows at all, is UNMEASURED and says why — never a silent pass."""
+    windows = len(population)
+    sessions = len({str(row["session_id"]) for row in population})
+    events = sum(lattice_trouble(row) for row in population)
+    lower = clopper_pearson_lower(events, windows) if windows else None
+    upper = clopper_pearson_upper(events, windows) if windows else None
+    if windows < LATTICE_ENTRY_MINIMUM_WINDOWS:
+        status, reason = UNMEASURED, f"{windows} device windows, need {LATTICE_ENTRY_MINIMUM_WINDOWS}"
+    elif sessions < LATTICE_ENTRY_MINIMUM_SESSIONS:
+        status, reason = UNMEASURED, f"{sessions} sessions, need {LATTICE_ENTRY_MINIMUM_SESSIONS}"
+    elif lower is not None and lower >= LATTICE_ENTRY_RATE:
+        status, reason = "MET", f"{events}/{windows} windows, lower95={lower:.4f}"
+    elif upper is not None and upper < LATTICE_ENTRY_RATE:
+        status, reason = "NOT_MET", f"{events}/{windows} windows, upper95={upper:.4f}"
+    else:
+        status, reason = UNMEASURED, (
+            f"inconclusive: {events}/{windows} windows, bounds {format_number(lower)}..{format_number(upper)} straddle "
+            f"{LATTICE_ENTRY_RATE:g}"
+        )
+    return {
+        "status": status,
+        "reason": reason,
+        "windows": windows,
+        "sessions": sessions,
+        "events": events,
+        "lower_95": lower,
+        "upper_95": upper,
+    }
+
+
+def score_lattice(rows: list[dict[str, object]]) -> dict[str, object]:
+    """Lattice evidence from verification windows, informational. Only
+    device rows (an iPhone, not a replay or a synthetic session) from
+    windows that closed on a staged complete or one-stud-shift build count
+    toward the entry readout."""
+    required = {
+        "fixture_id", "session_id", "provenance", "device_model", "trigger", "verdict", "frames",
+        "swept_frames", "ambiguous_frames", "locked_frames", "locked_near_threshold_frames", "margins", "runner_ups",
+    }
+    for index, row in enumerate(rows, start=1):
+        label = f"{LATTICE_WINDOW_KIND} row {index}"
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"{label} has unsupported schema")
+        missing = sorted(required - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if not isinstance(row["margins"], list) or not all(is_number(value) for value in row["margins"]):
+            raise SystemExit(f"{label} margins must be a list of finite numbers")
+    device = [
+        row for row in rows
+        if row["provenance"] == "device" and str(row["device_model"]).startswith("iPhone")
+    ]
+    closing = [row for row in device if row["trigger"] != "verdict_change"]
+    population = [row for row in closing if row.get("staged_scenario") in LATTICE_ENTRY_SCENARIOS]
+    margins = [float(value) for row in device for value in row["margins"]]
+    frames = sum(int(row["frames"]) for row in device)
+    locked = sum(int(row["locked_frames"]) for row in device)
+    runner_ups: dict[str, int] = {}
+    for row in device:
+        for name, count in dict(row["runner_ups"]).items():
+            runner_ups[name] = runner_ups.get(name, 0) + int(count)
+    return {
+        "windows": len(rows),
+        "device_windows": len(device),
+        "closing_device_windows": len(closing),
+        "margin_p10": percentile(margins, 0.10) if margins else None,
+        "margin_p50": percentile(margins, 0.50) if margins else None,
+        "margin_p90": percentile(margins, 0.90) if margins else None,
+        "ambiguous_frame_rate": sum(int(row["ambiguous_frames"]) for row in device) / frames if frames else None,
+        "pose_ambiguous_window_rate": (
+            sum(row.get("uncertain_reason") == "poseAmbiguous" for row in closing) / len(closing) if closing else None
+        ),
+        "locked_near_threshold_rate": (
+            sum(int(row["locked_near_threshold_frames"]) for row in device) / locked if locked else None
+        ),
+        "complete_called_misplaced": sum(
+            row.get("staged_scenario") == "complete" and row["verdict"] == "misplaced" for row in closing
+        ),
+        "shifted_called_complete": sum(
+            row.get("staged_scenario") == "shifted_one_stud" and row["verdict"] == "complete" for row in closing
+        ),
+        "runner_ups": dict(sorted(runner_ups.items())),
+        "entry": lattice_entry(population),
+    }
+
+
+def lattice_entry_line(report: dict[str, object] | None) -> str:
+    entry = report["entry"] if report else lattice_entry([])
+    return f"STUD_KEYPOINTS_ENTRY {entry['status']} ({entry['reason']})"
+
+
 # --- Entry -------------------------------------------------------------------
 
 
@@ -1117,7 +1293,7 @@ def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]
     kinds: dict[str, list[dict[str, object]]] = {
         kind: [] for kind in KINDS + SUMMARY_KINDS + (
             CHALLENGE_KIND, VLM_CHECK_KIND, SHADOW_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
-            PLACEMENT_SUGGESTION_KIND,
+            PLACEMENT_SUGGESTION_KIND, LATTICE_WINDOW_KIND, STUD_LABELS_KIND, STUD_LABEL_CAPTURE_KIND,
         )
     }
     for index, row in enumerate(rows, start=1):
@@ -1218,6 +1394,11 @@ def main(
     if not allow_mixed_arms:
         require_single_arm(kinds["recovery"])
     if release:
+        smoke = [row for row in rows if "adapter=smoke-" in str(row.get("variant_id", ""))]
+        if smoke:
+            raise SystemExit(
+                f"{len(smoke)} rows ran a smoke adapter (ADR 0019): pipeline fixtures, never release evidence"
+            )
         for kind in SUMMARY_KINDS:
             if kinds[kind]:
                 raise SystemExit(f"{kind} rows describe a synthetic corpus and are not release evidence")
@@ -1257,6 +1438,8 @@ def main(
         report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
     if kinds[SHADOW_CHECK_KIND]:
         report[SHADOW_CHECK_KIND] = score_shadow_check(kinds[SHADOW_CHECK_KIND])
+    if kinds[LATTICE_WINDOW_KIND]:
+        report[LATTICE_WINDOW_KIND] = score_lattice(kinds[LATTICE_WINDOW_KIND])
     placement_gates: list[Gate] = []
     if kinds[PLACEMENT_KIND]:
         report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
@@ -1286,6 +1469,9 @@ def main(
         None,
     )
     print(headline(report.get("verification"), false_complete_gate, release=release))
+    # Printed on every run, like the headline: no device rows reads as
+    # UNMEASURED, never as a criterion met or failed.
+    print(lattice_entry_line(report.get(LATTICE_WINDOW_KIND)))
     if VLM_CHECK_KIND in report:
         check = report[VLM_CHECK_KIND]
         shown = UNMEASURED if check["false_complete_rate"] is None else f"{check['false_complete_rate']:.4f}"

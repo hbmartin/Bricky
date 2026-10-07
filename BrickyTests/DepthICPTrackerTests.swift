@@ -225,6 +225,76 @@ final class DepthICPTrackerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.quality.inlierFraction, 0.6)
     }
 
+    func testRunnerUpIsMinimumAlternative() throws {
+        // The plain box is 180°-symmetric and twice as long as it is deep:
+        // the half turn explains its depth as well as the truth does, while
+        // a one-stud shift moves an end face. The runner-up must name the
+        // alternative that set the margin.
+        let frame = try syntheticFrame(snapshot: plainBoxSnapshot, worldFromCamera: viewFromPlusX)
+        let sample = ModelSurfaceSampler.sample(plainBoxSnapshot, stepIndex: 0)
+        let result = DepthICPTracker.solve(
+            sample: sample,
+            frame: frame,
+            initialWorldFromModel: pose(x: -0.003, z: -0.002, yawDegrees: 2)
+        )
+        XCTAssertLessThan(result.quality.latticeMargin, 1.3)
+        XCTAssertEqual(result.quality.latticeRunnerUp, .yaw180)
+    }
+
+    func testRunnerUpNilWhenSweepSkipped() throws {
+        let sample = ModelSurfaceSampler.sample(lShapeSnapshot, stepIndex: 0)
+        let frame = RegistrationFrameInput(
+            depth: .init(repeating: 0, count: width * height),
+            confidence: .init(repeating: 2, count: width * height),
+            rawDepth: nil, rawConfidence: nil, width: width, height: height,
+            depthIntrinsics: intrinsics, worldFromCamera: viewFromPlusX, timestamp: 0
+        )
+        let result = DepthICPTracker.solve(sample: sample, frame: frame, initialWorldFromModel: matrix_identity_float4x4)
+        XCTAssertNil(result.quality.latticeRunnerUp, "no sweep ran, so nothing competed")
+    }
+
+    func testAlternativesKeepTheirOrderAndNames() {
+        let configuration = DepthICPTracker.Configuration()
+        let long = DepthICPTracker.latticeAlternatives(
+            sample: ModelSurfaceSampler.sample(plainBoxSnapshot, stepIndex: 0),
+            pose: matrix_identity_float4x4, configuration: configuration
+        )
+        XCTAssertEqual(long.map(\.0), [.shiftXPositive, .shiftXNegative, .shiftZPositive, .shiftZNegative, .yaw180])
+        XCTAssertEqual(long[0].1.columns.3.x, configuration.studPitch, accuracy: 1e-6)
+        XCTAssertEqual(long[3].1.columns.3.z, -configuration.studPitch, accuracy: 1e-6)
+        let square = InstructionGeometrySnapshot(
+            buffers: [boxBuffer(min: SIMD3(0, 0, 0), max: SIMD3(0.064, 0.0384, 0.064))], bounds: nil
+        )
+        let squareKinds = DepthICPTracker.latticeAlternatives(
+            sample: ModelSurfaceSampler.sample(square, stepIndex: 0),
+            pose: matrix_identity_float4x4, configuration: configuration
+        ).map(\.0)
+        XCTAssertEqual(squareKinds.suffix(2), [.yaw180, .yaw90])
+    }
+
+    /// Bit patterns of one solve, pinned so the runner-up bookkeeping can
+    /// never perturb the margin, the residual or the pose.
+    func testQualityBitsPinned() throws {
+        let frame = try syntheticFrame(snapshot: lShapeSnapshot, worldFromCamera: viewFromPlusX)
+        let sample = ModelSurfaceSampler.sample(lShapeSnapshot, stepIndex: 0)
+        let result = DepthICPTracker.solve(
+            sample: sample,
+            frame: frame,
+            initialWorldFromModel: pose(x: 0.008, z: 0, yawDegrees: 0)
+        )
+        let bits = [
+            result.quality.latticeMargin.bitPattern,
+            result.quality.rmsResidual.bitPattern,
+            result.quality.inlierFraction.bitPattern,
+            result.worldFromModel.columns.3.x.bitPattern,
+            result.worldFromModel.columns.3.z.bitPattern,
+        ]
+        XCTAssertEqual(bits, Self.pinnedQualityBits)
+    }
+
+    /// Margin, RMS, inlier fraction, then pose x and z.
+    private static let pinnedQualityBits: [UInt32] = [0x400e_904c, 0x37dc_fbb7, 0x3f4f_ae84, 0xbac0_d8a8, 0x380f_14fc]
+
     func testSolverReportsNothingUsableOnEmptyDepth() throws {
         let sample = ModelSurfaceSampler.sample(lShapeSnapshot, stepIndex: 0)
         let frame = RegistrationFrameInput(

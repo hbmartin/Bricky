@@ -1,0 +1,16 @@
+[project]
+name = "bricky-training"
+version = "0.1.0"
+description = "LoRA training for Bricky's recovery VLM (ADR 0019). Local only; never run in CI."
+requires-python = ">=3.12,<3.13"
+# mlx-vlm 0.7.6 needs mlx >= 0.32.2, while the app's vendored MLX core is
+# 0.31.1: the Python and Swift numerics are not identical, which is why the
+# end-to-end smoke compares the change an adapter makes on each side rather
+# than raw probabilities (ADR 0019 records both versions).
+dependencies = [
+    "mlx==0.32.3",
+    "mlx-vlm==0.7.6",
+]
+
+[tool.uv]
+package = false

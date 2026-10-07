@@ -37,6 +37,9 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
     private var finalized = false
     private var windowsWritten = 0
     private var writtenWindowFrames: Set<UUID> = []
+    /// The label of the physical build a confirmed session gets at
+    /// finalize, when it was not staged (ADR 0019).
+    private let rememberedBuildLabel: String?
 
     var windowsWrittenCount: Int { windowsWritten }
     func noteWindowWritten() { windowsWritten += 1 }
@@ -52,9 +55,12 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         stepCount: Int,
         staged: StagedFixtureDeclaration?,
         admission: AdmissionSnapshot? = nil,
-        conditions: DeviceConditions? = nil
+        conditions: DeviceConditions? = nil,
+        buildLabels: PhysicalBuildLabelStore = PhysicalBuildLabelStore()
     ) {
         let id = UUID()
+        let buildLabel = buildLabels.label(forInstruction: instructionSHA256)
+        rememberedBuildLabel = buildLabel
         sessionID = id
         self.root = root
         sessionDirectory = root
@@ -83,7 +89,10 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             gpuArchitecture: DeviceIdentity.gpuArchitecture,
             physicalMemoryBytes: DeviceIdentity.physicalMemoryBytes,
             admission: admission,
-            conditionsStart: conditions
+            conditionsStart: conditions,
+            // A staged session of a physical build photographs the build
+            // its declaration names.
+            physicalBuildID: staged?.physicalCase == true ? buildLabel : nil
         )
     }
 
@@ -101,6 +110,22 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
                 try FileManager.default.copyItem(at: source, to: destination)
             }
             session.captures = captures.map { EvidenceCaptureRecord($0, worldFromModel: worldFromModel) }
+            try writeSessionFile()
+        }
+    }
+
+    /// Stamps the live registration a photo was taken under onto its
+    /// capture record: state, lattice margin and runner-up. Evidence only —
+    /// it lets a label derived from the capture's pose be refused when the
+    /// pose sat near a lattice alias. A capture not in this session is
+    /// ignored.
+    func annotateCapture(id: UUID, registration: ModelRegistration?) {
+        guard let registration,
+              let index = session.captures.firstIndex(where: { $0.captureID == id }) else { return }
+        perform("annotate capture") {
+            session.captures[index].registrationState = registration.state.rawValue
+            session.captures[index].latticeMargin = registration.quality.latticeMargin
+            session.captures[index].latticeRunnerUp = registration.quality.latticeRunnerUp?.rawValue
             try writeSessionFile()
         }
     }
@@ -292,6 +317,12 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             session.analysisError = analysisError
             session.groundTruth = groundTruth
             session.conditionsEnd = conditions
+            // A confirmed recovery labels its build with the last one
+            // declared for this model; at worst that merges two builds,
+            // which costs data but never leaks one across the split.
+            if session.physicalBuildID == nil, groundTruth.kind == .confirmed {
+                session.physicalBuildID = rememberedBuildLabel
+            }
             try writeSessionFile()
             try writeCheckRows()
             try writeShadowCheckRows()

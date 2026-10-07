@@ -31,6 +31,27 @@ Status: accepted as the program plan on 2026-09-25.
     - The Core AI colour CNN (M3.6): only if the non-learned term fails
       on real data.
     - The embedding pre-filter: needs ≥150 labelled cases.
+- Phase 4's device-free work is on `feat/ios27-phase4` (PR #14), one commit
+  per item. The Qwen3-VL-2B fast tier is deferred (owner, 2026-10-06).
+  - **Stud keypoints, measure first** (ADR 0020, Proposed):
+    - the lattice runner-up, contests and tallies reach evidence;
+    - a synthetic lattice suite;
+    - device lattice rows and the `STUD_KEYPOINTS_ENTRY` readout;
+    - stud identity through the flatten, stud-ID renders, geometry-only
+      labels, and pseudo-labels for photo captures;
+    - a Core AI detector seam that nothing calls.
+  - **LoRA** (ADR 0019, Proposed):
+    - physical-build labels;
+    - an `adapter` variant axis, with `compare_arms.py` refusing mixed
+      weights and unrestricted adapter arms;
+    - runtime adapter loading;
+    - a stdlib exporter;
+    - a `Tools/Training` uv project;
+    - an end-to-end smoke with Python/Swift parity.
+  - **Not done:**
+    - any trained model or adapter, because the entry criteria are unmet;
+    - the embedding pre-filter, which needs at least 150 labelled cases;
+    - the 2B tier.
 - Everything gated on device data stays off or in shadow until Phase 1
   measures it, using the add-on checklist in
   [NEXT_STEPS_AND_FOLLOWUP.md](NEXT_STEPS_AND_FOLLOWUP.md) §1a.
@@ -241,7 +262,7 @@ Why Core AI. On iPhone the Neural Engine's lasting advantage isn't speed. At mat
    - Encode the capture and the N candidate renders, then compare them by cosine similarity. Do that maths in Swift/vDSP, not inside the model graph: optimize() miscompiles distance/Gram forms (open issue ⚠️).
    - It narrows 8 candidates to 3 before any VLM call, which could cut 5–8 VLM calls per recovery to 1–2.
    - Evidence bundles already contain matching tiles, captures and labels for contrastive fine-tuning.
-3. Stud keypoint heatmap. It would resolve the 8 mm stud-grid aliasing and sharpen "misplaced" verdicts. LDraw stud primitives give free synthetic labels, but expect a gap between synthetic and real images. ICP itself stays CPU/simd.
+3. Stud keypoint heatmap. (Entry measurement, labels and seam: ADR 0020, Proposed.) It would resolve the 8 mm stud-grid aliasing and sharpen "misplaced" verdicts. LDraw stud primitives give free synthetic labels, but expect a gap between synthetic and real images. ICP itself stays CPU/simd.
 
 Core AI operational traps:
 - coreai-build exits 0 for any architecture ⚠️. Ahead-of-time compile for h18p specifically.
@@ -288,7 +309,7 @@ Separately, and not from the skills (verify first): Vision's hand-pose request c
    - Don't use Memory.snapshot() for admission; it reports MLX's allocator, not what jetsam measures ✅.
    - Add hysteresis, cancel queued passes when memory is critical, and confirm an unload freed memory by re-sampling about 500 ms later.
 7. Try Qwen3-VL-2B as a fast tier. Same family, processor and grammar, with about half the weights, which is nearer Apple's under-2 GB guidance. A/B it on MLX before considering anything else.
-8. Training, later.
+8. Training, later. (Tooling and the variant seam: ADR 0019, Proposed.)
    - Use mlx-vlm LoRA only. mlx_lm's save_config deletes vision_config ✅.
    - Swift and Python LoRA scale defaults differ (10 vs 20) ⚠️.
    - Split train and test by authored model.
@@ -445,7 +466,8 @@ Silent failures to plan for:
   - the embedding pre-filter once there are 150 or more labelled cases;
   - the Foundation Models shadow test;
   - Private Cloud Compute, if eligible.
-- Phase 4: mlx-vlm LoRA, the 2B tier, stud keypoints.
+- Phase 4: mlx-vlm LoRA, the 2B tier, stud keypoints. (Device-free work in
+  PR #14; the 2B tier deferred.)
 
 Decisions I need to make:
 1. Floor: 17 Pro/Pro Max only, or LiDAR as the app floor with a 12 GB-class gate for the VLM?

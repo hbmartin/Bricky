@@ -98,6 +98,7 @@ targets:
       - Bricky/Domain/VerificationEvidenceReplay.swift
       - Bricky/Domain/BuildDiffDomain.swift
       - Bricky/Domain/RepairDomain.swift
+      - Bricky/Domain/StudDomain.swift
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
@@ -119,6 +120,10 @@ targets:
       - Bricky/Services/Verification/SceneColourCalibration.swift
       - Bricky/Services/Verification/ColourAgreementTerm.swift
       - Bricky/Services/Verification/ColourTermJudge.swift
+      # Stud labels for photo captures (Phase 4): the upright mapping and
+      # the refusal policy, shared with the app.
+      - Bricky/Services/Verification/CheckCropGeometry.swift
+      - Bricky/Services/Verification/StudLabelPolicy.swift
       - Bricky/Services/Repair/CameraRelativeDirection.swift
       - Bricky/Services/Repair/RepairPlanner.swift
       - Bricky/Services/Repair/CrossStepRepairPlanner.swift
@@ -191,6 +196,9 @@ targets:
       - BrickyTests/ShadowCheckRunnerTests.swift
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
+      - BrickyTests/PhysicalBuildLabelStoreTests.swift
+      - BrickyTests/StudIndexTests.swift
+      - BrickyTests/StudLabelPolicyTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX

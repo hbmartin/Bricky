@@ -33,6 +33,25 @@ tool for repair wording, not a gate; ADR 0017.)
 - `registration`: tracker fits against ground truth — convergence ≥ 95 % on
   unambiguous fixtures, ≤ 3 mm / ≤ 2° RMSE, ambiguity recall ≥ 90 % on
   deliberately symmetric fixtures (which never count against convergence).
+  It also counts:
+  - `unexpected_ambiguity_cases`, the other half of recall;
+  - `pitch_off_cases`, poses that settled within 2 mm of a whole stud
+    pitch at true yaw;
+  - the lattice runner-up histogram.
+
+  The synthetic lattice suite (`--suite lattice`) is where ambiguity is
+  expected.
+- `lattice_window` (ADR 0020, informational), from `bricky-harness
+  lattice-rows`. It reports device windows' lattice margins, ambiguous
+  frames and staged confusions, and every run prints `STUD_KEYPOINTS_ENTRY`:
+  - **MET** when the one-sided 95% lower bound on lattice trouble is at
+    least 5%;
+  - **NOT_MET** when the upper bound is under 5%;
+  - **UNMEASURED** otherwise, including with no rows at all.
+
+  It needs at least 30 staged device windows from 3 sessions.
+- `stud_labels` and `stud_label_capture` (SyntheticRGBD label output) are
+  accepted and never scored.
 - `shadow_check` (ADR 0018, informational): the Foundation Models advisor
   beside photo checks. It reports the advisor's standalone false-complete
   rate with its bound, and how many more negatives the ADR needs (149 at
@@ -148,6 +167,28 @@ decides: `pass_top1` (VLM arms), `session_top1` (geometric recovery),
   insufficient, check false-complete and verification false-complete rates
   do not rise. Device rows are still required before a default changes
   (ADR 0010 amendment).
+- **Refusals:** arms that ran different `model_revision`s
+  (`--allow-mixed-revisions` overrides), and an adapter arm without
+  `--restrict split_manifest.json` (ADR 0019).
+
+### Training pairs (ADR 0019)
+
+```sh
+python3 export_training_pairs.py bundle [bundle ...] --out pairs [--copy-images]
+```
+
+Writes LoRA training pairs: one per rank trace whose board held the truth,
+with the exact stored board, the verbatim prompt, and a target that starts
+with the probe's prefix and names the truth slot first. Train and test are
+split by authored model and physical build, transitively, into
+`train.jsonl` and `test.jsonl`, with `split_manifest.json` for
+`compare_arms.py --restrict` and `manifest.json` recording inputs,
+exclusions and the leakage check. It refuses unlabeled, judged, `replay:`
+and `synthetic:` sessions, sessions without legal-use confirmation, fewer
+than 150 labelled sessions, fewer than two split components per side, and
+any identity found on both sides. `--smoke` accepts synthetic bundles and
+marks every pair smoke, for the pipeline test only. The trainer lives in
+`Tools/Training/`.
 
 
 Replay is a Mac-vs-Mac instrument (greedy guided decoding is deterministic per

@@ -89,6 +89,13 @@ struct RegistrationOutcome {
     let yawErrorDegrees: Float
     let reportedAmbiguous: Bool
     let latencyMilliseconds: Int
+    /// Signed error along world x and z (the truth is the origin, so these
+    /// are the final translation): what tells a one-pitch slip from noise.
+    var translationErrorX: Float = 0
+    var translationErrorZ: Float = 0
+    /// The last frame's lattice margin and the alternative that set it.
+    var latticeMargin: Float = 0
+    var latticeRunnerUp: LatticeAlternative? = nil
 }
 
 extension Duration {
@@ -334,6 +341,39 @@ struct SyntheticScene {
         return true
     }
 
+    /// The fraction of covered pixels, over the views `depthEquivalent`
+    /// checks, where two snapshots' noise-free depth differs by more than
+    /// `tolerance` or only one has depth. Zero exactly when
+    /// `depthEquivalent` holds.
+    func depthDifferenceFraction(
+        _ lhs: InstructionGeometrySnapshot,
+        _ rhs: InstructionGeometrySnapshot,
+        tolerance: Float = 0.0005
+    ) throws -> Float {
+        var covered = 0
+        var differing = 0
+        for pose in viewPoses + [overheadPose] {
+            let maps = try [lhs, rhs].map { snapshot in
+                try renderer.render(
+                    snapshot: snapshot,
+                    viewFromModel: pose.inverse,
+                    intrinsics: intrinsics,
+                    width: width,
+                    height: height
+                )
+            }
+            for index in maps[0].depth.indices {
+                let (a, b) = (maps[0].depth[index], maps[1].depth[index])
+                guard a > 0 || b > 0 else { continue }
+                covered += 1
+                if (a > 0) != (b > 0) || abs(a - b) > tolerance {
+                    differing += 1
+                }
+            }
+        }
+        return covered > 0 ? Float(differing) / Float(covered) : 0
+    }
+
     func frame(
         of physical: InstructionGeometrySnapshot,
         worldFromCamera: simd_float4x4,
@@ -439,7 +479,11 @@ struct SyntheticScene {
             translationErrorMeters: simd_length(translation),
             yawErrorDegrees: abs(yaw),
             reportedAmbiguous: lastQuality.latticeMargin < 1.3,
-            latencyMilliseconds: duration.milliseconds
+            latencyMilliseconds: duration.milliseconds,
+            translationErrorX: translation.x,
+            translationErrorZ: translation.z,
+            latticeMargin: lastQuality.latticeMargin,
+            latticeRunnerUp: lastQuality.latticeRunnerUp
         )
     }
 
@@ -517,20 +561,33 @@ enum Row {
     static func registration(
         fixture: String,
         ambiguityExpected: Bool,
-        outcome: RegistrationOutcome
+        outcome: RegistrationOutcome,
+        extra: [String: Any] = [:]
     ) throws -> String {
-        try encode([
+        var row: [String: Any] = [
             "kind": "registration",
             "provenance": "synthetic",
             "schema_version": 1,
             "fixture_id": fixture,
             "converged": outcome.converged,
             "translation_error_m": Double(outcome.translationErrorMeters),
+            "translation_error_x_m": Double(outcome.translationErrorX),
+            "translation_error_z_m": Double(outcome.translationErrorZ),
             "yaw_error_degrees": Double(outcome.yawErrorDegrees),
             "ambiguity_expected": ambiguityExpected,
             "reported_ambiguous": outcome.reportedAmbiguous,
             "latency_ms": outcome.latencyMilliseconds,
-        ])
+        ]
+        // A margin above Float's range is "no alternative competed"; JSON
+        // has no infinity, and the runner-up is absent in that case anyway.
+        if outcome.latticeMargin.isFinite, outcome.latticeMargin < .greatestFiniteMagnitude {
+            row["lattice_margin"] = Double(outcome.latticeMargin)
+        }
+        if let runnerUp = outcome.latticeRunnerUp {
+            row["lattice_runner_up"] = runnerUp.rawValue
+        }
+        row.merge(extra) { current, _ in current }
+        return try encode(row)
     }
 
     static func verification(
@@ -540,7 +597,7 @@ enum Row {
         latencyMilliseconds: Int
     ) throws -> String {
         let produced = producedVerdict(verification.verdict)
-        return try encode([
+        var row: [String: Any] = [
             "kind": "verification",
             "provenance": "synthetic",
             "schema_version": 1,
@@ -550,7 +607,20 @@ enum Row {
             "detectability": verification.detectability.rawValue,
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
-        ])
+        ]
+        if let contests = verification.latticeContests { row["lattice_contests"] = latticeContests(contests) }
+        return try encode(row)
+    }
+
+    /// Lattice contests in the evidence-window layout.
+    static func latticeContests(_ contests: [LatticeContest]) -> [[String: Any]] {
+        contests.map { contest in
+            [
+                "offset_studs": [contest.offsetStuds.x, contest.offsetStuds.y],
+                "wins_complete": contest.winsComplete,
+                "wins_shifted": contest.winsShifted,
+            ]
+        }
     }
 
     static func challenge(
@@ -561,7 +631,7 @@ enum Row {
         verification: StepVerification,
         latencyMilliseconds: Int
     ) throws -> String {
-        try encode([
+        var row: [String: Any] = [
             "kind": "verification_challenge",
             "provenance": "synthetic",
             "schema_version": 1,
@@ -573,7 +643,9 @@ enum Row {
             "detectability": verification.detectability.rawValue,
             "frames_used": verification.framesUsed,
             "latency_ms": latencyMilliseconds,
-        ])
+        ]
+        if let contests = verification.latticeContests { row["lattice_contests"] = latticeContests(contests) }
+        return try encode(row)
     }
 
     /// One `placement` row per observed placement of a shadow diff.
@@ -614,6 +686,15 @@ enum Row {
             default: break
             }
             if let challengeClass { row["challenge_class"] = challengeClass }
+            if !observation.evidence.tallies.isEmpty {
+                row["tallies"] = observation.evidence.tallies.map { tally in
+                    [
+                        "offset": [tally.offset.dx, tally.offset.dz, tally.offset.dy, tally.offset.quarterTurns],
+                        "wins_present": tally.winsPresent,
+                        "wins_alternative": tally.winsAlternative,
+                    ]
+                }
+            }
             return try encode(row)
         }
     }

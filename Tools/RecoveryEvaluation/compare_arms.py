@@ -18,6 +18,12 @@ difference under 5% counts as none. A variant is a Mac-replay flip candidate
 only if it wins (or holds accuracy with at least a 5% latency win) without
 raising the insufficient or false-complete rate. Device rows are still
 required before the default flips.
+
+Arms must have run the same weights: arms whose `model_revision`s differ
+are refused unless `--allow-mixed-revisions`. A fine-tuned adapter arm
+(`adapter=` in its variant id, ADR 0019) is scored only on its held-out
+split: pass the exporter's `split_manifest.json` with `--restrict`, which
+keeps only rows from the manifest's test sessions.
 """
 
 from __future__ import annotations
@@ -52,6 +58,33 @@ class Arm:
     checks: dict[str, dict[str, object]]
     # Replayed verification windows (`kind: verification`), by window id.
     verifications: dict[str, dict[str, object]] = field(default_factory=dict)
+
+    def rows(self) -> list[dict[str, object]]:
+        return [*self.sessions.values(), *self.passes.values(), *self.checks.values(), *self.verifications.values()]
+
+    @property
+    def revisions(self) -> set[str]:
+        return {str(row["model_revision"]) for row in self.rows() if row.get("model_revision")}
+
+    @property
+    def passes_without_revision(self) -> int:
+        """Trace sidecars written before 2026-10-07 carry no revision."""
+        return sum(1 for row in self.passes.values() if not row.get("model_revision"))
+
+    @property
+    def uses_adapter(self) -> bool:
+        return any("adapter=" in str(row.get("variant_id", "")) for row in self.rows())
+
+    def restricted(self, sessions: set[str]) -> "Arm":
+        """Only rows from `sessions`: session rows by fixture id (a session
+        id), passes and checks by their session id. Windows carry no session
+        id, so none survive."""
+        return Arm(
+            name=self.name,
+            sessions={key: row for key, row in self.sessions.items() if key in sessions},
+            passes={key: row for key, row in self.passes.items() if str(row.get("session_id")) in sessions},
+            checks={key: row for key, row in self.checks.items() if str(row.get("session_id")) in sessions},
+        )
 
     @classmethod
     def load(cls, path: Path) -> "Arm":
@@ -266,6 +299,30 @@ def describe(value: float | None, digits: int = 3) -> str:
     return "-" if value is None else f"{value:.{digits}f}"
 
 
+def test_sessions(manifest: Path) -> set[str]:
+    """The held-out sessions of an `export_training_pairs.py` split."""
+    document = json.loads(manifest.read_text())
+    if document.get("schema") != "bricky.split_manifest.v1":
+        raise SystemExit(f"{manifest} is not a bricky.split_manifest.v1 file")
+    return {str(session) for session in document["test"]["session_ids"]}
+
+
+def refusals(control: Arm, variants: list[Arm], *, allow_mixed_revisions: bool, restricted: bool) -> list[str]:
+    """Reasons these arms must not be compared at all."""
+    problems = []
+    arms = [control, *variants]
+    if not allow_mixed_revisions:
+        revisions = [arm.revisions for arm in arms]
+        if any(len(found) > 1 for found in revisions) or len({frozenset(found) for found in revisions if found}) > 1:
+            listed = "; ".join(f"{arm.name}: {sorted(arm.revisions) or '-'}" for arm in arms)
+            problems.append(f"arms ran different model revisions ({listed}); pass --allow-mixed-revisions to compare anyway")
+    if not restricted and any(arm.uses_adapter for arm in arms):
+        problems.append(
+            "an adapter arm must be scored on its held-out split (ADR 0019): pass --restrict split_manifest.json"
+        )
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--control", type=Path, required=True)
@@ -278,10 +335,33 @@ def main(argv: list[str] | None = None) -> int:
         "(geometric recovery arms, e.g. SyntheticRGBD --suite recovery), per check "
         "(check-target or advisor arms), or per verification window (--colour-term arms)",
     )
+    parser.add_argument(
+        "--restrict", type=Path,
+        help="a split_manifest.json from export_training_pairs.py: compare only its test sessions (required for adapter arms)",
+    )
+    parser.add_argument(
+        "--allow-mixed-revisions", action="store_true",
+        help="compare arms whose model_revision differs (a pin bump measured on purpose)",
+    )
     arguments = parser.parse_args(argv)
 
     control = Arm.load(arguments.control)
     variants = [Arm.load(path) for path in arguments.variant]
+    problems = refusals(
+        control, variants, allow_mixed_revisions=arguments.allow_mixed_revisions, restricted=arguments.restrict is not None
+    )
+    if problems:
+        for problem in problems:
+            print(f"refusing: {problem}")
+        return 2
+    for arm in (control, *variants):
+        if arm.passes_without_revision:
+            print(f"warning: {arm.name} has {arm.passes_without_revision} replayed passes with no model_revision (older sidecar)")
+    if arguments.restrict is not None:
+        held_out = test_sessions(arguments.restrict)
+        control = control.restricted(held_out)
+        variants = [variant.restricted(held_out) for variant in variants]
+        print(f"restricted to {len(held_out)} held-out sessions from {arguments.restrict.name}")
     print(f"control {control.name}: slots {slot_histogram(control)}")
     for verdict, variant in zip(compare(control, variants, primary=arguments.primary), variants):
         print(f"\nvariant {verdict.variant}")

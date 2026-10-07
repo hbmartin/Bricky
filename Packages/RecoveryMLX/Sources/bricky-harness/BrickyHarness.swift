@@ -20,7 +20,7 @@ struct BrickyHarness: AsyncParsableCommand {
         device rows. Score results with:
         uv run python Tools/RecoveryEvaluation/score_results.py <out> --allow-small-corpus
         """,
-        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self]
+        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self, LatticeRows.self, SynthBundle.self, AdapterTemplateCommand.self]
     )
 }
 
@@ -95,6 +95,12 @@ struct Replay: AsyncParsableCommand {
     @Option(help: #"A full inference variant as JSON, e.g. {"decode":"feed_all","vote":"borda_dedup"}; overrides --decode and --vote."#)
     var variant: String?
 
+    @Option(name: .customLong("adapter"), help: "A converted LoRA adapter directory (ADR 0019), applied unfused over --model-dir; recorded as adapter=<name>@<sha12>.")
+    var adapterDirectory: String?
+
+    @Flag(name: .customLong("no-warm-up"), help: "Skip the warm-up inference the app runs at admission. The first call after a load is not bit-reproducible across processes, so without it the first replayed row can differ between identical runs.")
+    var noWarmUp = false
+
     /// The variant this replay runs: the JSON if given, else the flags.
     private func resolvedVariant() throws -> RecoveryInferenceVariant {
         var resolved = RecoveryInferenceVariant(
@@ -131,7 +137,43 @@ struct Replay: AsyncParsableCommand {
         let modelURL = URL(fileURLWithPath: modelDirectory)
         let runtime = MLXRecoveryRuntime()
         let encoder = EvidenceSchema.encoder()
-        let variant = try resolvedVariant()
+        var variant = try resolvedVariant()
+        if let adapterDirectory {
+            let adapter: RecoveryAdapter
+            do {
+                adapter = try RecoveryAdapter.load(directory: URL(fileURLWithPath: adapterDirectory))
+            } catch {
+                throw ValidationError("\(error)")
+            }
+            guard adapter.provenance.baseModelRevision == modelRevision else {
+                throw ValidationError("the adapter was trained on \(adapter.provenance.baseModelRevision), not --model-revision \(modelRevision)")
+            }
+            if let named = variant.adapter, named != adapter.identity {
+                throw ValidationError("--variant names adapter \(named), but --adapter is \(adapter.identity)")
+            }
+            variant.adapter = adapter.identity
+            await runtime.useAdapter(adapter)
+            print("adapter \(adapter.identity) (sha256 \(adapter.sha256)), layers \(adapter.layers.first ?? -1)…\(adapter.layers.last ?? -1)")
+            if adapter.provenance.smoke {
+                print("WARNING: \(adapter.identity) is a smoke adapter: a pipeline fixture, never evidence")
+            }
+        } else if let named = variant.adapter {
+            throw ValidationError("--variant names adapter \(named); pass its directory with --adapter")
+        }
+        // The app never records the first inference after a load: admission
+        // runs a warm-up call first. Run the same call, on the bundle's first
+        // board, so the replay is reproducible from its first row. Only the
+        // inference matters here, so an answer that does not decode (the
+        // model can pad the check with whitespace to its token limit on an
+        // odd board) is noted, not fatal.
+        if !noWarmUp, let first = sessions.lazy.compactMap({ session in
+            session.traceRows.first.map { session.directory.appendingPathComponent($0.boardRelativePath) }
+        }).first {
+            let warm = try await runtime.checkStepWithTrace(
+                imageURL: first, prompt: MLXRecoveryRuntime.warmUpPrompt, modelDirectory: modelURL
+            )
+            print("warmed up on \(first.lastPathComponent)" + (warm.output == nil ? " (its answer did not decode)" : ""))
+        }
         // These change pixels: only a board rebuilt from tiles can show them.
         if !recompose, variant.slotOrder != .sorted || variant.boardLayout != .v1 || variant.labels != .slotAndStep {
             throw ValidationError("--slot-order rotated, --board v2, and --labels slot need --recompose to rebuild the boards.")
@@ -179,7 +221,8 @@ struct Replay: AsyncParsableCommand {
                 traceLines.append(try encoder.encode(ReplayTraceResult(
                     row: row, trace: response.trace, promptOverridden: promptOverride != nil, recomposed: recompose,
                     variant: variant, decision: decision,
-                    outcome: ReplayAggregation.passOutcome(row: row, decision: decision, expectedStepID: expectedStepID)
+                    outcome: ReplayAggregation.passOutcome(row: row, decision: decision, expectedStepID: expectedStepID),
+                    modelRevision: modelRevision
                 )))
                 print("replayed \(row.pass.rawValue) \(row.traceID.uuidString.prefix(8)) → \(response.trace.termination.rawValue), \(response.trace.latencyMilliseconds) ms")
             }
@@ -621,10 +664,14 @@ struct ReplayTraceResult: Codable {
     let outcome: ReplayAggregation.PassOutcome
     let inference: InferenceTelemetry?
     let readouts: [DecisionReadout]?
+    /// The weights this replay ran (`--model-revision`), so `compare_arms.py`
+    /// can refuse to pair arms that ran different models.
+    let modelRevision: String?
 
     init(
         row: EvidenceTraceRow, trace: MLXGenerationTrace, promptOverridden: Bool, recomposed: Bool,
-        variant: RecoveryInferenceVariant, decision: ReplayDecision?, outcome: ReplayAggregation.PassOutcome
+        variant: RecoveryInferenceVariant, decision: ReplayDecision?, outcome: ReplayAggregation.PassOutcome,
+        modelRevision: String?
     ) {
         traceID = row.traceID
         sessionID = row.sessionID
@@ -644,6 +691,7 @@ struct ReplayTraceResult: Codable {
         self.outcome = outcome
         inference = trace.inference
         readouts = trace.readouts
+        self.modelRevision = modelRevision
     }
 
     enum CodingKeys: String, CodingKey {
@@ -665,6 +713,7 @@ struct ReplayTraceResult: Codable {
         case outcome
         case inference
         case readouts
+        case modelRevision = "model_revision"
     }
 }
 

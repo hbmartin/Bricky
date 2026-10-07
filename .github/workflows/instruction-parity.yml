@@ -42,7 +42,7 @@ jobs:
         working-directory: Tools/RecoveryEvaluation
         run: |
           uv sync --frozen
-          uv run python -m unittest test_score_results.py test_check_regression.py test_compare_arms.py test_score_wording_ab.py
+          uv run python -m unittest test_score_results.py test_check_regression.py test_compare_arms.py test_score_wording_ab.py test_export_training_pairs.py
       - name: Test sensor-model fitting
         working-directory: Tools/SensorCalibration
         run: python3 -m unittest test_fit_sensor_model.py
@@ -124,6 +124,22 @@ jobs:
         run: |
           python3 ../RecoveryEvaluation/score_results.py \
             "$RUNNER_TEMP/challenge.ndjson" --informational
+      # Stud-lattice aliasing (Phase 4): one scene per step, ambiguity truth
+      # from noise-free renders, its own RNG stream and baseline. Blocking on
+      # regression only; whether real LiDAR aliases is a device question.
+      - name: Run SyntheticRGBD lattice suite
+        working-directory: Tools/SyntheticScenes
+        run: |
+          "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" \
+            fixtures/lattice/lattice.ldr \
+            --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+            --out "$RUNNER_TEMP/lattice.ndjson" --seed 7 --suite lattice
+      - name: Check lattice regression against baseline
+        working-directory: Tools/SyntheticScenes
+        run: |
+          python3 ../RecoveryEvaluation/check_regression.py \
+            "$RUNNER_TEMP/lattice.ndjson" \
+            --baseline fixtures/lattice/baseline.json
       # The colour-code tag pass (M3.1). No suite draws it, because synthetic
       # scenes carry no colour, so this is the only place its shader is
       # compiled and run on this toolchain: depth must stay bit-identical
@@ -135,6 +151,18 @@ jobs:
             "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" "$fixture" \
               --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
               --out "$RUNNER_TEMP/tag-render.ndjson" --check-tag-render
+          done
+      # Stud labels (Phase 4, ADR 0020): the stud-ID tag pass leaves depth
+      # bit-identical, every id names a stud, CPU projection lands on its
+      # raster, every stud primitive in the pinned pack is classified, and
+      # known parts have their known top-stud counts.
+      - name: Check the stud tag pass and catalog
+        working-directory: Tools/SyntheticScenes
+        run: |
+          for fixture in fixtures/challenge/challenge.ldr fixtures/real-tower/tower.ldr; do
+            "$RUNNER_TEMP/dd/Build/Products/Debug/SyntheticRGBD" "$fixture" \
+              --ldraw-root "$RUNNER_TEMP/part-pack/ldraw" \
+              --out "$RUNNER_TEMP/stud-labels.ndjson" --check-stud-labels
           done
       # Repairs (M2.4, M2.9): in-step plans undo a one-stud shift, worded
       # from each view and screen rotation; cross-step plans are replayed on
@@ -219,6 +247,17 @@ jobs:
           if ! xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
             xcodebuild -downloadComponent MetalToolchain
           fi
+      # The Core AI stud keypoint seam (ADR 0020) is under canImport(CoreAI),
+      # which the Simulator SDK lacks, so the build below compiles it out.
+      # Type-check it against the device SDK instead: seconds, where a full
+      # generic iOS build would recompile mlx-swift. The probe fails if the
+      # SDK has no Core AI at all.
+      - name: Type-check the Core AI seam against the device SDK
+        run: |
+          xcrun --sdk iphoneos swiftc -typecheck -target arm64-apple-ios27.0 -swift-version 5 \
+            Bricky/Services/Verification/StudKeypointDetecting.swift \
+            Bricky/Services/Verification/CoreAIStudKeypointDetector.swift \
+            Tools/CI/CoreAIProbe.swift
       # The floor device (ADR 0012) is the test device. The runner image
       # does not pre-create an iPhone 17 Pro, but Xcode 27 ships its device
       # type, so create one when it is missing.

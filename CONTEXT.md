@@ -167,6 +167,34 @@ on photo checks (ADR 0018, Proposed).
   standalone verdict, a closed "is the part there?" on the geometry crop,
   and a merge that may only take a complete away. Recorded
   (`shadow-checks.ndjson`, `shadow_check` rows), never shown.
+- **Lattice runner-up** — the competing pose that came closest to the
+  registration's fit and so set its lattice margin: one stud along the
+  model's x or z, or a half or quarter turn (`lattice_runner_up`, Phase 4).
+- **Lattice contest** — one of the verifier's four ±1-stud contests: on
+  pixels where the authored and the shifted placement predict different
+  depth, which one the observation matched (`lattice_contests`). A
+  misplaced verdict is decided on them.
+- **Pitch-off** — a registration that settled within 2 mm of a whole stud
+  pitch from the truth, at the true yaw: what lattice aliasing looks like
+  in a result.
+- **Stud index** — every stud primitive in a flattened timeline, with its
+  placement, keypoint (a top stud's top face centre), axis, scale and the
+  triangles it drew (`StudIndex`). Groups (`stug…`) resolve to their studs.
+- **Stud label** — where a top stud's keypoint lands in a view and whether
+  the view sees it. Synthetic labels are geometry only; labels on real
+  photo captures are pseudo-labels through the locked pose, refused near a
+  lattice alias (ADR 0020).
+- **Adapter** — a LoRA adapter applied unfused over the pinned VLM
+  weights: a model variant, `adapter=<name>@<sha12>` (ADR 0019).
+- **Smoke adapter** — an adapter trained on a synthetic smoke bundle to
+  prove the pipeline. Named `smoke-…`, refused by the release scorer, never
+  committed.
+- **Physical build** — the physical object a staged session photographs,
+  labelled `physical_build_id`. Training splits keep each physical build,
+  and each authored model, on one side.
+- **Training pair** — one exported rank trace: the stored board, the
+  verbatim prompt, and a target that names the truth slot first after the
+  probe's prefix.
 
 ## Source of truth
 

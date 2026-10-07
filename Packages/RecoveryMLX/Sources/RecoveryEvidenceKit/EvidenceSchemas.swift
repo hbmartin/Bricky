@@ -190,13 +190,16 @@ public struct GeometricFitRecord: Codable, Sendable {
     /// attempt was inconclusive and fell through to the VLM.
     public let conclusive: Bool
     public let createdAt: Date
+    /// Which lattice alternative set `latticeMargin`; the same names as
+    /// `VerificationWindowFrame.latticeRunnerUp`. Absent when no sweep ran.
+    public var latticeRunnerUp: String?
 
     public init(
         fitVersion: Int, fitID: UUID, sessionID: UUID, passIndex: Int, candidateIndex: Int,
         stepID: String, score: Float, inlierFraction: Float, visibleFraction: Float,
         unexplainedFraction: Float, phantomFraction: Float, rmsResidual: Float,
         latticeMargin: Float, worldFromModel: [Float], disqualification: FitDisqualification,
-        conclusive: Bool, createdAt: Date
+        conclusive: Bool, createdAt: Date, latticeRunnerUp: String? = nil
     ) {
         self.fitVersion = fitVersion
         self.fitID = fitID
@@ -215,6 +218,7 @@ public struct GeometricFitRecord: Codable, Sendable {
         self.disqualification = disqualification
         self.conclusive = conclusive
         self.createdAt = createdAt
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -235,6 +239,7 @@ public struct GeometricFitRecord: Codable, Sendable {
         case disqualification
         case conclusive
         case createdAt = "created_at"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 
@@ -435,11 +440,19 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
     /// `cameraTransform`. Verification window poses are row-major; this one
     /// is not.
     public let worldFromModel: [Float]?
+    /// The live registration when the photo was taken (AR photo checks):
+    /// its state, lattice margin and runner-up, so a label derived from
+    /// `worldFromModel` can be refused when the pose was near a lattice
+    /// alias. Absent for recovery captures and older sessions.
+    public var registrationState: String?
+    public var latticeMargin: Float?
+    public var latticeRunnerUp: String?
 
     public init(
         captureID: UUID, imageRelativePath: String, cameraTransform: [Float],
         cameraIntrinsics: [Float], cameraImageResolution: [Float], alignmentID: UUID,
-        angle: String, capturedAt: Date, worldFromModel: [Float]? = nil
+        angle: String, capturedAt: Date, worldFromModel: [Float]? = nil,
+        registrationState: String? = nil, latticeMargin: Float? = nil, latticeRunnerUp: String? = nil
     ) {
         self.captureID = captureID
         self.imageRelativePath = imageRelativePath
@@ -450,6 +463,9 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         self.angle = angle
         self.capturedAt = capturedAt
         self.worldFromModel = worldFromModel
+        self.registrationState = registrationState
+        self.latticeMargin = latticeMargin
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -462,6 +478,9 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         case angle
         case capturedAt = "captured_at"
         case worldFromModel = "world_from_model"
+        case registrationState = "registration_state"
+        case latticeMargin = "lattice_margin"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 
@@ -627,6 +646,20 @@ public struct EvidenceSessionFile: Codable, Sendable {
     /// Conditions when the session opened and when it was finalized.
     public var conditionsStart: DeviceConditions?
     public var conditionsEnd: DeviceConditions?
+    /// The physical build the session photographed, as the person labelled
+    /// it (a short slug, `[a-z0-9-]{1,32}`). Sessions sharing a label share
+    /// a build. Training and test data are split by it as well as by
+    /// authored model, so a fine-tuned model cannot learn one build instead
+    /// of the task (ADR 0019). Absent when nothing was declared.
+    public var physicalBuildID: String?
+
+    /// Whether `label` is a usable physical-build slug.
+    public static func isValidPhysicalBuildID(_ label: String) -> Bool {
+        (1...32).contains(label.count)
+            && label.unicodeScalars.allSatisfy { scalar in
+                ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar) || scalar == "-"
+            }
+    }
 
     public init(
         sessionVersion: Int, sessionID: UUID, createdAt: Date, instructionSHA256: String,
@@ -636,7 +669,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?,
         osBuild: String? = nil, gpuArchitecture: String? = nil, physicalMemoryBytes: UInt64? = nil,
         admission: AdmissionSnapshot? = nil, conditionsStart: DeviceConditions? = nil,
-        conditionsEnd: DeviceConditions? = nil
+        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil
     ) {
         self.sessionVersion = sessionVersion
         self.sessionID = sessionID
@@ -660,6 +693,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         self.admission = admission
         self.conditionsStart = conditionsStart
         self.conditionsEnd = conditionsEnd
+        self.physicalBuildID = physicalBuildID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -685,6 +719,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         case admission
         case conditionsStart = "conditions_start"
         case conditionsEnd = "conditions_end"
+        case physicalBuildID = "physical_build_id"
     }
 }
 

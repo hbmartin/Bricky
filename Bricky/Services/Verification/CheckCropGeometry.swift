@@ -94,6 +94,31 @@ enum CheckCropGeometry {
         }
     }
 
+    /// The rotation that turns the landscape sensor image upright, derived
+    /// from the camera's gravity-aligned transform exactly as
+    /// `RecoveryFrameConvention.uprightRotation` derives it on the device
+    /// (same thresholds, same fallback), without UIKit, so a Mac can
+    /// reproduce where a stored photo's pixels came from.
+    static func uprightRotation(worldFromCamera transform: simd_float4x4) -> UprightRotation {
+        let up = SIMD3(transform.columns.0.y, transform.columns.1.y, transform.columns.2.y)
+        guard max(abs(up.x), abs(up.y)) > 0.2 else { return .right }
+        if abs(up.y) >= abs(up.x) {
+            return up.y >= 0 ? .up : .down
+        }
+        return up.x >= 0 ? .left : .right
+    }
+
+    /// A normalized sensor point (x right, y down) as it reads on the
+    /// upright photo; the point form of `upright(_:rotation:)`.
+    static func upright(point: SIMD2<Float>, rotation: UprightRotation) -> SIMD2<Float> {
+        switch rotation {
+        case .up: point
+        case .down: SIMD2(1 - point.x, 1 - point.y)
+        case .right: SIMD2(1 - point.y, point.x)
+        case .left: SIMD2(point.y, 1 - point.x)
+        }
+    }
+
     /// The record for one check, from the completed and delta renders.
     static func record(
         completed: [Float32], delta: [Float32], grid: Grid, rotation: UprightRotation

@@ -236,7 +236,8 @@ actor GeometricRecoveryEstimator {
                 worldFromModel: Self.rowMajor(candidate.worldFromModel),
                 disqualification: candidate.disqualification,
                 conclusive: index == conclusiveIndex,
-                createdAt: now
+                createdAt: now,
+                latticeRunnerUp: candidate.quality.latticeRunnerUp?.rawValue
             )
         }
         await recorder.recordFits(records)

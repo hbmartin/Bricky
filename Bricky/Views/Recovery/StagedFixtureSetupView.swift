@@ -8,9 +8,17 @@ struct StagedFixtureSetupView: View {
     @Binding var declaration: StagedFixtureDeclaration?
     @Environment(\.dismiss) private var dismiss
     @State private var draft: StagedFixtureDeclaration
+    @State private var buildLabel: String
+    private let buildLabels: PhysicalBuildLabelStore
 
-    init(plan: InstructionPlan, declaration: Binding<StagedFixtureDeclaration?>) {
+    init(
+        plan: InstructionPlan,
+        declaration: Binding<StagedFixtureDeclaration?>,
+        buildLabels: PhysicalBuildLabelStore = PhysicalBuildLabelStore()
+    ) {
         self.plan = plan
+        self.buildLabels = buildLabels
+        _buildLabel = State(initialValue: buildLabels.label(forInstruction: plan.sourceSHA256) ?? "")
         _declaration = declaration
         _draft = State(initialValue: declaration.wrappedValue ?? StagedFixtureDeclaration(
             expectedCompletedCount: 0,
@@ -46,6 +54,21 @@ struct StagedFixtureSetupView: View {
                     Toggle("Physical build present", isOn: $draft.physicalCase)
                 }
                 Section {
+                    TextField("Build label", text: $buildLabel)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onChange(of: buildLabel) { _, typed in
+                            let normalized = PhysicalBuildLabelStore.normalized(typed)
+                            if normalized != typed { buildLabel = normalized }
+                        }
+                    Button("New Build") { buildLabel = PhysicalBuildLabelStore.newLabel() }
+                } header: {
+                    Text("Physical build")
+                } footer: {
+                    Text("Use the same label every time you photograph this same physical build, and a new one when you rebuild it. Training and test data are split by it.")
+                }
+                .disabled(!draft.physicalCase)
+                Section {
                     Toggle("I can legally use this model for benchmarking", isOn: $draft.legalUseConfirmed)
                 } footer: {
                     Text("Required for release-corpus rows. The declared step is recorded as ground truth even if you confirm a different step afterward.")
@@ -60,6 +83,11 @@ struct StagedFixtureSetupView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         declaration = draft
+                        // Without a physical build there is nothing to label,
+                        // and the remembered label is kept for the next one.
+                        if draft.physicalCase {
+                            buildLabels.setLabel(buildLabel, forInstruction: plan.sourceSHA256)
+                        }
                         dismiss()
                     }
                     .disabled(!draft.legalUseConfirmed)

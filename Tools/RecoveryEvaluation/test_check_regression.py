@@ -125,7 +125,9 @@ class AutoGuardTests(unittest.TestCase):
         for metric in ("verification.false_complete_cases", "verification.undetectable_false_completes",
                        "challenge.expected_failure_false_complete_cases", "placement.false_present_cases",
                        "synthetic_summary.regression.dropped_expected_complete_below_strong",
-                       "repair_plan.cross_step_harmful_actions"):
+                       "repair_plan.cross_step_harmful_actions",
+                       "registration.pitch_off_cases", "registration.one_pitch_off_cases",
+                       "registration.unexpected_ambiguity_cases"):
             self.assertEqual(auto_guard(metric)["direction"], "lower_is_better", metric)
 
     def test_rates_and_latencies_are_never_auto_guarded(self) -> None:

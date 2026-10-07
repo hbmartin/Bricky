@@ -42,7 +42,7 @@ public actor MLXRecoveryRuntime {
     /// never emit a slot letter that has no tile on the board. A fixed A–H
     /// enum lets a 3-tile board legally answer "H", which the estimator then
     /// drops without a trace.
-    static func rankSchema(slotCount: Int) -> String {
+    public static func rankSchema(slotCount: Int) -> String {
         let count = min(max(slotCount, 1), rankSlotLetters.count)
         let letters = rankSlotLetters.prefix(count).map { "\"\($0)\"" }.joined(separator: ",")
         return #"{"type":"object","properties":{"status":{"type":"string","enum":["matched","insufficient"]},"ranking":{"type":"array","items":{"type":"string","enum":[\#(letters)]},"minItems":1,"maxItems":\#(count),"uniqueItems":true}},"required":["status","ranking"],"additionalProperties":false}"#
@@ -73,8 +73,23 @@ public actor MLXRecoveryRuntime {
     private var loadedAt: ContinuousClock.Instant?
     private var loadMilliseconds: Int?
     private var callsSinceLoad = 0
+    /// Applied once, unfused, to every container this runtime loads
+    /// (ADR 0019). Nil is the pinned model alone; the app never sets it.
+    private var adapter: RecoveryAdapter?
 
     public init() {}
+
+    /// The adapter's identity (`name@sha12`), when one is set.
+    public var adapterIdentity: String? { adapter?.identity }
+
+    /// Sets the adapter every later load applies. A different identity
+    /// unloads whatever is loaded, so no call ever runs with weights the
+    /// variant does not name.
+    public func useAdapter(_ adapter: RecoveryAdapter?) async {
+        guard adapter?.identity != self.adapter?.identity else { return }
+        if container != nil || loadTask != nil { await unload() }
+        self.adapter = adapter
+    }
 
     public func load(modelDirectory: URL) async throws {
         _ = try await modelContainer(modelDirectory: modelDirectory)
@@ -175,12 +190,12 @@ public actor MLXRecoveryRuntime {
     }
 
     /// Production-sized fit test. Loading weights alone is not admission.
+    /// The admission fit test's prompt. A replay warms up with the same
+    /// call (`checkStepWithTrace`) but does not need its answer to decode.
+    public static let warmUpPrompt = "Return uncertain. This is a device fit test."
+
     public func warmUp(imageURL: URL, modelDirectory: URL) async throws {
-        _ = try await checkStep(
-            imageURL: imageURL,
-            prompt: "Return uncertain. This is a device fit test.",
-            modelDirectory: modelDirectory
-        )
+        _ = try await checkStep(imageURL: imageURL, prompt: Self.warmUpPrompt, modelDirectory: modelDirectory)
     }
 
     public func unload() async {
@@ -434,11 +449,14 @@ public actor MLXRecoveryRuntime {
         MLX.Memory.cacheLimit = Self.gpuCacheLimitBytes
         let generation = loadGeneration
         loadStartedAt = .now
+        let adapter = adapter
         let task = Task<ModelContainer, Error> {
-            try await VLMModelFactory.shared.loadContainer(
+            let loaded = try await VLMModelFactory.shared.loadContainer(
                 from: try LoadableModelDirectory.resolve(modelDirectory),
                 using: TransformersTokenizerLoader()
             )
+            if let adapter { try await adapter.apply(to: loaded) }
+            return loaded
         }
         loadTask = task
         return try await finishLoading(task, generation: generation)
@@ -563,7 +581,7 @@ private final class GrammarCache: @unchecked Sendable {
     }
 }
 
-private struct TransformersTokenizerLoader: MLXLMCommon.TokenizerLoader {
+struct TransformersTokenizerLoader: MLXLMCommon.TokenizerLoader {
     func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
         TokenizerBridge(try await Tokenizers.AutoTokenizer.from(modelFolder: directory))
     }

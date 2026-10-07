@@ -1,0 +1,85 @@
+{
+  "_comment": [
+    "Regression baseline for the lattice fixture at --seed 7 (--suite",
+    "lattice, iOS 27 Phase 4), checked by check_regression.py. Each step's",
+    "addition is one scene; ambiguity truth comes from noise-free renders",
+    "(LatticeOracle), never from the tracker. Three of four scenes are",
+    "depth-identical under a turn; the L-shaped control is not.",
+    "",
+    "On the reconstructed sensor no solve converges and every pose reads",
+    "ambiguous (margin near 1.0), as on the real tower. So ambiguity_recall",
+    "is 1.0 trivially, and unexpected_ambiguity_cases guards the other",
+    "half: the control's seven rows. pitch_off_cases counts poses within",
+    "2 mm of a whole stud pitch at true yaw; under the sensor bias these are",
+    "mostly chance. These numbers guard movement. Whether real LiDAR",
+    "aliases is the stud-keypoint entry question, answered only by device",
+    "rows (score_results.py, the lattice section).",
+    "",
+    "Counts are exact or lower-is-better with no tolerance. Regenerate with",
+    "--update and explain the movement in the commit message."
+  ],
+  "fixture": "fixtures/lattice/lattice.ldr",
+  "generated": "2026-10-07",
+  "metrics": {
+    "registration.ambiguity_expected_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 21.0
+    },
+    "registration.ambiguity_recall": {
+      "direction": "higher_is_better",
+      "tolerance": 0.05,
+      "value": 1.0
+    },
+    "registration.cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 28.0
+    },
+    "registration.convergence_rate": {
+      "direction": "higher_is_better",
+      "tolerance": 0.05,
+      "value": 0.0
+    },
+    "registration.lattice_measured_cases": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 28.0
+    },
+    "registration.one_pitch_off_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "registration.pitch_off_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 6.0
+    },
+    "registration.unexpected_ambiguity_cases": {
+      "direction": "lower_is_better",
+      "tolerance": 0.0,
+      "value": 7.0
+    },
+    "synthetic_summary.lattice.ambiguous_scenes": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
+    "synthetic_summary.lattice.generated_registration_rows": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 28.0
+    },
+    "synthetic_summary.lattice.near_scenes": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 0.0
+    },
+    "synthetic_summary.lattice.scenes": {
+      "direction": "exact",
+      "tolerance": 0.0,
+      "value": 4.0
+    }
+  }
+}

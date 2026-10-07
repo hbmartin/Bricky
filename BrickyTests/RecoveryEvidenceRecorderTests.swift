@@ -257,6 +257,135 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(record.rawConfidenceRelativePath)
     }
 
+    func testFramesAndCapturesRecordRunnerUp() async throws {
+        let recorder = makeRecorder()
+        let samples = [
+            windowSample(timestamp: 0, runnerUp: .shiftZPositive),
+            windowSample(timestamp: 1),
+        ]
+        await recorder.record(windowCapture(samples: samples, trigger: .confirm, staged: nil))
+        // The photo-check path: the capture is recorded inside the check,
+        // then stamped with the registration it was taken under.
+        let capture = try makeCapture()
+        await recorder.recordCaptures([capture], worldFromModel: matrix_identity_float4x4)
+        await recorder.annotateCapture(id: capture.id, registration: ModelRegistration(
+            alignmentID: UUID(), worldFromModel: matrix_identity_float4x4, state: .ambiguous,
+            quality: RegistrationQuality(rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 1.125, latticeRunnerUp: .yaw180),
+            fittedStepIndex: 2, timestamp: 0
+        ))
+        // An unknown capture, or no registration, changes nothing.
+        await recorder.annotateCapture(id: UUID(), registration: nil)
+        await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: .unlabeled)
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let windowURL = try XCTUnwrap(FileManager.default.contentsOfDirectory(
+            at: sessionDirectory.appendingPathComponent("windows"), includingPropertiesForKeys: nil
+        ).first { $0.pathExtension == "json" })
+        let window = try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: windowURL))
+        XCTAssertEqual(window.frames.map(\.latticeRunnerUp), ["shift_z_pos", nil])
+
+        let session = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("session.json"))
+        )
+        let record = try XCTUnwrap(session.captures.first)
+        XCTAssertEqual(record.registrationState, "ambiguous")
+        XCTAssertEqual(record.latticeMargin, 1.125)
+        XCTAssertEqual(record.latticeRunnerUp, "yaw_180")
+    }
+
+    func testWindowRecordsLatticeContests() async throws {
+        let recorder = makeRecorder()
+        var verification = verificationResult(.misplaced(offsetStuds: SIMD2(1, 0)), timestamp: 0)
+        verification.latticeContests = [
+            LatticeContest(offsetStuds: SIMD2(1, 0), winsComplete: 3, winsShifted: 11),
+            LatticeContest(offsetStuds: SIMD2(0, -1), winsComplete: 7, winsShifted: 0),
+        ]
+        await recorder.record(VerificationWindowCapture(
+            windowID: UUID(), stepID: "main.ldr#3", stepIndex: 2, trigger: .confirm,
+            samples: [windowSample(timestamp: 0)], verification: verification,
+            staged: nil, ingestMillisecondsSinceBegin: 70, createdAt: .now
+        ))
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let windowURL = try XCTUnwrap(FileManager.default.contentsOfDirectory(
+            at: sessionDirectory.appendingPathComponent("windows"), includingPropertiesForKeys: nil
+        ).first { $0.pathExtension == "json" })
+        let window = try EvidenceSchema.decoder().decode(VerificationWindowRecord.self, from: Data(contentsOf: windowURL))
+        XCTAssertEqual(window.latticeContests, [
+            LatticeContestRecord(offsetStuds: [1, 0], winsComplete: 3, winsShifted: 11),
+            LatticeContestRecord(offsetStuds: [0, -1], winsComplete: 7, winsShifted: 0),
+        ])
+    }
+
+    func testPlacementRecordKeepsTallies() {
+        let observation = PlacementObservation(
+            placement: 4,
+            state: .displaced(LatticeOffset(dx: 1)),
+            evidence: PlacementEvidence(support: 12, absence: 3, tallies: [
+                HypothesisTally(offset: LatticeOffset(dx: 1), winsPresent: 2, winsAlternative: 9),
+                HypothesisTally(offset: LatticeOffset(quarterTurns: 1), winsPresent: 5, winsAlternative: 1),
+            ])
+        )
+        let record = RecoveryEvidenceRecorder.placementRecord(observation)
+        XCTAssertEqual(record.tallies, [
+            HypothesisTallyRecord(offset: [1, 0, 0, 0], winsPresent: 2, winsAlternative: 9),
+            HypothesisTallyRecord(offset: [0, 0, 0, 1], winsPresent: 5, winsAlternative: 1),
+        ])
+        let bare = RecoveryEvidenceRecorder.placementRecord(PlacementObservation(
+            placement: 1, state: .present, evidence: PlacementEvidence(support: 4)
+        ))
+        XCTAssertNil(bare.tallies, "no contest, no field")
+    }
+
+    func testStagedPhysicalSessionsCarryTheirBuildLabel() async throws {
+        let suite = "RecoveryEvidenceRecorderTests.buildLabels"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let labels = PhysicalBuildLabelStore(defaults: defaults)
+        labels.setLabel("b-1a2b", forInstruction: "abc123")
+        func recorder(staged: StagedFixtureDeclaration?) -> RecoveryEvidenceRecorder {
+            RecoveryEvidenceRecorder(
+                root: root, instructionSHA256: "abc123", authoredModelID: UUID(), modelTitle: "Test Model",
+                stepCount: 12, staged: staged, buildLabels: labels
+            )
+        }
+        func declaration(physical: Bool) -> StagedFixtureDeclaration {
+            StagedFixtureDeclaration(
+                expectedCompletedCount: 3, lighting: .bright, occlusion: .none, physicalCase: physical, legalUseConfirmed: true
+            )
+        }
+        func finalizedBuild(_ recorder: RecoveryEvidenceRecorder, truth: EvidenceGroundTruth) async throws -> String? {
+            await recorder.recordCaptures([try makeCapture()])
+            await recorder.finalize(estimate: nil, analysisError: nil, groundTruth: truth)
+            let url = root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(recorder.sessionID.uuidString)
+                .appendingPathComponent("session.json")
+            return try EvidenceSchema.decoder().decode(EvidenceSessionFile.self, from: Data(contentsOf: url)).physicalBuildID
+        }
+
+        let stagedTruth = EvidenceGroundTruth(kind: .staged, expectedCompletedCount: 3)
+        let staged = try await finalizedBuild(recorder(staged: declaration(physical: true)), truth: stagedTruth)
+        XCTAssertEqual(staged, "b-1a2b")
+        // A staged declaration without a physical build has nothing to label.
+        let screen = try await finalizedBuild(recorder(staged: declaration(physical: false)), truth: stagedTruth)
+        XCTAssertNil(screen)
+        // A confirmed recovery takes the last label declared for the model;
+        // an unlabeled session takes none.
+        let confirmed = try await finalizedBuild(
+            recorder(staged: nil), truth: EvidenceGroundTruth(kind: .confirmed, expectedCompletedCount: 2)
+        )
+        XCTAssertEqual(confirmed, "b-1a2b")
+        let unlabeled = try await finalizedBuild(recorder(staged: nil), truth: .unlabeled)
+        XCTAssertNil(unlabeled)
+    }
+
     func testWindowFramesAreDeduplicatedAndStagedClosesWriteARow() async throws {
         let recorder = makeRecorder()
         let samples = (0..<4).map { index in windowSample(timestamp: TimeInterval(index)) }
@@ -370,7 +499,7 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertTrue(String(decoding: lines[0], as: UTF8.self).contains(#""model_sentence""#))
     }
 
-    private func windowSample(timestamp: TimeInterval) -> VerificationWindowSample {
+    private func windowSample(timestamp: TimeInterval, runnerUp: LatticeAlternative? = nil) -> VerificationWindowSample {
         VerificationWindowSample(
             frameID: UUID(),
             frame: RegistrationFrameInput(
@@ -382,7 +511,9 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
             ),
             registration: ModelRegistration(
                 alignmentID: UUID(), worldFromModel: matrix_identity_float4x4, state: .locked,
-                quality: RegistrationQuality(rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 2),
+                quality: RegistrationQuality(
+                    rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: 2, latticeRunnerUp: runnerUp
+                ),
                 fittedStepIndex: 2, timestamp: timestamp
             ),
             result: verificationResult(.incomplete, timestamp: timestamp),

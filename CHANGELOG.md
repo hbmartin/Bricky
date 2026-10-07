@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased — iOS 27 Phase 4: lattice evidence, stud labels, LoRA tooling (nothing trained ships)
+
+Nothing here changes what a user sees, and no model or adapter is trained
+for use: every Phase 4 entry criterion waits on Phase 1 device data.
+
+- **Lattice aliasing, measured.** Evidence now records:
+  - which lattice alternative set the registration margin, on window
+    frames, fits and photo captures;
+  - the verifier's ±1-stud contests;
+  - the build diff's tallies.
+
+  A synthetic lattice suite gives ambiguity recall real cases, with truth
+  from renders. `bricky-harness lattice-rows` and the scorer's
+  `STUD_KEYPOINTS_ENTRY` line decide when stud keypoints may start
+  (ADR 0020, Proposed).
+- **Stud labels.**
+  - Stud primitives keep their identity through the flatten.
+  - The tag pass renders stud ids, with depth bit-identical and a CI gate
+    that also checks the stud catalog against the pinned pack.
+  - SyntheticRGBD writes geometry-only labels, and pseudo-labels for real
+    photo captures, refusing poses near a lattice alias.
+  - A Core AI detector seam is type-checked against the device SDK in CI.
+- **LoRA tooling** (ADR 0019, Proposed).
+  - Staged sessions can label their physical build.
+  - Variants gain an `adapter` axis.
+  - The runtime loads converted adapters unfused, refusing implicit scales,
+    missing layers and the wrong dtype. A zero-B adapter replays the
+    baseline bit for bit.
+  - A stdlib exporter splits pairs by authored model and physical build.
+  - `Tools/Training` trains with mlx-vlm, converts, scores and checks
+    Python/Swift parity. Replays warm up first, as the app does at
+    admission: the first inference after a load is not bit-reproducible.
+  - **Open finding:** Swift applies the converted adapter as Python does
+    (r 0.95; a ×2 canary stands out), but shows only 0.73 of its effect,
+    and the base models already differ (slope 0.79). ADR 0019 now requires
+    this transfer gap closed before any real training.
+  - `compare_arms.py` refuses arms on different weights, and adapter arms
+    scored on their own training data.
+- **Fix.** `ProbeScoring.group` summed probabilities in dictionary order,
+  so two identical probe calls could differ in the last bit.
+- **Fix.** Background model delivery published first and checked for
+  running transfers second. A download finishing in between was started
+  again: a second multi-GB transfer. It now checks first. The test that
+  hung CI for 40 minutes on this race now places the finish
+  deterministically instead of sleeping.
+
 ## Unreleased — iOS 27 Phase 3: colour, wording and a second opinion (all off by default)
 
 Nothing here changes what a user sees unless a developer setting turns it

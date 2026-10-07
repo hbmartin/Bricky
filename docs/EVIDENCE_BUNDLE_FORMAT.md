@@ -92,6 +92,13 @@ bricky-evidence-<yyyyMMdd-HHmmss>.zip
 | `model_revision` | string | pinned revision SHA (ADR 0013) |
 | `session_ids` | [uuid] | what the user selected for export |
 
+**Synthetic smoke bundles.** `bricky-harness synth-bundle` writes bundles for
+the training pipeline's end-to-end test (ADR 0019). Their `device_model` is
+`synthetic:bricky-harness` in the manifest and every session, and their
+traces record `raw_output` `""` and `termination` `not_run`: no phone and no
+model ever saw them. Every release path and the training exporter refuse
+them; they are fixtures, never evidence.
+
 ## `session.json` — EvidenceSessionFile
 
 Identity and environment: `session_version`, `session_id`, `created_at`,
@@ -108,7 +115,11 @@ Mutable over the session's life:
   `captured_at`, and optional `world_from_model` (16 floats, column-major
   4×4, the same layout as `camera_transform`): the locked registration's
   model pose, recorded only for AR photo checks (ADR 0007 amendment 3).
-  Verification-window poses are row-major; this one is not.
+  Verification-window poses are row-major; this one is not. AR photo checks
+  also stamp the live registration the photo was taken under:
+  optional `registration_state`, `lattice_margin` and `lattice_runner_up`
+  (names below). A label derived from `world_from_model` can then be
+  refused when the pose sat near a lattice alias.
 - `staged` — nullable `StagedFixtureDeclaration`:
   `expected_completed_count` (0 = not started), `lighting`
   (`bright`/`dim`/`mixed`), `occlusion` (`none`/`partial`/`heavy`),
@@ -129,6 +140,14 @@ Mutable over the session's life:
   (`geometric` / `composite` / `vlm`), and `model_revision`. The last two are
   the estimate's own, not the session header's — see `benchmark.ndjson`.
 - `analysis_error` — nullable string when the run threw.
+- `physical_build_id` — optional (added 2026-10-07, ADR 0019): the
+  physical build the session photographed, as a slug matching
+  `[a-z0-9-]{1,32}` that the person declares on the staged-fixture sheet
+  (or `b-` plus four hex digits from "New Build"). It is remembered per
+  instruction model, so a re-shot build keeps its label. Staged sessions of
+  a physical build carry it; a confirmed recovery takes the last label
+  declared for its model. Training data is split by it as well as by
+  authored model, so sessions sharing either stay on one side.
 
 ## `fits.ndjson` — GeometricFitRecord (one line per scored candidate)
 
@@ -156,6 +175,16 @@ considered, what each scored, and — when the truth lost — which term beat it
 | `disqualification` | string | `none`, `vertical_deviation`, `horizontal_deviation` |
 | `conclusive` | bool | true on the candidate the attempt concluded with |
 | `created_at` | ISO-8601 | |
+| `lattice_runner_up` | string? | the alternative that set `lattice_margin`; absent when no sweep ran |
+
+**Lattice runner-up.** The tracker scores six competing poses against the
+fit (ADR 0009) and keeps the smallest cost ratio as `lattice_margin`.
+`lattice_runner_up` names the one that set it, in the model frame:
+`shift_x_pos`, `shift_x_neg`, `shift_z_pos`, `shift_z_neg` (one stud along
+the model's x or z), `yaw_180`, or `yaw_90` (near-square footprints only).
+It is absent when no sweep ran (the fit was below the loss floor) or when
+every alternative left the image. It is evidence only: the lock rule reads
+the margin alone.
 
 `unexplained_fraction` and `phantom_fraction` weigh into `score` identically,
 so without both a losing candidate cannot be told from one that lost the
@@ -181,7 +210,7 @@ what keeps it from winning, and it cannot also carry the reason.
 | `max_tokens` | int | budget in force |
 | `raw_output` | string | full model text, including truncated prefixes |
 | `decode_error` | string? | nil when `raw_output` decoded against the schema |
-| `termination` | string | `accepted`, `max_tokens_exhausted`, `premature_eos` |
+| `termination` | string | `accepted`, `max_tokens_exhausted`, `premature_eos`; `not_run` only in synthetic smoke bundles |
 | `generated_tokens` | int? | nil on abnormal termination (loop throws before counting) |
 | `latency_ms` | int | wall clock around the guided loop |
 | `memory_footprint_bytes` | int64? | `phys_footprint` at record time |
@@ -207,11 +236,18 @@ A `VerificationWindowRecord` holds:
   colour: `code`, `status`, `pixels`, `frames`, and the Oklab distances
   `authored_distance` and `nearest_distance`, plus `nearest_code` and
   `beneath_code`. The verdict above already reflects the mode;
+- `lattice_contests` (optional, added 2026-10-07): the verifier's four
+  ±1-stud contests, one entry per alternative: `offset_studs` (`[dx, dz]`),
+  `wins_complete` and `wins_shifted`, the exclusive-evidence pixels that
+  matched the authored and the shifted placement, counted since the step
+  began like `frames_used`. A `misplaced` verdict is decided on these; stud
+  keypoints (ADR 0020) must show they are where the verifier goes wrong;
 - `frames`, oldest first.
 
 Each entry in `frames` has `frame_id`, `registration_state`,
 `world_from_model` (row-major 4x4), `rms_residual`, `inlier_fraction`,
-`lattice_margin`, `verdict_after` and `ingest_ms`.
+`lattice_margin`, `verdict_after` and `ingest_ms`, plus the optional
+`lattice_runner_up` (see `fits.ndjson`).
 
 Each frame's planes sit under `windows/frames/`, named by an
 `EvidenceDepthFrameRecord` sidecar whose `capture_id` is the frame id.
@@ -250,6 +286,10 @@ row with these fields:
   - the `support`, `absence` and `unexplained` votes, and `frames_seen`;
   - with the colour check on: `colour_status`, `colour_nearest_code` and
     `colour_authored_distance`;
+  - `tallies` (optional, added 2026-10-07): each alternative's contest
+    against the placement as authored, as `offset` (the layout above),
+    `wins_present` and `wins_alternative`. Absent when no alternative was
+    discriminable;
 - `adapter_verdict`: the placement-aware verdict, which is logged only;
 - `verifier_verdict`: what the user was shown.
 
@@ -403,7 +443,7 @@ interleaved arms. The types live in `RecoveryEvidenceKit/RecoveryTelemetry.swift
 | session | `physical_memory_bytes` | `ProcessInfo.physicalMemory` (the device-floor input) |
 | session | `admission` | floor, available bytes at check, footprint before load, load and warm-up ms, warm-up lifetime peak |
 | session | `conditions_start`, `conditions_end` | `DeviceConditions`: thermal state, Low Power Mode, battery level/state, `seconds_since_ar_start` (continuous AR), `ar_active_seconds` |
-| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`. Absent axes decode to the baseline |
+| trace | `variant` | `RecoveryInferenceVariant`: `decode`, `vote`, `unique_slots`, `scoring`, `slot_order`, `board_layout`, `labels`, `prompt_style`, `image_side`, `check_target`, `arm_id`, and `adapter` (`<name>@<sha12>`, a LoRA adapter over the pinned weights, ADR 0019; Mac replays only). Absent axes decode to the baseline |
 | trace (checks) | `alternate_tile_relative_paths` | the target rendered from the check target the call did not use (`guide_camera` or `registered` → tile path). Written only with evidence on, and only when that target could be rendered: `registered` needs the AR guide's locked pose |
 | trace (AR checks) | `check_geometry` | where the step's delta fell in the photo (added 2026-10-06, ADR 0007 amendment 3): `coordinate_space` (`upright_capture_normalized`: origin top-left of the upright stored photo, x right, y down, 0–1), `delta_box` (`x`, `y`, `width`, `height`; null when no delta pixel is visible), `delta_pixels`, `grid_width`, `grid_height` (the landscape render grid). Rendered on device from the photo's camera under the locked pose, after inference, with evidence on. The Mac cannot recompute it: bundles carry no instruction model |
 | trace | `inference` | `decode` (prompt/image tokens; preprocess/prefill/decode ms; sampled/forced/fed/dropped tokens; `cache_offset`; fast-forward disagreements), `memory_before`/`memory_after` (`task_vm_info` footprint, lifetime peak, limit remaining, graphics), `thermal_before`/`thermal_after`, `calls_since_load`, `seconds_since_load`, `load_ms` |

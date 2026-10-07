@@ -32,6 +32,18 @@ actor LDrawGeometryEngine {
     /// Lazily parsed LDConfig palette, needed only to resolve the contextual
     /// edge colour (code 24) to a concrete colour.
     private var paletteCache: [Int: LDrawColorDefinition]?
+    /// Set only while `segmentedWithStuds` runs: the studs found so far, the
+    /// stud each triangle belongs to, and where the walk is. Nil leaves the
+    /// flatten exactly as it always was.
+    private var studCollection: StudCollection?
+
+    private struct StudCollection {
+        var studs: [StudInstance] = []
+        var triangleStud: [UInt32] = []
+        /// The stud whose subtree is being flattened, as index + 1; 0 for none.
+        var current: UInt32 = 0
+        var placement = -1
+    }
 
     init(
         sourceRoot: URL,
@@ -123,6 +135,17 @@ actor LDrawGeometryEngine {
         )
     }
 
+    /// `segmented`, plus every stud primitive the flatten met and which
+    /// triangles each one drew (Phase 4). The geometry is bit-identical to
+    /// `segmented` of the same placements.
+    func segmentedWithStuds(placements: some Collection<PartPlacement>) throws -> (SegmentedGeometry, StudIndex) {
+        studCollection = StudCollection()
+        defer { studCollection = nil }
+        let geometry = try segmented(placements: placements)
+        guard let collection = studCollection else { return (geometry, StudIndex(studs: [], triangleStud: [])) }
+        return (geometry, StudIndex(studs: collection.studs, triangleStud: collection.triangleStud))
+    }
+
     /// Axis-aligned bounds over every buffer's positions, folded in buffer
     /// order. The order matters only for signed zeros, which is why both
     /// snapshot paths share this one fold.
@@ -191,6 +214,9 @@ actor LDrawGeometryEngine {
         }
         let normalized = try LDrawInstructionParser.normalizeReference(reference)
         let text = try loadText(reference: normalized)
+        if depth == 0, studCollection != nil {
+            studCollection?.placement += 1
+        }
         var pendingInvert = false
         var counterClockwise = true
         let mirrored = determinant(transform) < 0
@@ -210,14 +236,22 @@ actor LDrawGeometryEngine {
                let child = Self.transform(tokens: tokens) {
                 let childReference = tokens.dropFirst(14).joined(separator: " ")
                 let childColor = resolve(color, inheritedColor: inheritedColor)
+                let childTransform = transform.multiplied(by: child)
+                // Inside a stud already, deeper primitives belong to it.
+                let enclosing = studCollection?.current ?? 0
+                if studCollection != nil, enclosing == 0,
+                   let role = StudPrimitiveCatalog.role(of: (try? LDrawInstructionParser.normalizeReference(childReference)) ?? childReference) {
+                    recordStud(reference: childReference, role: role, transform: childTransform, colour: childColor)
+                }
                 try flatten(
                     reference: childReference,
-                    transform: transform.multiplied(by: child),
+                    transform: childTransform,
                     inheritedColor: childColor,
                     invertWinding: invertWinding != pendingInvert,
                     depth: depth + 1,
                     triangles: &triangles
                 )
+                if studCollection != nil { studCollection?.current = enclosing }
                 pendingInvert = false
                 continue
             }
@@ -254,6 +288,35 @@ actor LDrawGeometryEngine {
         // BFC-CCW source triangle stays counter-clockwise seen from outside
         // in world space, keeping single-sided materials front-facing.
         triangles.append(flipped ? Triangle(a: pa, b: pb, c: pc, color: color) : Triangle(a: pa, b: pc, c: pb, color: color))
+        if let current = studCollection?.current {
+            // Read before the append: reading the property inside its own
+            // modify access is an exclusivity violation.
+            studCollection?.triangleStud.append(current)
+        }
+    }
+
+    /// Records one stud instance and makes it the stud the following
+    /// subtree's triangles belong to. A top stud's keypoint is its top face
+    /// centre, 4 LDU above its base (LDraw's −Y); a tube's is its base.
+    private func recordStud(reference: String, role: StudRole, transform: LDrawTransform, colour: Int) {
+        guard var collection = studCollection else { return }
+        let keypointLocal = role == .top ? SIMD3<Double>(0, -4, 0) : SIMD3<Double>(0, 0, 0)
+        let keypoint = worldPoint(keypointLocal, transform: transform)
+        let base = worldPoint(.zero, transform: transform)
+        // The stud's local −Y, as a world direction (world Y is LDraw −Y).
+        let up = worldPoint(SIMD3(0, -1, 0), transform: transform) - base
+        let length = simd_length(up) / 0.0004
+        collection.studs.append(StudInstance(
+            placement: collection.placement,
+            primitive: (try? LDrawInstructionParser.normalizeReference(reference)) ?? reference,
+            role: role,
+            keypoint: keypoint,
+            axis: length > 0 ? simd_normalize(up) : SIMD3(0, 1, 0),
+            scale: length,
+            colourCode: colour
+        ))
+        collection.current = UInt32(collection.studs.count)
+        studCollection = collection
     }
 
     private func loadText(reference: String) throws -> String {

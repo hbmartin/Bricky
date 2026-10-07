@@ -13,6 +13,22 @@ final class ProbeScoringTests: XCTestCase {
         XCTAssertEqual(grouped["complete"]!, 0.15 / 0.95, accuracy: 1e-12)
     }
 
+    func testNormalisationSumsInTheOptionsOrder() {
+        // Mass that does not sum to one, so the total is a real division.
+        let candidates: [(text: String, probability: Double)] = [("A", 0.6), ("B", 0.15), ("C", 0.15), ("D", 0.05)]
+        let options = ["A", "B", "C", "D"]
+        let total = ((0.6 + 0.15) + 0.15) + 0.05
+        let grouped = ProbeScoring.group(candidates, options: options)
+        for (option, probability) in zip(options, [0.6, 0.15, 0.15, 0.05]) {
+            XCTAssertEqual(grouped[option]?.bitPattern, (probability / total).bitPattern, option)
+        }
+        // Identical calls agree to the last bit, whatever order a dictionary
+        // happens to iterate in.
+        for _ in 0..<20 {
+            XCTAssertEqual(ProbeScoring.group(candidates, options: options), grouped)
+        }
+    }
+
     func testAmbiguousPrefixesSplitTheirMass() {
         let grouped = ProbeScoring.group([("i", 1.0)], options: ["incomplete", "insufficient"])
         XCTAssertEqual(grouped["incomplete"], 0.5)

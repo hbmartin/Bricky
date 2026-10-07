@@ -74,12 +74,15 @@ struct BackgroundURLSessionDelivery: ModelDelivery {
         var lastCause: [String: Error] = [:]
         while true {
             try Task.checkCancellation()
+            // Look before publishing: a transfer moves its file into place
+            // before it leaves the active set, so one that finishes while
+            // `publish` hashes is published next round, never started again.
+            let active = await transfer.activeDescriptions()
             let (missing, rejected) = await publish(manifest)
             if missing.isEmpty {
                 await progress(1)
                 return
             }
-            let active = await transfer.activeDescriptions()
             for asset in missing {
                 let description = Self.description(of: asset, in: manifest)
                 guard !active.contains(description) else { continue }

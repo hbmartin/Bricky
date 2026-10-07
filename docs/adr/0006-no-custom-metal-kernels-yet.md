@@ -48,6 +48,12 @@ library, so the depth shader, its pipeline and its maps are unchanged; a
 batch may mix depth and tag passes, and its depth maps stay bit-identical
 to depth alone (CI's `--check-tag-render`). Still no compute kernel.
 
+Note, 2026-10-07: the tag pass also draws tags the caller chooses, one per
+triangle: stud ids for stud labels (Phase 4, ADR 0020), a stud's index + 1
+and 0 for a surface that is no stud's. Same shader, same pipeline, other
+values; the depth maps stay bit-identical beside it (CI's
+`--check-stud-labels`). Still no compute kernel.
+
 ## Consequences
 
 The `apple-metal-tensorops` review does not cause speculative kernel work. The

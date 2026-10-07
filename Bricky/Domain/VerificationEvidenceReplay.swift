@@ -38,7 +38,8 @@ extension ModelRegistration {
             quality: RegistrationQuality(
                 rmsResidual: frame.rmsResidual,
                 inlierFraction: frame.inlierFraction,
-                latticeMargin: frame.latticeMargin
+                latticeMargin: frame.latticeMargin,
+                latticeRunnerUp: frame.latticeRunnerUp.flatMap(LatticeAlternative.init(rawValue:))
             ),
             fittedStepIndex: stepIndex,
             timestamp: timestamp

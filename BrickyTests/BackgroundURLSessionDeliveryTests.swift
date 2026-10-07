@@ -24,9 +24,19 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
         /// writing `pauseBytes` each time; -1 pauses forever.
         var pauses: [String: Int] = [:]
         var pauseBytes: Int64 = 0
+        /// Finishes a held transfer on the delivery's Nth look at the active
+        /// set, just before that look, so a test can place the finish
+        /// exactly instead of sleeping.
+        var finishOnQuery: (number: Int, description: String)?
+        private var queries = 0
         private var written: [String: Int64] = [:]
 
         func activeDescriptions() async -> Set<String> {
+            lock.lock()
+            queries += 1
+            let due = finishOnQuery.flatMap { $0.number == queries ? $0.description : nil }
+            lock.unlock()
+            if let due { finish(due) }
             lock.lock(); defer { lock.unlock() }
             return active
         }
@@ -59,11 +69,13 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
             }
         }
 
+        /// As URLSession does: the file is moved into place
+        /// (`didFinishDownloadingTo`) before the task leaves the active set.
         func finish(_ description: String) {
-            lock.lock(); active.remove(description); lock.unlock()
             if let payload = payloads[description], let destination = destinations[description] {
                 try? payload.write(to: BackgroundURLSessionDelivery.downloadedURL(for: destination))
             }
+            lock.lock(); active.remove(description); lock.unlock()
         }
 
         func fail(_ description: String, with error: Error) {
@@ -172,12 +184,31 @@ final class BackgroundURLSessionDeliveryTests: XCTestCase {
         wire(transfer, subject, payloads: ["model.safetensors": weights])
         transfer.holding = ["rev1/model.safetensors"]
         transfer.start(URLRequest(url: URL(string: "https://example.invalid")!), description: "rev1/model.safetensors", expectedBytes: 7)
+        // It finishes while the delivery waits on it: the second look.
+        transfer.finishOnQuery = (2, "rev1/model.safetensors")
 
-        let delivering = Task { try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in } }
-        try await Task.sleep(for: .milliseconds(50))
-        transfer.finish("rev1/model.safetensors")
-        try await delivering.value
+        try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in }
         XCTAssertEqual(transfer.started.count, 1, "the running transfer was re-attached, not restarted")
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("model.safetensors")), weights)
+    }
+
+    func testATransferFinishingBeforeTheLookIsPublishedNotRestarted() async throws {
+        let weights = Data("weights".utf8)
+        let weightsAsset = asset("model.safetensors", weights)
+        let subject = manifest([weightsAsset])
+        let transfer = FakeTransfer()
+        wire(transfer, subject, payloads: ["model.safetensors": weights])
+        transfer.holding = ["rev1/model.safetensors"]
+        transfer.start(URLRequest(url: URL(string: "https://example.invalid")!), description: "rev1/model.safetensors", expectedBytes: 7)
+        // It finishes just before the delivery's first look. Publishing
+        // before looking would find no file and no transfer, and start a
+        // second download; a restart here lands at once, so this fails
+        // rather than hangs.
+        transfer.finishOnQuery = (1, "rev1/model.safetensors")
+        transfer.holding = []
+
+        try await delivery(transfer).deliver(subject, allowsCellular: false) { _ in }
+        XCTAssertEqual(transfer.started.count, 1, "a finished transfer was downloaded again")
         XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("model.safetensors")), weights)
     }
 

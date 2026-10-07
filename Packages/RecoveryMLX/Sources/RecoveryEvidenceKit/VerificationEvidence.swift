@@ -46,12 +46,17 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
     /// (M3.2, ADR 0007 amendment 3). The verdict above already reflects its
     /// mode: unchanged in shadow, possibly blocked in block only.
     public var colourTerm: ColourTermRecord?
+    /// The verifier's ±1-stud lattice contests when the window closed,
+    /// counted since the step began like `frames_used`. Absent from judges
+    /// that hold none, and from windows recorded before Phase 4.
+    public var latticeContests: [LatticeContestRecord]?
 
     public init(
         windowID: UUID, sessionID: UUID, stepID: String, stepIndex: Int, trigger: Trigger, createdAt: Date,
         frames: [VerificationWindowFrame], verdict: String, offsetStuds: [Int]?, uncertainReason: String?,
         detectability: String, deltaPixels: Int, framesUsed: Int, completeFraction: Float,
-        incompleteFraction: Float, staged: StagedVerificationDeclaration?, colourTerm: ColourTermRecord? = nil
+        incompleteFraction: Float, staged: StagedVerificationDeclaration?, colourTerm: ColourTermRecord? = nil,
+        latticeContests: [LatticeContestRecord]? = nil
     ) {
         self.windowID = windowID
         self.sessionID = sessionID
@@ -70,6 +75,7 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         self.incompleteFraction = incompleteFraction
         self.staged = staged
         self.colourTerm = colourTerm
+        self.latticeContests = latticeContests
     }
 
     enum CodingKeys: String, CodingKey {
@@ -91,6 +97,7 @@ public struct VerificationWindowRecord: Codable, Sendable, Equatable {
         case incompleteFraction = "incomplete_fraction"
         case staged
         case colourTerm = "colour_term"
+        case latticeContests = "lattice_contests"
     }
 }
 
@@ -165,10 +172,15 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
     public var latticeMargin: Float
     public var verdictAfter: String
     public var ingestMilliseconds: Int
+    /// Which lattice alternative set `latticeMargin` (`shift_x_pos`,
+    /// `shift_x_neg`, `shift_z_pos`, `shift_z_neg`, `yaw_180`, `yaw_90`, in
+    /// the model frame). Absent when no sweep ran or none could compete.
+    public var latticeRunnerUp: String?
 
     public init(
         frameID: UUID, registrationState: String, worldFromModel: [Float], rmsResidual: Float,
-        inlierFraction: Float, latticeMargin: Float, verdictAfter: String, ingestMilliseconds: Int
+        inlierFraction: Float, latticeMargin: Float, verdictAfter: String, ingestMilliseconds: Int,
+        latticeRunnerUp: String? = nil
     ) {
         self.frameID = frameID
         self.registrationState = registrationState
@@ -178,6 +190,7 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
         self.latticeMargin = latticeMargin
         self.verdictAfter = verdictAfter
         self.ingestMilliseconds = ingestMilliseconds
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -189,6 +202,7 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
         case latticeMargin = "lattice_margin"
         case verdictAfter = "verdict_after"
         case ingestMilliseconds = "ingest_ms"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 
@@ -433,10 +447,14 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
         /// colour was from the authored one, in Oklab.
         public var colourNearestCode: Int?
         public var colourAuthoredDistance: Float?
+        /// Each alternative's exclusive-evidence contest against the
+        /// placement as authored. Absent when none was discriminable.
+        public var tallies: [HypothesisTallyRecord]?
 
         public init(
             placement: Int, state: String, offset: [Int]?, support: Int, absence: Int, unexplained: Int, framesSeen: Int,
-            colourStatus: String? = nil, colourNearestCode: Int? = nil, colourAuthoredDistance: Float? = nil
+            colourStatus: String? = nil, colourNearestCode: Int? = nil, colourAuthoredDistance: Float? = nil,
+            tallies: [HypothesisTallyRecord]? = nil
         ) {
             self.placement = placement
             self.state = state
@@ -448,6 +466,7 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
             self.colourStatus = colourStatus
             self.colourNearestCode = colourNearestCode
             self.colourAuthoredDistance = colourAuthoredDistance
+            self.tallies = tallies
         }
 
         enum CodingKeys: String, CodingKey {
@@ -456,6 +475,7 @@ public struct BuildDiffRecord: Codable, Sendable, Equatable {
             case colourStatus = "colour_status"
             case colourNearestCode = "colour_nearest_code"
             case colourAuthoredDistance = "colour_authored_distance"
+            case tallies
         }
     }
 
