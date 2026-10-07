@@ -20,7 +20,7 @@ struct BrickyHarness: AsyncParsableCommand {
         device rows. Score results with:
         uv run python Tools/RecoveryEvaluation/score_results.py <out> --allow-small-corpus
         """,
-        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self]
+        subcommands: [Replay.self, Recompose.self, WordingSheet.self, FMShadow.self, LatticeRows.self]
     )
 }
 

@@ -86,6 +86,63 @@ final class LatticeEvidenceTests: XCTestCase {
         XCTAssertNil(try EvidenceSchema.decoder().decode(BuildDiffRecord.Placement.self, from: Data(legacy.utf8)).tallies)
     }
 
+    private func frame(state: String, margin: Float, runnerUp: String?) -> VerificationWindowFrame {
+        VerificationWindowFrame(
+            frameID: UUID(), registrationState: state, worldFromModel: Array(repeating: 0, count: 16),
+            rmsResidual: 0.002, inlierFraction: 0.8, latticeMargin: margin, verdictAfter: "uncertain",
+            ingestMilliseconds: 9, latticeRunnerUp: runnerUp
+        )
+    }
+
+    func testLatticeWindowRowsSummariseFramesAndKeepTheTruth() throws {
+        let window = VerificationWindowRecord(
+            windowID: UUID(), sessionID: UUID(), stepID: "m#3", stepIndex: 2, trigger: .confirm,
+            createdAt: Date(timeIntervalSince1970: 0),
+            frames: [
+                frame(state: "locked", margin: 1.4, runnerUp: "shift_x_pos"),
+                frame(state: "locked", margin: 2.0, runnerUp: "yaw_180"),
+                frame(state: "ambiguous", margin: 1.05, runnerUp: "shift_x_pos"),
+                frame(state: "refining", margin: 0, runnerUp: nil),
+                frame(state: "locked", margin: Float.greatestFiniteMagnitude, runnerUp: nil),
+            ],
+            verdict: "misplaced", offsetStuds: [1, 0], uncertainReason: nil, detectability: "strong",
+            deltaPixels: 140, framesUsed: 12, completeFraction: 0.1, incompleteFraction: 0.2,
+            staged: StagedVerificationDeclaration(
+                scenario: .complete, lighting: .bright, occlusion: .none, physicalCase: true, legalUseConfirmed: true
+            ),
+            latticeContests: [LatticeContestRecord(offsetStuds: [1, 0], winsComplete: 3, winsShifted: 11)]
+        )
+        let sessionID = UUID()
+        let row = try XCTUnwrap(LatticeWindowRowV1.rows(windows: [window], sessionID: sessionID, deviceModel: "iPhone18,1").first)
+        XCTAssertEqual(row.provenance, "device")
+        XCTAssertEqual(row.fixtureID, window.windowID.uuidString)
+        XCTAssertEqual(row.sessionID, sessionID.uuidString)
+        XCTAssertEqual(row.trigger, "confirm")
+        XCTAssertEqual(row.verdict, "misplaced")
+        XCTAssertEqual(row.stagedScenario, "complete")
+        XCTAssertEqual(row.expectedVerdict, "complete")
+        XCTAssertEqual(row.frames, 5)
+        XCTAssertEqual(row.margins, [1.4, 2.0, 1.05], "no-sweep and no-competitor frames carry no margin")
+        XCTAssertEqual(row.sweptFrames, 3)
+        XCTAssertEqual(row.ambiguousFrames, 1)
+        XCTAssertEqual(row.lockedFrames, 3)
+        XCTAssertEqual(row.lockedNearThresholdFrames, 1)
+        XCTAssertEqual(row.runnerUps, ["shift_x_pos": 2, "yaw_180": 1])
+        XCTAssertEqual(row.latticeContests?.first?.winsShifted, 11)
+
+        let encoded = try json(row)
+        for key in [#""kind":"lattice_window""#, #""schema_version":1"#, #""locked_near_threshold_frames":1"#,
+                    #""staged_scenario":"complete""#, #""runner_ups""#] {
+            XCTAssertTrue(encoded.contains(key), key)
+        }
+        XCTAssertEqual(try EvidenceSchema.decoder().decode(LatticeWindowRowV1.self, from: Data(encoded.utf8)), row)
+
+        let replayed = LatticeWindowRowV1.rows(windows: [window], sessionID: sessionID, deviceModel: "replay:Mac14,9")
+        XCTAssertEqual(replayed.first?.provenance, "replay")
+        let synthetic = LatticeWindowRowV1.rows(windows: [window], sessionID: sessionID, deviceModel: "synthetic:bricky-harness")
+        XCTAssertEqual(synthetic.first?.provenance, "synthetic")
+    }
+
     func testRecordsFromBeforeTheRunnerUpStillDecode() throws {
         var object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: EvidenceSchema.encoder().encode(frame(runnerUp: "shift_z_pos"))) as? [String: Any]

@@ -149,6 +149,34 @@ so `compare_arms.py --primary check_correct` pairs them with a VLM replay's
 informational: a Mac is not the phone's model tier, and release mode
 refuses replay rows.
 
+## `lattice-rows`
+
+```sh
+swift run --package-path Packages/RecoveryMLX bricky-harness lattice-rows \
+  --bundle bundle --out lattice.ndjson
+python3 Tools/RecoveryEvaluation/score_results.py lattice.ndjson --informational
+```
+
+Writes one `lattice_window` row per verification window: frame counts by
+registration state, the margins of the frames where the lattice sweep ran,
+how often each alternative set the margin, the verifier's ±1-stud contests,
+and the staged truth. No model and no weights. The scorer's `lattice_window`
+section summarises device rows, and every run prints the stud-keypoint
+entry line (ADR 0020):
+
+```
+STUD_KEYPOINTS_ENTRY UNMEASURED (0 device windows, need 30)
+```
+
+Only device windows (an iPhone, not a replay or synthetic session) that
+closed on a staged `complete` or `shifted_one_stud` build count. A window is
+lattice trouble when the verifier refused for `poseAmbiguous`, at least half
+its frames were ambiguous, a complete build was called misplaced, or a
+shifted one complete. With at least 30 such windows from 3 sessions, the
+criterion is MET when the one-sided 95% lower bound on that rate is at least
+5%, and NOT_MET when the upper bound is under 5% (about 59 clean windows).
+Anything else reads UNMEASURED with its reason; it never gates a release.
+
 ## Workflows
 
 ### Diagnosing a device failure

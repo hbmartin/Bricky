@@ -60,6 +60,16 @@ CHALLENGE_KIND = "verification_challenge"
 VLM_CHECK_KIND = "vlm_check"
 # The Foundation Models advisor beside photo checks, in shadow (ADR 0018).
 SHADOW_CHECK_KIND = "shadow_check"
+# One verification window's lattice evidence (bricky-harness lattice-rows,
+# iOS 27 Phase 4): read for the stud-keypoint entry criterion (ADR 0020),
+# never a release gate.
+LATTICE_WINDOW_KIND = "lattice_window"
+# The entry rule: enough staged device windows from enough sessions, and a
+# one-sided 95% bound on the lattice-trouble rate on one side of 5%.
+LATTICE_ENTRY_MINIMUM_WINDOWS = 30
+LATTICE_ENTRY_MINIMUM_SESSIONS = 3
+LATTICE_ENTRY_RATE = 0.05
+LATTICE_ENTRY_SCENARIOS = {"complete", "shifted_one_stud"}
 # Per-placement build diff rows (M2.3): what the shadow diff concluded about
 # each authored placement. Informational until real windows exist.
 PLACEMENT_KIND = "placement"
@@ -1160,6 +1170,116 @@ def score_shadow_check(rows: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+# --- Lattice windows (kind == "lattice_window") -----------------------------
+
+
+def lattice_trouble(row: dict[str, object]) -> bool:
+    """A staged window the stud lattice went wrong on: the verifier refused
+    for an ambiguous pose, at least half its frames were ambiguous, a
+    complete build was called one stud off, or a one-stud shift complete."""
+    frames = int(row["frames"])
+    return (
+        row.get("uncertain_reason") == "poseAmbiguous"
+        or (frames > 0 and 2 * int(row["ambiguous_frames"]) >= frames)
+        or (row.get("staged_scenario") == "complete" and row["verdict"] == "misplaced")
+        or (row.get("staged_scenario") == "shifted_one_stud" and row["verdict"] == "complete")
+    )
+
+
+def lattice_entry(population: list[dict[str, object]]) -> dict[str, object]:
+    """The stud-keypoint entry readout. MET needs the lower bound at or
+    above 5%; NOT MET, the upper bound below it; anything else, including
+    no rows at all, is UNMEASURED and says why — never a silent pass."""
+    windows = len(population)
+    sessions = len({str(row["session_id"]) for row in population})
+    events = sum(lattice_trouble(row) for row in population)
+    lower = clopper_pearson_lower(events, windows) if windows else None
+    upper = clopper_pearson_upper(events, windows) if windows else None
+    if windows < LATTICE_ENTRY_MINIMUM_WINDOWS:
+        status, reason = UNMEASURED, f"{windows} device windows, need {LATTICE_ENTRY_MINIMUM_WINDOWS}"
+    elif sessions < LATTICE_ENTRY_MINIMUM_SESSIONS:
+        status, reason = UNMEASURED, f"{sessions} sessions, need {LATTICE_ENTRY_MINIMUM_SESSIONS}"
+    elif lower is not None and lower >= LATTICE_ENTRY_RATE:
+        status, reason = "MET", f"{events}/{windows} windows, lower95={lower:.4f}"
+    elif upper is not None and upper < LATTICE_ENTRY_RATE:
+        status, reason = "NOT_MET", f"{events}/{windows} windows, upper95={upper:.4f}"
+    else:
+        status, reason = UNMEASURED, (
+            f"inconclusive: {events}/{windows} windows, bounds {format_number(lower)}..{format_number(upper)} straddle "
+            f"{LATTICE_ENTRY_RATE:g}"
+        )
+    return {
+        "status": status,
+        "reason": reason,
+        "windows": windows,
+        "sessions": sessions,
+        "events": events,
+        "lower_95": lower,
+        "upper_95": upper,
+    }
+
+
+def score_lattice(rows: list[dict[str, object]]) -> dict[str, object]:
+    """Lattice evidence from verification windows, informational. Only
+    device rows (an iPhone, not a replay or a synthetic session) from
+    windows that closed on a staged complete or one-stud-shift build count
+    toward the entry readout."""
+    required = {
+        "fixture_id", "session_id", "provenance", "device_model", "trigger", "verdict", "frames",
+        "swept_frames", "ambiguous_frames", "locked_frames", "locked_near_threshold_frames", "margins", "runner_ups",
+    }
+    for index, row in enumerate(rows, start=1):
+        label = f"{LATTICE_WINDOW_KIND} row {index}"
+        if row.get("schema_version") != 1:
+            raise SystemExit(f"{label} has unsupported schema")
+        missing = sorted(required - row.keys())
+        if missing:
+            raise SystemExit(f"{label} missing fields: {', '.join(missing)}")
+        if not isinstance(row["margins"], list) or not all(is_number(value) for value in row["margins"]):
+            raise SystemExit(f"{label} margins must be a list of finite numbers")
+    device = [
+        row for row in rows
+        if row["provenance"] == "device" and str(row["device_model"]).startswith("iPhone")
+    ]
+    closing = [row for row in device if row["trigger"] != "verdict_change"]
+    population = [row for row in closing if row.get("staged_scenario") in LATTICE_ENTRY_SCENARIOS]
+    margins = [float(value) for row in device for value in row["margins"]]
+    frames = sum(int(row["frames"]) for row in device)
+    locked = sum(int(row["locked_frames"]) for row in device)
+    runner_ups: dict[str, int] = {}
+    for row in device:
+        for name, count in dict(row["runner_ups"]).items():
+            runner_ups[name] = runner_ups.get(name, 0) + int(count)
+    return {
+        "windows": len(rows),
+        "device_windows": len(device),
+        "closing_device_windows": len(closing),
+        "margin_p10": percentile(margins, 0.10) if margins else None,
+        "margin_p50": percentile(margins, 0.50) if margins else None,
+        "margin_p90": percentile(margins, 0.90) if margins else None,
+        "ambiguous_frame_rate": sum(int(row["ambiguous_frames"]) for row in device) / frames if frames else None,
+        "pose_ambiguous_window_rate": (
+            sum(row.get("uncertain_reason") == "poseAmbiguous" for row in closing) / len(closing) if closing else None
+        ),
+        "locked_near_threshold_rate": (
+            sum(int(row["locked_near_threshold_frames"]) for row in device) / locked if locked else None
+        ),
+        "complete_called_misplaced": sum(
+            row.get("staged_scenario") == "complete" and row["verdict"] == "misplaced" for row in closing
+        ),
+        "shifted_called_complete": sum(
+            row.get("staged_scenario") == "shifted_one_stud" and row["verdict"] == "complete" for row in closing
+        ),
+        "runner_ups": dict(sorted(runner_ups.items())),
+        "entry": lattice_entry(population),
+    }
+
+
+def lattice_entry_line(report: dict[str, object] | None) -> str:
+    entry = report["entry"] if report else lattice_entry([])
+    return f"STUD_KEYPOINTS_ENTRY {entry['status']} ({entry['reason']})"
+
+
 # --- Entry -------------------------------------------------------------------
 
 
@@ -1167,7 +1287,7 @@ def partition(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]
     kinds: dict[str, list[dict[str, object]]] = {
         kind: [] for kind in KINDS + SUMMARY_KINDS + (
             CHALLENGE_KIND, VLM_CHECK_KIND, SHADOW_CHECK_KIND, PLACEMENT_KIND, REPAIR_KIND, GEOMETRIC_RECOVERY_KIND,
-            PLACEMENT_SUGGESTION_KIND,
+            PLACEMENT_SUGGESTION_KIND, LATTICE_WINDOW_KIND,
         )
     }
     for index, row in enumerate(rows, start=1):
@@ -1307,6 +1427,8 @@ def main(
         report[VLM_CHECK_KIND] = score_vlm_check(kinds[VLM_CHECK_KIND])
     if kinds[SHADOW_CHECK_KIND]:
         report[SHADOW_CHECK_KIND] = score_shadow_check(kinds[SHADOW_CHECK_KIND])
+    if kinds[LATTICE_WINDOW_KIND]:
+        report[LATTICE_WINDOW_KIND] = score_lattice(kinds[LATTICE_WINDOW_KIND])
     placement_gates: list[Gate] = []
     if kinds[PLACEMENT_KIND]:
         report[PLACEMENT_KIND], placement_gates = score_placement(kinds[PLACEMENT_KIND])
@@ -1336,6 +1458,9 @@ def main(
         None,
     )
     print(headline(report.get("verification"), false_complete_gate, release=release))
+    # Printed on every run, like the headline: no device rows reads as
+    # UNMEASURED, never as a criterion met or failed.
+    print(lattice_entry_line(report.get(LATTICE_WINDOW_KIND)))
     if VLM_CHECK_KIND in report:
         check = report[VLM_CHECK_KIND]
         shown = UNMEASURED if check["false_complete_rate"] is None else f"{check['false_complete_rate']:.4f}"

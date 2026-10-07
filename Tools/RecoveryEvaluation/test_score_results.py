@@ -21,10 +21,13 @@ from score_results import (
     clopper_pearson_lower,
     clopper_pearson_upper,
     evaluate,
+    lattice_entry_line,
+    lattice_trouble,
     main,
     median_upper_bound,
     partition,
     score_recovery,
+    score_lattice,
     score_registration,
     score_verification,
     validate_release_corpus,
@@ -1008,6 +1011,105 @@ class ConfidenceBoundTests(unittest.TestCase):
     def test_median_bound_picks_the_qualifying_order_statistic(self) -> None:
         # n = 10: P(Bin(10, 0.5) <= 7) = 0.945 < 0.95 <= P(<= 8), so X(9).
         self.assertEqual(median_upper_bound([float(value) for value in range(1, 11)]), 9.0)
+
+
+def lattice_row(
+    *,
+    session: str = "s1",
+    provenance: str = "device",
+    device: str = "iPhone18,1",
+    trigger: str = "confirm",
+    scenario: str | None = "complete",
+    verdict: str = "complete",
+    frames: int = 10,
+    ambiguous: int = 0,
+    uncertain: str | None = None,
+) -> dict[str, object]:
+    return {
+        "kind": "lattice_window", "schema_version": 1, "fixture_id": "w", "session_id": session,
+        "provenance": provenance, "device_model": device, "step_index": 2, "trigger": trigger,
+        "verdict": verdict, "uncertain_reason": uncertain, "staged_scenario": scenario,
+        "frames": frames, "swept_frames": frames, "ambiguous_frames": ambiguous,
+        "locked_frames": frames - ambiguous, "locked_near_threshold_frames": 1,
+        "margins": [1.2, 1.6, 2.4][: min(frames, 3)], "runner_ups": {"shift_x_pos": 2},
+    }
+
+
+def lattice_rows(count: int, troubled: int, sessions: int = 3) -> list[dict[str, object]]:
+    rows = [lattice_row(session=f"s{index % sessions}") for index in range(count - troubled)]
+    rows += [lattice_row(session=f"s{index % sessions}", verdict="misplaced") for index in range(troubled)]
+    return rows
+
+
+class LatticeEntryTests(unittest.TestCase):
+    def test_entry_unmeasured_without_device_rows(self) -> None:
+        self.assertEqual(lattice_entry_line(None), "STUD_KEYPOINTS_ENTRY UNMEASURED (0 device windows, need 30)")
+        # Printed on every run, even a corpus with no lattice rows at all.
+        _, output = MainTests.run_main([registration_row() for _ in range(3)])
+        self.assertIn("STUD_KEYPOINTS_ENTRY UNMEASURED (0 device windows, need 30)", output)
+
+    def test_entry_ignores_synthetic_and_replay(self) -> None:
+        rows = (
+            [lattice_row(provenance="replay", verdict="misplaced") for _ in range(20)]
+            + [lattice_row(provenance="synthetic", verdict="misplaced") for _ in range(20)]
+            + [lattice_row(device="arm64", verdict="misplaced") for _ in range(20)]
+        )
+        report = score_lattice(rows)
+        self.assertEqual(report["device_windows"], 0)
+        self.assertEqual(report["entry"]["status"], UNMEASURED)
+
+    def test_only_closing_staged_complete_or_shifted_windows_count(self) -> None:
+        rows = lattice_rows(30, 0) + [
+            lattice_row(trigger="verdict_change", verdict="misplaced"),
+            lattice_row(scenario="missing", verdict="misplaced"),
+            lattice_row(scenario=None, verdict="misplaced"),
+        ]
+        entry = score_lattice(rows)["entry"]
+        self.assertEqual((entry["windows"], entry["events"]), (30, 0))
+
+    def test_each_kind_of_lattice_trouble_counts(self) -> None:
+        self.assertTrue(lattice_trouble(lattice_row(verdict="misplaced")))
+        self.assertTrue(lattice_trouble(lattice_row(scenario="shifted_one_stud", verdict="complete")))
+        self.assertTrue(lattice_trouble(lattice_row(verdict="uncertain", uncertain="poseAmbiguous")))
+        self.assertTrue(lattice_trouble(lattice_row(frames=10, ambiguous=5)))
+        self.assertFalse(lattice_trouble(lattice_row(frames=10, ambiguous=4)))
+        self.assertFalse(lattice_trouble(lattice_row(scenario="shifted_one_stud", verdict="misplaced")))
+
+    def test_entry_met_on_lower_bound(self) -> None:
+        entry = score_lattice(lattice_rows(30, 6))["entry"]
+        self.assertEqual(entry["status"], "MET")
+        self.assertGreaterEqual(entry["lower_95"], 0.05)
+
+    def test_entry_not_met_needs_upper_bound(self) -> None:
+        # Thirty clean windows cannot bound the rate under 5%; sixty can.
+        self.assertEqual(score_lattice(lattice_rows(30, 0))["entry"]["status"], UNMEASURED)
+        entry = score_lattice(lattice_rows(60, 0))["entry"]
+        self.assertEqual(entry["status"], "NOT_MET")
+        self.assertLess(entry["upper_95"], 0.05)
+
+    def test_entry_inconclusive_reads_unmeasured(self) -> None:
+        entry = score_lattice(lattice_rows(30, 2))["entry"]
+        self.assertEqual(entry["status"], UNMEASURED)
+        self.assertIn("inconclusive", entry["reason"])
+
+    def test_entry_needs_three_sessions(self) -> None:
+        entry = score_lattice(lattice_rows(40, 10, sessions=2))["entry"]
+        self.assertEqual(entry["status"], UNMEASURED)
+        self.assertIn("2 sessions", entry["reason"])
+
+    def test_report_summarises_device_margins_and_runner_ups(self) -> None:
+        report = score_lattice(lattice_rows(4, 1) + [lattice_row(provenance="replay")])
+        self.assertEqual(report["windows"], 5)
+        self.assertEqual(report["device_windows"], 4)
+        self.assertEqual(report["margin_p50"], 1.6)
+        self.assertEqual(report["runner_ups"], {"shift_x_pos": 8})
+        self.assertEqual(report["complete_called_misplaced"], 1)
+
+    def test_a_lattice_row_missing_fields_is_refused(self) -> None:
+        row = lattice_row()
+        del row["margins"]
+        with self.assertRaisesRegex(SystemExit, "missing fields: margins"):
+            score_lattice([row])
 
 
 if __name__ == "__main__":

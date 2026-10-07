@@ -232,6 +232,12 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertEqual(reader.validate(), [])
         let loaded = try reader.loadSessions()[0]
         XCTAssertEqual(loaded.verificationWindows, [window])
+        // The lattice rows a bundle yields (bricky-harness lattice-rows).
+        let latticeRows = LatticeWindowRowV1.rows(session: loaded)
+        XCTAssertEqual(latticeRows.map(\.fixtureID), [window.windowID.uuidString])
+        XCTAssertEqual(latticeRows.first?.sessionID, loaded.file.sessionID.uuidString)
+        XCTAssertEqual(latticeRows.first?.deviceModel, loaded.file.deviceModel)
+        XCTAssertEqual(latticeRows.first?.margins, [2])
         let planes = try EvidenceDepthPlanes.load(try XCTUnwrap(loaded.windowFrames[frameID]), in: loaded.directory)
         XCTAssertEqual(planes.colour?.count, 36)
         XCTAssertNil(planes.occluderMask)
