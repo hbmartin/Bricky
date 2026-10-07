@@ -228,6 +228,16 @@ class ExportTests(unittest.TestCase):
         copied = {path.read_bytes() for path in (self.root / "out" / "images").iterdir()}
         self.assertNotIn(b"not a board", copied)
 
+    def test_a_sessions_root_outside_the_bundle_is_refused(self) -> None:
+        bundle = make_bundle(self.root, many_models(4))
+        # Move the sessions elsewhere and leave a symlink in their place.
+        outside = self.root / "elsewhere"
+        (bundle / "sessions").rename(outside)
+        (bundle / "sessions").symlink_to(outside, target_is_directory=True)
+        code, _ = run(bundle, "--out", self.root / "out", "--smoke", "--copy-images")
+        self.assertNotEqual(code, 0, "no session may be read through a sessions root outside the bundle")
+        self.assertFalse((self.root / "out" / "images").exists() and any((self.root / "out" / "images").iterdir()))
+
     def test_copy_images_rewrites_paths(self) -> None:
         run(make_bundle(self.root, many_models(4)), "--out", self.root / "out", "--smoke", "--copy-images")
         for pair in read_jsonl(self.root / "out" / "train.jsonl"):
