@@ -165,10 +165,15 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
     public var latticeMargin: Float
     public var verdictAfter: String
     public var ingestMilliseconds: Int
+    /// Which lattice alternative set `latticeMargin` (`shift_x_pos`,
+    /// `shift_x_neg`, `shift_z_pos`, `shift_z_neg`, `yaw_180`, `yaw_90`, in
+    /// the model frame). Absent when no sweep ran or none could compete.
+    public var latticeRunnerUp: String?
 
     public init(
         frameID: UUID, registrationState: String, worldFromModel: [Float], rmsResidual: Float,
-        inlierFraction: Float, latticeMargin: Float, verdictAfter: String, ingestMilliseconds: Int
+        inlierFraction: Float, latticeMargin: Float, verdictAfter: String, ingestMilliseconds: Int,
+        latticeRunnerUp: String? = nil
     ) {
         self.frameID = frameID
         self.registrationState = registrationState
@@ -178,6 +183,7 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
         self.latticeMargin = latticeMargin
         self.verdictAfter = verdictAfter
         self.ingestMilliseconds = ingestMilliseconds
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -189,6 +195,7 @@ public struct VerificationWindowFrame: Codable, Sendable, Equatable {
         case latticeMargin = "lattice_margin"
         case verdictAfter = "verdict_after"
         case ingestMilliseconds = "ingest_ms"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 

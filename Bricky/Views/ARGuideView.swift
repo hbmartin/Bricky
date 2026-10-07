@@ -315,17 +315,22 @@ struct ARGuideView: View {
             recorder: recorder
         )
         let source = LivePoseSource(registration: registration, verification: verification)
+        let registrationController = registration
         let task = photoCheck.start(source: source) { alignment in
             // The capture carries the locked alignment's identity: the
             // registered target is rendered from this photo's camera under
             // exactly that pose.
             let capture = try RecoveryCaptureService().capture(from: camera, angle: .center, alignmentID: alignment.id)
+            // The registration as it stood when the photo was taken, for the
+            // capture record: evidence only, read before inference moves on.
+            let registrationAtCapture = registrationController.registration
             // The AR guide keeps no milestone images; the recorder copies
             // the photo when evidence is on.
             let captureURL = try InstructionModelImporter.applicationSupportRoot()
                 .appendingPathComponent(capture.imageRelativePath)
             defer { RecoveryWorkFileCleanup.remove(urls: [captureURL]) }
             let outcome = try await service.check(capture: capture, plan: plan, step: checkedStep, registered: alignment)
+            await recorder?.annotateCapture(id: capture.id, registration: registrationAtCapture)
             // In shadow, after the VLM has returned; the verdict below is
             // published without waiting for it.
             if let shadowRecorder {

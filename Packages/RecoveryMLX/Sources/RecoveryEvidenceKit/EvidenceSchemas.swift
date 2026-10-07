@@ -190,13 +190,16 @@ public struct GeometricFitRecord: Codable, Sendable {
     /// attempt was inconclusive and fell through to the VLM.
     public let conclusive: Bool
     public let createdAt: Date
+    /// Which lattice alternative set `latticeMargin`; the same names as
+    /// `VerificationWindowFrame.latticeRunnerUp`. Absent when no sweep ran.
+    public var latticeRunnerUp: String?
 
     public init(
         fitVersion: Int, fitID: UUID, sessionID: UUID, passIndex: Int, candidateIndex: Int,
         stepID: String, score: Float, inlierFraction: Float, visibleFraction: Float,
         unexplainedFraction: Float, phantomFraction: Float, rmsResidual: Float,
         latticeMargin: Float, worldFromModel: [Float], disqualification: FitDisqualification,
-        conclusive: Bool, createdAt: Date
+        conclusive: Bool, createdAt: Date, latticeRunnerUp: String? = nil
     ) {
         self.fitVersion = fitVersion
         self.fitID = fitID
@@ -215,6 +218,7 @@ public struct GeometricFitRecord: Codable, Sendable {
         self.disqualification = disqualification
         self.conclusive = conclusive
         self.createdAt = createdAt
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -235,6 +239,7 @@ public struct GeometricFitRecord: Codable, Sendable {
         case disqualification
         case conclusive
         case createdAt = "created_at"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 
@@ -435,11 +440,19 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
     /// `cameraTransform`. Verification window poses are row-major; this one
     /// is not.
     public let worldFromModel: [Float]?
+    /// The live registration when the photo was taken (AR photo checks):
+    /// its state, lattice margin and runner-up, so a label derived from
+    /// `worldFromModel` can be refused when the pose was near a lattice
+    /// alias. Absent for recovery captures and older sessions.
+    public var registrationState: String?
+    public var latticeMargin: Float?
+    public var latticeRunnerUp: String?
 
     public init(
         captureID: UUID, imageRelativePath: String, cameraTransform: [Float],
         cameraIntrinsics: [Float], cameraImageResolution: [Float], alignmentID: UUID,
-        angle: String, capturedAt: Date, worldFromModel: [Float]? = nil
+        angle: String, capturedAt: Date, worldFromModel: [Float]? = nil,
+        registrationState: String? = nil, latticeMargin: Float? = nil, latticeRunnerUp: String? = nil
     ) {
         self.captureID = captureID
         self.imageRelativePath = imageRelativePath
@@ -450,6 +463,9 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         self.angle = angle
         self.capturedAt = capturedAt
         self.worldFromModel = worldFromModel
+        self.registrationState = registrationState
+        self.latticeMargin = latticeMargin
+        self.latticeRunnerUp = latticeRunnerUp
     }
 
     enum CodingKeys: String, CodingKey {
@@ -462,6 +478,9 @@ public struct EvidenceCaptureRecord: Codable, Sendable {
         case angle
         case capturedAt = "captured_at"
         case worldFromModel = "world_from_model"
+        case registrationState = "registration_state"
+        case latticeMargin = "lattice_margin"
+        case latticeRunnerUp = "lattice_runner_up"
     }
 }
 

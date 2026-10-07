@@ -373,10 +373,11 @@ actor DepthICPTracker {
         // floor can never become a lock candidate, so the sweep is skipped
         // and the margin reports 0 — no distinctiveness evidence.
         var margin: Float = 0
+        var runnerUp: LatticeAlternative?
         if inlierFraction >= configuration.lostInlierFraction {
             margin = .greatestFiniteMagnitude
             let currentCost = max(current.meanClampedCost, 1e-9)
-            for alternative in latticeAlternatives(sample: sample, pose: pose, configuration: configuration) {
+            for (kind, alternative) in latticeAlternatives(sample: sample, pose: pose, configuration: configuration) {
                 let altCost = cost(
                     sample: sample, frame: frame, pose: alternative,
                     rejection: tight, configuration: configuration
@@ -389,7 +390,12 @@ actor DepthICPTracker {
                 } else {
                     ratio = altCost.meanClampedCost / currentCost
                 }
-                margin = min(margin, ratio)
+                // Exactly `min(margin, ratio)` — ties and NaN keep the
+                // earlier value — while remembering which alternative set it.
+                if ratio < margin {
+                    margin = ratio
+                    runnerUp = kind
+                }
             }
         }
 
@@ -397,7 +403,8 @@ actor DepthICPTracker {
             RegistrationQuality(
                 rmsResidual: rms,
                 inlierFraction: inlierFraction,
-                latticeMargin: margin
+                latticeMargin: margin,
+                latticeRunnerUp: runnerUp
             ),
             visibleFraction
         )
@@ -464,18 +471,23 @@ actor DepthICPTracker {
         return summary
     }
 
-    private static func latticeAlternatives(
+    /// The competing hypotheses, in a fixed order: ±x, ±z, then the yaws.
+    static func latticeAlternatives(
         sample: ModelSurfaceSample,
         pose: simd_float4x4,
         configuration: Configuration
-    ) -> [simd_float4x4] {
-        var alternatives: [simd_float4x4] = []
+    ) -> [(LatticeAlternative, simd_float4x4)] {
+        var alternatives: [(LatticeAlternative, simd_float4x4)] = []
         let pitch = configuration.studPitch
-        for shift in [SIMD3<Float>(pitch, 0, 0), SIMD3(-pitch, 0, 0), SIMD3(0, 0, pitch), SIMD3(0, 0, -pitch)] {
+        let shifts: [(LatticeAlternative, SIMD3<Float>)] = [
+            (.shiftXPositive, SIMD3(pitch, 0, 0)), (.shiftXNegative, SIMD3(-pitch, 0, 0)),
+            (.shiftZPositive, SIMD3(0, 0, pitch)), (.shiftZNegative, SIMD3(0, 0, -pitch)),
+        ]
+        for (kind, shift) in shifts {
             let world4 = pose * SIMD4(shift, 0)
             var shifted = pose
             shifted.columns.3 += SIMD4(world4.x, world4.y, world4.z, 0)
-            alternatives.append(shifted)
+            alternatives.append((kind, shifted))
         }
 
         var minimum = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
@@ -486,12 +498,12 @@ actor DepthICPTracker {
         }
         let extent = maximum - minimum
         let centroid = (minimum + maximum) / 2
-        var yaws: [Float] = [.pi]
+        var yaws: [(LatticeAlternative, Float)] = [(.yaw180, .pi)]
         let planar = max(extent.x, extent.z)
         if planar > 0, abs(extent.x - extent.z) / planar < 0.15 {
-            yaws.append(.pi / 2)
+            yaws.append((.yaw90, .pi / 2))
         }
-        for yaw in yaws {
+        for (kind, yaw) in yaws {
             var rotation = matrix_identity_float4x4
             let cosYaw = cos(yaw)
             let sinYaw = sin(yaw)
@@ -502,7 +514,7 @@ actor DepthICPTracker {
             var fromCentroid = matrix_identity_float4x4
             fromCentroid.columns.3 = SIMD4(centroid, 1)
             // Rotate about the model centroid, in model frame.
-            alternatives.append(pose * fromCentroid * rotation * toCentroid)
+            alternatives.append((kind, pose * fromCentroid * rotation * toCentroid))
         }
         return alternatives
     }

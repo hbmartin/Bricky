@@ -108,7 +108,11 @@ Mutable over the session's life:
   `captured_at`, and optional `world_from_model` (16 floats, column-major
   4×4, the same layout as `camera_transform`): the locked registration's
   model pose, recorded only for AR photo checks (ADR 0007 amendment 3).
-  Verification-window poses are row-major; this one is not.
+  Verification-window poses are row-major; this one is not. AR photo checks
+  also stamp the live registration the photo was taken under:
+  optional `registration_state`, `lattice_margin` and `lattice_runner_up`
+  (names below). A label derived from `world_from_model` can then be
+  refused when the pose sat near a lattice alias.
 - `staged` — nullable `StagedFixtureDeclaration`:
   `expected_completed_count` (0 = not started), `lighting`
   (`bright`/`dim`/`mixed`), `occlusion` (`none`/`partial`/`heavy`),
@@ -156,6 +160,16 @@ considered, what each scored, and — when the truth lost — which term beat it
 | `disqualification` | string | `none`, `vertical_deviation`, `horizontal_deviation` |
 | `conclusive` | bool | true on the candidate the attempt concluded with |
 | `created_at` | ISO-8601 | |
+| `lattice_runner_up` | string? | the alternative that set `lattice_margin`; absent when no sweep ran |
+
+**Lattice runner-up.** The tracker scores six competing poses against the
+fit (ADR 0009) and keeps the smallest cost ratio as `lattice_margin`.
+`lattice_runner_up` names the one that set it, in the model frame:
+`shift_x_pos`, `shift_x_neg`, `shift_z_pos`, `shift_z_neg` (one stud along
+the model's x or z), `yaw_180`, or `yaw_90` (near-square footprints only).
+It is absent when no sweep ran (the fit was below the loss floor) or when
+every alternative left the image. It is evidence only: the lock rule reads
+the margin alone.
 
 `unexplained_fraction` and `phantom_fraction` weigh into `score` identically,
 so without both a losing candidate cannot be told from one that lost the
@@ -211,7 +225,8 @@ A `VerificationWindowRecord` holds:
 
 Each entry in `frames` has `frame_id`, `registration_state`,
 `world_from_model` (row-major 4x4), `rms_residual`, `inlier_fraction`,
-`lattice_margin`, `verdict_after` and `ingest_ms`.
+`lattice_margin`, `verdict_after` and `ingest_ms`, plus the optional
+`lattice_runner_up` (see `fits.ndjson`).
 
 Each frame's planes sit under `windows/frames/`, named by an
 `EvidenceDepthFrameRecord` sidecar whose `capture_id` is the frame id.

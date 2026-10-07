@@ -35,7 +35,8 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
                         inlierFraction: sample.registration.quality.inlierFraction,
                         latticeMargin: sample.registration.quality.latticeMargin,
                         verdictAfter: sample.result.verdict.evidenceName,
-                        ingestMilliseconds: sample.ingestMilliseconds
+                        ingestMilliseconds: sample.ingestMilliseconds,
+                        latticeRunnerUp: sample.registration.quality.latticeRunnerUp?.rawValue
                     )
                 },
                 verdict: verification.verdict.evidenceName,

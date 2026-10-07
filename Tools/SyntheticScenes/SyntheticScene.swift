@@ -89,6 +89,13 @@ struct RegistrationOutcome {
     let yawErrorDegrees: Float
     let reportedAmbiguous: Bool
     let latencyMilliseconds: Int
+    /// Signed error along world x and z (the truth is the origin, so these
+    /// are the final translation): what tells a one-pitch slip from noise.
+    var translationErrorX: Float = 0
+    var translationErrorZ: Float = 0
+    /// The last frame's lattice margin and the alternative that set it.
+    var latticeMargin: Float = 0
+    var latticeRunnerUp: LatticeAlternative? = nil
 }
 
 extension Duration {
@@ -439,7 +446,11 @@ struct SyntheticScene {
             translationErrorMeters: simd_length(translation),
             yawErrorDegrees: abs(yaw),
             reportedAmbiguous: lastQuality.latticeMargin < 1.3,
-            latencyMilliseconds: duration.milliseconds
+            latencyMilliseconds: duration.milliseconds,
+            translationErrorX: translation.x,
+            translationErrorZ: translation.z,
+            latticeMargin: lastQuality.latticeMargin,
+            latticeRunnerUp: lastQuality.latticeRunnerUp
         )
     }
 
@@ -519,18 +530,29 @@ enum Row {
         ambiguityExpected: Bool,
         outcome: RegistrationOutcome
     ) throws -> String {
-        try encode([
+        var row: [String: Any] = [
             "kind": "registration",
             "provenance": "synthetic",
             "schema_version": 1,
             "fixture_id": fixture,
             "converged": outcome.converged,
             "translation_error_m": Double(outcome.translationErrorMeters),
+            "translation_error_x_m": Double(outcome.translationErrorX),
+            "translation_error_z_m": Double(outcome.translationErrorZ),
             "yaw_error_degrees": Double(outcome.yawErrorDegrees),
             "ambiguity_expected": ambiguityExpected,
             "reported_ambiguous": outcome.reportedAmbiguous,
             "latency_ms": outcome.latencyMilliseconds,
-        ])
+        ]
+        // A margin above Float's range is "no alternative competed"; JSON
+        // has no infinity, and the runner-up is absent in that case anyway.
+        if outcome.latticeMargin.isFinite, outcome.latticeMargin < .greatestFiniteMagnitude {
+            row["lattice_margin"] = Double(outcome.latticeMargin)
+        }
+        if let runnerUp = outcome.latticeRunnerUp {
+            row["lattice_runner_up"] = runnerUp.rawValue
+        }
+        return try encode(row)
     }
 
     static func verification(

@@ -167,3 +167,13 @@ for the colour plane only, and only behind a developer setting:
 - **The mask.** The occluder mask is still recorded only.
 - **Cost.** Relay extraction p95 with evidence off is a Phase 1 check
   (`NEXT_STEPS_AND_FOLLOWUP.md` §1a).
+
+## Note (2026-10-07, iOS 27 Phase 4): lattice evidence
+
+Window frames and fit records gain `lattice_runner_up`, the alternative pose
+that came closest to the fit. Photo-check captures gain the registration
+they were taken under: its state, lattice margin and runner-up. These are a
+few numbers from the solver, describing the user's own build; no image,
+depth or new channel is recorded. They exist so Phase 1 can measure stud
+lattice aliasing, the entry criterion for stud keypoints. Consent and egress
+are unchanged.

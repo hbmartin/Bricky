@@ -105,6 +105,22 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         }
     }
 
+    /// Stamps the live registration a photo was taken under onto its
+    /// capture record: state, lattice margin and runner-up. Evidence only —
+    /// it lets a label derived from the capture's pose be refused when the
+    /// pose sat near a lattice alias. A capture not in this session is
+    /// ignored.
+    func annotateCapture(id: UUID, registration: ModelRegistration?) {
+        guard let registration,
+              let index = session.captures.firstIndex(where: { $0.captureID == id }) else { return }
+        perform("annotate capture") {
+            session.captures[index].registrationState = registration.state.rawValue
+            session.captures[index].latticeMargin = registration.quality.latticeMargin
+            session.captures[index].latticeRunnerUp = registration.quality.latticeRunnerUp?.rawValue
+            try writeSessionFile()
+        }
+    }
+
     /// Copies the board before the caller's `defer` deletes it, writes every
     /// tile, and appends the trace row.
     func recordPass(
