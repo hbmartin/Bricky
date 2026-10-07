@@ -98,6 +98,7 @@ targets:
       - Bricky/Domain/VerificationEvidenceReplay.swift
       - Bricky/Domain/BuildDiffDomain.swift
       - Bricky/Domain/RepairDomain.swift
+      - Bricky/Domain/StudDomain.swift
       - Bricky/Services/Instructions/LDrawInstructionParser.swift
       - Bricky/Services/Instructions/InstructionPlanBuilder.swift
       - Bricky/Services/Instructions/LDrawGeometryEngine.swift
@@ -192,6 +193,7 @@ targets:
       - BrickyTests/MemoryGovernorTests.swift
       - BrickyTests/BackgroundURLSessionDeliveryTests.swift
       - BrickyTests/PhysicalBuildLabelStoreTests.swift
+      - BrickyTests/StudIndexTests.swift
     dependencies:
       - target: Bricky
       - package: RecoveryMLX
