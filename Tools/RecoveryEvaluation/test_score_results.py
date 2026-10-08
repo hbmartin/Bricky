@@ -225,6 +225,42 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
         self.assert_rejected("unknown views", capture_angle="center,above")
         self.assert_rejected("repeats a view", capture_angle="center,center")
 
+    def test_geometric_rows_show_their_adjacent_candidate_through_scored_steps(self) -> None:
+        # A device geometric-only row has no board slots; the old preflight
+        # refused every one of them.
+        rows = self.release_rows()
+        rows[3].update(
+            estimator_method="geometric", candidate_slots={},
+            scored_step_ids=["main.ldr#1", "main.ldr#2", "main.ldr#3"],
+        )
+        validate_rows(rows)
+        validate_release_corpus(rows)
+        self.assert_rejected(
+            "no explicitly represented adjacent-step candidate",
+            estimator_method="geometric", candidate_slots={}, scored_step_ids=["main.ldr#2", "main.ldr#5"],
+        )
+        self.assert_rejected(
+            "no explicitly represented adjacent-step candidate", estimator_method="geometric", candidate_slots={},
+        )
+
+    def test_a_thermal_deferred_composite_row_counts_its_fitted_steps(self) -> None:
+        # The VLM never ran, so the row has no slots, but its geometric leg
+        # fitted the neighbours.
+        rows = self.release_rows()
+        rows[3].update(
+            estimator_method="composite", certainty="insufficient", ranked_step_ids=[], top_step_index=None,
+            candidate_slots={}, scored_step_ids=["main.ldr#3"],
+        )
+        validate_rows(rows)
+        validate_release_corpus(rows)
+
+    def test_scored_step_ids_must_be_a_list_of_step_ids(self) -> None:
+        for bad in ("main.ldr#1", [1, 2]):
+            row = benchmark_row()
+            row["scored_step_ids"] = bad
+            with self.assertRaisesRegex(SystemExit, "scored_step_ids must be a list"):
+                validate_rows([row])
+
     def test_complete_physical_corpus_passes_preflight(self) -> None:
         rows = self.release_rows()
         validate_rows(rows)

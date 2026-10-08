@@ -239,8 +239,9 @@ gate's bound to clear its threshold. Release-gate runs must never use
 Every release row therefore also includes `physical_case: true`, a stable
 `authored_model_id`, `legal_use_confirmed: true`, and non-empty
 `lighting_condition`, `capture_angle`, and `occlusion_condition` labels. Each
-row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
-the scorer requires at least two distinct lighting and occlusion labels and
+row must show a step adjacent to `expected_step_index`, either in
+`candidate_slots` (the VLM board) or in `scored_step_ids` (the steps the
+geometric leg fitted, since a geometric row has no board); the scorer requires at least two distinct lighting and occlusion labels and
 at least 6 distinct authored model IDs. `capture_angle` is the comma-joined
 set of views the session captured (normally `left,center,right`) and must
 include `center` plus a side view. Viewing variety comes from

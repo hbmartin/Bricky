@@ -49,6 +49,9 @@ extension RecoveryEvidenceRecorder {
             )
             let peaks = rows.compactMap { $0.inference?.memoryAfter?.lifetimePeakBytes ?? $0.memoryFootprintBytes }
             let slotSource = voting.first(where: { $0.captureAngle == CaptureAngle.center.rawValue }) ?? voting.first
+            // A geometric row has no board slots; the steps it fitted are
+            // what show it was asked to tell neighbours apart.
+            let fits = loadFitRecords()
             let row = RecoveryBenchmarkV1(
                 schemaVersion: RecoveryBenchmarkV1.schemaVersion,
                 fixtureID: sessionID.uuidString,
@@ -94,7 +97,8 @@ extension RecoveryEvidenceRecorder {
                 decodeMillisecondsTotal: decode.isEmpty ? nil : decode.reduce(0) { $0 + $1.decodeMilliseconds },
                 batteryState: start?.batteryState,
                 lowPowerMode: start?.lowPowerMode,
-                latencyScope: "estimate_wall_clock"
+                latencyScope: "estimate_wall_clock",
+                scoredStepIDs: fits.isEmpty ? nil : fits.scoredStepIDs
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]

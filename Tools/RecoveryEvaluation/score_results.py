@@ -118,6 +118,11 @@ RECOVERY_REQUIRED_FIELDS = {
 # schema never carried, so every row silently bucketed as composite and the
 # geometric latency gate could not fire.
 ESTIMATOR_METHODS = {"geometric", "composite", "vlm"}
+# Steps the geometric leg fitted (RecoveryBenchmarkV1.scoredStepIDs, mirrored
+# in RecoveryBenchmarkWriterTests). Optional: a VLM-only row has none. The
+# adjacency rule reads it beside `candidate_slots`, because a geometric row
+# shows no board slots at all.
+SCORED_STEP_IDS_FIELD = "scored_step_ids"
 
 RELEASE_FIELDS = {
     "physical_case",
@@ -375,6 +380,11 @@ def validate_rows(rows: list[dict[str, object]]) -> None:
             raise SystemExit(f"row {index} missing fields: {', '.join(missing)}")
         if not isinstance(row["ranked_step_ids"], list):
             raise SystemExit(f"row {index} ranked_step_ids must be a list")
+        scored = row.get(SCORED_STEP_IDS_FIELD)
+        if scored is not None and (
+            not isinstance(scored, list) or not all(isinstance(step_id, str) for step_id in scored)
+        ):
+            raise SystemExit(f"row {index} {SCORED_STEP_IDS_FIELD} must be a list of step ids")
         if row["certainty"] not in {"high", "medium", "low", "insufficient"}:
             raise SystemExit(f"row {index} has invalid certainty")
         if row["estimator_method"] not in ESTIMATOR_METHODS:
@@ -452,6 +462,23 @@ def elevation_band(value: object, label: str) -> str:
     return "low" if float(value) < low else ("mid" if float(value) <= high else "high")
 
 
+def has_adjacent_candidate(row: dict[str, object]) -> bool:
+    """Whether the estimate was asked to tell the expected step from a
+    neighbour: a VLM board slot or a geometric fit one step away. A
+    geometric-only row has no board slots, and a thermal-deferred composite
+    row's VLM never ran, so the fitted steps count too."""
+    slots = row.get("candidate_slots")
+    candidates: list[object] = list(slots.values()) if isinstance(slots, dict) else []
+    scored = row.get(SCORED_STEP_IDS_FIELD)
+    if isinstance(scored, list):
+        candidates.extend(scored)
+    expected = row["expected_step_index"]
+    return any(
+        (candidate := step_index(step_id)) is not None and abs(candidate - expected) == 1
+        for step_id in candidates
+    )
+
+
 def validate_release_corpus(rows: list[dict[str, object]]) -> None:
     """Provenance preflight for release mode. It checks what the rows are,
     not how many there are: sample size is judged per gate by its bound."""
@@ -488,12 +515,7 @@ def validate_release_corpus(rows: list[dict[str, object]]) -> None:
             if not isinstance(value, str) or not value.strip():
                 raise SystemExit(f"release row {index} {field} must be non-empty")
             values.add(value.strip().casefold())
-        slots = row.get("candidate_slots")
-        expected = row["expected_step_index"]
-        if not isinstance(slots, dict) or not any(
-            (candidate := step_index(step_id)) is not None and abs(candidate - expected) == 1
-            for step_id in slots.values()
-        ):
+        if not has_adjacent_candidate(row):
             raise SystemExit(f"release row {index} has no explicitly represented adjacent-step candidate")
     if len(models) < MINIMUM_AUTHORED_MODELS:
         raise SystemExit(

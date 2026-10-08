@@ -274,6 +274,19 @@ public struct GeometricFitRecord: Codable, Sendable {
     }
 }
 
+extension Array where Element == GeometricFitRecord {
+    /// Each fitted step once, in candidate-index (plan) order: a benchmark
+    /// row's `scored_step_ids`.
+    public var scoredStepIDs: [String] {
+        var seen: Set<String> = []
+        var ordered: [String] = []
+        for fit in sorted(by: { $0.candidateIndex < $1.candidateIndex }) where seen.insert(fit.stepID).inserted {
+            ordered.append(fit.stepID)
+        }
+        return ordered
+    }
+}
+
 /// Advisory certainty of a recovery estimate, shared by the app's domain and
 /// benchmark rows.
 public enum RecoveryCertainty: String, Codable, Hashable, Sendable {
@@ -859,6 +872,11 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     /// What `latency_ms` measures: `estimate_wall_clock` on device; replay
     /// rows say which replayed calls they sum.
     public let latencyScope: String?
+    /// The steps the geometric leg fitted, in plan order. A geometric row
+    /// has no board slots, so without these the release preflight could not
+    /// see that the estimate was asked to tell the expected step from its
+    /// neighbour. Absent when no geometric fit ran.
+    public let scoredStepIDs: [String]?
 
     public init(
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
@@ -874,7 +892,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         thermalStateStart: String? = nil, thermalStateEnd: String? = nil, secondsSinceARStart: Double? = nil,
         latencyBucket: LatencyBucket? = nil, vlmCalls: Int? = nil, prefillMillisecondsTotal: Int? = nil,
         decodeMillisecondsTotal: Int? = nil, batteryState: String? = nil, lowPowerMode: Bool? = nil,
-        latencyScope: String? = nil
+        latencyScope: String? = nil, scoredStepIDs: [String]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.fixtureID = fixtureID
@@ -915,6 +933,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.batteryState = batteryState
         self.lowPowerMode = lowPowerMode
         self.latencyScope = latencyScope
+        self.scoredStepIDs = scoredStepIDs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -957,6 +976,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case batteryState = "battery_state"
         case lowPowerMode = "low_power_mode"
         case latencyScope = "latency_scope"
+        case scoredStepIDs = "scored_step_ids"
     }
 }
 
