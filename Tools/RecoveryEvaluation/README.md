@@ -100,6 +100,27 @@ Mac harness: `bricky-harness recompose` rebuilds boards from evidence bundles,
 and `bricky-harness synth-bundle` draws synthetic fixtures through it. The
 Python tools here need nothing beyond the standard library.
 
+## Phase 1 report (`phase1_report.py`)
+
+One command turns exported Phase 1 bundles into every readout
+(docs/PHASE1_RUNBOOK.md):
+
+```sh
+python3 -I phase1_report.py bundle-a/ bundle-b/ --work report/ [--strict]
+```
+
+It merges each session's device rows by kind (a session exported twice
+counts once), scores each kind in release mode in its own run on the rows the
+preflight accepts (never requiring registration rows, which the device does
+not make), and scores everything informationally. It also prints the
+readouts no other tool computes: `TERMINATION`, `ADMISSION` (the worst
+measured model cost plus 25%, ADR 0003), `SHADOW_ADVISOR` per OS build,
+`COLOUR_ENCODING`, `RELAY_AUX_EXTRACT`, `SEGMENTATION`, `RECORDER`, `COUNTS`
+and the device `VERTICAL_CONTEST`. Synthetic bundles are flagged and kept
+out of every device readout and release run. `report/phase1_report.json`
+holds everything; `--strict` exits 1 when a release run failed or was
+refused.
+
 ## Producing rows: the evidence workflow (ADR 0007)
 
 Benchmark rows come from evidence bundles recorded on device and replayed on
