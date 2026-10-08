@@ -55,7 +55,9 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
 
 Phase 2 built these without a device. Everything here is off, in shadow,
 or behind a flag until its row is measured. Record each result in the
-evidence bundle or the PR that flips the flag.
+evidence bundle or the PR that flips the flag. How each item is measured,
+and the one command that produces every readout (`phase1_report.py`), is
+in [PHASE1_RUNBOOK.md](PHASE1_RUNBOOK.md).
 
 1. **Staged photo checks, negatives included.** Run staged sessions with
    photo checks, including steps left short. The `check.ndjson` rows must
