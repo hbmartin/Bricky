@@ -130,6 +130,16 @@ final class RepairPlanningTests: XCTestCase {
         XCTAssertFalse(plan.actions.contains { $0.target.placement == 2 }, "an earlier step's part is not this plan's")
     }
 
+    /// A whole turn or a zero offset changes nothing, so it plans nothing
+    /// (the cross-step planner already behaves so).
+    func testNoOpDiffsPlanNothing() {
+        let diff = BuildDiff(stepID: "main.ldr#3", observations: [
+            PlacementObservation(placement: 5, state: .rotated(quarterTurns: 4), evidence: PlacementEvidence()),
+            PlacementObservation(placement: 6, state: .displaced(LatticeOffset(dx: 0)), evidence: PlacementEvidence())
+        ], framesUsed: 9)
+        XCTAssertNil(RepairPlanner.plan(diff: diff, context: context, flags: RepairFeatureFlags(buildDiffInput: true)))
+    }
+
     func testAWrongColourPartIsSwappedForTheAuthoredColour() throws {
         let diff = BuildDiff(stepID: "main.ldr#3", observations: [
             PlacementObservation(placement: 5, state: .colourMismatch, evidence: PlacementEvidence())
