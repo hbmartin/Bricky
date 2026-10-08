@@ -59,6 +59,11 @@ actor BuildDiffEngine: StepJudging {
     private(set) var lastDiff: BuildDiff?
     /// Renders of the most recent per-placement pass, for the budget test.
     private(set) var lastPassRenders = 0
+    /// Awaited right after the per-placement render. Tests only, to hold a
+    /// pass there; nil in the app.
+    private var afterPlacementRender: (@Sendable () async -> Void)?
+    /// Placements holding votes, for tests.
+    var votedPlacementCount: Int { evidence.count }
 
     init(
         configuration: Configuration = Configuration(), renderer: ExpectedDepthRenderer? = nil,
@@ -76,6 +81,10 @@ actor BuildDiffEngine: StepJudging {
 
     func setPolicy(_ policy: DiffStepVerdictAdapter.Policy) {
         self.policy = policy
+    }
+
+    func setAfterPlacementRender(_ hook: (@Sendable () async -> Void)?) {
+        afterPlacementRender = hook
     }
 
     func begin(stepID: String, geometry: StepGeometry) async {
@@ -121,7 +130,8 @@ actor BuildDiffEngine: StepJudging {
             let stride = max(1, configuration.placementStride)
             if frameIndex % stride == configuration.placementPhase % stride {
                 renders = try await placementPass(
-                    maps: maps, frame: frame, geometry: geometry, segments: segments, timeline: timeline
+                    maps: maps, frame: frame, geometry: geometry, segments: segments, timeline: timeline,
+                    started: started
                 )
                 guard started == generation else { return verification }
                 lastPassRenders = renders
@@ -142,7 +152,7 @@ actor BuildDiffEngine: StepJudging {
 
     private func placementPass(
         maps: GeometricStepVerifier.FrameMaps, frame: RegistrationFrameInput, geometry: StepGeometry,
-        segments: SegmentedGeometry, timeline: DepthGeometry
+        segments: SegmentedGeometry, timeline: DepthGeometry, started: Int
     ) async throws -> Int {
         let delta = Array(geometry.deltaPlacements)
         let single = delta.count == 1
@@ -160,6 +170,10 @@ actor BuildDiffEngine: StepJudging {
         let rendered = planned.isEmpty ? [] : try await renderer.render(
             planned.map(\.request), intrinsics: frame.depthIntrinsics, width: frame.width, height: frame.height
         )
+        if let afterPlacementRender { await afterPlacementRender() }
+        // A begin or reset during the render cleared the evidence: this
+        // frame belongs to what came before, so it must not vote.
+        guard started == generation else { return planned.count }
         for placement in chosen {
             let alone = single
                 ? maps.delta
