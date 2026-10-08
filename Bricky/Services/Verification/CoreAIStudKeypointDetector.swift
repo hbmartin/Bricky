@@ -82,10 +82,12 @@ actor CoreAIStudKeypointDetector: StudKeypointDetecting {
         guard let output = outputs.remove(Self.outputName)?.ndArray else {
             throw DetectorError.missingOutput(Self.outputName)
         }
-        // [1, 1, h, w] float16 likelihoods.
+        // [1, 1, h, w] float16 likelihoods, non-empty. The type is checked
+        // here because `view(as:)` traps on a mismatch rather than throwing.
         let shape = output.shape
-        guard shape.count == 4, shape[0] == 1, shape[1] == 1 else {
-            throw DetectorError.missingOutput("\(Self.outputName) has shape \(shape)")
+        guard shape.count == 4, shape[0] == 1, shape[1] == 1, shape[2] > 0, shape[3] > 0,
+              output.scalarType == .float16 else {
+            throw DetectorError.missingOutput("\(Self.outputName) has shape \(shape) \(output.scalarType)")
         }
         let outputStrides = output.strides
         var values = [Float](repeating: 0, count: shape[2] * shape[3])
