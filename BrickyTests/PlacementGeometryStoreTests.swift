@@ -144,6 +144,48 @@ final class PlacementGeometryStoreTests: XCTestCase {
         XCTAssertEqual(builds, 1)
     }
 
+    /// Holds the first build until released.
+    private actor BuildGate {
+        private(set) var isHolding = false
+        private var hasHeld = false
+        private var held: CheckedContinuation<Void, Never>?
+
+        func holdOnce() async {
+            guard !hasHeld else { return }
+            hasHeld = true
+            isHolding = true
+            await withCheckedContinuation { held = $0 }
+        }
+
+        func release() {
+            held?.resume()
+            held = nil
+        }
+    }
+
+    /// The AR guide closing during a build must not leave that build's
+    /// geometry in memory.
+    func testAPurgeDuringABuildLeavesNothingCached() async throws {
+        let plan = try makePlan()
+        let gate = BuildGate()
+        let store = PlacementGeometryStore(build: { plan, sourceRoot, partPackRoot in
+            await gate.holdOnce()
+            return try await PlacementGeometryStore.flatten(plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        })
+        let (source, pack) = (source!, pack!)
+        let first = Task { try await store.geometry(for: plan, sourceRoot: source, partPackRoot: pack) }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await !gate.isHolding, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        await store.purge()
+        await gate.release()
+        _ = try await first.value
+        _ = try await store.geometry(for: plan, sourceRoot: source, partPackRoot: pack)
+        let builds = await store.buildCount
+        XCTAssertEqual(builds, 2, "the purged build's geometry was cached anyway")
+    }
+
     func testKeyIncludesPartPackRoot() async throws {
         let plan = try makePlan()
         let store = PlacementGeometryStore()
