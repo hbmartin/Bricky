@@ -221,48 +221,10 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
     }
 
     /// Writes a frame's planes beside `<stem>.json`, the sidecar that names
-    /// them. Colour and mask are written only when the frame carries them.
+    /// them. A frame whose planes do not fill its grid is refused before any
+    /// file is written.
     func writeDepthFrame(_ frame: RegistrationFrameInput, id: UUID, stem: String) throws {
-        try write(frame.depth, to: "\(stem).depth")
-        try write(frame.confidence, to: "\(stem).confidence")
-        var rawDepthPath: String?
-        var rawConfidencePath: String?
-        if let rawDepth = frame.rawDepth, let rawConfidence = frame.rawConfidence {
-            rawDepthPath = "\(stem).raw-depth"
-            rawConfidencePath = "\(stem).raw-confidence"
-            try write(rawDepth, to: rawDepthPath!)
-            try write(rawConfidence, to: rawConfidencePath!)
-        }
-        var colourPath: String?
-        if let colour = frame.colour, colour.count == frame.width * frame.height * 3 {
-            colourPath = "\(stem).colour"
-            try write(colour, to: colourPath!)
-        }
-        var maskPath: String?
-        if let mask = frame.occluderMask, mask.count == frame.width * frame.height {
-            maskPath = "\(stem).occluder"
-            try write(mask, to: maskPath!)
-        }
-        let record = EvidenceDepthFrameRecord(
-            depthVersion: EvidenceSchema.depthVersion,
-            captureID: id,
-            width: frame.width,
-            height: frame.height,
-            depthIntrinsics: (0..<3).flatMap { column in
-                (0..<3).map { row in frame.depthIntrinsics[column][row] }
-            },
-            worldFromCamera: frame.worldFromCamera.rowMajorValues,
-            timestamp: frame.timestamp,
-            depthRelativePath: "\(stem).depth",
-            confidenceRelativePath: "\(stem).confidence",
-            rawDepthRelativePath: rawDepthPath,
-            rawConfidenceRelativePath: rawConfidencePath,
-            colourRelativePath: colourPath,
-            occluderMaskRelativePath: maskPath,
-            colourEncoding: colourPath == nil ? nil : frame.colourEncoding
-        )
-        try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
-            .write(to: sessionDirectory.appendingPathComponent("\(stem).json"), options: .atomic)
+        try frame.writeEvidence(id: id, stem: stem, in: sessionDirectory)
     }
 
     /// Depth sidecars written so far, decoded back from `depth/*.json`.
@@ -388,17 +350,6 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         var line = try EvidenceSchema.encoder().encode(row)
         line.append(UInt8(ascii: "\n"))
         try append(line, to: "traces.ndjson")
-    }
-
-    /// Writes a numeric plane as raw little-endian binary, row-major, so any
-    /// reader can reshape it without a decoder.
-    func write<Element>(_ values: [Element], to relativePath: String) throws {
-        try values.withUnsafeBufferPointer { buffer in
-            try Data(buffer: buffer).write(
-                to: sessionDirectory.appendingPathComponent(relativePath),
-                options: .atomic
-            )
-        }
     }
 
     /// Appends already-encoded NDJSON bytes to a session file, creating it on

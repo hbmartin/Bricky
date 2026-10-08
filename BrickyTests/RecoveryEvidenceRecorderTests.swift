@@ -257,6 +257,29 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertNil(record.rawConfidenceRelativePath)
     }
 
+    // Fails on the old code by behaviour: it wrote whatever it was handed, so
+    // an 11-float depth plane landed beside a 4x3 sidecar that `validate()`
+    // then reported, refusing the whole bundle to every replay.
+    func testAFrameWhosePlanesDoNotFillItsGridIsNotRecorded() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordDepthFrame(
+            RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 11),
+                confidence: [UInt8](repeating: 1, count: 12),
+                rawDepth: nil,
+                rawConfidence: nil,
+                width: 4,
+                height: 3,
+                depthIntrinsics: matrix_identity_float3x3,
+                worldFromCamera: matrix_identity_float4x4,
+                timestamp: 1
+            ),
+            captureID: UUID()
+        )
+        let frames = await recorder.loadDepthFrames()
+        XCTAssertTrue(frames.isEmpty)
+    }
+
     func testFramesAndCapturesRecordRunnerUp() async throws {
         let recorder = makeRecorder()
         let samples = [

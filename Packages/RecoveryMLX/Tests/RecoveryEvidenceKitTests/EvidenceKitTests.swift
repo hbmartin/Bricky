@@ -248,6 +248,60 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertThrowsError(try EvidenceDepthPlanes.load(record, in: loaded.directory))
     }
 
+    private func gridRecord(stem: String, raw: Bool, colour: Bool, mask: Bool) -> EvidenceDepthFrameRecord {
+        EvidenceDepthFrameRecord(
+            depthVersion: EvidenceSchema.depthVersion, captureID: UUID(), width: 4, height: 3,
+            depthIntrinsics: Array(repeating: 1, count: 9), worldFromCamera: Array(repeating: 0, count: 16),
+            timestamp: 7, depthRelativePath: "\(stem).depth", confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: raw ? "\(stem).raw-depth" : nil, rawConfidenceRelativePath: raw ? "\(stem).raw-confidence" : nil,
+            colourRelativePath: colour ? "\(stem).colour" : nil, occluderMaskRelativePath: mask ? "\(stem).occluder" : nil,
+            colourEncoding: colour ? "rgb8_bt709_full" : nil
+        )
+    }
+
+    func testDepthPlanesWriteIsTheInverseOfLoad() throws {
+        let record = gridRecord(stem: "depth/frame", raw: true, colour: true, mask: true)
+        let planes = EvidenceDepthPlanes(
+            depth: (0..<12).map { Float($0) * 0.25 },
+            confidence: (0..<12).map { UInt8($0 % 3) },
+            rawDepth: (0..<12).map { Float($0) * 0.5 },
+            rawConfidence: Array(repeating: 2, count: 12),
+            colour: (0..<36).map { UInt8($0) },
+            occluderMask: (0..<12).map { UInt8($0 % 2) }
+        )
+        // The writer creates the plane's folder; the sidecar names it.
+        try planes.write(record, in: root)
+        let loaded = try EvidenceDepthPlanes.load(record, in: root)
+        XCTAssertEqual(loaded.depth, planes.depth)
+        XCTAssertEqual(loaded.confidence, planes.confidence)
+        XCTAssertEqual(loaded.rawDepth, planes.rawDepth)
+        XCTAssertEqual(loaded.rawConfidence, planes.rawConfidence)
+        XCTAssertEqual(loaded.colour, planes.colour)
+        XCTAssertEqual(loaded.occluderMask, planes.occluderMask)
+    }
+
+    func testAPlaneThatDoesNotFillItsGridIsRefusedBeforeAnythingIsWritten() throws {
+        let record = gridRecord(stem: "depth/short", raw: false, colour: true, mask: false)
+        // Depth and confidence are fine; the colour plane is one row short.
+        let planes = EvidenceDepthPlanes(
+            depth: Array(repeating: 1, count: 12), confidence: Array(repeating: 2, count: 12),
+            rawDepth: nil, rawConfidence: nil, colour: Array(repeating: 9, count: 33), occluderMask: nil
+        )
+        XCTAssertThrowsError(try planes.write(record, in: root)) { error in
+            XCTAssertTrue(String(describing: error).contains("expected 36"), "\(error)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(record.depthRelativePath).path),
+                       "a refused frame must leave no planes behind")
+
+        // A plane the record names but the frame lacks is refused too.
+        let missing = gridRecord(stem: "depth/missing", raw: true, colour: false, mask: false)
+        let noRaw = EvidenceDepthPlanes(
+            depth: Array(repeating: 1, count: 12), confidence: Array(repeating: 2, count: 12),
+            rawDepth: nil, rawConfidence: nil, colour: nil, occluderMask: nil
+        )
+        XCTAssertThrowsError(try noRaw.write(missing, in: root))
+    }
+
     func testStagedVerificationTruth() {
         func declared(_ scenario: StagedVerificationDeclaration.Scenario) -> StagedVerificationDeclaration {
             StagedVerificationDeclaration(scenario: scenario, lighting: .dim, occlusion: .partial, physicalCase: true, legalUseConfirmed: true)
