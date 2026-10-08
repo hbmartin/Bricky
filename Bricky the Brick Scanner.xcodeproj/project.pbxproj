@@ -203,6 +203,7 @@
 		D5C3A74A11CBE896DE4F3AF3 /* StepCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2748072D5C42BC9CAF299882 /* StepCheckView.swift */; };
 		D6DBB32B222C8A07BA765476 /* ModelSurfaceSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */; };
 		D74FBAEC6E8BDA05044C8283 /* ARActivityClockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B64D5192D964260754B754E0 /* ARActivityClockTests.swift */; };
+		D7E54820BE53305B333CB7B1 /* RecoveryBundleWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105ED90DFE564F5AF0DA7369 /* RecoveryBundleWriter.swift */; };
 		D906C8B29DF9C737336D1CE7 /* NextStepIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37DD7659319092448771928 /* NextStepIntent.swift */; };
 		D9B0DE51E66D603C431BA677 /* HierarchicalRecoveryEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7FFE05427AE9CC58CF898D /* HierarchicalRecoveryEstimator.swift */; };
 		DB38ECB9C7360E5DF5DC30DF /* ModelSurfaceSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18049C08739E172BBFECAE69 /* ModelSurfaceSampler.swift */; };
@@ -266,6 +267,7 @@
 		0C237B2E908EC68999D4995F /* DeviceConditionsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConditionsProbe.swift; sourceTree = "<group>"; };
 		0CCA0CEE6E4FF3435D43586C /* ShadowCheckRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowCheckRunner.swift; sourceTree = "<group>"; };
 		0F8380712AB853B0D3B8DEE7 /* PlacementGeometryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStoreTests.swift; sourceTree = "<group>"; };
+		105ED90DFE564F5AF0DA7369 /* RecoveryBundleWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryBundleWriter.swift; sourceTree = "<group>"; };
 		154274B40728D547EBC06DE3 /* TagRenderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagRenderCheck.swift; sourceTree = "<group>"; };
 		16E3C98EDE6E903E344E16A5 /* PlacementGeometryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementGeometryStore.swift; sourceTree = "<group>"; };
 		17A88BC5946D30CDACA646CE /* AdvancePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancePolicy.swift; sourceTree = "<group>"; };
@@ -595,6 +597,7 @@
 				60E606B83F67C20F95B66C3B /* ChallengeScenario.swift */,
 				FCCE494721D07BAB964EA55D /* LatticeSuite.swift */,
 				E4CFE86754EB7B84DB29503C /* PlacementSuggestionSuite.swift */,
+				105ED90DFE564F5AF0DA7369 /* RecoveryBundleWriter.swift */,
 				568D396F69CC5C024FDCB49F /* RecoveryReplay.swift */,
 				854BE89F8370AC9BDFCB689D /* RecoveryScenario.swift */,
 				F8C54D8089B83890A445FFBC /* RenderOrderCheck.swift */,
@@ -1029,6 +1032,7 @@
 				334D9608F8A63775657C8FA6 /* PlacementGeometryIndex.swift in Sources */,
 				C15523B38D9128BAE05738E3 /* PlacementGeometryStore.swift in Sources */,
 				5CD2E032FF04ED5ABAA9BCC0 /* PlacementSuggestionSuite.swift in Sources */,
+				D7E54820BE53305B333CB7B1 /* RecoveryBundleWriter.swift in Sources */,
 				B50D81E6542775F98B2F19AE /* RecoveryEvidence.swift in Sources */,
 				66C8C35BE1BAAA45D6F02CB0 /* RecoveryIndexing.swift in Sources */,
 				D0822D4908A29F1067D8C77F /* RecoveryReplay.swift in Sources */,

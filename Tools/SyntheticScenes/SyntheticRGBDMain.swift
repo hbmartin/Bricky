@@ -79,6 +79,9 @@ struct SyntheticRGBDMain {
         /// `--replay-bundle --suite recovery`: fail unless every replayed
         /// session reproduced the device's fits and estimate.
         var requireMatch = false
+        /// `--suite recovery`: also write the scenarios as an evidence
+        /// bundle, for the CI round trip through `--replay-bundle`.
+        var writeBundle: String?
         /// The colour term's mode for replayed windows (M3.2); nil leaves
         /// the judge depth-only, as the device ran before the term existed.
         var colourTerm: ColourTermMode?
@@ -99,7 +102,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full] | --replay-bundle <unzipped bundle> --suite recovery [--recovery-arm control|tiebreak] [--require-match]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels] [--stud-labels-bundle <unzipped bundle> [--include-confirmed]]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak] [--write-bundle <dir>]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full] | --replay-bundle <unzipped bundle> --suite recovery [--recovery-arm control|tiebreak] [--require-match]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels] [--stud-labels-bundle <unzipped bundle> [--include-confirmed]]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -152,6 +155,7 @@ struct SyntheticRGBDMain {
                 options.suite = suite
             case "--replay-bundle": options.replayBundle = value
             case "--stud-labels-bundle": options.studLabelsBundle = value
+            case "--write-bundle": options.writeBundle = value
             case "--recovery-arm":
                 guard let arm = RecoveryArm(rawValue: value) else { throw CLIError("invalid value for --recovery-arm: \(value)") }
                 options.recoveryArm = arm
@@ -179,6 +183,9 @@ struct SyntheticRGBDMain {
         // A recovery replay fits depth only; the window judges do not apply.
         if options.replayBundle != nil, options.suite == .recovery, options.colourTerm != nil || options.replayJudgeGiven {
             throw CLIError("--judge and --colour-term replay verification windows, not --suite recovery")
+        }
+        if options.writeBundle != nil, options.suite != .recovery || options.replayBundle != nil {
+            throw CLIError("--write-bundle writes the recovery suite's scenarios: use it with --suite recovery and no --replay-bundle")
         }
         if options.requireMatch, options.replayBundle == nil || options.suite != .recovery {
             throw CLIError("--require-match needs --replay-bundle with --suite recovery")
@@ -304,7 +311,10 @@ struct SyntheticRGBDMain {
             return
         }
         if options.suite == .recovery {
-            try await runRecovery(plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options)
+            try await runRecovery(
+                plan: plan, renderer: renderer, fixtureStem: fixtureStem, options: options,
+                sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles)
+            )
             return
         }
         if options.suite == .repair {
