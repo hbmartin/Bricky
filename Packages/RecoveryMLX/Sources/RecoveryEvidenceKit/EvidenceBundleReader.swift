@@ -263,7 +263,19 @@ public struct EvidenceBundleReader {
                     issues.append("\(name): window \(window.windowID) frame \(frame.frameID) has \(frame.worldFromModel.count) pose values, expected 16")
                 }
             }
+            // Window frames replay through the same geometry as depth frames
+            // (RegistrationFrameInput turns bad intrinsics into zeros and a
+            // bad pose into identity), so they get the same checks.
             for (id, frame) in session.windowFrames.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+                if frame.depthVersion != EvidenceSchema.depthVersion {
+                    issues.append("\(name): window frame \(id) has unsupported depth_version \(frame.depthVersion)")
+                }
+                if frame.depthIntrinsics.count != 9 {
+                    issues.append("\(name): window frame \(id) has \(frame.depthIntrinsics.count) intrinsics values, expected 9")
+                }
+                if frame.worldFromCamera.count != 16 {
+                    issues.append("\(name): window frame \(id) has \(frame.worldFromCamera.count) pose values, expected 16")
+                }
                 guard frame.width > 0, frame.height > 0 else {
                     issues.append("\(name): window frame \(id) has non-positive dimensions \(frame.width)x\(frame.height)")
                     continue
@@ -276,7 +288,11 @@ public struct EvidenceBundleReader {
                         issues.append("\(name): missing window plane \(path)")
                         continue
                     }
-                    if let expected = frame.expectedBytes(elementSize: bytesPerPixel), size != expected {
+                    guard let expected = frame.expectedBytes(elementSize: bytesPerPixel) else {
+                        issues.append("\(name): window frame \(id) dimensions \(frame.width)x\(frame.height) overflow")
+                        continue
+                    }
+                    if size != expected {
                         issues.append("\(name): window plane \(path) is \(size) bytes, expected \(expected)")
                     }
                 }
