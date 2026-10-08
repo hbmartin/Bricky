@@ -1159,3 +1159,71 @@ class LatticeEntryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def placement_contest_row(challenge_class: str, *, up: tuple[int, int] | None, down: tuple[int, int] | None,
+                          detectability: str = "strong") -> dict[str, object]:
+    tallies = []
+    if up is not None:
+        tallies.append({"offset": [0, 0, 1, 0], "wins_present": up[0], "wins_alternative": up[1]})
+    if down is not None:
+        tallies.append({"offset": [0, 0, -1, 0], "wins_present": down[0], "wins_alternative": down[1]})
+    return {"kind": "placement", "challenge_class": challenge_class, "detectability": detectability, "tallies": tallies}
+
+
+class VerticalContestTests(unittest.TestCase):
+    # These fail on the old code with ImportError: nothing read the ±1-plate
+    # tallies the build diff records.
+    CONTROLS = [
+        placement_contest_row("colour_swap", up=(53, 0), down=(52, 5)),
+        placement_contest_row("rot180_symmetric", up=(43, 5), down=(46, 6)),
+    ]
+
+    def report(self, rows):
+        from score_results import vertical_contest_report
+        return vertical_contest_report(rows)
+
+    def test_a_contest_that_catches_every_raised_part_and_no_control_separates(self) -> None:
+        rows = [placement_contest_row("plate_up1", up=(5, 49), down=(52, 1)),
+                placement_contest_row("plate_up1", up=(0, 36), down=(57, 0))] + self.CONTROLS
+        entry = self.report(rows)["plate_up1"]
+        self.assertEqual(entry["status"], "SEPARATES")
+        self.assertEqual((entry["decisive_cases"], entry["cases"]), (2, 2))
+        self.assertEqual(entry["evidence"], [54, 36])
+        self.assertTrue(entry["threshold_separates"])
+        self.assertEqual(entry["control_decisive_cases"], 0)
+
+    def test_a_decisive_control_overlaps_whatever_the_targets_do(self) -> None:
+        # A correct part the lowered-plate contest would block, in either direction.
+        rows = [placement_contest_row("plate_up1", up=(0, 40), down=None),
+                placement_contest_row("rot90_symmetric", up=(2, 3), down=(4, 40))]
+        self.assertEqual(self.report(rows)["plate_up1"]["status"], "OVERLAPS")
+
+    def test_thin_or_absent_evidence_is_never_decisive(self) -> None:
+        rows = [placement_contest_row("plate_down1", up=None, down=(2, 20)),  # 22 pixels, under 30
+                placement_contest_row("plate_down1", up=None, down=None)] + self.CONTROLS
+        entry = self.report(rows)["plate_down1"]
+        self.assertEqual(entry["status"], "MISSES")
+        self.assertEqual(entry["decisive_cases"], 0)
+        self.assertEqual(entry["evidence"], [22, None])
+
+    def test_only_strong_rows_count(self) -> None:
+        rows = [placement_contest_row("plate_up1", up=(0, 40), down=None, detectability="marginal")] + self.CONTROLS
+        self.assertEqual(self.report(rows)["plate_up1"]["status"], "UNMEASURED")
+
+    def test_main_prints_the_line_only_for_plate_classes(self) -> None:
+        import contextlib, io, tempfile
+        from score_results import main
+        def run(rows):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "rows.ndjson"
+                path.write_text("".join(json.dumps(dict(row, **{
+                    "schema_version": 1, "fixture_id": f"f{index}", "expected_state": "present",
+                    "produced_state": "present", "latency_ms": 1,
+                })) + "\n" for index, row in enumerate(rows)))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+                    main(path, informational=True)
+                return [line for line in out.getvalue().splitlines() if line.startswith("VERTICAL_CONTEST")]
+        self.assertEqual(len(run([placement_contest_row("plate_up1", up=(0, 40), down=None)] + self.CONTROLS)), 2)
+        self.assertEqual(run(self.CONTROLS), [])
+

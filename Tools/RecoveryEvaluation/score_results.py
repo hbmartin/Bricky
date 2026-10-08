@@ -1052,6 +1052,111 @@ def score_placement(rows: list[dict[str, object]]) -> tuple[dict[str, object], l
     return report, [gate]
 
 
+# The ±1-plate contests the build diff tallies on every placement and, by
+# design, never acts on (ADR 0008 amendment: depth cannot judge 3.2 mm, so
+# they are recorded, not concluded). Read here to measure whether they would
+# separate a raised or lowered part from a correct one. The decisive rule
+# mirrors BuildDiffEngine.classify for lateral contests: at least
+# GeometricStepVerifier.Configuration.minimumLatticeEvidence exclusive pixels,
+# with the alternative winning at least twice as often as the authored pose.
+CONTEST_MINIMUM_EVIDENCE = 30
+CONTEST_DOMINANCE = 2
+PLATE_UP_OFFSET = [0, 0, 1, 0]
+PLATE_DOWN_OFFSET = [0, 0, -1, 0]
+# Synthetic targets and the direction that would catch them; the controls
+# are placed exactly as authored, so any decisive vertical contest on them
+# would be a false block.
+VERTICAL_CONTEST_TARGETS = {"plate_up1": PLATE_UP_OFFSET, "plate_down1": PLATE_DOWN_OFFSET}
+VERTICAL_CONTEST_CONTROLS = ("colour_swap", "rot90_symmetric", "rot180_symmetric")
+
+
+def contest_tally(row: dict[str, object], offset: list[int]) -> tuple[int, int] | None:
+    """(wins_present, wins_alternative) of the row's contest at `offset`."""
+    for tally in row.get("tallies") or []:
+        if isinstance(tally, dict) and tally.get("offset") == offset:
+            return int(tally.get("wins_present", 0)), int(tally.get("wins_alternative", 0))
+    return None
+
+
+def contest_decisive(tally: tuple[int, int] | None) -> bool:
+    if tally is None:
+        return False
+    present, alternative = tally
+    return present + alternative >= CONTEST_MINIMUM_EVIDENCE and alternative >= CONTEST_DOMINANCE * present
+
+
+def contest_share(tally: tuple[int, int] | None) -> float | None:
+    if tally is None or sum(tally) == 0:
+        return None
+    return tally[1] / sum(tally)
+
+
+def vertical_contest_report(
+    rows: list[dict[str, object]],
+    targets: dict[str, list[int]] | None = None,
+    controls: tuple[str, ...] = VERTICAL_CONTEST_CONTROLS,
+    class_field: str = "challenge_class",
+) -> dict[str, object]:
+    """Whether the ±1-plate contest would block a raised or lowered part
+    without blocking a correct one, on strong rows only (a block is only
+    ever earned under strong detectability). SEPARATES: every target row is
+    decisive and no control row is. OVERLAPS: some control row is decisive,
+    so a block would refuse correct builds. MISSES: no control is decisive
+    but some target row is not. UNMEASURED: no strong rows on one side."""
+    targets = VERTICAL_CONTEST_TARGETS if targets is None else targets
+    strong = [row for row in rows if row.get("detectability") == "strong"]
+    control_rows = [row for row in strong if row.get(class_field) in controls]
+    control_tallies = [
+        tally for row in control_rows for tally in (contest_tally(row, PLATE_UP_OFFSET), contest_tally(row, PLATE_DOWN_OFFSET))
+    ]
+    control_decisive = sum(
+        contest_decisive(contest_tally(row, PLATE_UP_OFFSET)) or contest_decisive(contest_tally(row, PLATE_DOWN_OFFSET))
+        for row in control_rows
+    )
+    control_shares = [share for share in map(contest_share, control_tallies) if share is not None]
+    report: dict[str, object] = {}
+    for target, offset in targets.items():
+        target_rows = [row for row in strong if row.get(class_field) == target]
+        tallies = [contest_tally(row, offset) for row in target_rows]
+        decisive = sum(contest_decisive(tally) for tally in tallies)
+        shares = [share for share in map(contest_share, tallies) if share is not None]
+        if not target_rows or not control_rows:
+            status = UNMEASURED
+        elif control_decisive:
+            status = "OVERLAPS"
+        elif decisive < len(target_rows):
+            status = "MISSES"
+        else:
+            status = "SEPARATES"
+        report[target] = {
+            "offset": offset,
+            "cases": len(target_rows),
+            "decisive_cases": decisive,
+            "evidence": [None if tally is None else sum(tally) for tally in tallies],
+            "share_min": min(shares) if shares else None,
+            "control_cases": len(control_rows),
+            "control_decisive_cases": control_decisive,
+            "control_share_max": max(control_shares) if control_shares else None,
+            "threshold_separates": bool(shares and control_shares and min(shares) > max(control_shares)),
+            "status": status,
+        }
+    return report
+
+
+def vertical_contest_lines(report: dict[str, object]) -> list[str]:
+    lines = []
+    for target, entry in report.items():
+        dy = entry["offset"][2]
+        evidence = ",".join("-" if value is None else str(value) for value in entry["evidence"])
+        lines.append(
+            f"VERTICAL_CONTEST {target} dy={dy:+d} decisive {entry['decisive_cases']}/{entry['cases']} strong "
+            f"(evidence {evidence or '-'}; share min {format_number(entry['share_min'])}) "
+            f"controls decisive {entry['control_decisive_cases']}/{entry['control_cases']} strong "
+            f"(share max {format_number(entry['control_share_max'])}) {entry['status']}"
+        )
+    return lines
+
+
 def score_repair(rows: list[dict[str, object]]) -> tuple[dict[str, object], list[Gate]]:
     for index, row in enumerate(rows, start=1):
         missing = sorted({"fixture_id", "harmful_actions", "expected_actions", "produced_actions"} - row.keys())
@@ -1526,6 +1631,13 @@ def main(
             placement["gates"] = {gate.name: gate.summary(release=release)}
             if failed_placement:
                 print("(informational until real verification windows exist; never fails the run)")
+        # Only where the rows carry the plate classes: the challenge suite,
+        # or device windows labelled the same way.
+        classes = {row.get("challenge_class") for row in kinds[PLACEMENT_KIND]}
+        if classes & set(VERTICAL_CONTEST_TARGETS):
+            placement["vertical_contest"] = vertical_contest_report(kinds[PLACEMENT_KIND])
+            for line in vertical_contest_lines(placement["vertical_contest"]):
+                print(line)
     if REPAIR_KIND in report:
         repair = report[REPAIR_KIND]
         print(
