@@ -60,6 +60,11 @@ CHALLENGE_KIND = "verification_challenge"
 VLM_CHECK_KIND = "vlm_check"
 # The Foundation Models advisor beside photo checks, in shadow (ADR 0018).
 SHADOW_CHECK_KIND = "shadow_check"
+# Kinds `--require-kinds` may name. The check kinds are presence-only: their
+# gates stay informational (the photo check is advisory, ADR 0008), but a
+# Phase 1 run can still insist the rows exist.
+PRESENCE_ONLY_KINDS = (VLM_CHECK_KIND, SHADOW_CHECK_KIND)
+REQUIRABLE_KINDS = KINDS + PRESENCE_ONLY_KINDS
 # One verification window's lattice evidence (bricky-harness lattice-rows,
 # iOS 27 Phase 4): read for the stud-keypoint entry criterion (ADR 0020),
 # never a release gate.
@@ -1670,6 +1675,10 @@ def main(
             )
             summaries[gate.name] = gate.summary(release=release)
         report[kind]["gates"] = summaries
+    for kind in PRESENCE_ONLY_KINDS:
+        if kind in require_kinds and not kinds[kind]:
+            failed = True
+            print(f"KIND {kind} {UNMEASURED} (required: FAIL)")
     print(json.dumps(report, indent=2, sort_keys=True))
     raise SystemExit(1 if failed else 0)
 
@@ -1687,8 +1696,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--require-kinds",
-        help="comma-separated row kinds that must be present "
-        "(default: all three in release mode, none in informational mode)",
+        help="comma-separated row kinds that must be present: recovery, verification, registration, "
+        "or the presence-only vlm_check and shadow_check "
+        "(default: the first three in release mode, none in informational mode)",
     )
     parser.add_argument(
         "--allow-mixed-arms",
@@ -1709,7 +1719,7 @@ if __name__ == "__main__":
     required = None
     if arguments.require_kinds is not None:
         required = {kind.strip() for kind in arguments.require_kinds.split(",") if kind.strip()}
-        unknown = required - set(KINDS)
+        unknown = required - set(REQUIRABLE_KINDS)
         if unknown:
             parser.error(f"unknown kinds: {', '.join(sorted(unknown))}")
     main(

@@ -891,6 +891,18 @@ class VLMCheckTests(unittest.TestCase):
         schema = json.loads(literal.group(1))
         self.assertEqual(set(schema["properties"]["result"]["enum"]), CHECK_VERDICTS)
 
+    def test_a_required_check_kind_with_no_rows_fails_the_run(self) -> None:
+        # Fails on the old scorer by behaviour: require_kinds was only read
+        # for the three gated kinds, so a run that insisted on vlm_check rows
+        # passed with none (and the CLI refused the name outright).
+        shadow = ShadowCheckTests.shadow_row("incomplete", "incomplete", "incomplete")
+        code, output = MainTests.run_main([shadow], require_kinds={"vlm_check"})
+        self.assertEqual(code, 1, output)
+        self.assertIn("KIND vlm_check UNMEASURED (required: FAIL)", output)
+        code, output = MainTests.run_main([self.check_row("incomplete", "incomplete")], require_kinds={"vlm_check"})
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("KIND vlm_check", output)
+
     def test_vlm_check_refuses_a_step_verdict_a_check_cannot_give(self) -> None:
         code, output = MainTests.run_main([self.check_row("incomplete", "misplaced")])
         self.assertEqual(code, 1)
