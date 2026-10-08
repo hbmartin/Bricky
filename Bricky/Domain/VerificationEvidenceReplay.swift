@@ -31,7 +31,11 @@ extension RegistrationFrameInput {
     /// The sidecar and planes `init(record:planes:)` reads back. Raw planes
     /// are kept only as a pair; colour and mask only when they fill the grid,
     /// exactly as the recorder has always written them.
-    func evidence(id: UUID, stem: String) -> (record: EvidenceDepthFrameRecord, planes: EvidenceDepthPlanes) {
+    /// - Parameter coarseWorldFromModel: the alignment a geometric recovery
+    ///   fits this frame from; recovery depth frames only.
+    func evidence(
+        id: UUID, stem: String, coarseWorldFromModel: simd_float4x4? = nil
+    ) -> (record: EvidenceDepthFrameRecord, planes: EvidenceDepthPlanes) {
         let hasRaw = rawDepth != nil && rawConfidence != nil
         let keptColour = colour.flatMap { $0.count == width * height * 3 ? $0 : nil }
         let keptMask = occluderMask.flatMap { $0.count == width * height ? $0 : nil }
@@ -56,7 +60,8 @@ extension RegistrationFrameInput {
             rawConfidenceRelativePath: hasRaw ? "\(stem).raw-confidence" : nil,
             colourRelativePath: keptColour == nil ? nil : "\(stem).colour",
             occluderMaskRelativePath: keptMask == nil ? nil : "\(stem).occluder",
-            colourEncoding: keptColour == nil ? nil : colourEncoding
+            colourEncoding: keptColour == nil ? nil : colourEncoding,
+            coarseWorldFromModel: coarseWorldFromModel?.rowMajorValues
         )
         let planes = EvidenceDepthPlanes(
             depth: depth,
@@ -73,8 +78,10 @@ extension RegistrationFrameInput {
     /// `directory`. Shared by the app's recorder and SyntheticRGBD, so a
     /// synthetic bundle is written by the device's own code.
     @discardableResult
-    func writeEvidence(id: UUID, stem: String, in directory: URL) throws -> EvidenceDepthFrameRecord {
-        let (record, planes) = evidence(id: id, stem: stem)
+    func writeEvidence(
+        id: UUID, stem: String, in directory: URL, coarseWorldFromModel: simd_float4x4? = nil
+    ) throws -> EvidenceDepthFrameRecord {
+        let (record, planes) = evidence(id: id, stem: stem, coarseWorldFromModel: coarseWorldFromModel)
         try planes.write(record, in: directory)
         try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
             .write(to: directory.appendingPathComponent("\(stem).json"), options: .atomic)

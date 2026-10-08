@@ -97,13 +97,23 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
     public let occluderMaskRelativePath: String?
     /// How `colour` was converted, e.g. `rgb8_bt709_full`.
     public let colourEncoding: String?
+    /// Row-major 4x4, model to world: the manual alignment a geometric
+    /// recovery started from. It is both the ICP initial pose and the
+    /// reference the pose-sanity check measures drift against, so with the
+    /// planes it is the estimator's whole input. Recovery depth frames only;
+    /// absent on window frames and on sessions recorded before 2026-10-08,
+    /// which therefore cannot replay geometric recovery. Not the capture
+    /// record's `world_from_model`, which is column-major and is the locked
+    /// registration pose.
+    public let coarseWorldFromModel: [Float]?
 
     public init(
         depthVersion: Int, captureID: UUID, width: Int, height: Int,
         depthIntrinsics: [Float], worldFromCamera: [Float], timestamp: TimeInterval,
         depthRelativePath: String, confidenceRelativePath: String,
         rawDepthRelativePath: String?, rawConfidenceRelativePath: String?,
-        colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil
+        colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil,
+        coarseWorldFromModel: [Float]? = nil
     ) {
         self.depthVersion = depthVersion
         self.captureID = captureID
@@ -119,6 +129,7 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         self.colourRelativePath = colourRelativePath
         self.occluderMaskRelativePath = occluderMaskRelativePath
         self.colourEncoding = colourEncoding
+        self.coarseWorldFromModel = coarseWorldFromModel
     }
 
     enum CodingKeys: String, CodingKey {
@@ -136,6 +147,7 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         case colourRelativePath = "colour_relative_path"
         case occluderMaskRelativePath = "occluder_mask_relative_path"
         case colourEncoding = "colour_encoding"
+        case coarseWorldFromModel = "coarse_world_from_model"
     }
 
     /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes
@@ -240,6 +252,25 @@ public struct GeometricFitRecord: Codable, Sendable {
         case conclusive
         case createdAt = "created_at"
         case latticeRunnerUp = "lattice_runner_up"
+    }
+
+    /// Whether `other` is the same measurement: every field but the record's
+    /// own identity (`fit_id`, `created_at`, `session_id`), with floats
+    /// compared bit for bit. A replay is reproducible only if this holds for
+    /// every fit.
+    public func isSameFit(as other: GeometricFitRecord) -> Bool {
+        guard fitVersion == other.fitVersion, passIndex == other.passIndex else { return false }
+        guard candidateIndex == other.candidateIndex, stepID == other.stepID else { return false }
+        guard score.bitPattern == other.score.bitPattern else { return false }
+        guard inlierFraction.bitPattern == other.inlierFraction.bitPattern else { return false }
+        guard visibleFraction.bitPattern == other.visibleFraction.bitPattern else { return false }
+        guard unexplainedFraction.bitPattern == other.unexplainedFraction.bitPattern else { return false }
+        guard phantomFraction.bitPattern == other.phantomFraction.bitPattern else { return false }
+        guard rmsResidual.bitPattern == other.rmsResidual.bitPattern else { return false }
+        guard latticeMargin.bitPattern == other.latticeMargin.bitPattern else { return false }
+        guard worldFromModel.map(\.bitPattern) == other.worldFromModel.map(\.bitPattern) else { return false }
+        guard disqualification == other.disqualification, conclusive == other.conclusive else { return false }
+        return latticeRunnerUp == other.latticeRunnerUp
     }
 }
 
@@ -652,6 +683,10 @@ public struct EvidenceSessionFile: Codable, Sendable {
     /// authored model, so a fine-tuned model cannot learn one build instead
     /// of the task (ADR 0019). Absent when nothing was declared.
     public var physicalBuildID: String?
+    /// The LDraw part pack the session's geometry came from, e.g. `2026-07`.
+    /// A replay against a different pack renders different candidates.
+    /// Absent on sessions recorded before 2026-10-08.
+    public var partPackVersion: String?
 
     /// Whether `label` is a usable physical-build slug.
     public static func isValidPhysicalBuildID(_ label: String) -> Bool {
@@ -669,7 +704,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?,
         osBuild: String? = nil, gpuArchitecture: String? = nil, physicalMemoryBytes: UInt64? = nil,
         admission: AdmissionSnapshot? = nil, conditionsStart: DeviceConditions? = nil,
-        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil
+        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil, partPackVersion: String? = nil
     ) {
         self.sessionVersion = sessionVersion
         self.sessionID = sessionID
@@ -694,6 +729,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         self.conditionsStart = conditionsStart
         self.conditionsEnd = conditionsEnd
         self.physicalBuildID = physicalBuildID
+        self.partPackVersion = partPackVersion
     }
 
     enum CodingKeys: String, CodingKey {
@@ -720,6 +756,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         case conditionsStart = "conditions_start"
         case conditionsEnd = "conditions_end"
         case physicalBuildID = "physical_build_id"
+        case partPackVersion = "part_pack_version"
     }
 }
 

@@ -92,7 +92,8 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             conditionsStart: conditions,
             // A staged session of a physical build photographs the build
             // its declaration names.
-            physicalBuildID: staged?.physicalCase == true ? buildLabel : nil
+            physicalBuildID: staged?.physicalCase == true ? buildLabel : nil,
+            partPackVersion: LDrawPartPackManager.version
         )
     }
 
@@ -207,24 +208,41 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
         }
     }
 
-    /// Copies the depth observation a geometric recovery fit against.
+    /// Records what a recovery attempt starts from: the photos, and — when
+    /// the center view carried depth — that frame beside the alignment the
+    /// geometric estimator fits it from. The pair is the estimator's whole
+    /// input, so a replay can reproduce the device's fits exactly.
+    func recordRecoveryInputs(captures: [RecoveryCapture], depthFrame: RegistrationFrameInput?, alignment: ARAlignment) {
+        recordCaptures(captures)
+        guard let depthFrame,
+              let observed = captures.first(where: { $0.angle == .center }) ?? captures.first else { return }
+        recordDepthFrame(depthFrame, captureID: observed.id, coarseWorldFromModel: alignment.transform)
+    }
+
+    /// Copies the depth observation a geometric recovery fit against, with
+    /// the alignment the fit started from.
     ///
     /// The only bundle input that cannot be reconstructed from anything else,
     /// so a corpus collected without it could never support a geometric A/B
     /// without re-capturing every physical fixture. Roughly 0.5 MB per
-    /// session against a 2 GB cap.
-    func recordDepthFrame(_ frame: RegistrationFrameInput, captureID: UUID) {
+    /// session against a 2 GB cap. The pose is required: a frame without it
+    /// cannot be replayed (the estimator's ICP starts there).
+    func recordDepthFrame(_ frame: RegistrationFrameInput, captureID: UUID, coarseWorldFromModel: simd_float4x4) {
         perform("record depth frame") {
             try ensureStarted()
-            try writeDepthFrame(frame, id: captureID, stem: "depth/\(captureID.uuidString)")
+            try writeDepthFrame(
+                frame, id: captureID, stem: "depth/\(captureID.uuidString)", coarseWorldFromModel: coarseWorldFromModel
+            )
         }
     }
 
     /// Writes a frame's planes beside `<stem>.json`, the sidecar that names
     /// them. A frame whose planes do not fill its grid is refused before any
     /// file is written.
-    func writeDepthFrame(_ frame: RegistrationFrameInput, id: UUID, stem: String) throws {
-        try frame.writeEvidence(id: id, stem: stem, in: sessionDirectory)
+    func writeDepthFrame(
+        _ frame: RegistrationFrameInput, id: UUID, stem: String, coarseWorldFromModel: simd_float4x4? = nil
+    ) throws {
+        try frame.writeEvidence(id: id, stem: stem, in: sessionDirectory, coarseWorldFromModel: coarseWorldFromModel)
     }
 
     /// Depth sidecars written so far, decoded back from `depth/*.json`.

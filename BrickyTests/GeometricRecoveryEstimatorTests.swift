@@ -226,6 +226,105 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         XCTAssertEqual(flat[15], 1)
     }
 
+    /// The ladder as an authored plan, one placement per step, whose
+    /// geometry is supplied rather than flattened from a part pack.
+    private func ladderPlan() throws -> (plan: InstructionPlan, geometry: PlacementGeometry) {
+        let main = """
+        0 Ladder
+        1 4 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        1 1 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        1 2 0 -48 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        """
+        let file = InstructionSourceFile(relativePath: "main.ldr", data: Data(main.utf8))
+        let document = try LDrawInstructionParser().parse(files: [file], rootRelativePath: "main.ldr")
+        let plan = try InstructionPlanBuilder().build(
+            document: document, title: "Ladder", sourceFilename: "main.ldr",
+            sourceSHA256: InstructionSourceIdentity.sha256(of: [file])
+        )
+        return (plan, PlacementGeometry(plan: plan, segments: SegmentedGeometry(segments: [[base], [brickA], [brickB]])))
+    }
+
+    private func bits(_ matrix: simd_float4x4) -> [UInt32] {
+        var values: [UInt32] = []
+        for column in 0..<4 { for row in 0..<4 { values.append(matrix[column][row].bitPattern) } }
+        return values
+    }
+
+    private func bits(_ matrix: simd_float3x3) -> [UInt32] {
+        var values: [UInt32] = []
+        for column in 0..<3 { for row in 0..<3 { values.append(matrix[column][row].bitPattern) } }
+        return values
+    }
+
+    // Fails on the old code by not compiling: sessions kept no alignment, so
+    // nothing could re-estimate a recorded recovery.
+    func testARecordedRecoveryReestimatesIdentically() async throws {
+        let (plan, geometry) = try ladderPlan()
+        XCTAssertEqual(plan.steps.count, 3)
+        let renderer = try makeRenderer()
+        let frame = try observedFrame(physical: [base, brickA])
+        // A small offset inside ICP's basin, so a pose that was dropped (and
+        // would replay from identity) cannot pass.
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4(0.002, 0, -0.001, 1)
+        let alignment = ARAlignment(id: UUID(), transform: transform, isTracking: true)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recovery-replay-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func recorder(_ name: String) -> RecoveryEvidenceRecorder {
+            RecoveryEvidenceRecorder(
+                root: root.appendingPathComponent(name, isDirectory: true), instructionSHA256: plan.sourceSHA256,
+                authoredModelID: UUID(), modelTitle: "Ladder", stepCount: plan.steps.count, staged: nil
+            )
+        }
+
+        let device = recorder("device")
+        let captureID = UUID()
+        await device.recordDepthFrame(frame, captureID: captureID, coarseWorldFromModel: alignment.transform)
+        let recorded = try await GeometricRecoveryEstimator(
+            frame: frame, sourceRoot: root, partPackRoot: root, recorder: device, renderer: renderer, geometry: geometry
+        ).estimate(model: plan, alignment: alignment, captureIDs: [captureID])
+        let deviceEstimate = try XCTUnwrap(recorded, "the ladder's middle step is conclusive")
+
+        // What the replay reads back is exactly what the device held.
+        let frames = await device.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        let sessionDirectory = root.appendingPathComponent("device")
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(device.sessionID.uuidString)
+        let reloaded = RegistrationFrameInput(record: record, planes: try EvidenceDepthPlanes.load(record, in: sessionDirectory))
+        XCTAssertEqual(reloaded.depth.map(\.bitPattern), frame.depth.map(\.bitPattern))
+        XCTAssertEqual(reloaded.rawDepth?.map(\.bitPattern), frame.rawDepth?.map(\.bitPattern))
+        XCTAssertEqual(reloaded.confidence, frame.confidence)
+        XCTAssertEqual(bits(reloaded.worldFromCamera), bits(frame.worldFromCamera))
+        XCTAssertEqual(bits(reloaded.depthIntrinsics), bits(frame.depthIntrinsics))
+        let coarse = simd_float4x4(rowMajor: try XCTUnwrap(record.coarseWorldFromModel))
+        XCTAssertEqual(bits(coarse), bits(alignment.transform))
+
+        let replay = recorder("replay")
+        let replayed = try await GeometricRecoveryEstimator(
+            frame: reloaded, sourceRoot: root, partPackRoot: root, recorder: replay, renderer: renderer, geometry: geometry
+        ).estimate(
+            model: plan, alignment: ARAlignment(id: alignment.id, transform: coarse, isTracking: true), captureIDs: [captureID]
+        )
+        let replayEstimate = try XCTUnwrap(replayed)
+        XCTAssertEqual(replayEstimate.rankedStepIDs, deviceEstimate.rankedStepIDs)
+        XCTAssertEqual(replayEstimate.certainty, deviceEstimate.certainty)
+        XCTAssertEqual(replayEstimate.modelRevision, deviceEstimate.modelRevision)
+        XCTAssertEqual(replayEstimate.method, deviceEstimate.method)
+        XCTAssertEqual(replayEstimate.captureIDs, deviceEstimate.captureIDs)
+        let deviceFits = await device.loadFitRecords()
+        let replayFits = await replay.loadFitRecords()
+        XCTAssertEqual(deviceFits.count, plan.steps.count)
+        XCTAssertEqual(replayFits.count, deviceFits.count)
+        for (original, again) in zip(deviceFits, replayFits) {
+            XCTAssertTrue(original.isSameFit(as: again), "fit for \(original.stepID) moved")
+        }
+    }
+
     private func candidate(_ index: Int, score: Float, disqualified: Bool = false) -> GeometricRecoveryEstimator.CandidateScore {
         GeometricRecoveryEstimator.CandidateScore(
             index: index,

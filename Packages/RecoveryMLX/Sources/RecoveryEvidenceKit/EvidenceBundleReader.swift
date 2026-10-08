@@ -221,6 +221,13 @@ public struct EvidenceBundleReader {
                         "\(name): depth frame \(frame.captureID) has \(frame.worldFromCamera.count) pose values, expected 16"
                     )
                 }
+                // A coarse pose that cannot reshape would silently replay
+                // from identity, which is not what the device fit from.
+                if let coarse = frame.coarseWorldFromModel, coarse.count != 16 {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) has \(coarse.count) coarse pose values, expected 16"
+                    )
+                }
                 // Dimensions are judged before plane sizes: a zero, negative,
                 // or overflowing width x height makes every byte count
                 // meaningless (and 0 x N would let an empty plane pass).

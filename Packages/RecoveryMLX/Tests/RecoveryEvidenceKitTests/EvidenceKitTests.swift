@@ -190,6 +190,25 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 48") })
     }
 
+    // Fails on the old code by behaviour: it ignored the key, so a 15-value
+    // pose validated and would have replayed from identity.
+    func testReaderRejectsACoarsePoseThatCannotBeReshaped() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        let captureID = session.file.captures[0].captureID
+        try Self.writeDepthFrame(into: session.directory, captureID: captureID)
+        let sidecar = session.directory.appendingPathComponent("depth/\(captureID.uuidString).json")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: sidecar)) as? [String: Any])
+        object["coarse_world_from_model"] = Array(repeating: 0.0, count: 15)
+        try JSONSerialization.data(withJSONObject: object).write(to: sidecar)
+        XCTAssertTrue(reader.validate().contains { $0.contains("15 coarse pose values, expected 16") }, "\(reader.validate())")
+
+        object["coarse_world_from_model"] = Array(repeating: 0.0, count: 16)
+        try JSONSerialization.data(withJSONObject: object).write(to: sidecar)
+        XCTAssertEqual(reader.validate(), [])
+    }
+
     func testReaderLoadsWindowsAndRejectsTruncatedColour() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)

@@ -208,7 +208,8 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
                 worldFromCamera: pose,
                 timestamp: 42.5
             ),
-            captureID: captureID
+            captureID: captureID,
+            coarseWorldFromModel: matrix_identity_float4x4
         )
 
         let sessionDirectory = root
@@ -249,12 +250,61 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
                 worldFromCamera: matrix_identity_float4x4,
                 timestamp: 1
             ),
-            captureID: UUID()
+            captureID: UUID(),
+            coarseWorldFromModel: matrix_identity_float4x4
         )
         let frames = await recorder.loadDepthFrames()
         let record = try XCTUnwrap(frames.first)
         XCTAssertNil(record.rawDepthRelativePath)
         XCTAssertNil(record.rawConfidenceRelativePath)
+    }
+
+    // Fails on the old code by not compiling: the recorder kept no alignment,
+    // so no recovery could be replayed from its bundle.
+    func testRecoveryInputsPutTheAlignmentBesideTheCenterDepthFrame() async throws {
+        let recorder = makeRecorder()
+        // Left first, so "the first capture" is not the center one.
+        let captures = try [CaptureAngle.left, .center, .right].map { try makeCapture(angle: $0) }
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4(0.1, 0.2, 0.3, 1)
+        let alignment = ARAlignment(id: UUID(), transform: transform, isTracking: true)
+        await recorder.recordRecoveryInputs(
+            captures: captures,
+            depthFrame: RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 6), confidence: [UInt8](repeating: 2, count: 6),
+                rawDepth: nil, rawConfidence: nil, width: 3, height: 2,
+                depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4, timestamp: 1
+            ),
+            alignment: alignment
+        )
+
+        let frames = await recorder.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        XCTAssertEqual(frames.count, 1)
+        XCTAssertEqual(record.captureID, captures[1].id)
+        // Row-major like world_from_camera: translation at 3, 7 and 11.
+        let coarse = try XCTUnwrap(record.coarseWorldFromModel)
+        XCTAssertEqual(coarse.count, 16)
+        XCTAssertEqual(coarse[3], 0.1)
+        XCTAssertEqual(coarse[7], 0.2)
+        XCTAssertEqual(coarse[11], 0.3)
+        XCTAssertEqual(coarse[15], 1)
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let session = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("session.json"))
+        )
+        XCTAssertEqual(session.captures.map(\.captureID), captures.map(\.id))
+        XCTAssertEqual(session.partPackVersion, LDrawPartPackManager.version)
+
+        // Without a depth frame only the captures are recorded.
+        let photosOnly = makeRecorder()
+        await photosOnly.recordRecoveryInputs(captures: captures, depthFrame: nil, alignment: alignment)
+        let none = await photosOnly.loadDepthFrames()
+        XCTAssertTrue(none.isEmpty)
     }
 
     // Fails on the old code by behaviour: it wrote whatever it was handed, so
@@ -274,7 +324,8 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
                 worldFromCamera: matrix_identity_float4x4,
                 timestamp: 1
             ),
-            captureID: UUID()
+            captureID: UUID(),
+            coarseWorldFromModel: matrix_identity_float4x4
         )
         let frames = await recorder.loadDepthFrames()
         XCTAssertTrue(frames.isEmpty)
@@ -621,7 +672,7 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         )
     }
 
-    private func makeCapture() throws -> RecoveryCapture {
+    private func makeCapture(angle: CaptureAngle = .center) throws -> RecoveryCapture {
         let captures = root.appendingPathComponent("RecoveryCaptures", isDirectory: true)
         try FileManager.default.createDirectory(at: captures, withIntermediateDirectories: true)
         let id = UUID()
@@ -634,7 +685,7 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
             cameraIntrinsics: Array(repeating: 0, count: 9),
             cameraImageResolution: [1920, 1440],
             alignmentID: UUID(),
-            angle: .center,
+            angle: angle,
             capturedAt: .now
         )
     }
