@@ -100,6 +100,38 @@ final class StepVerificationControllerTests: XCTestCase {
         func latestDiff() -> BuildDiff? { BuildDiff(stepID: "step", observations: [], framesUsed: ingested.count) }
     }
 
+    /// A shadow that holds its ingest of one frame until released.
+    private actor GatedShadow: ShadowStepJudging {
+        private let holdAt: TimeInterval
+        private(set) var ingested: [TimeInterval] = []
+        private(set) var isHolding = false
+        private var held: CheckedContinuation<Void, Never>?
+
+        init(holdAt: TimeInterval) { self.holdAt = holdAt }
+
+        func begin(stepID: String, geometry: StepGeometry) {}
+        func resetEvidence() {}
+        func ingest(frame: RegistrationFrameInput, registration: ModelRegistration) async throws -> StepVerification {
+            ingested.append(frame.timestamp)
+            if frame.timestamp == holdAt {
+                isHolding = true
+                await withCheckedContinuation { held = $0 }
+                isHolding = false
+            }
+            return StepVerification(
+                stepID: "step", verdict: .incomplete, detectability: .strong, deltaPixels: 1, framesUsed: 1,
+                completeFraction: 0, incompleteFraction: 1, registrationQuality: registration.quality,
+                timestamp: frame.timestamp
+            )
+        }
+        func latestDiff() -> BuildDiff? { BuildDiff(stepID: "step", observations: [], framesUsed: ingested.count) }
+
+        func release() {
+            held?.resume()
+            held = nil
+        }
+    }
+
     private let emptySnapshot = InstructionGeometrySnapshot(buffers: [], bounds: nil)
 
     private func frame(at timestamp: TimeInterval) -> RegistrationFrameInput {
@@ -153,7 +185,9 @@ final class StepVerificationControllerTests: XCTestCase {
 
     func testWindowOnVerdictChangeOnlyWhenRecording() async {
         let collector = WindowCollector()
-        let controller = StepVerificationController(makeVerifier: { ScriptedVerifier([.incomplete, .incomplete, .complete]) })
+        let controller = StepVerificationController(
+            makeVerifier: { ScriptedVerifier([.incomplete, .incomplete, .complete]) }, shadowEnabled: { false }
+        )
         await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot, stepIndex: 3)
         controller.setWindowSink(collector)
         let staged = StagedVerificationDeclaration(
@@ -181,6 +215,61 @@ final class StepVerificationControllerTests: XCTestCase {
         await Task.yield()
         let after = await collector.windows
         XCTAssertEqual(after.count, 2)
+    }
+
+    /// The verdict-change window carries the shadow's reading of the frame
+    /// whose verdict changed, not of the frame before it.
+    func testVerdictChangeWindowPairsTheSameFrame() async {
+        let shadow = ShadowFake()
+        let collector = WindowCollector()
+        let controller = StepVerificationController(
+            makeVerifier: { ScriptedVerifier([.incomplete, .incomplete, .complete]) },
+            makeShadow: { shadow }, shadowEnabled: { true }
+        )
+        await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot)
+        controller.setWindowSink(collector)
+        for timestamp in [1.0, 2.0, 6.0] { await judge(controller, at: timestamp) }
+        let changed = await windows(collector, count: 1)
+        XCTAssertEqual(changed.first?.trigger, .verdictChange)
+        XCTAssertEqual(changed.first?.verification.timestamp, 6.0)
+        XCTAssertEqual(changed.first?.shadowVerdict?.timestamp, 6.0, "the shadow's reading must be of the same frame")
+        XCTAssertEqual(changed.first?.shadowDiff?.framesUsed, 3)
+    }
+
+    /// A window taken while the shadow is still judging the newest frame
+    /// leaves the shadow out rather than pairing an older reading.
+    func testAWindowNeverCarriesAnotherFramesShadow() async {
+        let shadow = GatedShadow(holdAt: 2.0)
+        let collector = WindowCollector()
+        let controller = StepVerificationController(
+            makeVerifier: { ScriptedVerifier([.complete]) }, makeShadow: { shadow }, shadowEnabled: { true }
+        )
+        await controller.begin(stepID: "step", completedSnapshot: emptySnapshot, deltaSnapshot: emptySnapshot)
+        controller.setWindowSink(collector)
+        await judge(controller, at: 1.0)
+        await eventually { controller.lastShadowVerdict?.timestamp == 1.0 }
+        await judge(controller, at: 2.0)
+        await eventually { await shadow.isHolding }
+        // The user confirms while the shadow is still judging frame 2.
+        controller.recordWindow(trigger: .confirm)
+        let confirmed = await windows(collector, count: 1)
+        await shadow.release()
+        XCTAssertEqual(confirmed.first?.verification.timestamp, 2.0)
+        XCTAssertNil(confirmed.first?.shadowVerdict, "frame 1's shadow reading was paired with frame 2's verdict")
+        XCTAssertNil(confirmed.first?.shadowDiff)
+    }
+
+    func testAShadowErrorClearsItsLastReading() async {
+        let shadow = ShadowFake()
+        let controller = await shadowed(shadow)
+        await judge(controller, at: 1.0)
+        await eventually { controller.lastShadowVerdict != nil }
+        await shadow.fail()
+        await judge(controller, at: 2.0)
+        _ = await shadowIngests(shadow, count: 2)
+        await eventually { controller.lastShadowVerdict == nil }
+        XCTAssertNil(controller.lastShadowVerdict, "a failed judgement left frame 1's reading looking current")
+        XCTAssertNil(controller.lastShadowDiff)
     }
 
     func testStopEmptiesTheWindow() async {

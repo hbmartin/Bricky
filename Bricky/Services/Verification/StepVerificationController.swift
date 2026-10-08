@@ -42,6 +42,15 @@ final class StepVerificationController: ObservableObject {
     /// and evidence windows. Deliberately not `@Published`.
     private(set) var lastShadowDiff: BuildDiff?
     private(set) var lastShadowVerdict: StepVerification?
+    /// The frame each reading came from. A window pairs the verifier,
+    /// shadow and colour readings of one frame and drops any other, so a
+    /// recorded diff is never the previous frame's (ADR 0008).
+    private var publishedFrame: TimeInterval?
+    private var shadowFrame: TimeInterval?
+    private var colourFrame: TimeInterval?
+    /// Set by `publish` when the verdict changed. The window is recorded
+    /// once the shadow and colour term have read the same frame.
+    private var verdictChangePending = false
     private let logger = Logger(subsystem: AppConfig.bundleID, category: "BuildDiff")
     /// Bumped on every `begin` and `stop`: a frame in flight across the step
     /// boundary must not publish into the new step's verification.
@@ -174,9 +183,7 @@ final class StepVerificationController: ObservableObject {
             // Awaited, with frames refused until it returns, so no frame can
             // reach the verifier before it holds this step's snapshots.
             await verifier.begin(stepID: stepID, geometry: geometry)
-            lastShadowDiff = nil
-            lastShadowVerdict = nil
-            lastColourAssessment = nil
+            clearReadings()
             if shadowEnabled(), let judge = try? shadow ?? makeShadow() {
                 shadow = judge
                 await judge.begin(stepID: stepID, geometry: geometry)
@@ -226,15 +233,20 @@ final class StepVerificationController: ObservableObject {
                 ))
             }
             publish(result, at: next.frame.timestamp)
-            await readColourTerm(generation: ingestGeneration)
+            await readColourTerm(frame: next.frame.timestamp, generation: ingestGeneration)
             await judgeInShadow(next.frame, next.registration, authoritative: result, generation: ingestGeneration)
+            let verdictChanged = verdictChangePending
+            verdictChangePending = false
+            if verdictChanged, ingestGeneration == generation, !isSuspended {
+                recordWindow(trigger: .verdictChange)
+            }
         }
         worker = nil
     }
 
     /// Keeps the colour term's latest reading (M3.2) for logs and evidence
     /// windows. Read after the verdict is published, so it never delays it.
-    private func readColourTerm(generation ingestGeneration: Int) async {
+    private func readColourTerm(frame: TimeInterval, generation ingestGeneration: Int) async {
         guard let judge = verifier as? ColourTermJudge else { return }
         let assessment = await judge.lastAssessment
         guard ingestGeneration == generation else { return }
@@ -242,6 +254,7 @@ final class StepVerificationController: ObservableObject {
             logger.notice("Colour term (\(self.colourTermMode.rawValue, privacy: .public)) disagrees: nearest colour \(nearest, privacy: .public)")
         }
         lastColourAssessment = assessment
+        colourFrame = frame
     }
 
     /// Runs the shadow on the frame the verifier just judged. Its errors are
@@ -252,10 +265,21 @@ final class StepVerificationController: ObservableObject {
         authoritative: StepVerification, generation ingestGeneration: Int
     ) async {
         guard let shadow, ingestGeneration == generation, !isSuspended else { return }
-        guard let verdict = try? await shadow.ingest(frame: frame, registration: registration),
-              ingestGeneration == generation, !isSuspended else { return }
+        guard let verdict = try? await shadow.ingest(frame: frame, registration: registration) else {
+            // A failed judgement must not leave an older frame's reading
+            // looking current.
+            if ingestGeneration == generation {
+                lastShadowVerdict = nil
+                lastShadowDiff = nil
+                shadowFrame = nil
+            }
+            return
+        }
+        let diff = await shadow.latestDiff()
+        guard ingestGeneration == generation, !isSuspended else { return }
         lastShadowVerdict = verdict
-        lastShadowDiff = await shadow.latestDiff()
+        lastShadowDiff = diff
+        shadowFrame = frame.timestamp
         if verdict.verdict != authoritative.verdict {
             logger.notice("Shadow diff disagrees: verifier \(authoritative.verdict.evidenceName, privacy: .public), placement-aware \(verdict.verdict.evidenceName, privacy: .public)")
         }
@@ -263,10 +287,13 @@ final class StepVerificationController: ObservableObject {
 
     private func publish(_ result: StepVerification, at timestamp: TimeInterval) {
         verification = result
+        publishedFrame = timestamp
         let kind = result.verdict.evidenceName
         if let previous = lastVerdictKind, previous != kind, timestamp - lastWindowAt >= windowSpacing {
             lastWindowAt = timestamp
-            recordWindow(trigger: .verdictChange)
+            // Recorded by `drain` after the shadow judges this frame, never
+            // here: the shadow would still hold the previous frame.
+            verdictChangePending = true
         }
         lastVerdictKind = kind
         if result.verdict.isComplete {
@@ -311,6 +338,10 @@ final class StepVerificationController: ObservableObject {
     /// no-op without a sink, a verdict, or frames: there is nothing to keep.
     func recordWindow(trigger: VerificationWindowRecord.Trigger) {
         guard let windowSink, let verification, !windowBuffer.samples.isEmpty else { return }
+        // A reading from another frame than the verdict's is left out: an
+        // unpaired diff row is worse than none.
+        let shadowPaired = shadowFrame != nil && shadowFrame == publishedFrame
+        let colourPaired = colourFrame != nil && colourFrame == publishedFrame
         let capture = VerificationWindowCapture(
             windowID: UUID(),
             stepID: stepID,
@@ -321,19 +352,29 @@ final class StepVerificationController: ObservableObject {
             staged: stagedVerification,
             ingestMillisecondsSinceBegin: ingestMillisecondsSinceBegin,
             createdAt: .now,
-            shadowDiff: lastShadowDiff,
-            shadowVerdict: lastShadowVerdict,
+            shadowDiff: shadowPaired ? lastShadowDiff : nil,
+            shadowVerdict: shadowPaired ? lastShadowVerdict : nil,
             colourTermMode: colourTermMode == .off ? nil : colourTermMode,
-            colourAssessment: lastColourAssessment
+            colourAssessment: colourPaired ? lastColourAssessment : nil
         )
         Task { await windowSink.record(capture) }
     }
 
     private func resetWindow() {
         windowBuffer.removeAll()
+        verdictChangePending = false
         lastVerdictKind = nil
         lastWindowAt = -.infinity
         ingestMillisecondsSinceBegin = 0
+    }
+
+    private func clearReadings() {
+        lastShadowDiff = nil
+        lastShadowVerdict = nil
+        lastColourAssessment = nil
+        publishedFrame = nil
+        shadowFrame = nil
+        colourFrame = nil
     }
 
     func stop() {
@@ -347,9 +388,7 @@ final class StepVerificationController: ObservableObject {
         completeSince = nil
         lastIngestTimestamp = -.infinity
         resetWindow()
-        lastShadowDiff = nil
-        lastShadowVerdict = nil
-        lastColourAssessment = nil
+        clearReadings()
         if let verifier {
             Task { await verifier.resetEvidence() }
         }
