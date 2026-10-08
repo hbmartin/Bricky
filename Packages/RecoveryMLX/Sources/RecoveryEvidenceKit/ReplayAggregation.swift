@@ -107,4 +107,32 @@ public enum ReplayAggregation {
             calls += 1
         }
     }
+
+    /// How often replayed verification windows reproduced the device's
+    /// verdict, overall and on windows the device judged strongly
+    /// detectable. Phase 1 asks for agreement on strong windows (NEXT_STEPS
+    /// §1a item 2): elsewhere a fresh verifier, which sees only the window,
+    /// may abstain where the device's had accumulated evidence.
+    public struct WindowAgreement: Sendable, Equatable {
+        public private(set) var replayed = 0
+        public private(set) var matches = 0
+        public private(set) var strongReplayed = 0
+        public private(set) var strongMatches = 0
+
+        public init() {}
+
+        /// - Parameter detectability: the window's, as the device recorded it.
+        public mutating func add(detectability: String, matches: Bool) {
+            replayed += 1
+            self.matches += matches ? 1 : 0
+            guard detectability == "strong" else { return }
+            strongReplayed += 1
+            strongMatches += matches ? 1 : 0
+        }
+
+        /// "M match the device verdict (strong S/T)".
+        public var summary: String {
+            "\(matches) match the device verdict (strong \(strongMatches)/\(strongReplayed))"
+        }
+    }
 }

@@ -22,9 +22,9 @@ enum WindowReplay {
 
     struct Summary {
         var windows = 0
-        var replayed = 0
-        var matches = 0
+        var agreement = ReplayAggregation.WindowAgreement()
         var skippedSessions = 0
+        var replayed: Int { agreement.replayed }
     }
 
     static func run(
@@ -88,10 +88,9 @@ enum WindowReplay {
                 if let colour {
                     print("window \(window.windowID.uuidString.prefix(8)): colour \(colour.status.name), \(colour.framesCalibrated)/\(colour.framesWithColour) frames calibrated")
                 }
-                summary.replayed += 1
                 let produced = result.verdict.evidenceName
                 let matches = produced == window.verdict
-                summary.matches += matches ? 1 : 0
+                summary.agreement.add(detectability: window.detectability, matches: matches)
                 guard let staged = window.staged else { continue }
                 let elapsed = started.duration(to: .now).components
                 let row = VerificationRowV1(

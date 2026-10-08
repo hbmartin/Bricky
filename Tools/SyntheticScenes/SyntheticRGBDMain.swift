@@ -299,7 +299,7 @@ struct SyntheticRGBDMain {
             )
             try (rows.joined(separator: "\n") + (rows.isEmpty ? "" : "\n"))
                 .write(toFile: options.outPath, atomically: true, encoding: .utf8)
-            print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.matches) match the device verdict; \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
+            print("replayed \(summary.replayed)/\(summary.windows) windows; \(summary.agreement.summary); \(summary.skippedSessions) sessions skipped; wrote \(rows.count) staged rows")
             return
         }
         if options.suite == .placement {

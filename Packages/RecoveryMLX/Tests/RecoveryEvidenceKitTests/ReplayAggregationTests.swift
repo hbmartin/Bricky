@@ -74,6 +74,22 @@ final class ReplayAggregationTests: XCTestCase {
         XCTAssertNil(ReplayAggregation.passOutcome(row: finalists, decision: matchedB, expectedStepID: nil).truthInCandidates)
     }
 
+    // Fails on the old code by not compiling: agreement was one number, so
+    // strong windows (the Phase 1 criterion) could not be read apart.
+    func testWindowAgreementSplitsOutStrongWindows() {
+        var agreement = ReplayAggregation.WindowAgreement()
+        agreement.add(detectability: "strong", matches: true)
+        agreement.add(detectability: "strong", matches: false)
+        agreement.add(detectability: "marginal", matches: true)
+        agreement.add(detectability: "undetectable", matches: false)
+        XCTAssertEqual(agreement.replayed, 4)
+        XCTAssertEqual(agreement.matches, 2)
+        XCTAssertEqual(agreement.strongReplayed, 2)
+        XCTAssertEqual(agreement.strongMatches, 1)
+        XCTAssertEqual(agreement.summary, "2 match the device verdict (strong 1/2)")
+        XCTAssertEqual(ReplayAggregation.WindowAgreement().summary, "0 match the device verdict (strong 0/0)")
+    }
+
     func testCallTallyCountsEveryCallItsLatencySums() {
         var tally = ReplayAggregation.CallTally()
         for latency in [120, 80, 300] { tally.add(latencyMilliseconds: latency) }
