@@ -1,34 +1,5 @@
 import Foundation
 
-/// Ground-truth mapping a benchmark row needs from the instruction plan.
-/// `expected_step_index` uses authored step numbers with 0 meaning step zero
-/// (not started) — the same semantics as the scorer's example fixtures.
-struct RecoveryBenchmarkInputs: Sendable {
-    let expectedCompletedCount: Int
-    let expectedStepID: String
-    /// Authored step number by step identifier, including step zero → 0.
-    let stepNumbersByID: [String: Int]
-
-    init(expectedCompletedCount: Int, expectedStepID: String, stepNumbersByID: [String: Int]) {
-        self.expectedCompletedCount = expectedCompletedCount
-        self.expectedStepID = expectedStepID
-        self.stepNumbersByID = stepNumbersByID
-    }
-
-    init(plan: InstructionPlan, expectedCompletedCount: Int) {
-        let clamped = min(max(0, expectedCompletedCount), plan.steps.count)
-        var numbers = [plan.stepZeroID: 0]
-        for step in plan.steps {
-            numbers[step.id] = step.index
-        }
-        self.init(
-            expectedCompletedCount: clamped,
-            expectedStepID: clamped == 0 ? plan.stepZeroID : plan.steps[clamped - 1].id,
-            stepNumbersByID: numbers
-        )
-    }
-}
-
 extension RecoveryEvidenceRecorder {
     /// Emits the session's `RecoveryBenchmarkV1` row to `benchmark.ndjson` —
     /// the producer `Tools/RecoveryEvaluation/score_results.py` never had.

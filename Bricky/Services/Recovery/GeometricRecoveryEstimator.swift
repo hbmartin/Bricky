@@ -10,6 +10,12 @@ import simd
 /// Inconclusive results return nil so the composite estimator can fall back
 /// to the VLM path; the geometric path never guesses.
 actor GeometricRecoveryEstimator {
+    /// The `model_revision` a geometric estimate carries; a replay row with
+    /// no estimate reports it too.
+    static let revision = "depth-icp-geometric-v1"
+    /// A conclusion reached by the placement-consistency tie-break (M2.6).
+    static let tieBreakRevision = revision + "+pcs1"
+
     struct Configuration: Sendable {
         /// A candidate below this score can never conclude the estimate.
         var scoreFloor: Float = 0.45
@@ -178,7 +184,7 @@ actor GeometricRecoveryEstimator {
                 return RecoveryEstimate(
                     rankedStepIDs: ([winner] + others.map(\.index)).map { RecoveryIndexing.stepID(forIndex: $0, plan: plan) },
                     certainty: .medium,
-                    modelRevision: "depth-icp-geometric-v1+pcs1",
+                    modelRevision: Self.tieBreakRevision,
                     latencyMilliseconds: Self.milliseconds(since: started),
                     captureIDs: captureIDs,
                     insufficiencyCause: nil,
@@ -199,7 +205,7 @@ actor GeometricRecoveryEstimator {
         return RecoveryEstimate(
             rankedStepIDs: ranked.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0.index, plan: plan) },
             certainty: margin >= configuration.highCertaintyMargin ? .high : .medium,
-            modelRevision: "depth-icp-geometric-v1",
+            modelRevision: Self.revision,
             latencyMilliseconds: latency,
             captureIDs: captureIDs,
             insufficiencyCause: nil,

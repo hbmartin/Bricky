@@ -88,6 +88,9 @@ public enum ReplayAggregation {
         case allPasses = "inference_all_passes"
         /// Only the finalist calls, when the earlier passes were not replayed.
         case finalistsOnly = "inference_finalists_only"
+        /// One geometric estimate re-run from a recorded depth frame
+        /// (SyntheticRGBD `--replay-bundle --suite recovery`).
+        case geometricEstimate = "replay_geometric_estimate"
     }
 
     /// What a session's replay ran: the summed latency and the number of

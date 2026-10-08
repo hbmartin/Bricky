@@ -15,6 +15,51 @@ protocol GeometricFitRecording: Actor {
     func recordFits(_ records: [GeometricFitRecord])
 }
 
+/// Keeps fits in memory instead of writing `fits.ndjson`: what a Mac replay
+/// of a recorded recovery records through, so its fits can be compared with
+/// the device's.
+actor GeometricFitCollector: GeometricFitRecording {
+    nonisolated let sessionID: UUID
+    private(set) var records: [GeometricFitRecord] = []
+
+    init(sessionID: UUID) {
+        self.sessionID = sessionID
+    }
+
+    func recordFits(_ records: [GeometricFitRecord]) {
+        self.records.append(contentsOf: records)
+    }
+}
+
+/// Ground-truth mapping a benchmark row needs from the instruction plan.
+/// `expected_step_index` uses authored step numbers with 0 meaning step zero
+/// (not started) — the same semantics as the scorer's example fixtures.
+struct RecoveryBenchmarkInputs: Sendable {
+    let expectedCompletedCount: Int
+    let expectedStepID: String
+    /// Authored step number by step identifier, including step zero → 0.
+    let stepNumbersByID: [String: Int]
+
+    init(expectedCompletedCount: Int, expectedStepID: String, stepNumbersByID: [String: Int]) {
+        self.expectedCompletedCount = expectedCompletedCount
+        self.expectedStepID = expectedStepID
+        self.stepNumbersByID = stepNumbersByID
+    }
+
+    init(plan: InstructionPlan, expectedCompletedCount: Int) {
+        let clamped = min(max(0, expectedCompletedCount), plan.steps.count)
+        var numbers = [plan.stepZeroID: 0]
+        for step in plan.steps {
+            numbers[step.id] = step.index
+        }
+        self.init(
+            expectedCompletedCount: clamped,
+            expectedStepID: clamped == 0 ? plan.stepZeroID : plan.steps[clamped - 1].id,
+            stepNumbersByID: numbers
+        )
+    }
+}
+
 extension EvidenceCaptureRecord {
     /// Bridges the app's domain capture into the interchange record. The
     /// image path is rewritten to the session-relative copy the recorder makes.

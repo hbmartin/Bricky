@@ -268,9 +268,9 @@ struct Replay: AsyncParsableCommand {
                 print("session \(session.file.sessionID.uuidString.prefix(8)) is unlabeled — no benchmark row")
             } else {
                 // Corpus accounting: a labeled geometric-only session has no
-                // rank traces to replay, and geometric replay does not exist
-                // yet, so the row it would contribute is explicitly missing.
-                print("session \(session.file.sessionID.uuidString.prefix(8)) is labeled but has no replayable finalist rank traces (geometric-only) — no benchmark row")
+                // rank traces to replay here; its geometric row comes from
+                // SyntheticRGBD, which links the depth stack this tool does not.
+                print("session \(session.file.sessionID.uuidString.prefix(8)) is labeled but has no replayable finalist rank traces (geometric-only) — no benchmark row here; replay it with SyntheticRGBD <model> --ldraw-root <pack> --replay-bundle <bundle> --suite recovery")
             }
         }
 

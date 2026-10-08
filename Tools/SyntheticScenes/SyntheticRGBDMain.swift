@@ -75,6 +75,10 @@ struct SyntheticRGBDMain {
         /// generating synthetic scenes.
         var replayBundle: String?
         var replayJudge = WindowReplay.Judge.verifier
+        var replayJudgeGiven = false
+        /// `--replay-bundle --suite recovery`: fail unless every replayed
+        /// session reproduced the device's fits and estimate.
+        var requireMatch = false
         /// The colour term's mode for replayed windows (M3.2); nil leaves
         /// the judge depth-only, as the device ran before the term existed.
         var colourTerm: ColourTermMode?
@@ -95,7 +99,7 @@ struct SyntheticRGBDMain {
     static func parseOptions() throws -> Options {
         var arguments = Array(CommandLine.arguments.dropFirst())
         guard let modelPath = arguments.first, !modelPath.hasPrefix("--") else {
-            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels] [--stud-labels-bundle <unzipped bundle> [--include-confirmed]]")
+            throw CLIError("usage: SyntheticRGBD <model.mpd|.ldr> --ldraw-root <dir> --out <results.ndjson> [--seed N] [--steps N] [--suite regression|challenge|repair|placement|recovery|lattice [--recovery-arm control|tiebreak]] [--replay-bundle <unzipped bundle> [--judge verifier|diff] [--colour-term off|shadow|block|full] | --replay-bundle <unzipped bundle> --suite recovery [--recovery-arm control|tiebreak] [--require-match]] [--check-render-order] [--check-tag-render] [--check-stud-labels] [--export-stud-labels] [--stud-labels-bundle <unzipped bundle> [--include-confirmed]]")
         }
         arguments.removeFirst()
         var options = Options(modelPath: modelPath, ldrawRoot: "", outPath: "")
@@ -127,6 +131,11 @@ struct SyntheticRGBDMain {
                 index += 1
                 continue
             }
+            if flag == "--require-match" {
+                options.requireMatch = true
+                index += 1
+                continue
+            }
             guard index + 1 < arguments.count else { throw CLIError("missing value for \(flag)") }
             let value = arguments[index + 1]
             switch flag {
@@ -149,6 +158,7 @@ struct SyntheticRGBDMain {
             case "--judge":
                 guard let judge = WindowReplay.Judge(rawValue: value) else { throw CLIError("invalid value for --judge: \(value)") }
                 options.replayJudge = judge
+                options.replayJudgeGiven = true
             case "--colour-term":
                 guard let mode = ColourTermMode(rawValue: value == "block" ? ColourTermMode.blockOnly.rawValue : value) else {
                     throw CLIError("invalid value for --colour-term: \(value)")
@@ -165,6 +175,13 @@ struct SyntheticRGBDMain {
         // (ADR 0008, ADR 0014): the colour term only replays real windows.
         if options.colourTerm != nil, options.replayBundle == nil {
             throw CLIError("--colour-term needs --replay-bundle: synthetic scenes have no colour")
+        }
+        // A recovery replay fits depth only; the window judges do not apply.
+        if options.replayBundle != nil, options.suite == .recovery, options.colourTerm != nil || options.replayJudgeGiven {
+            throw CLIError("--judge and --colour-term replay verification windows, not --suite recovery")
+        }
+        if options.requireMatch, options.replayBundle == nil || options.suite != .recovery {
+            throw CLIError("--require-match needs --replay-bundle with --suite recovery")
         }
         return options
     }
@@ -229,6 +246,33 @@ struct SyntheticRGBDMain {
                 sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles), engine: engine, renderer: renderer,
                 includeConfirmed: options.includeConfirmed, outPath: options.outPath
             )
+            return
+        }
+        if let bundle = options.replayBundle, options.suite == .recovery {
+            // Geometric recovery, re-fitted from each session's depth frame
+            // and recorded alignment. As below, the model's directory must
+            // hold exactly the files that were imported.
+            let partPackRoot = URL(fileURLWithPath: options.ldrawRoot)
+            let output = try await RecoveryReplay.run(
+                bundle: URL(fileURLWithPath: bundle),
+                plan: plan,
+                sourceIdentity: InstructionSourceIdentity.sha256(of: sourceFiles),
+                geometry: try await PlacementGeometryStore.shared.geometry(
+                    for: plan, sourceRoot: sourceDirectory, partPackRoot: partPackRoot
+                ),
+                sourceRoot: sourceDirectory,
+                partPackRoot: partPackRoot,
+                renderer: renderer,
+                arm: options.recoveryArm
+            )
+            try (output.rows.joined(separator: "\n") + (output.rows.isEmpty ? "" : "\n"))
+                .write(toFile: options.outPath, atomically: true, encoding: .utf8)
+            try (output.fits.joined(separator: "\n") + (output.fits.isEmpty ? "" : "\n"))
+                .write(toFile: options.outPath + ".fits.ndjson", atomically: true, encoding: .utf8)
+            print(output.summary.line + "; wrote \(output.rows.count) rows")
+            if options.requireMatch, !output.summary.allMatched {
+                throw CLIError("--require-match: the replay did not reproduce every session")
+            }
             return
         }
         if let bundle = options.replayBundle {

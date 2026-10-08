@@ -74,8 +74,7 @@ extension SyntheticRGBDMain {
             for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
         )
         let scenarios = RecoveryScenario.all(plan: plan, index: geometry.index, rng: &rng)
-        var configuration = GeometricRecoveryEstimator.Configuration()
-        configuration.consistencyTieBreak = options.recoveryArm == .tiebreak
+        let configuration = options.recoveryArm.configuration
         var rows: [String] = []
         for scenario in scenarios {
             let step = plan.steps[scenario.stepIndex]

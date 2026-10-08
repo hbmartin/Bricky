@@ -63,7 +63,7 @@ actor CompositeRecoveryEstimator: RecoveryEstimating {
             return RecoveryEstimate(
                 rankedStepIDs: [],
                 certainty: .insufficient,
-                modelRevision: "depth-icp-geometric-v1",
+                modelRevision: GeometricRecoveryEstimator.revision,
                 latencyMilliseconds: Self.milliseconds(started.duration(to: .now)),
                 captureIDs: captures.map(\.id),
                 insufficiencyCause: .geometricInconclusiveWithoutFallback,

@@ -130,6 +130,7 @@ targets:
       # Compiles here so geometric recovery can be replayed on a Mac from
       # retained depth frames; it must stay free of UIKit and MLX.
       - Bricky/Services/Recovery/GeometricRecoveryEstimator.swift
+      - Bricky/Services/Recovery/GeometricRecoveryReplay.swift
       - Bricky/Services/Recovery/PlacementConsistencyScorer.swift
       - Bricky/Services/Recovery/FitScoring.swift
     dependencies:
