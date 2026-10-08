@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — review nits
+
+- **Core AI stud detector refuses a bad output.** An empty heatmap, or one
+  that is not float16, now throws `missingOutput` instead of returning an
+  infinite scale or trapping in `view(as:)`. Nothing constructs the
+  detector yet (ADR 0020).
+- **`DeviceIdentity.sysctlString` decodes without the deprecated
+  `String(cString: [CChar])`**, stops at the first NUL without reading past
+  the buffer, and has a test that the OS build carries no terminator.
+- The review's other suggestion (create intermediate directories before
+  publishing a background download) needed no change: the `.downloaded`
+  file sits beside its destination, and both delivery paths already create
+  that directory.
+
 ## Unreleased — the LoRA transfer gap, explained (tooling only)
 
 - **Cause found.** Swift ran Python-trained adapters at 0.73 of their

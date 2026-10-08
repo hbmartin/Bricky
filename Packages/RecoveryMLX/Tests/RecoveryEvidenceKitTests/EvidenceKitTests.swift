@@ -495,6 +495,14 @@ final class EvidenceKitTests: XCTestCase {
     }
     #endif
 
+    func testSysctlStringDropsTheTerminator() throws {
+        // A decode that kept the NUL would write "24A335\0" into every row.
+        let build = try XCTUnwrap(DeviceIdentity.osBuild)
+        XCTAssertFalse(build.isEmpty)
+        XCTAssertFalse(build.contains("\0"), build.debugDescription)
+        XCTAssertNil(DeviceIdentity.sysctlString("bricky.no.such.key"))
+    }
+
     func testLatencyBuckets() {
         XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 0, secondsSinceARStart: 60), .cold)
         XCTAssertEqual(LatencyBucket.classify(callsSinceLoad: 4, secondsSinceARStart: 60), .warm)
