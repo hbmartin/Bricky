@@ -136,8 +136,9 @@ settings):
     the studs by eye. Record the refusal counts; many `aliasing_risk`
     refusals are themselves lattice evidence.
 15. **LoRA** (ADR 0019): nothing on the device until at least 150 labelled
-    sessions exist. Before the first real training run, explain the
-    Python/Swift base disagreement the smoke run measured (§5).
+    sessions exist. The Python/Swift base disagreement is explained (§5): the
+    trainer now matches the device's vision activation. Re-check the
+    transfer slope on the first real run.
 
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
@@ -153,6 +154,7 @@ scores better.
 | Prompt rewrites | Rank prompt hardcodes "A–H" even when fewer slots exist (the grammar is now dynamic but the wording is not); per-pass prompts may beat one generic prompt | `--prompt-file` A/B per variant |
 | Finalist selection | The ±1-neighbor finalist set and center-capture funnel may structurally exclude the true step when the narrow pass is off by more than one | `--all-passes` traces quantify how often the truth was outside the finalist set before any redesign |
 | Recompose vs stored boards | JPEG re-encode of tiles through the kit should be visually irrelevant | Same-bundle stored-vs-recomposed replay (doubles as item 1.3) |
+| Vision GELU the model was trained with | The pinned mlx-swift-lm computes the vision MLP with the sigmoid GELU (`Qwen3VL.swift:655`); the model was trained with tanh GELU. On 12 toy smoke boards, Python's base first-slot accuracy was 5/12 with the trained activation and 3/12 with the device's (far too few boards to conclude anything). If an adapter ever ships, the trainer must follow whichever activation the device computes (ADR 0019) | A patched or bumped mlx-swift-lm computing `.precise`, run as a recorded variant; same-bundle replay on device rows |
 
 A former "check token budget" row was withdrawn on 2026-09-25: its premise
 (a 64-token closing-bias soft zone) does not exist, because the bias is never
@@ -330,20 +332,17 @@ are unchanged.**
   how it changes the slot log-odds, a doubled-scale canary stands out, and
   a zero-B adapter replays the baseline bit for bit. Numbers are in ADR 0019.
 - **Owed before real training:**
-  - **The base models disagree, and adapters transfer weaker.** On
-    identical boards and token counts:
-    - Swift's slot log-odds are about 0.79 times Python's before any
-      adapter is applied (a mean difference of about 1 nat).
-    - A linear-regime adapter's effect in Swift is 0.73 of its effect in
-      Python.
-    - ADR 0019 entry criterion 4 holds real training until the transfer
-      slope is in [0.9, 1.1].
-    - Suspects, in order: image decode and resampling (PIL against
-      CoreImage), MLX 0.32.3 against the vendored 0.31.1, and model-code
-      differences between mlx-vlm and mlx-swift-lm (for example, deepstack
-      features or rope positions).
-    - Start by comparing the two sides' pixel values and first-layer
-      activations on one board.
+  - **Explained (2026-10-07): the base models disagreed because the vision
+    activations differ.**
+    - **Symptom:** Swift's slot log-odds were 0.79 times Python's, and
+      adapters transferred at 0.73.
+    - **Cause:** the device computes the vision MLP with the sigmoid GELU,
+      while the model was trained with tanh GELU.
+    - **Remedy:** the trainer now matches the device (`--vision-gelu
+      device`, the default).
+    - **Result:** base slope 0.997 (mean difference 0.09 nats), transfer
+      slope 1.015, so ADR 0019 criterion 4 holds on the smoke run.
+    - **Still owed:** re-check criterion 4 on the first real run.
   - **Adapter delivery to the app.** It is undesigned (ADR 0019): a pinned,
     hashed asset, and admission with the adapter loaded.
 

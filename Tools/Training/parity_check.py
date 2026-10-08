@@ -121,6 +121,11 @@ def compare(
         "base_log_odds_error_mean": sum(base_errors) / len(base_errors) if base_errors else None,
         "base_log_odds_error_max": max(base_errors) if base_errors else None,
         "token_mismatches": token_mismatches,
+        # How Python computed the vision MLP: only "device" scores what the
+        # app computes (common.match_device).
+        "python_vision_gelu": sorted({
+            str(row.get("vision_gelu", "unrecorded")) for row in [*python_base, *python_adapter]
+        }),
     }
 
 
@@ -163,6 +168,11 @@ def verdict(adapter: dict[str, object], canary: dict[str, object] | None) -> tup
         failures.append(
             f"the doubled-scale canary is not clearly stronger ({canary['slope']:.3f} against "
             f"{adapter['slope']:.3f}): the check cannot see a scale mix-up"
+        )
+    if adapter.get("python_vision_gelu", ["device"]) != ["device"]:
+        notes.append(
+            f"Python scored with vision GELU {adapter['python_vision_gelu']}, not the device's: "
+            "the transfer slope compares two different models"
         )
     if not TRANSFER_RANGE[0] <= adapter["slope"] <= TRANSFER_RANGE[1]:
         notes.append(

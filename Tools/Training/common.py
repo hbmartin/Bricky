@@ -13,6 +13,14 @@ NAME_PATTERN = re.compile(r"^[a-z0-9._-]+$")
 # The decoder projections LoRA wraps: every linear in a Qwen3-VL language
 # model layer. The vision tower is never wrapped.
 PROJECTION_KEYS = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+# The pinned model's vision MLP was trained with tanh-approximated GELU, and
+# mlx-vlm computes that. The device runtime (mlx-swift-lm d2424294,
+# Qwen3VL.swift:655) computes the sigmoid approximation x*sigmoid(1.702x)
+# instead, which made Swift's slot log-odds 0.79x Python's and a
+# Python-trained adapter 0.73x as strong on the device. The trainer
+# computes what the device computes (ADR 0019).
+TRAINED_VISION_ACTIVATION = "gelu_pytorch_tanh"
+VISION_GELU_CHOICES = ("device", "reference")
 
 
 def read_jsonl(path: Path) -> list[dict[str, object]]:
@@ -46,6 +54,29 @@ def conversation(pair: dict[str, object], *, with_target: bool) -> list[dict[str
     if with_target:
         turns.append({"role": "assistant", "content": str(pair["target_text"])})
     return turns
+
+
+def match_device(model: object, model_dir: Path, make_gelu: object) -> int:
+    """Gives every vision MLP the device's activation (`make_gelu()`, the
+    sigmoid-approximated GELU) and returns how many blocks changed. Refuses
+    a model whose config or module tree is not the one this was checked
+    against, rather than silently matching nothing."""
+    vision = json.loads((model_dir / "config.json").read_text()).get("vision_config", {})
+    activation = vision.get("hidden_act")
+    if activation != TRAINED_VISION_ACTIVATION:
+        raise SystemExit(
+            f"vision hidden_act is {activation!r}, not {TRAINED_VISION_ACTIVATION!r}: "
+            "check what the device computes before matching it"
+        )
+    blocks = getattr(getattr(model, "vision_tower", None), "blocks", None)
+    if not blocks:
+        raise SystemExit("the model has no vision_tower.blocks; mlx-vlm changed, so check match_device")
+    for index, block in enumerate(blocks):
+        mlp = getattr(block, "mlp", None)
+        if mlp is None or not hasattr(mlp, "act_fn"):
+            raise SystemExit(f"vision block {index} has no mlp.act_fn; mlx-vlm changed, so check match_device")
+        mlp.act_fn = make_gelu()
+    return len(blocks)
 
 
 def identity(directory: Path, name: str) -> tuple[str, str]:

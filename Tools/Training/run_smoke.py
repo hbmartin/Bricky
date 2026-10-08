@@ -14,9 +14,11 @@ It needs the pinned weights and a built harness
       the scale is clearly stronger, so a scale mix-up would show. Both are
       measured on the adapter converted at 0.02 of its scale, the linear
       regime: the trained one moves log-odds by ~10 nats, where doubling the
-      scale no longer doubles the effect. The transfer slope (how strong
-      Swift's effect is against Python's) is reported, not gated: ADR 0019
-      requires it near 1 before real training;
+      scale no longer doubles the effect. Python trains and scores with the
+      device's vision activation (common.match_device), so the transfer
+      slope (how strong Swift's effect is against Python's) should be near 1.
+      It is reported, not gated: ADR 0019 requires it in [0.9, 1.1] before
+      real training;
   (c) a zero-B adapter reproduces the baseline replay exactly (both replays
       warm up first, as the app does: the first call after a load is not
       bit-reproducible).

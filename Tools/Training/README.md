@@ -19,7 +19,7 @@ cd Tools/Training && uv sync    # mlx 0.32.3, mlx-vlm 0.7.6 (uv.lock)
    `bricky-harness adapter-template --model-dir model --model-revision <sha> --out template`.
    This writes `template/template.json`, every adapter tensor's name, shape
    and dtype, and a zero-B adapter.
-3. **Train**:
+3. **Train** (as the device computes; see "The trainer matches the device"):
    `uv run python train_lora.py --model-dir model --pairs pairs --out trained/mlx_vlm`.
    - LoRA wraps the seven projections of every language-model decoder layer
      and never the vision tower.
@@ -44,6 +44,25 @@ cd Tools/Training && uv sync    # mlx 0.32.3, mlx-vlm 0.7.6 (uv.lock)
    `uv run python eval_first_slot.py --model-dir model --pairs pairs --adapter trained/swift --out eval.jsonl`.
    This gives first-slot accuracy on the held-out split, posed exactly as
    the runtime poses it.
+
+## The trainer matches the device
+
+The pinned model's vision MLP was trained with tanh-approximated GELU
+(`gelu_pytorch_tanh`), and mlx-vlm computes that. The app's runtime
+(mlx-swift-lm `d2424294`, `Qwen3VL.swift:655`) computes the sigmoid
+approximation, `x·sigmoid(1.702x)`, instead. The difference is small per
+activation, but it compounds over 24 vision blocks and every deepstack
+feature:
+- **Before matching:** Swift's slot log-odds were 0.79 times Python's, and
+  a Python-trained adapter acted only 0.73 as strongly on the device.
+
+So `train_lora.py` and `eval_first_slot.py` swap in the device's activation
+by default (`--vision-gelu device`, through `common.match_device`). An
+adapter is then trained against the model the app actually runs.
+- `--vision-gelu reference` scores the model as trained, for research only.
+- `parity_check.py` notes any Python scores not computed as the device
+  computes them.
+- Matching refuses a config or module tree it was not checked against.
 
 ## Parity and the smoke run
 
