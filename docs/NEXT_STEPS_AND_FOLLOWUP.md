@@ -1,6 +1,6 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-10-06. Companion to
+Last revised 2026-10-08. Companion to
 [EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
 program that supersedes much of the sequencing below — honest gates first,
 then device measurement, then the placement-level build diff — is
@@ -275,14 +275,19 @@ complete-recall 0.0, and the marginal gates stay dormant.
   Sessions also retain the recovery depth frame (ADR 0007 amendment), which
   is what makes a future geometric replay possible without re-collecting the
   physical corpus.
-- **Geometric replay on Mac.** Unblocked by the retained depth frames and,
-  since 2026-09-25, by the refactor it waited on: the index schedule and
-  step identities live in the Foundation-only `RecoveryIndexing`, and
-  `GeometricRecoveryEstimator` records through a `GeometricFitRecording`
-  protocol, so the estimator compiles into the macOS SyntheticRGBD tool
-  (its hand-copied `HierarchicalIndices` is gone). What remains is the
-  replay entry point itself: reading a bundle's `depth/` planes into
-  `RegistrationFrameInput` and emitting geometric benchmark rows.
+- ✅ **Geometric replay on Mac.** Done 2026-10-08:
+  - **The command:** `SyntheticRGBD --replay-bundle <b> --suite recovery`
+    re-fits each session from its depth frame and the alignment now recorded
+    beside it (`coarse_world_from_model`). That alignment was missing, so no
+    earlier session can be replayed this way.
+  - **Its output:** geometric benchmark rows, and replayed fits compared bit
+    for bit with the device's.
+  - **The rows also fix release validation.** `scored_step_ids` lets a
+    geometric row show its adjacent-step candidate, which the release
+    preflight used to refuse.
+  - **In CI:** the recovery suite round-trips through a bundle with
+    `--require-match`.
+  - **Still owed:** the device bundles to replay.
 - ✅ **Check-trace replay.** Done 2026-09-25: `bricky-harness replay
   --checks` writes `vlm_check` rows that the scorer reports (false-complete
   first). Negatives still require staged check sessions.
@@ -315,16 +320,15 @@ complete-recall 0.0, and the marginal gates stay dormant.
   re-attached, not restarted); pause for 2 hours and resume (does the
   signed Hugging Face CDN URL in the resume data expire?); and confirm that
   `RecoveryModels/` is excluded from backup.
-- **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
-  existence, not image decodability — a corrupt JPEG passes `--dry-run` and
-  fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes
-  are now checked by *size* against their declared `width * height`, because
-  a truncated blob reshapes into silently wrong geometry rather than
-  failing; images still need the equivalent.)
-- **Export ergonomics.** Consider a size warning before staging very large
-  exports (AirDrop over ~500 MB gets slow), and surfacing recorder write
-  failures in `EvidenceSessionsView` (recording is deliberately best-effort
-  and silent today; the session list only shows what was written).
+- ✅ **Bundle validation depth.** Done 2026-10-08: `replay --dry-run
+  --verify-images` decodes every board, tile, alternate tile and capture, and
+  requires a JPEG's end-of-image marker (ImageIO renders a truncated JPEG grey
+  and calls it complete). Depth planes were already checked by size.
+- ✅ **Export ergonomics.** Done 2026-10-08:
+  - Exports above 500 MB ask first.
+  - `session.json` records `recorder_health` (failed writes by operation,
+    and windows skipped at the cap or for low space).
+  - The session list badges a session with gaps.
 - ✅ **`make_board.py` retirement.** Done 2026-10-08: synthetic fixtures
   already went through the kit (`bricky-harness synth-bundle`), so the
   script and its Pillow dependency are gone and the evaluation tools are

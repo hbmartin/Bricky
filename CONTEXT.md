@@ -324,6 +324,16 @@ python3 check_regression.py synthetic.ndjson \
 # corpus on point estimates without failing unmeasured gates.
 python3 score_results.py --explain-minimums
 
+# Phase 1: every readout from exported device bundles in one run, each
+# Mac step run when its tools are given and printed otherwise
+# (docs/PHASE1_RUNBOOK.md). Release runs pass --require-kinds per kind;
+# vlm_check and shadow_check are accepted there, presence only.
+python3 -I phase1_report.py bundle-a/ bundle-b/ --work report/ \
+  --harness /path/to/bricky-harness --synthetic-rgbd /path/to/SyntheticRGBD \
+  --ldraw-root /path/to/ldraw --model-ldr models/tower/tower.ldr
+swift run --package-path ../../Packages/RecoveryMLX bricky-harness replay \
+  --bundle bundle --dry-run --verify-images
+
 # Mac replay of a device evidence bundle, one arm per variant, then a paired
 # comparison (exact McNemar with Holm; refuses fewer than 20 pairs):
 swift run --package-path ../../Packages/RecoveryMLX bricky-harness replay \
@@ -336,11 +346,14 @@ python3 compare_arms.py --control control.ndjson --variant variant.ndjson
 
 # The challenge suite: mistake classes the regression taxonomy lacks, scored
 # per class and never gated. Its baseline records today's known false
-# completes (a brick one plate too high; colour swaps, an expected failure).
+# completes (a brick one plate too high; colour swaps, an expected failure)
+# and holds the geometrically correct controls at complete. The
+# VERTICAL_CONTEST lines read the build diff's ±1-plate contests on it.
 SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
   --ldraw-root /path/to/ldraw --out challenge.ndjson --seed 7 --suite challenge
 python3 check_regression.py challenge.ndjson \
   --baseline ../SyntheticScenes/fixtures/challenge/baseline.json
+python3 score_results.py challenge.ndjson --informational | grep VERTICAL_CONTEST
 
 # Repairs (in-step and cross-step), geometric recovery (control and tie-break
 # arms) and suggested placement, each against its own baseline:
@@ -361,6 +374,19 @@ for arm in control tiebreak; do
 done
 python3 compare_arms.py --control recovery-control.ndjson \
   --variant recovery-tiebreak.ndjson --primary session_top1
+
+# Geometric recovery replayed from a bundle: each session's depth frame
+# re-fitted from its recorded alignment. CI writes the recovery suite as a
+# bundle and requires a bit-for-bit match; a device bundle may differ by
+# rasterizer, so drop --require-match there.
+for arm in control tiebreak; do
+  SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+    --ldraw-root /path/to/ldraw --out recovery-$arm.ndjson --seed 7 \
+    --suite recovery --recovery-arm $arm --write-bundle recovery-bundle-$arm
+  SyntheticRGBD ../SyntheticScenes/fixtures/challenge/challenge.ldr \
+    --ldraw-root /path/to/ldraw --replay-bundle recovery-bundle-$arm \
+    --suite recovery --recovery-arm $arm --require-match --out replay-$arm.ndjson
+done
 
 # Replay a device evidence bundle's verification windows on a Mac, judged
 # by the verifier or the build diff:

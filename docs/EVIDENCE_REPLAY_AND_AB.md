@@ -44,8 +44,9 @@ which may differ in an A/B.
 Behavior:
 
 1. Validates the bundle (`EvidenceBundleReader.validate`) and refuses to run
-   on structural issues. `--dry-run` stops here — no weights needed, which
-   is what CI exercises.
+   on structural issues. `--verify-images` also decodes every board, tile,
+   alternate tile and capture. `--dry-run` stops here — no weights needed,
+   which is what CI exercises.
 2. For each session, replays its rank traces — by default only the
    `finalist` passes (the ones that vote); `--all-passes` replays the
    `broad`/`narrowing`/`narrow` passes too. `check` traces are replayed
@@ -59,9 +60,10 @@ Behavior:
    (leader agreement 3 → high, 2 → medium; fewer than two voting views →
    insufficient). Both conditions are required: unlabeled sessions replay but
    emit no benchmark row, and a labeled **geometric-only** session (fits but
-   no rank traces) emits none either because geometric replay does not exist
-   yet — the CLI reports each such skip explicitly so corpus counts account
-   for those sessions.
+   no rank traces) emits none here — its row comes from SyntheticRGBD's
+   geometric replay (below), which links the depth stack this tool does not.
+   The CLI reports each such skip, naming that command, so corpus counts
+   account for those sessions.
 5. Writes benchmark rows to `--out` and every per-call result to
    `<out>.traces.ndjson`.
 
@@ -242,6 +244,38 @@ snapshot, not locked, or a lattice margin under 1.5.
 A pose locked one pitch off would label every stud one pitch off,
 consistently and silently, so these are pseudo-labels: check them by eye
 before anything trains on them (ADR 0020).
+
+## Geometric recovery replay (SyntheticRGBD)
+
+```sh
+SyntheticRGBD model.ldr --ldraw-root ldraw --replay-bundle bundle \
+  --suite recovery [--recovery-arm control|tiebreak] [--require-match] --out rows.ndjson
+```
+
+Re-fits each session's geometric recovery on the Mac from its center depth
+frame and the alignment recorded beside it (`coarse_world_from_model`),
+through the app's own estimator (`GeometricRecoveryReplay`). Like the window
+replay, it needs the model folder exactly as imported.
+- **Per session:** it prints the replayed verdict and whether the fits and
+  the estimate match the device's. Fits are compared bit for bit, ignoring
+  their id and timestamp. The estimate is compared on what the geometric
+  leg concluded: a `composite` session means it did not conclude, and a
+  `vlm` session says nothing.
+- **Rows:** labeled sessions become `RecoveryBenchmarkV1` rows, with
+  `estimator_method: geometric`, `device_model: replay:<mac>`,
+  `variant_id: recovery_arm=<arm>` and `scored_step_ids`. The replayed fits
+  go to `<out>.fits.ndjson`.
+- **Skips:** sessions without a depth frame, without a recorded alignment
+  (recorded before 2026-10-08), or of another model are skipped and counted.
+- **Matching:** the Mac and the phone may rasterize differently, so a
+  mismatch on a device bundle is reported, not fatal. `--require-match`
+  makes any skip or mismatch fatal. It is for bundles written on the same
+  machine; CI writes one with `--suite recovery --write-bundle <dir>` and
+  replays it so.
+- **Comparing arms:** run both arms and pair them with `compare_arms.py
+  --primary session_top1 --allow-mixed-revisions`. A tie-break arm records
+  `+pcs1` wherever the tie-break fired. That paired comparison on device
+  bundles is what ADR 0010 requires before the tie-break default can flip.
 
 ## Workflows
 

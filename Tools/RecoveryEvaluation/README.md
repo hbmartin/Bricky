@@ -79,7 +79,9 @@ perfect score.
   Clopper–Pearson bound and each median-latency gate on a distribution-free
   order-statistic bound. RMSE gates need ≥ 20 converged fits. A required gate
   that is `UNMEASURED` fails, and so does a missing required kind
-  (`--require-kinds`, default: all three). There is no fixed row minimum:
+  (`--require-kinds`, default: recovery, verification and registration; it
+  also accepts `vlm_check` and `shadow_check`, which must then be present but
+  whose gates stay informational). There is no fixed row minimum:
   each gate's bound sets it, and `--explain-minimums` prints the zero-miss
   sample every gate implies — for example 149 negatives for the 2 %
   false-complete ceiling, and 59 rows for top-3 ≥ 0.95. A perfect 40/40
