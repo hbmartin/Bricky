@@ -9,16 +9,33 @@
     "- plate_up1: a brick one plate (3.2 mm) too high reads COMPLETE on",
     "  every strongly detectable step. The 6 mm depth tolerance swallows",
     "  the offset. This is a real false-complete class, not an expected",
-    "  failure; the placement-level diff (roadmap Phase 2) must fix it.",
+    "  failure. The build diff tallies a +-1 plate contest on every",
+    "  placement and by design never acts on it (ADR 0008 amendment). Read",
+    "  through score_results.py (VERTICAL_CONTEST, 2026-10-08), the raised",
+    "  contest is decisive on 3/3 strong plate_up1 rows and on 0/7 strong",
+    "  controls, though two target rows carry only 36-38 contested pixels",
+    "  against the 30 floor. The candidate fix is a block-only vertical",
+    "  contest, which may take a complete away and never concludes an",
+    "  offset; it needs an ADR 0008 amendment and waits for device windows",
+    "  (NEXT_STEPS 1a item 16).",
     "- colour_swap: expected failure. Depth cannot see colour; the RGB",
     "  support term (ADR 0008) is what flips it.",
     "Per-class cases are guarded exactly and false completes as",
     "lower_is_better, so a fix shows as an improvement and any change in",
-    "which rows exist fails loudly. Regenerate with --update and explain",
-    "the movement in the commit message."
+    "which rows exist fails loudly.",
+    "",
+    "Guards added by hand (2026-10-08), because --update adds only counts:",
+    "the geometrically correct controls stay complete. A plate contest that",
+    "over-blocks would otherwise pass this file: it would lower",
+    "colour_swap.false_complete_cases and read as an improvement. So",
+    "rot90/rot180_symmetric correct_complete, colour_swap produced.complete",
+    "and the diff's present.present are higher_is_better. Later --update",
+    "runs keep them and refresh their values.",
+    "",
+    "Regenerate with --update and explain the movement in the commit message."
   ],
   "fixture": "fixtures/challenge/challenge.ldr",
-  "generated": "2026-09-25",
+  "generated": "2026-10-08",
   "metrics": {
     "challenge.by_class.colour_swap.cases": {
       "direction": "exact",
@@ -34,6 +51,11 @@
       "direction": "exact",
       "tolerance": 0.0,
       "value": 6.0
+    },
+    "challenge.by_class.colour_swap.produced.complete": {
+      "direction": "higher_is_better",
+      "tolerance": 0.0,
+      "value": 3.0
     },
     "challenge.by_class.plate_down1.cases": {
       "direction": "exact",
@@ -85,6 +107,11 @@
       "tolerance": 0.0,
       "value": 3.0
     },
+    "challenge.by_class.rot180_symmetric.correct_complete": {
+      "direction": "higher_is_better",
+      "tolerance": 0.0,
+      "value": 3.0
+    },
     "challenge.by_class.rot180_symmetric.false_complete_cases": {
       "direction": "lower_is_better",
       "tolerance": 0.0,
@@ -112,6 +139,11 @@
     },
     "challenge.by_class.rot90_symmetric.cases": {
       "direction": "exact",
+      "tolerance": 0.0,
+      "value": 1.0
+    },
+    "challenge.by_class.rot90_symmetric.correct_complete": {
+      "direction": "higher_is_better",
       "tolerance": 0.0,
       "value": 1.0
     },
@@ -169,6 +201,11 @@
       "direction": "lower_is_better",
       "tolerance": 0.0,
       "value": 3.0
+    },
+    "placement.by_expected_state.present.present": {
+      "direction": "higher_is_better",
+      "tolerance": 0.0,
+      "value": 4.0
     },
     "placement.cases": {
       "direction": "exact",

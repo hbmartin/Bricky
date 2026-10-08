@@ -259,3 +259,23 @@ class EndToEndTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChallengeBaselineGuardTests(unittest.TestCase):
+    # Fails on the old baseline with a KeyError: nothing held the correct
+    # controls at complete, so a plate contest that over-blocked would have
+    # read as an improvement (fewer colour_swap false completes).
+    def test_challenge_baseline_guards_geometrically_correct_controls(self) -> None:
+        baseline = json.loads(
+            (Path(__file__).resolve().parent.parent / "SyntheticScenes/fixtures/challenge/baseline.json").read_text()
+        )
+        for metric in (
+            "challenge.by_class.rot90_symmetric.correct_complete",
+            "challenge.by_class.rot180_symmetric.correct_complete",
+            "challenge.by_class.colour_swap.produced.complete",
+            "placement.by_expected_state.present.present",
+        ):
+            entry = baseline["metrics"][metric]
+            self.assertEqual(entry["direction"], "higher_is_better", metric)
+            self.assertGreater(entry["value"], 0, metric)
+

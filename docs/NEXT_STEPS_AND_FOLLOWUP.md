@@ -140,6 +140,18 @@ settings):
     trainer now matches the device's vision activation. Re-check the
     transfer slope on the first real run.
 
+**Added 2026-10-08** (measurement only; nothing changes a verdict):
+
+16. **Plate offset** (§2a), with evidence capture on:
+    - at least 20 staged `plate_offset` verification windows on
+      single-part steps, the part raised by one plate (never lowered, so
+      the contest's direction is known);
+    - at least 20 staged `complete` windows of the same steps, as controls;
+    - over at least 3 sessions;
+    - then read the device `VERTICAL_CONTEST` line. SEPARATES on device
+      windows is the entry evidence for the block-only contest's ADR 0008
+      amendment; OVERLAPS or MISSES keeps the class guarded and open.
+
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
 Each was explicitly deferred during the design session because the harness
@@ -171,6 +183,24 @@ the placement-level diff are meant to close. On `challenge.ldr` at seed 7:
   the offset. That is a false-complete class inside today's product
   boundary. It is guarded in `fixtures/challenge/baseline.json`, so a fix
   reads as an improvement.
+  - **The build diff will not fix it as built.** It tallies a ±1-plate
+    contest on every placement and, by design, never acts on it (ADR 0008
+    amendment: "recorded, never concluded").
+  - **Measured (2026-10-08).** `score_results.py` now reads those tallies
+    (`VERTICAL_CONTEST`). Under the diff's own decisive rule, the raised
+    contest is decisive on 3 of 3 strong `plate_up1` rows and on 0 of 7
+    strong controls (colour swap, symmetric rotations): SEPARATES. The
+    margin is thin: two target rows carry only 36 and 38 contested pixels
+    against the 30-pixel floor. The lowered contest catches 1 of 3
+    `plate_down1` rows, which never read complete anyway.
+  - **The candidate fix** is a block-only vertical contest: it may take a
+    `complete` away and never concludes an offset. It needs an ADR 0008
+    amendment, and waits for device windows (§1a item 16), because real
+    depth carries a per-view bias and flying pixels at exactly the outline
+    band the contest relies on (ADR 0014).
+  - **Guarded both ways.** The challenge baseline also holds the correct
+    controls at `complete` (`higher_is_better`), so a contest that
+    over-blocks fails CI instead of reading as an improvement.
 
 `GeometricStepVerifier` still refuses `complete` under marginal
 detectability: ADR 0008 requires depth **and RGB** agreement there.
