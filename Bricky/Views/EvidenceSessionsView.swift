@@ -8,6 +8,7 @@ struct EvidenceSessionsView: View {
     @State private var exportedBundle: ExportedBundle?
     @State private var isExporting = false
     @State private var errorMessage: String?
+    @State private var confirmingLargeExport = false
 
     private struct ExportedBundle: Identifiable {
         let url: URL
@@ -54,6 +55,16 @@ struct EvidenceSessionsView: View {
                     exportButton
                 }
             }
+        }
+        .confirmationDialog(
+            "Export \(ByteCountFormatter.string(fromByteCount: selectedByteCount, countStyle: .file))?",
+            isPresented: $confirmingLargeExport,
+            titleVisibility: .visible
+        ) {
+            Button("Export \(ByteCountFormatter.string(fromByteCount: selectedByteCount, countStyle: .file))") { export() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("AirDrop slows down above about \(ByteCountFormatter.string(fromByteCount: EvidenceExporter.largeExportBytes, countStyle: .file)). Exporting fewer sessions at a time is faster.")
         }
         .sheet(item: $exportedBundle) { bundle in
             ShareSheet(items: [bundle.url])
@@ -126,7 +137,11 @@ struct EvidenceSessionsView: View {
 
     private var exportButton: some View {
         Button {
-            export()
+            if EvidenceExporter.asksBeforeExport(byteCount: selectedByteCount) {
+                confirmingLargeExport = true
+            } else {
+                export()
+            }
         } label: {
             if isExporting {
                 ProgressView()

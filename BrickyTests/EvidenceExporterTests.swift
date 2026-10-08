@@ -30,6 +30,19 @@ final class EvidenceExporterTests: XCTestCase {
         return id
     }
 
+    // Fail on the old code by not compiling: every export went straight to
+    // staging, however large.
+    func testExportsAboveAbout500MBAskFirst() {
+        XCTAssertFalse(EvidenceExporter.asksBeforeExport(byteCount: 0))
+        XCTAssertFalse(EvidenceExporter.asksBeforeExport(byteCount: 500_000_000))
+        XCTAssertTrue(EvidenceExporter.asksBeforeExport(byteCount: 500_000_001))
+    }
+
+    func testThresholdReadsAs500MB() {
+        // Decimal, so the dialog's figure matches the button's.
+        XCTAssertEqual(ByteCountFormatter.string(fromByteCount: EvidenceExporter.largeExportBytes, countStyle: .file), "500 MB")
+    }
+
     // Fails on the old code by not compiling: the list could not say a
     // session had gaps.
     func testSummaryCarriesRecorderHealth() throws {

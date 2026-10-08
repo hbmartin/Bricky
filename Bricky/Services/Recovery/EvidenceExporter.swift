@@ -19,6 +19,17 @@ enum EvidenceExporter {
         var windowsSkipped = 0
     }
 
+    /// Above this, AirDrop gets slow enough that an export deserves a
+    /// second thought. Decimal, to match the size the button shows.
+    static let largeExportBytes: Int64 = 500_000_000
+
+    /// Whether to confirm before exporting this many bytes. Judged on the
+    /// staged size, which slightly overstates the zip (JPEGs barely
+    /// compress), so it errs early.
+    static func asksBeforeExport(byteCount: Int64) -> Bool {
+        byteCount > largeExportBytes
+    }
+
     static func storeDirectory(root: URL) -> URL {
         root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName, isDirectory: true)
     }
