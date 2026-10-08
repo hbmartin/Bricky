@@ -226,6 +226,48 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         XCTAssertEqual(flat[15], 1)
     }
 
+    private func candidate(_ index: Int, score: Float, disqualified: Bool = false) -> GeometricRecoveryEstimator.CandidateScore {
+        GeometricRecoveryEstimator.CandidateScore(
+            index: index,
+            worldFromModel: matrix_identity_float4x4,
+            quality: RegistrationQuality(rmsResidual: 0.001, inlierFraction: 1, latticeMargin: 2),
+            score: score,
+            unexplainedFraction: 0,
+            phantomFraction: 0,
+            visibleFraction: 1,
+            disqualification: disqualified ? .horizontalDeviation : .none
+        )
+    }
+
+    // Fails on the old code only by not compiling: it sorted a dictionary's
+    // values, whose order is seeded per process, so no test could force the
+    // old tie order to come out wrong.
+    func testTiedCandidatesRankByScoreThenStepIndex() {
+        let scores = [
+            candidate(5, score: -1, disqualified: true),
+            candidate(2, score: -1, disqualified: true),
+            candidate(7, score: 0.3),
+            candidate(3, score: 0.3),
+            candidate(1, score: 0.6),
+        ]
+        let byIndex = Dictionary(uniqueKeysWithValues: scores.map { ($0.index, $0) })
+        let orders: [[GeometricRecoveryEstimator.CandidateScore]] = [
+            scores, Array(scores.reversed()), [scores[2], scores[0], scores[4], scores[1], scores[3]], Array(byIndex.values),
+        ]
+        for order in orders {
+            XCTAssertEqual(GeometricRecoveryEstimator.ranking(order).map(\.index), [1, 3, 7, 2, 5])
+        }
+    }
+
+    func testARefinementLeaderTieGoesToTheEarlierStep() {
+        let scored = Dictionary(uniqueKeysWithValues: [
+            candidate(4, score: 0.5), candidate(2, score: 0.5), candidate(9, score: 0.7),
+        ].map { ($0.index, $0) })
+        // Step 9 scores higher but lies outside the interval being refined.
+        XCTAssertEqual(GeometricRecoveryEstimator.leader(of: scored, in: 0..<8)?.index, 2)
+        XCTAssertNil(GeometricRecoveryEstimator.leader(of: scored, in: 10..<12))
+    }
+
     func testUnrelatedSceneIsInconclusive() async throws {
         // Nothing brick-like on the table: no candidate may conclude.
         let ranked = try await rankedScores(physical: [])
