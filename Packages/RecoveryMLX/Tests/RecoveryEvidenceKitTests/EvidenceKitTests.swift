@@ -310,6 +310,53 @@ final class EvidenceKitTests: XCTestCase {
         }
     }
 
+    /// Writes one evidence-window frame (record and planes) under
+    /// `windows/frames`, its planes sized for its dimensions unless those
+    /// overflow.
+    @discardableResult
+    static func writeWindowFrame(
+        into session: URL, width: Int = 4, height: Int = 3, depthVersion: Int = EvidenceSchema.depthVersion,
+        intrinsicsCount: Int = 9, poseCount: Int = 16
+    ) throws -> UUID {
+        let frameID = UUID()
+        let stem = "windows/frames/\(frameID.uuidString)"
+        try FileManager.default.createDirectory(
+            at: session.appendingPathComponent("windows/frames", isDirectory: true), withIntermediateDirectories: true
+        )
+        let pixels = width.multipliedReportingOverflow(by: height)
+        let count = pixels.overflow ? 0 : pixels.partialValue
+        try Data(count: count * 4).write(to: session.appendingPathComponent("\(stem).depth"))
+        try Data(count: count).write(to: session.appendingPathComponent("\(stem).confidence"))
+        let record = EvidenceDepthFrameRecord(
+            depthVersion: depthVersion, captureID: frameID, width: width, height: height,
+            depthIntrinsics: Array(repeating: 1, count: intrinsicsCount), worldFromCamera: Array(repeating: 0, count: poseCount),
+            timestamp: 3, depthRelativePath: "\(stem).depth", confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: nil, rawConfidenceRelativePath: nil,
+            colourRelativePath: nil, occluderMaskRelativePath: nil, colourEncoding: nil
+        )
+        try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
+            .write(to: session.appendingPathComponent("\(stem).json"))
+        return frameID
+    }
+
+    /// A malformed window frame would replay under a zero intrinsics matrix
+    /// or an identity pose without an error, so validation must catch it.
+    func testReaderRejectsMalformedWindowFrames() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        try Self.writeWindowFrame(into: session.directory)
+        XCTAssertEqual(reader.validate(), [], "a well-formed window frame passes")
+        try Self.writeWindowFrame(into: session.directory, depthVersion: EvidenceSchema.depthVersion + 1)
+        try Self.writeWindowFrame(into: session.directory, intrinsicsCount: 4, poseCount: 12)
+        try Self.writeWindowFrame(into: session.directory, width: Int.max, height: 2)
+        let issues = reader.validate().filter { $0.contains("window frame") }
+        XCTAssertTrue(issues.contains { $0.contains("depth_version") })
+        XCTAssertTrue(issues.contains { $0.contains("expected 9") })
+        XCTAssertTrue(issues.contains { $0.contains("expected 16") })
+        XCTAssertTrue(issues.contains { $0.contains("overflow") })
+    }
+
     func testReaderRejectsOverflowingDepthDimensions() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)

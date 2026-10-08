@@ -141,6 +141,10 @@ final class RepairWordingCoordinatorTests: XCTestCase {
     func testTheLanguageLayerRunsOnlyWhenOnAndInEnglish() {
         XCTAssertNil(RepairWordingSource.generator(enabled: false, preferredLocalizations: ["en"]))
         XCTAssertNil(RepairWordingSource.generator(enabled: true, preferredLocalizations: ["fr"]))
+        #if canImport(FoundationModels)
         XCTAssertNotNil(RepairWordingSource.generator(enabled: true, preferredLocalizations: ["en"]))
+        #else
+        XCTAssertNil(RepairWordingSource.generator(enabled: true, preferredLocalizations: ["en"]), "no system model to ask")
+        #endif
     }
 }

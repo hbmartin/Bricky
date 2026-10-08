@@ -67,12 +67,16 @@ enum RepairPlanner {
                 actions.append(.swapColour(ref, expected: ref.colourCode))
             case .absent:
                 actions.append(.add(ref))
-            case .displaced(let offset) where !offset.isVertical:
+            // As CrossStepRepairPlanner.fix: an offset or turn that changes
+            // nothing must not become "move" or "turn" wording.
+            case .displaced(let offset) where !offset.isVertical && (offset.dx != 0 || offset.dz != 0):
                 actions.append(.move(ref, by: LatticeOffset(dx: -offset.dx, dz: -offset.dz)))
             case .displaced:
                 continue
-            case .rotated(let turns):
+            case .rotated(let turns) where ((turns % 4) + 4) % 4 != 0:
                 actions.append(.rotate(ref, quarterTurns: (4 - ((turns % 4) + 4) % 4) % 4))
+            case .rotated:
+                continue
             case .notObservable:
                 withheld.append(WithheldAction(action: .add(ref), reason: .notObservable))
             }

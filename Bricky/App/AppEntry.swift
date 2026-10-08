@@ -73,7 +73,7 @@ struct AppEntry: App {
                     // checks behind the milestone fetch.
                     // Spotlight holds models only while the user wants it
                     // to; this also clears entries left by a replaced model.
-                    try? await InstructionModelSpotlight.sync(context: modelContainer.mainContext)
+                    await InstructionModelSpotlight.requestSync(context: modelContainer.mainContext).value
                     async let sweep: Void = sweepOrphanedRecoveryWorkFiles()
                     await partPack.checkInstalled()
                     await recoveryModel.check()

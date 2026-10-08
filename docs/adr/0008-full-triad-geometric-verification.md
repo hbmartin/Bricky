@@ -110,6 +110,14 @@ may only take a "complete" away, and is logged and recorded
 - 0 false present on the challenge set;
 - false-complete still 0.
 
+Note (2026-10-07): "paired" means paired by frame. A window carries the
+verifier's verdict, the shadow's verdict and diff, and the colour reading of
+the same frame. A reading from any other frame is left out, so no
+`diffs.ndjson` row is written for it. A verdict-change window is recorded
+only after the shadow has judged that frame. Before this, such windows
+carried the shadow's reading of the previous frame, but no real rows had
+been recorded yet.
+
 Note (2026-10-05): repair wording is text only (ADR 0015). Any AR arrow or
 pointing overlay needs a US11393153B2 design-around review before it is built,
 for the same reason ghosts here are never wireframe.

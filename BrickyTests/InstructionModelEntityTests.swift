@@ -13,6 +13,45 @@ final class InstructionModelEntityTests: XCTestCase {
         func removeAll() async throws { removals += 1 }
     }
 
+    /// An index that tracks what Spotlight would hold. Its first
+    /// `removeAll` waits until released, so a test can act while that sync
+    /// is suspended.
+    private actor GatedIndex: InstructionModelIndexing {
+        private(set) var live: Set<UUID> = []
+        private var held: CheckedContinuation<Void, Never>?
+        private var arrival: CheckedContinuation<Void, Never>?
+        private var holding = false
+        private var hasHeld = false
+
+        func index(_ entities: [InstructionModelEntity]) async throws { live.formUnion(entities.map(\.id)) }
+
+        func removeAll() async throws {
+            if !hasHeld {
+                hasHeld = true
+                holding = true
+                arrival?.resume()
+                arrival = nil
+                await withCheckedContinuation { held = $0 }
+            }
+            live.removeAll()
+        }
+
+        func waitUntilHeld() async {
+            guard !holding else { return }
+            await withCheckedContinuation { arrival = $0 }
+        }
+
+        func release() {
+            held?.resume()
+            held = nil
+        }
+    }
+
+    @MainActor
+    private final class Setting {
+        var on = true
+    }
+
     private var context: ModelContext!
     private var container: ModelContainer!
 
@@ -56,6 +95,21 @@ final class InstructionModelEntityTests: XCTestCase {
         XCTAssertEqual(indexed.count, 1)
         XCTAssertEqual(Set(indexed.first?.map(\.title) ?? []), ["Tower", "Bridge"])
         XCTAssertEqual(indexed.first?.map(\.stepCount), [1, 1])
+    }
+
+    func testOptOutIsNeverUndoneByAnEarlierSync() async throws {
+        let index = GatedIndex()
+        let setting = Setting()
+        // Spotlight on: this sync suspends in its first removeAll.
+        InstructionModelSpotlight.requestSync(context: context, index: index, setting: { setting.on })
+        await index.waitUntilHeld()
+        // The user turns it off while that sync is suspended.
+        setting.on = false
+        let optOut = InstructionModelSpotlight.requestSync(context: context, index: index, setting: { setting.on })
+        await index.release()
+        await optOut.value
+        let live = await index.live
+        XCTAssertTrue(live.isEmpty, "turning Spotlight off must leave it empty, whatever was in flight")
     }
 
     func testQueryReturnsOnlyTheRequestedModels() throws {

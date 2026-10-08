@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — review follow-ups for #12–#14
+
+Fixes for review findings that were left open when those PRs merged. None
+changes a verdict the user sees.
+
+- **Fix.** The exporter refuses a bundle whose `sessions` folder is a
+  symlink pointing outside it. Without that, `--copy-images` could copy
+  foreign boards into training data. This fix missed the #14 merge.
+- **Fix.** Spotlight syncs run one at a time, each reading the setting
+  when it runs. A sync that was enabled could otherwise finish after a
+  later opt-out and index every model again.
+- **Fix.** The build diff no longer votes with a frame whose render
+  outlived a step change or an evidence reset.
+- **Fix.** An evidence window pairs the verifier's, the shadow's and the
+  colour term's readings of the same frame:
+  - Verdict-change windows used to pair frame N's verdict with frame
+    N−1's shadow diff. Those are the `diffs.ndjson` rows the ADR 0008 flip
+    gate reads.
+  - A reading from another frame is now left out, and a failed shadow
+    judgement clears the last one.
+  - No real rows had been recorded yet.
+- **Fix.** Evidence-window frames are validated like depth frames: depth
+  version, intrinsics and pose lengths, and size overflow. A malformed
+  frame used to replay under the wrong geometry without any error.
+- **Fix.** Purging the placement geometry also drops a build in flight,
+  so geometry built after the AR guide closed no longer stays in memory.
+- **Fix.** A whole turn or a zero offset in the build diff plans no
+  repair. The Foundation Models wording test now follows the toolchain.
+
 ## Unreleased — iOS 27 Phase 4: lattice evidence, stud labels, LoRA tooling (nothing trained ships)
 
 Nothing here changes what a user sees, and no model or adapter is trained

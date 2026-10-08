@@ -72,8 +72,9 @@ struct StorageAndAttributionView: View {
                 Label("Images and instruction models stay on this device", systemImage: "lock.shield.fill")
                 Text("Instruction models and LDraw files never leave the device. Images leave only through actions you take explicitly: exporting an evidence bundle, or sending one consented frame via cloud assist.")
                 Toggle("Show models in Spotlight", isOn: $spotlightModelsEnabled)
-                    .onChange(of: spotlightModelsEnabled) { _, enabled in
-                        Task { try? await InstructionModelSpotlight.sync(enabled: enabled, context: context) }
+                    .onChange(of: spotlightModelsEnabled) {
+                        // Queued: a quick off after on still ends empty.
+                        InstructionModelSpotlight.requestSync(context: context)
                     }
                 Text("Off by default. When on, Spotlight on this iPhone can find your models by title. Build progress, photos and evidence are never added. Turning it off removes every entry.")
                     .font(.caption).foregroundStyle(.secondary)

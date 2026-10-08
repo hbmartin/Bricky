@@ -521,4 +521,47 @@ final class GeometricStepVerifierTests: XCTestCase {
         XCTAssertEqual(observations.count, 3)
         XCTAssertTrue(observations.contains { $0.state == .present }, "round-robin reaches the parts")
     }
+
+    /// Holds a per-placement pass right after its render.
+    private actor RenderGate {
+        private(set) var isHolding = false
+        private var held: CheckedContinuation<Void, Never>?
+
+        func hold() async {
+            isHolding = true
+            await withCheckedContinuation { held = $0 }
+        }
+
+        func release() {
+            held?.resume()
+            held = nil
+        }
+    }
+
+    /// A step that begins while the previous step's frame is still being
+    /// rendered must not receive that frame's votes.
+    func testABeginDuringThePlacementRenderDropsItsVotes() async throws {
+        let buffers = completedSnapshot.buffers + deltaSnapshot.buffers
+        let frames = try (0..<2).map { try observedFrame(sceneBuffers: buffers, timestamp: TimeInterval($0) * 0.1) }
+        let geometry = stepGeometry(delta: deltaSnapshot)
+        let diff = try BuildDiffEngine()
+        let gate = RenderGate()
+        await diff.setAfterPlacementRender { await gate.hold() }
+        await diff.begin(stepID: "<root>#5", geometry: geometry)
+        // The pass runs on the second counted frame.
+        _ = try await diff.ingest(frame: frames[0], registration: lockedRegistration())
+        let registration = lockedRegistration()
+        let pass = Task { try await diff.ingest(frame: frames[1], registration: registration) }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await !gate.isHolding, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        let held = await gate.isHolding
+        XCTAssertTrue(held, "the placement pass never rendered")
+        await diff.begin(stepID: "<root>#6", geometry: geometry)
+        await gate.release()
+        _ = try await pass.value
+        let voted = await diff.votedPlacementCount
+        XCTAssertEqual(voted, 0, "the previous step's frame voted into the new step")
+    }
 }

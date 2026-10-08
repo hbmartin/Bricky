@@ -41,6 +41,20 @@ struct PlacementGeometry: Sendable {
 actor PlacementGeometryStore {
     static let shared = PlacementGeometryStore()
 
+    /// Flattens a plan's whole timeline. Injectable for tests.
+    typealias Build = @Sendable (InstructionPlan, URL, URL) async throws -> PlacementGeometry
+    private let build: Build
+
+    init(build: @escaping Build = PlacementGeometryStore.flatten) {
+        self.build = build
+    }
+
+    /// The app's flatten: every placement through the LDraw engine.
+    static func flatten(_ plan: InstructionPlan, sourceRoot: URL, partPackRoot: URL) async throws -> PlacementGeometry {
+        let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
+        return PlacementGeometry(plan: plan, segments: try await engine.segmented(placements: plan.placementTimeline))
+    }
+
     struct Key: Hashable, Sendable {
         let sourceSHA256: String
         let sourceRoot: String
@@ -70,14 +84,14 @@ actor PlacementGeometryStore {
         if let cached, cached.key == key { return cached.geometry }
         if let inFlight, inFlight.key == key { return try await inFlight.task.value }
         buildCount += 1
-        let task = Task {
-            let engine = LDrawGeometryEngine(sourceRoot: sourceRoot, partPackRoot: partPackRoot)
-            return PlacementGeometry(plan: plan, segments: try await engine.segmented(placements: plan.placementTimeline))
-        }
+        let build = self.build
+        let task = Task { try await build(plan, sourceRoot, partPackRoot) }
         inFlight = (key, task)
-        defer { if inFlight?.key == key { inFlight = nil } }
+        defer { if inFlight?.task == task { inFlight = nil } }
         let geometry = try await task.value
-        cached = (key, geometry)
+        // A purge, or a request for another model, replaced this build
+        // while it ran: its caller gets the geometry, but it is not kept.
+        if inFlight?.task == task { cached = (key, geometry) }
         return geometry
     }
 
@@ -100,9 +114,11 @@ actor PlacementGeometryStore {
         return measured
     }
 
-    /// Drops the cached geometry, e.g. when the AR guide closes.
+    /// Drops the cached geometry, e.g. when the AR guide closes. A build
+    /// still running finishes for whoever awaits it but is not cached.
     func purge() {
         cached = nil
         symmetries = nil
+        inFlight = nil
     }
 }

@@ -33,10 +33,12 @@ extension RepairWordingFacts {
 }
 
 enum RepairWordingSource {
-    /// The language layer when the developer setting is on, the system model
-    /// can run, and the app speaks English (the String Catalog is English
-    /// only, and a model sentence must match the rest of the screen).
-    /// Otherwise nil: the templates, exactly as before.
+    /// The language layer when the developer setting is on, the build can
+    /// import FoundationModels, and the app speaks English (the String
+    /// Catalog is English only, and a model sentence must match the rest of
+    /// the screen). Otherwise nil: the templates, exactly as before. Whether
+    /// the system model is ready is checked each time it phrases, and a
+    /// model that is not falls back to the template.
     @MainActor
     static func generator(enabled: Bool, preferredLocalizations: [String] = Bundle.main.preferredLocalizations) -> (any RepairWordingGenerator)? {
         guard enabled, preferredLocalizations.first?.hasPrefix("en") == true else { return nil }

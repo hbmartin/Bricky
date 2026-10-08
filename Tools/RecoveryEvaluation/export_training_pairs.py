@@ -135,9 +135,13 @@ def contained(path: Path, root: Path) -> bool:
 def load_sessions(bundles: list[Path], export: Export, *, smoke: bool) -> None:
     for bundle in bundles:
         manifest = json.loads((bundle / "evidence_bundle.json").read_text())
+        # The sessions root itself may be a symlink out of the bundle; then
+        # every session under it would pass a check against that root.
+        root = bundle / "sessions"
+        root_inside = contained(root, bundle)
         for session_id in manifest["session_ids"]:
-            directory = bundle / "sessions" / str(session_id)
-            if not contained(directory, bundle / "sessions"):
+            directory = root / str(session_id)
+            if not root_inside or not contained(directory, root):
                 export.exclude("session_outside_bundle")
                 continue
             session = Session(
