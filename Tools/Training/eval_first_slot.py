@@ -21,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 
-from common import conversation, pair_image, read_jsonl
+from common import VISION_GELU_CHOICES, conversation, match_device, pair_image, read_jsonl
 
 
 def apply_swift_adapter(model, directory: Path) -> None:
@@ -53,15 +53,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--adapter", type=Path, help="a converted adapter directory")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--limit", type=int, help="score only the first N pairs")
+    parser.add_argument(
+        "--vision-gelu", choices=VISION_GELU_CHOICES, default="device",
+        help="device: score with the activation the app computes (default); reference: the model's own",
+    )
     arguments = parser.parse_args(argv)
 
     import mlx.core as mx
+    import mlx.nn as nn
     from PIL import Image
     from mlx_vlm.prompt_utils import apply_chat_template
     from mlx_vlm.utils import load, process_inputs_with_fallback
 
     pairs = read_jsonl(arguments.pairs / f"{arguments.split}.jsonl")[: arguments.limit]
     model, processor = load(str(arguments.model_dir))
+    if arguments.vision_gelu == "device":
+        match_device(model, arguments.model_dir, lambda: nn.GELU(approx="fast"))
     if arguments.adapter:
         apply_swift_adapter(model, arguments.adapter)
     config = model.config.__dict__
@@ -105,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             "slot_logprobs": slot_logprobs,
             "prompt_tokens": len(flat),
             "image_tokens": sum(1 for token in flat if token == image_token),
+            "vision_gelu": arguments.vision_gelu,
         })
     arguments.out.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
     print(f"first-slot accuracy {correct}/{len(rows)} on {arguments.split}"

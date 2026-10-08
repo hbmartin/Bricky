@@ -4,9 +4,14 @@
 
 from __future__ import annotations
 
+import json
 import math
+import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
+from common import TRAINED_VISION_ACTIVATION, match_device
 from convert_adapter import check_name, parse_name, plan, swift_config
 from parity_check import agrees, compare, verdict
 
@@ -87,8 +92,11 @@ class ConvertTests(unittest.TestCase):
         self.assertEqual(parse_name("language_model.model.layers.12.mlp.down_proj.lora_b"), (12, "mlp.down_proj", "lora_b"))
 
 
-def python_row(trace: str, logprobs: dict[str, float]) -> dict[str, object]:
-    return {"trace_id": trace, "truth_slot": "A", "slot_logprobs": logprobs, "prompt_tokens": 1096, "image_tokens": 1024}
+def python_row(trace: str, logprobs: dict[str, float], vision_gelu: str = "device") -> dict[str, object]:
+    return {
+        "trace_id": trace, "truth_slot": "A", "slot_logprobs": logprobs, "prompt_tokens": 1096, "image_tokens": 1024,
+        "vision_gelu": vision_gelu,
+    }
 
 
 def swift_row(trace: str, logprobs: dict[str, float]) -> dict[str, object]:
@@ -100,6 +108,38 @@ def swift_row(trace: str, logprobs: dict[str, float]) -> dict[str, object]:
             {"text": letter, "probability": math.exp(value) / total} for letter, value in logprobs.items()
         ]}],
     }
+
+
+class MatchDeviceTests(unittest.TestCase):
+    """The trainer must compute the vision MLP as the device does."""
+
+    def model_dir(self, activation: str) -> Path:
+        directory = Path(tempfile.mkdtemp())
+        (directory / "config.json").write_text(json.dumps({"vision_config": {"hidden_act": activation}}))
+        return directory
+
+    @staticmethod
+    def model(blocks: int) -> SimpleNamespace:
+        return SimpleNamespace(vision_tower=SimpleNamespace(blocks=[
+            SimpleNamespace(mlp=SimpleNamespace(act_fn="tanh")) for _ in range(blocks)
+        ]))
+
+    def test_every_vision_block_gets_the_device_activation(self) -> None:
+        model = self.model(24)
+        changed = match_device(model, self.model_dir(TRAINED_VISION_ACTIVATION), lambda: "fast")
+        self.assertEqual(changed, 24)
+        self.assertEqual({block.mlp.act_fn for block in model.vision_tower.blocks}, {"fast"})
+
+    def test_an_unexpected_activation_is_refused(self) -> None:
+        with self.assertRaises(SystemExit):
+            match_device(self.model(2), self.model_dir("gelu"), lambda: "fast")
+
+    def test_a_changed_module_tree_is_refused(self) -> None:
+        directory = self.model_dir(TRAINED_VISION_ACTIVATION)
+        with self.assertRaises(SystemExit):
+            match_device(SimpleNamespace(vision_tower=SimpleNamespace(blocks=[])), directory, lambda: "fast")
+        with self.assertRaises(SystemExit):
+            match_device(SimpleNamespace(vision_tower=SimpleNamespace(blocks=[SimpleNamespace()])), directory, lambda: "fast")
 
 
 class ParityTests(unittest.TestCase):
@@ -150,6 +190,14 @@ class ParityTests(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertEqual(len(notes), 1)
         self.assertIn("TRANSFER GAP", notes[0])
+
+    def test_scores_not_computed_as_the_device_does_are_noted(self) -> None:
+        python_base, python_adapter, swift_base, swift_adapter = self.rows(1.0)
+        python_base = [dict(row, vision_gelu="reference") for row in python_base]
+        adapter = compare(python_base, python_adapter, swift_base, swift_adapter)
+        self.assertEqual(adapter["python_vision_gelu"], ["device", "reference"])
+        _, notes = verdict(adapter, None)
+        self.assertTrue(any("not the device's" in note for note in notes))
 
     def test_token_count_mismatch_fails(self) -> None:
         python_base, python_adapter, swift_base, swift_adapter = self.rows(1.0)

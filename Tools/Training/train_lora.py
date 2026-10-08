@@ -23,7 +23,9 @@ import sys
 import time
 from pathlib import Path
 
-from common import LAYER_PREFIX, PROJECTION_KEYS, conversation, pair_image, read_export, read_jsonl
+from common import (
+    LAYER_PREFIX, PROJECTION_KEYS, VISION_GELU_CHOICES, conversation, match_device, pair_image, read_export, read_jsonl,
+)
 
 
 def encode(model, processor, config, directory: Path, pair: dict[str, object]):
@@ -76,6 +78,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--iters", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--vision-gelu", choices=VISION_GELU_CHOICES, default="device",
+        help="device: train against the activation the app computes (default); reference: the model's own",
+    )
     arguments = parser.parse_args(argv)
 
     export = read_export(arguments.pairs, smoke=arguments.smoke)
@@ -96,6 +102,8 @@ def main(argv: list[str] | None = None) -> int:
     np.random.seed(arguments.seed)
     started = time.time()
     model, processor = load(str(arguments.model_dir))
+    if arguments.vision_gelu == "device":
+        match_device(model, arguments.model_dir, lambda: nn.GELU(approx="fast"))
     config = model.config.__dict__
     model = get_peft_model(
         model, list(PROJECTION_KEYS), rank=arguments.rank, alpha=arguments.alpha, dropout=arguments.dropout,
@@ -147,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         "optimizer": {"name": "adam", "learning_rate": arguments.learning_rate},
         "iters": arguments.iters,
+        "vision_gelu": arguments.vision_gelu,
         "loss_first_10": sum(losses[:10]) / len(losses[:10]),
         "loss_last_10": sum(losses[-10:]) / len(losses[-10:]),
         "seed": arguments.seed,

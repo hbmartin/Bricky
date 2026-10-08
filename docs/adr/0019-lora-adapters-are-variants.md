@@ -67,7 +67,9 @@ baseline's encoding and id are unchanged when no adapter is set.
 3. The scorer's baseline is stable.
 4. The Mac trainer and the device runtime compute the same model: on a
    linear-regime adapter, `parity_check.py`'s transfer slope (Swift's
-   effect against Python's) is in [0.9, 1.1]. Today it is 0.73; see below.
+   effect against Python's) is in [0.9, 1.1]. It was 0.73 until the trainer
+   matched the device's vision activation; it is now 1.015 on the smoke run
+   (see below). Re-measure it on the first real run.
 
 **Exit (before an adapter becomes the default).**
 1. An exact McNemar win against the baseline on held-out authored models,
@@ -122,17 +124,41 @@ synthetic bundle (`run_smoke.py`).
     coincidence (slope 1.0), and the matched slope wandered (0.88–0.99).
   - The check therefore runs at 0.02 of the adapter's scale, where doubling
     the scale gives 2.3 times the effect in Python.
-- **Parity at 0.02** (12 held-out boards, 35–36 log-odds points):
+- **Parity at 0.02** (12 held-out boards, 35 log-odds points; before the
+  trainer matched the device):
   - Swift's changes follow Python's: r = 0.95 at 0.02, 0.97 at 0.04.
   - The ×2 canary is clearly stronger: slope 1.69 against 0.73, a ratio of
     2.3, matching Python's own 2.3.
   - Prompt and image tokens match exactly (1,096 and 1,024).
   - So the converted adapter is applied as Python applies it, and a scale
     mix-up would show.
-- **Open: transfer gap.** At the same scale, Swift shows 0.73 of Python's
-  effect. Before any adapter is applied, Swift's slot log-odds are 0.79 times
-  Python's (r 0.88), a mean difference of 0.99 nats (max 2.75), with
-  identical tokens. The two runtimes compute a measurably different model,
-  so a Python-trained adapter would act about a quarter weaker on the
-  device. Entry criterion 4 holds real training until this is explained
-  (NEXT_STEPS §5).
+- **Transfer gap: cause found, 2026-10-07.**
+  - **Symptom:** Swift showed 0.73 of Python's adapter effect at the same
+    scale. Before any adapter, Swift's slot log-odds were 0.79 times
+    Python's (r 0.88): a mean difference of 0.99 nats (max 2.75), with
+    identical tokens.
+  - **Cause:** the vision MLP activation.
+    - The pinned model was trained with `gelu_pytorch_tanh`, and mlx-vlm
+      computes that (`nn.GELU(approx="tanh")`).
+    - The device runtime (mlx-swift-lm `d2424294`, `Qwen3VL.swift:655`)
+      computes `GELU(approximation: .fast)`, i.e. `x·sigmoid(1.702x)`.
+    - The two differ by up to 0.02 per activation, over 24 vision blocks
+      and all three deepstack features.
+  - **Checked and identical on both sides:** the prompt, the LoRA
+    arithmetic, the probe readout, the mRoPE positions and the deepstack
+    injection.
+  - **Remedy:** the trainer computes what the device computes, so the
+    device stays byte-identical. `common.match_device` gives every vision
+    block the sigmoid GELU, and it is the default in `train_lora.py` and
+    `eval_first_slot.py` (`--vision-gelu device`).
+  - **Re-measured, 30 steps trained this way:**
+    - Base slope 0.997, mean difference 0.087 nats (max 0.25), which is
+      precision-level.
+    - Transfer slope 1.015 (r 0.97).
+    - The ×2 canary is 2.26, a ratio of 2.2.
+    - Zero-B is still identical on 48/48 boards.
+    - Held-out first slot goes from 3/12 to 12/12 (a toy task).
+    - Peak memory 17.3 GB, about 5.5 minutes.
+  - **Criterion 4 now holds on the smoke run.**
+  - **Open, and not decided here:** whether the device should compute the
+    trained activation instead is a device A/B (NEXT_STEPS §2).

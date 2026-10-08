@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — the LoRA transfer gap, explained (tooling only)
+
+- **Cause found.** Swift ran Python-trained adapters at 0.73 of their
+  strength, and its base log-odds were 0.79 times Python's. The device
+  runtime computes the vision MLP with the sigmoid GELU, while the model
+  (and mlx-vlm) use tanh GELU.
+- **Fix.** `Tools/Training` now trains and scores with the device's
+  activation (`--vision-gelu device`, the default; `common.match_device`).
+  The app is unchanged.
+- **Result on the smoke run.** Transfer slope 1.015, base slope 0.997 and
+  mean difference 0.09 nats, so ADR 0019 criterion 4 is met. Whether the
+  device should switch activations is left as an A/B (NEXT_STEPS §2).
+
 ## Unreleased — review follow-ups for #12–#14
 
 Fixes for review findings that were left open when those PRs merged. None
