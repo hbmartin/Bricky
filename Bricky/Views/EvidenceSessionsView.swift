@@ -82,12 +82,29 @@ struct EvidenceSessionsView: View {
                     Image(systemName: "checkmark.rectangle.stack")
                         .accessibilityLabel("Has step-check rows")
                 }
+                if session.recorderWriteFailures > 0 || session.windowsSkipped > 0 {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel(Self.gapsLabel(session))
+                }
                 Text(ByteCountFormatter.string(fromByteCount: session.byteCount, countStyle: .file))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
         }
         .tag(session.id)
+    }
+
+    /// What the warning badge stands for, read aloud in full.
+    static func gapsLabel(_ session: EvidenceExporter.SessionSummary) -> String {
+        var parts: [String] = []
+        if session.recorderWriteFailures > 0 {
+            parts.append("\(session.recorderWriteFailures) evidence writes failed")
+        }
+        if session.windowsSkipped > 0 {
+            parts.append("\(session.windowsSkipped) verification windows skipped")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func badge(_ kind: EvidenceGroundTruth.Kind) -> some View {

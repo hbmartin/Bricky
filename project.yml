@@ -158,6 +158,7 @@ targets:
       - BrickyTests/LDrawGeometryEngineTests.swift
       - BrickyTests/RecoveryCaptureTests.swift
       - BrickyTests/RecoveryBenchmarkWriterTests.swift
+      - BrickyTests/EvidenceExporterTests.swift
       - BrickyTests/VLMCheckRowWriterTests.swift
       - BrickyTests/ColourGridSamplerTests.swift
       - BrickyTests/VerificationWindowBufferTests.swift

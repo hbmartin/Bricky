@@ -13,6 +13,10 @@ enum EvidenceExporter {
         let hasBenchmarkRow: Bool
         let hasCheckRows: Bool
         let byteCount: Int64
+        /// Writes the recorder could not make, and windows it skipped, so a
+        /// session with gaps is flagged before it is exported.
+        var recorderWriteFailures = 0
+        var windowsSkipped = 0
     }
 
     static func storeDirectory(root: URL) -> URL {
@@ -41,7 +45,9 @@ enum EvidenceExporter {
                 hasCheckRows: FileManager.default.fileExists(
                     atPath: directory.appendingPathComponent(RecoveryEvidenceRecorder.checkRowsFilename).path
                 ),
-                byteCount: RecoveryEvidenceRecorder.directorySize(directory)
+                byteCount: RecoveryEvidenceRecorder.directorySize(directory),
+                recorderWriteFailures: session.recorderHealth?.writeFailures ?? 0,
+                windowsSkipped: session.recorderHealth?.windowsSkipped ?? 0
             )
         }
         .sorted { $0.createdAt > $1.createdAt }

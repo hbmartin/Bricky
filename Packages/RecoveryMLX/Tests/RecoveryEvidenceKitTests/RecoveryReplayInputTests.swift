@@ -53,6 +53,22 @@ final class RecoveryReplayInputTests: XCTestCase {
         XCTAssertNil(oldSession.partPackVersion)
     }
 
+    func testRecorderHealthKeysAreSnakeCaseAndOptional() throws {
+        var file = session(partPack: nil)
+        XCTAssertNil(try object(file)["recorder_health"], "a clean session writes no health")
+        file.recorderHealth = RecorderHealth(
+            writeFailures: 1, failedOperations: ["record depth frame": 1], windowsSkippedAtCap: 2, windowsSkippedLowSpace: 0
+        )
+        let health = try XCTUnwrap(try object(file)["recorder_health"] as? [String: Any])
+        XCTAssertEqual(health["write_failures"] as? Int, 1)
+        XCTAssertEqual(health["failed_operations"] as? [String: Int], ["record depth frame": 1])
+        XCTAssertEqual(health["windows_skipped_at_cap"] as? Int, 2)
+        XCTAssertEqual(health["windows_skipped_low_space"] as? Int, 0)
+        let decoded = try EvidenceSchema.decoder().decode(EvidenceSessionFile.self, from: EvidenceSchema.encoder().encode(file))
+        XCTAssertEqual(decoded.recorderHealth, file.recorderHealth)
+        XCTAssertEqual(decoded.recorderHealth?.windowsSkipped, 2)
+    }
+
     func testRelayMeasurementsRoundTripUnderSnakeCaseKeys() throws {
         let record = EvidenceDepthFrameRecord(
             depthVersion: EvidenceSchema.depthVersion, captureID: UUID(), width: 4, height: 3,

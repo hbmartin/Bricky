@@ -650,6 +650,68 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         )
     }
 
+    private func sessionFile(_ recorder: RecoveryEvidenceRecorder) throws -> EvidenceSessionFile {
+        try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(recorder.sessionID.uuidString)
+                .appendingPathComponent("session.json"))
+        )
+    }
+
+    // Fails on the old code by not compiling, and by behaviour before that:
+    // a failed write left no trace outside the device log.
+    func testAFailedWriteIsCountedInTheSessionFile() async throws {
+        let recorder = makeRecorder()
+        var missing = try makeCapture()
+        try FileManager.default.removeItem(at: root.appendingPathComponent(missing.imageRelativePath))
+        await recorder.recordCaptures([missing])
+        var health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.writeFailures, 1)
+        XCTAssertEqual(health.failedOperations, ["record captures": 1])
+
+        // A later successful write keeps the count.
+        missing = try makeCapture()
+        await recorder.recordCaptures([missing])
+        health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.writeFailures, 1)
+        XCTAssertEqual(try sessionFile(recorder).captures.map(\.captureID), [missing.id])
+    }
+
+    func testACleanSessionRecordsNoHealth() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordCaptures([try makeCapture()])
+        XCTAssertNil(try sessionFile(recorder).recorderHealth)
+    }
+
+    func testWindowsPastTheCapAreCountedNotWritten() async throws {
+        let recorder = makeRecorder()
+        for _ in 0..<(RecoveryEvidenceRecorder.maxWindowsPerSession + 2) {
+            await recorder.record(windowCapture(samples: [], trigger: .confirm, staged: nil))
+        }
+        let windows = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows")
+        let written = try FileManager.default.contentsOfDirectory(atPath: windows.path).filter { $0.hasSuffix(".json") }
+        XCTAssertEqual(written.count, RecoveryEvidenceRecorder.maxWindowsPerSession)
+        let health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.windowsSkippedAtCap, 2)
+        XCTAssertEqual(health.windowsSkippedLowSpace, 0)
+        XCTAssertEqual(health.writeFailures, 0)
+    }
+
+    func testWindowSkipReasons() {
+        let cap = RecoveryEvidenceRecorder.maxWindowsPerSession
+        let plenty = RecoveryEvidenceRecorder.minimumFreeBytesForWindows
+        XCTAssertNil(RecoveryEvidenceRecorder.windowSkip(windowsWritten: 0, freeBytes: plenty))
+        XCTAssertNil(RecoveryEvidenceRecorder.windowSkip(windowsWritten: cap - 1, freeBytes: nil))
+        XCTAssertEqual(RecoveryEvidenceRecorder.windowSkip(windowsWritten: 0, freeBytes: plenty - 1), .lowSpace)
+        // Both apply: counted once, under the cap.
+        XCTAssertEqual(RecoveryEvidenceRecorder.windowSkip(windowsWritten: cap, freeBytes: 0), .atCap)
+    }
+
     func testPurgeRemovesOldestSessionsBeyondCap() throws {
         let store = root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName, isDirectory: true)
         let sessionTotal = RecoveryEvidenceRecorder.maxSessions + 5

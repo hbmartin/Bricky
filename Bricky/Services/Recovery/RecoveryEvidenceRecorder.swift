@@ -342,7 +342,37 @@ actor RecoveryEvidenceRecorder: GeometricFitRecording {
             try work()
         } catch {
             logger.error("Evidence \(label, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            noteFailure(label)
         }
+    }
+
+    /// Counts a failed write in the session file, so a session with gaps is
+    /// visible in the list and in the bundle rather than looking complete.
+    private func noteFailure(_ label: String) {
+        var health = session.recorderHealth ?? RecorderHealth()
+        health.writeFailures += 1
+        health.failedOperations[label, default: 0] += 1
+        session.recorderHealth = health
+        persistHealth()
+    }
+
+    /// Counts a verification window that was deliberately not written.
+    func noteWindowSkipped(_ reason: WindowSkip) {
+        var health = session.recorderHealth ?? RecorderHealth()
+        switch reason {
+        case .atCap: health.windowsSkippedAtCap += 1
+        case .lowSpace: health.windowsSkippedLowSpace += 1
+        }
+        session.recorderHealth = health
+        persistHealth()
+    }
+
+    /// Saves the counts now when the session has started; otherwise the next
+    /// successful session write carries them. Its own failure is swallowed,
+    /// not counted, so a failing disk cannot recurse.
+    private func persistHealth() {
+        guard started else { return }
+        try? writeSessionFile()
     }
 
     func ensureStarted() throws {

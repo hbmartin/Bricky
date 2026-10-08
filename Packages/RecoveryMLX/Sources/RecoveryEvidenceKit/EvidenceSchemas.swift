@@ -717,6 +717,10 @@ public struct EvidenceSessionFile: Codable, Sendable {
     /// A replay against a different pack renders different candidates.
     /// Absent on sessions recorded before 2026-10-08.
     public var partPackVersion: String?
+    /// What the recorder failed to keep. Recording is best-effort and never
+    /// breaks a recovery (ADR 0007), so without this a session with gaps
+    /// looked complete. Absent while nothing has gone wrong.
+    public var recorderHealth: RecorderHealth?
 
     /// Whether `label` is a usable physical-build slug.
     public static func isValidPhysicalBuildID(_ label: String) -> Bool {
@@ -734,7 +738,8 @@ public struct EvidenceSessionFile: Codable, Sendable {
         groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?,
         osBuild: String? = nil, gpuArchitecture: String? = nil, physicalMemoryBytes: UInt64? = nil,
         admission: AdmissionSnapshot? = nil, conditionsStart: DeviceConditions? = nil,
-        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil, partPackVersion: String? = nil
+        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil, partPackVersion: String? = nil,
+        recorderHealth: RecorderHealth? = nil
     ) {
         self.sessionVersion = sessionVersion
         self.sessionID = sessionID
@@ -760,6 +765,7 @@ public struct EvidenceSessionFile: Codable, Sendable {
         self.conditionsEnd = conditionsEnd
         self.physicalBuildID = physicalBuildID
         self.partPackVersion = partPackVersion
+        self.recorderHealth = recorderHealth
     }
 
     enum CodingKeys: String, CodingKey {
@@ -787,6 +793,36 @@ public struct EvidenceSessionFile: Codable, Sendable {
         case conditionsEnd = "conditions_end"
         case physicalBuildID = "physical_build_id"
         case partPackVersion = "part_pack_version"
+        case recorderHealth = "recorder_health"
+    }
+}
+
+/// A session's recorder failures: writes that threw, and verification
+/// windows deliberately not written. Error text stays in the device log,
+/// because it can hold file paths.
+public struct RecorderHealth: Codable, Sendable, Equatable {
+    public var writeFailures: Int
+    /// Failed writes by operation, e.g. `record captures`.
+    public var failedOperations: [String: Int]
+    /// Windows past `maxWindowsPerSession` (48).
+    public var windowsSkippedAtCap: Int
+    /// Windows skipped because the volume had under 2 GB free.
+    public var windowsSkippedLowSpace: Int
+
+    public init(writeFailures: Int = 0, failedOperations: [String: Int] = [:], windowsSkippedAtCap: Int = 0, windowsSkippedLowSpace: Int = 0) {
+        self.writeFailures = writeFailures
+        self.failedOperations = failedOperations
+        self.windowsSkippedAtCap = windowsSkippedAtCap
+        self.windowsSkippedLowSpace = windowsSkippedLowSpace
+    }
+
+    public var windowsSkipped: Int { windowsSkippedAtCap + windowsSkippedLowSpace }
+
+    enum CodingKeys: String, CodingKey {
+        case writeFailures = "write_failures"
+        case failedOperations = "failed_operations"
+        case windowsSkippedAtCap = "windows_skipped_at_cap"
+        case windowsSkippedLowSpace = "windows_skipped_low_space"
     }
 }
 
