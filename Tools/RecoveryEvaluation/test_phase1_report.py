@@ -201,5 +201,99 @@ class Phase1ReportTests(unittest.TestCase):
         self.assertRegex(output, r"RELEASE verification (FAIL|REFUSED) \(1 rows\)")
 
 
+STUB = """#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ["PHASE1_STUB_LOG"], "a") as log:
+    log.write(json.dumps([os.path.basename(sys.argv[0])] + sys.argv[1:]) + "\\n")
+if "--out" in sys.argv:
+    out = sys.argv[sys.argv.index("--out") + 1]
+    open(out, "w").close()
+    if sys.argv[1:2] == ["replay"] and "--checks" in sys.argv:
+        with open(out + ".traces.ndjson", "w") as traces:
+            traces.write(json.dumps({"trace_id": "t1", "matches_device": True}) + "\\n")
+            traces.write(json.dumps({"trace_id": "t2", "matches_device": False}) + "\\n")
+print("stub ok")
+"""
+
+
+class MacStepTests(unittest.TestCase):
+    # Fail on the old code with ImportError, as above.
+    CHALLENGE_IDENTITY = "b7e07c10132a29b5b9f227db163982ea8f34e04535002d933ebd77a7e2e5c0d3"
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.bundles = Bundles(self.root)
+        self.log = self.root / "calls.log"
+        import os
+        self.previous = os.environ.get("PHASE1_STUB_LOG")
+        os.environ["PHASE1_STUB_LOG"] = str(self.log)
+
+    def tearDown(self) -> None:
+        import os
+        if self.previous is None:
+            os.environ.pop("PHASE1_STUB_LOG", None)
+        else:
+            os.environ["PHASE1_STUB_LOG"] = self.previous
+        self.directory.cleanup()
+
+    def stub(self, name: str) -> Path:
+        path = self.root / "bin" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(STUB)
+        path.chmod(0o755)
+        return path
+
+    def calls(self) -> list[list[str]]:
+        return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def test_the_model_identity_is_the_one_syntheticrgbd_computes(self) -> None:
+        # Pinned from a bundle SyntheticRGBD --write-bundle wrote for this folder.
+        challenge = Path(__file__).resolve().parent.parent / "SyntheticScenes/fixtures/challenge/challenge.ldr"
+        self.assertEqual(phase1_report.model_identity(challenge), self.CHALLENGE_IDENTITY)
+
+    def test_without_tools_every_mac_step_is_printed(self) -> None:
+        first = self.bundles.bundle("a", {"s1": {}})
+        second = self.bundles.bundle("b", {"s2": {}})
+        code, output = run_report([first, second], self.root / "work")
+        self.assertEqual(code, 0, output)
+        self.assertIn(f"NEXT validate a: bricky-harness replay --bundle {first} --dry-run --verify-images", output)
+        self.assertIn(f"NEXT lattice-rows: bricky-harness lattice-rows --bundle {first} --bundle {second} --out", output)
+        self.assertIn("NEXT geometric control a-MODEL: SyntheticRGBD '<model.ldr>'", output)
+        self.assertNotIn("MODEL a:", output, "no --model-ldr given, so nothing to mismatch")
+        self.assertEqual(self.calls(), [])
+
+    def test_with_tools_the_steps_run_once_per_bundle_and_model(self) -> None:
+        model = self.root / "model" / "tower.ldr"
+        model.parent.mkdir()
+        model.write_text("0 Tower\n")
+        identity = phase1_report.model_identity(model)
+        bundle = self.bundles.bundle("a", {"s1": {
+            "file": {"instruction_sha256": identity},
+            "ndjson": {"traces.ndjson": [{"trace_id": "t1", "termination": "accepted"},
+                                         {"trace_id": "t2", "termination": "max_tokens_exhausted"}]},
+        }})
+        other = self.bundles.bundle("b", {"s2": {"file": {"instruction_sha256": "f" * 64}}})
+        harness, tool = self.stub("bricky-harness"), self.stub("SyntheticRGBD")
+        code, output = run_report(
+            [bundle, other], self.root / "work", "--harness", str(harness), "--model-dir", str(self.root),
+            "--model-revision", "abc", "--synthetic-rgbd", str(tool), "--ldraw-root", str(self.root),
+            "--model-ldr", str(model),
+        )
+        self.assertEqual(code, 0, output)
+        calls = self.calls()
+        replays = [call for call in calls if call[:2] == ["bricky-harness", "replay"] and "--checks" in call]
+        self.assertEqual(len(replays), 2)
+        lattice = [call for call in calls if call[1:2] == ["lattice-rows"]]
+        self.assertEqual(len(lattice), 1)
+        self.assertEqual(lattice[0].count("--bundle"), 2)
+        synthetic = [call for call in calls if call[0] == "SyntheticRGBD"]
+        self.assertEqual(len(synthetic), 6, "windows, two colour arms, stud labels, two geometric arms, bundle a only")
+        self.assertTrue(all(call[1] == str(model) for call in synthetic))
+        self.assertEqual(sum("--suite" in call for call in synthetic), 2)
+        self.assertIn("REPLAY_MATCHES a 1/2 traces match the device; 1/1 where the device's grammar accepted", output)
+        self.assertIn("MODEL b: no --model-ldr matches instruction ffffffffffff", output)
+
+
 if __name__ == "__main__":
     unittest.main()

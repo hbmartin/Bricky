@@ -12,6 +12,10 @@ Reads one or more unzipped bundles (docs/PHASE1_RUNBOOK.md) and, in one run:
   TERMINATION, ADMISSION, SHADOW_ADVISOR, COLOUR_ENCODING, RELAY_AUX_EXTRACT,
   SEGMENTATION, RECORDER, COUNTS and the device VERTICAL_CONTEST.
 
+Then the Mac steps: each runs when its tools and inputs are given
+(`--harness`, `--model-dir`/`--model-revision`, `--synthetic-rgbd` with
+`--ldraw-root` and `--model-ldr`) and is printed as a NEXT command otherwise.
+
 Everything also goes to <work>/phase1_report.json. Standard library only;
 safe under `python3 -I`.
 """
@@ -19,8 +23,9 @@ safe under `python3 -I`.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-import statistics
+import shlex
 import subprocess
 import sys
 from collections import Counter
@@ -562,14 +567,176 @@ def build_report(bundles: list[Path], work: Path) -> tuple[dict[str, object], li
     return report, lines
 
 
+# --- Mac steps ---------------------------------------------------------------
+
+
+@dataclass
+class MacTools:
+    harness: Path | None = None
+    model_dir: Path | None = None
+    model_revision: str | None = None
+    synthetic_rgbd: Path | None = None
+    ldraw_root: Path | None = None
+    model_ldrs: list[Path] = field(default_factory=list)
+    fm_shadow: bool = False
+
+
+def model_identity(model: Path) -> str:
+    """The import identity SyntheticRGBD computes for `model`: every .ldr,
+    .dat and .mpd file in its folder, flat, names exactly as written, sorted
+    (SyntheticRGBDMain, InstructionSourceIdentity.sha256). The device hashes
+    the import's closure, so the folder must hold exactly those files."""
+    digest = hashlib.sha256()
+    files = sorted(
+        (path for path in model.parent.iterdir() if path.is_file() and path.suffix.lower() in {".ldr", ".dat", ".mpd"}),
+        key=lambda path: path.name,
+    )
+    for path in files:
+        digest.update(path.name.encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def step(name: str, command: list[str], runnable: bool, results: dict[str, object]) -> subprocess.CompletedProcess | None:
+    """Runs `command` and echoes its last line, or prints it as NEXT."""
+    if not runnable:
+        print(f"NEXT {name}: {shlex.join(command)}")
+        results[name] = {"command": command, "ran": False}
+        return None
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    lines = [line for line in (completed.stdout + completed.stderr).splitlines() if line.strip()]
+    print(f"STEP {name} exit={completed.returncode}: {lines[-1] if lines else ''}")
+    results[name] = {"command": command, "ran": True, "exit": completed.returncode, "tail": lines[-5:]}
+    return completed
+
+
+def replay_matches(replayed: Path, sessions: list[Session]) -> dict[str, object] | None:
+    """How often the Mac replay reproduced the device's generation, overall
+    and on generations the device's grammar accepted (§1 item 1)."""
+    rows = read_ndjson(replayed)
+    if not rows:
+        return None
+    termination = {
+        str(row.get("trace_id")): row.get("termination")
+        for session in sessions for row in read_ndjson(session.directory / "traces.ndjson")
+    }
+    accepted = [row for row in rows if termination.get(str(row.get("trace_id"))) == "accepted"]
+    return {
+        "traces": len(rows),
+        "matches": sum(row.get("matches_device") is True for row in rows),
+        "accepted_traces": len(accepted),
+        "accepted_matches": sum(row.get("matches_device") is True for row in accepted),
+    }
+
+
+def mac_steps(tools: MacTools, bundles: list[Path], sessions: list[Session], work: Path) -> dict[str, object]:
+    results: dict[str, object] = {}
+    harness = str(tools.harness or "bricky-harness")
+    has_harness = tools.harness is not None
+    has_model = has_harness and tools.model_dir is not None and tools.model_revision is not None
+    for bundle in bundles:
+        name = bundle.name
+        step(f"validate {name}", [harness, "replay", "--bundle", str(bundle), "--dry-run", "--verify-images"],
+             has_harness, results)
+        out = work / "replay" / f"{name}.ndjson"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        command = [harness, "replay", "--bundle", str(bundle), "--model-dir", str(tools.model_dir or "<model-dir>"),
+                   "--model-revision", tools.model_revision or "<revision>", "--checks", "--out", str(out)]
+        if step(f"replay {name}", command, has_model, results) is not None:
+            matches = replay_matches(Path(str(out) + ".traces.ndjson"), sessions)
+            if matches:
+                print(
+                    f"REPLAY_MATCHES {name} {matches['matches']}/{matches['traces']} traces match the device; "
+                    f"{matches['accepted_matches']}/{matches['accepted_traces']} where the device's grammar accepted"
+                )
+                results[f"replay {name}"]["matches"] = matches
+        # Board parity (§1 item 3): the stored boards above against boards
+        # recomposed from the same captures. Printed only: a second replay.
+        recomposed = [*command[:command.index("--checks")], "--recompose", "--out", f"{out}.recomposed.ndjson"]
+        print(f"NEXT board-parity {name}: {shlex.join(recomposed)} "
+              f"&& python3 compare_arms.py --control {out} --variant {out}.recomposed.ndjson")
+        if tools.fm_shadow:
+            step(f"fm-shadow {name}", [harness, "fm-shadow", "--bundle", str(bundle), "--out", str(work / f"fm-{name}.ndjson")],
+                 has_harness, results)
+    every = [argument for bundle in bundles for argument in ("--bundle", str(bundle))]
+    lattice = work / "lattice.ndjson"
+    if step("lattice-rows", [harness, "lattice-rows", *every, "--out", str(lattice)], has_harness, results) is not None:
+        code, output = run_scorer(lattice, "--informational")
+        entry = next((line for line in output.splitlines() if line.startswith("STUD_KEYPOINTS_ENTRY")), None)
+        if entry:
+            print(entry)
+            results["lattice-rows"]["entry"] = entry
+    (work / "wording").mkdir(parents=True, exist_ok=True)
+    step("wording-sheet", [harness, "wording-sheet", *every, "--out-sheet", str(work / "wording" / "sheet.csv"),
+                           "--out-key", str(work / "wording" / "key.csv")], has_harness, results)
+    if has_harness:
+        print(f"wording: give {work / 'wording' / 'sheet.csv'} to the rater and keep key.csv; then score_wording_ab.py")
+
+    # SyntheticRGBD steps, once per bundle and authored model.
+    identities: dict[str, Path] = {}
+    for model in tools.model_ldrs:
+        identities[model_identity(model)] = model
+    tool = str(tools.synthetic_rgbd or "SyntheticRGBD")
+    has_tool = tools.synthetic_rgbd is not None and tools.ldraw_root is not None
+    pack = str(tools.ldraw_root or "<ldraw-root>")
+    for bundle in bundles:
+        recorded = {
+            str(session.file["instruction_sha256"]) for session in sessions
+            if session.bundle == bundle and session.file.get("instruction_sha256")
+        }
+        matched = [identities[sha] for sha in sorted(recorded) if sha in identities]
+        if tools.model_ldrs:
+            for sha in sorted(sha for sha in recorded if sha not in identities):
+                print(
+                    f"MODEL {bundle.name}: no --model-ldr matches instruction {sha[:12]}…; its folder must hold exactly "
+                    "the imported .ldr/.dat/.mpd files, lowercase-named as the import stored them, no subfolders"
+                )
+        targets: list[Path | None] = list(matched) or [None]
+        for model in targets:
+            runnable = has_tool and model is not None
+            stem = f"{bundle.name}-{model.stem if model else 'MODEL'}"
+            base = [tool, str(model or "<model.ldr>"), "--ldraw-root", pack]
+            step(f"windows {stem}", [*base, "--replay-bundle", str(bundle), "--out", str(work / f"windows-{stem}.ndjson")],
+                 runnable, results)
+            for mode in ("shadow", "full"):
+                step(f"colour {mode} {stem}", [*base, "--replay-bundle", str(bundle), "--colour-term", mode,
+                                               "--out", str(work / f"colour-{mode}-{stem}.ndjson")], runnable, results)
+            step(f"stud-labels {stem}", [*base, "--stud-labels-bundle", str(bundle),
+                                         "--out", str(work / f"studs-{stem}.ndjson")], runnable, results)
+            arms = {}
+            for arm in ("control", "tiebreak"):
+                arms[arm] = work / f"geometric-{stem}-{arm}.ndjson"
+                step(f"geometric {arm} {stem}", [*base, "--replay-bundle", str(bundle), "--suite", "recovery",
+                                                 "--recovery-arm", arm, "--out", str(arms[arm])], runnable, results)
+            print(f"NEXT compare-geometric {stem}: python3 compare_arms.py --control {arms['control']} "
+                  f"--variant {arms['tiebreak']} --primary session_top1 --allow-mixed-revisions")
+    return results
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("bundles", type=Path, nargs="+", metavar="BUNDLE", help="unzipped evidence bundle directories")
     parser.add_argument("--work", type=Path, required=True, help="where merged rows and phase1_report.json go")
     parser.add_argument("--strict", action="store_true", help="exit 1 when any release run failed or was refused")
+    parser.add_argument("--harness", type=Path, help="the bricky-harness executable; harness steps run with it")
+    parser.add_argument("--model-dir", type=Path, help="the pinned Qwen3-VL weights, for replay --checks")
+    parser.add_argument("--model-revision", help="the revision of the weights in --model-dir")
+    parser.add_argument("--synthetic-rgbd", type=Path, help="the SyntheticRGBD executable; window, colour, stud and geometric replays run with it")
+    parser.add_argument("--ldraw-root", type=Path, help="the pinned LDraw pack's ldraw/ folder")
+    parser.add_argument("--model-ldr", type=Path, action="append", default=[],
+                        help="an authored model's root file, its folder holding exactly the import; repeat per model")
+    parser.add_argument("--fm-shadow", action="store_true", help="also run bricky-harness fm-shadow (macOS 27, informational)")
     arguments = parser.parse_args(argv)
     arguments.work.mkdir(parents=True, exist_ok=True)
     report, _ = build_report(arguments.bundles, arguments.work)
+    tools = MacTools(
+        harness=arguments.harness, model_dir=arguments.model_dir, model_revision=arguments.model_revision,
+        synthetic_rgbd=arguments.synthetic_rgbd, ldraw_root=arguments.ldraw_root, model_ldrs=arguments.model_ldr,
+        fm_shadow=arguments.fm_shadow,
+    )
+    report["mac_steps"] = mac_steps(tools, arguments.bundles, load_bundles(arguments.bundles).sessions, arguments.work)
     (arguments.work / "phase1_report.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=str) + "\n")
     print(f"wrote {arguments.work / 'phase1_report.json'}")
     failed = any(entry.get("status") in {"FAIL", "REFUSED"} for entry in report["release"].values())

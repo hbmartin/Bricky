@@ -315,3 +315,14 @@ jobs:
         run: |
           swift build --build-tests
           swift test
+      # The Phase 1 report end to end on a synthetic bundle: validation and
+      # lattice rows run through the real harness; model-gated steps print.
+      - name: Phase 1 report smoke
+        run: |
+          harness="$(swift build --package-path Packages/RecoveryMLX --show-bin-path)/bricky-harness"
+          "$harness" synth-bundle --out "$RUNNER_TEMP/p1-bundle"
+          python3 -I Tools/RecoveryEvaluation/phase1_report.py "$RUNNER_TEMP/p1-bundle" \
+            --work "$RUNNER_TEMP/p1-report" --harness "$harness" | tee "$RUNNER_TEMP/p1.out"
+          grep -q "^STEP validate p1-bundle exit=0" "$RUNNER_TEMP/p1.out"
+          grep -q "^STEP lattice-rows exit=0" "$RUNNER_TEMP/p1.out"
+          test -s "$RUNNER_TEMP/p1-report/phase1_report.json"
