@@ -321,6 +321,59 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertThrowsError(try noRaw.write(missing, in: root))
     }
 
+    // MARK: - Image verification
+
+    private func onlySession(_ bundle: URL) throws -> EvidenceBundleReader.Session {
+        try XCTUnwrap(try EvidenceBundleReader(bundleDirectory: bundle).loadSessions().first)
+    }
+
+    func testVerifyImagesPassesAGoodBundle() throws {
+        let reader = try EvidenceBundleReader(bundleDirectory: try makeBundle())
+        XCTAssertEqual(reader.validate(verifyImages: true), [])
+    }
+
+    // These fail on the old code by not compiling (no verifyImages).
+    func testVerifyImagesCatchesAGarbageTile() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let tile = try XCTUnwrap(session.traceRows.first?.tileRelativePaths["A"])
+        try Data("not a jpeg".utf8).write(to: session.directory.appendingPathComponent(tile))
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        // The gap this closes: existence is all plain validation checks.
+        XCTAssertEqual(reader.validate(), [])
+        XCTAssertEqual(reader.validate(verifyImages: true), ["\(session.file.sessionID.uuidString): undecodable tile \(tile)"])
+    }
+
+    func testVerifyImagesCatchesATruncatedCapture() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let capture = try XCTUnwrap(session.file.captures.first?.imageRelativePath)
+        let url = session.directory.appendingPathComponent(capture)
+        let data = try Data(contentsOf: url)
+        try data.prefix(data.count / 2).write(to: url)
+        let issues = try EvidenceBundleReader(bundleDirectory: bundle).validate(verifyImages: true)
+        XCTAssertEqual(issues, ["\(session.file.sessionID.uuidString): undecodable capture \(capture)"])
+    }
+
+    func testVerifyImagesDecodesAlternateTiles() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let traceID = try XCTUnwrap(session.traceRows.first?.traceID)
+        let garbage = "tiles/\(traceID.uuidString)/alt-A.jpg"
+        let absent = "tiles/\(traceID.uuidString)/alt-B.jpg"
+        try Data("not a jpeg".utf8).write(to: session.directory.appendingPathComponent(garbage))
+        let traces = session.directory.appendingPathComponent("traces.ndjson")
+        var row = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: traces)) as? [String: Any])
+        row["alternate_tile_relative_paths"] = ["A": garbage, "B": absent]
+        try JSONSerialization.data(withJSONObject: row).write(to: traces)
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        XCTAssertEqual(reader.validate(), [], "alternate tiles were never checked")
+        XCTAssertEqual(Set(reader.validate(verifyImages: true)), [
+            "\(session.file.sessionID.uuidString): undecodable alternate tile \(garbage)",
+            "\(session.file.sessionID.uuidString): missing alternate tile \(absent)",
+        ])
+    }
+
     func testStagedVerificationTruth() {
         func declared(_ scenario: StagedVerificationDeclaration.Scenario) -> StagedVerificationDeclaration {
             StagedVerificationDeclaration(scenario: scenario, lighting: .dim, occlusion: .partial, physicalCase: true, legalUseConfirmed: true)

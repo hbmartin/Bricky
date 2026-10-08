@@ -62,6 +62,9 @@ struct Replay: AsyncParsableCommand {
     @Flag(name: .customLong("dry-run"), help: "Validate bundle structure and exit without loading weights.")
     var dryRun = false
 
+    @Flag(name: .customLong("verify-images"), help: "Also decode every board, tile, alternate tile and capture while validating.")
+    var verifyImages = false
+
     @Flag(help: "Also replay step-check traces into <out>.checks.ndjson as vlm_check rows (false-complete first).")
     var checks = false
 
@@ -122,7 +125,7 @@ struct Replay: AsyncParsableCommand {
 
     mutating func run() async throws {
         let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: bundle))
-        let issues = reader.validate()
+        let issues = reader.validate(verifyImages: verifyImages)
         guard issues.isEmpty else {
             for issue in issues { FileHandle.standardError.write(Data("invalid bundle: \(issue)\n".utf8)) }
             throw ExitCode(1)
