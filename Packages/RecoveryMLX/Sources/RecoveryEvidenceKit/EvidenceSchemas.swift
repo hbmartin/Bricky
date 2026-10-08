@@ -106,6 +106,14 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
     /// record's `world_from_model`, which is column-major and is the locked
     /// registration pose.
     public let coarseWorldFromModel: [Float]?
+    /// Window frames only, when evidence is on: how long the colour and
+    /// occluder channels took to extract on device, in milliseconds.
+    public let auxiliaryExtractMilliseconds: Double?
+    /// The person-segmentation buffer the occluder mask was resampled from,
+    /// as ARKit delivered it. Window frames only.
+    public let segmentationWidth: Int?
+    public let segmentationHeight: Int?
+    public let segmentationBytesPerRow: Int?
 
     public init(
         depthVersion: Int, captureID: UUID, width: Int, height: Int,
@@ -113,7 +121,8 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         depthRelativePath: String, confidenceRelativePath: String,
         rawDepthRelativePath: String?, rawConfidenceRelativePath: String?,
         colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil,
-        coarseWorldFromModel: [Float]? = nil
+        coarseWorldFromModel: [Float]? = nil, auxiliaryExtractMilliseconds: Double? = nil,
+        segmentationWidth: Int? = nil, segmentationHeight: Int? = nil, segmentationBytesPerRow: Int? = nil
     ) {
         self.depthVersion = depthVersion
         self.captureID = captureID
@@ -130,6 +139,10 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         self.occluderMaskRelativePath = occluderMaskRelativePath
         self.colourEncoding = colourEncoding
         self.coarseWorldFromModel = coarseWorldFromModel
+        self.auxiliaryExtractMilliseconds = auxiliaryExtractMilliseconds
+        self.segmentationWidth = segmentationWidth
+        self.segmentationHeight = segmentationHeight
+        self.segmentationBytesPerRow = segmentationBytesPerRow
     }
 
     enum CodingKeys: String, CodingKey {
@@ -148,6 +161,10 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         case occluderMaskRelativePath = "occluder_mask_relative_path"
         case colourEncoding = "colour_encoding"
         case coarseWorldFromModel = "coarse_world_from_model"
+        case auxiliaryExtractMilliseconds = "auxiliary_extract_ms"
+        case segmentationWidth = "segmentation_width"
+        case segmentationHeight = "segmentation_height"
+        case segmentationBytesPerRow = "segmentation_bytes_per_row"
     }
 
     /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes

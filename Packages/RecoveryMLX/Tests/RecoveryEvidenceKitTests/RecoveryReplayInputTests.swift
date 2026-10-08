@@ -53,6 +53,24 @@ final class RecoveryReplayInputTests: XCTestCase {
         XCTAssertNil(oldSession.partPackVersion)
     }
 
+    func testRelayMeasurementsRoundTripUnderSnakeCaseKeys() throws {
+        let record = EvidenceDepthFrameRecord(
+            depthVersion: EvidenceSchema.depthVersion, captureID: UUID(), width: 4, height: 3,
+            depthIntrinsics: Array(repeating: 1, count: 9), worldFromCamera: Array(repeating: 0, count: 16),
+            timestamp: 3, depthRelativePath: "w.depth", confidenceRelativePath: "w.confidence",
+            rawDepthRelativePath: nil, rawConfidenceRelativePath: nil,
+            auxiliaryExtractMilliseconds: 2.5, segmentationWidth: 256, segmentationHeight: 192, segmentationBytesPerRow: 320
+        )
+        let json = try object(record)
+        XCTAssertEqual(json["auxiliary_extract_ms"] as? Double, 2.5)
+        XCTAssertEqual(json["segmentation_bytes_per_row"] as? Int, 320)
+        let decoded = try EvidenceSchema.decoder().decode(EvidenceDepthFrameRecord.self, from: EvidenceSchema.encoder().encode(record))
+        XCTAssertEqual(decoded.auxiliaryExtractMilliseconds, 2.5)
+        XCTAssertEqual(decoded.segmentationWidth, 256)
+        XCTAssertEqual(decoded.segmentationHeight, 192)
+        XCTAssertEqual(decoded.segmentationBytesPerRow, 320)
+    }
+
     private func fit(score: Float = 0.6, pose: [Float] = Array(repeating: 0.5, count: 16), id: UUID = UUID(), at date: Date = .now) -> GeometricFitRecord {
         GeometricFitRecord(
             fitVersion: EvidenceSchema.fitVersion, fitID: id, sessionID: UUID(), passIndex: 0, candidateIndex: 2,

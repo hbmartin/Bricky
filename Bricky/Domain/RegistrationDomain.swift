@@ -34,6 +34,16 @@ struct RegistrationFrameInput: Sendable {
     var colourEncoding: String? = nil
     /// 1 where person segmentation marks an occluder (a hand), else 0.
     var occluderMask: [UInt8]? = nil
+    /// Evidence only: how long the auxiliary channels above took to
+    /// extract, in milliseconds (Phase 1 budget: p95 ≤ 3 ms). Nil when none
+    /// was asked for.
+    var auxiliaryExtractMilliseconds: Double? = nil
+    /// Evidence only: the person-segmentation buffer the mask was resampled
+    /// from, as ARKit delivered it, so its size and row alignment can be
+    /// checked on device rather than assumed.
+    var segmentationWidth: Int? = nil
+    var segmentationHeight: Int? = nil
+    var segmentationBytesPerRow: Int? = nil
 }
 
 /// An oriented point sample of the cumulative expected model surface, in the

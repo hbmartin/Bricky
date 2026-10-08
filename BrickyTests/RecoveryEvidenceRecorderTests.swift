@@ -307,6 +307,43 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         XCTAssertTrue(none.isEmpty)
     }
 
+    // Fails on the old code by not compiling: the relay's extraction cost and
+    // the segmentation buffer's shape were measured nowhere, so Phase 1's
+    // "p95 ≤ 3 ms" and "record the buffer's size" had no readout.
+    func testWindowFrameSidecarRecordsAuxiliaryExtractTime() async throws {
+        let recorder = makeRecorder()
+        func frame(timed: Bool) -> RegistrationFrameInput {
+            RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 6), confidence: [UInt8](repeating: 2, count: 6),
+                rawDepth: nil, rawConfidence: nil, width: 3, height: 2,
+                depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4, timestamp: 1,
+                auxiliaryExtractMilliseconds: timed ? 1.25 : nil,
+                segmentationWidth: timed ? 256 : nil, segmentationHeight: timed ? 192 : nil,
+                segmentationBytesPerRow: timed ? 320 : nil
+            )
+        }
+        try await recorder.writeDepthFrame(frame(timed: true), id: UUID(), stem: "windows/frames/timed")
+        try await recorder.writeDepthFrame(frame(timed: false), id: UUID(), stem: "windows/frames/untimed")
+        let directory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows/frames")
+        func sidecar(_ name: String) throws -> [String: Any] {
+            try XCTUnwrap(JSONSerialization.jsonObject(
+                with: Data(contentsOf: directory.appendingPathComponent("\(name).json"))
+            ) as? [String: Any])
+        }
+        let timed = try sidecar("timed")
+        XCTAssertEqual(timed["auxiliary_extract_ms"] as? Double, 1.25)
+        XCTAssertEqual(timed["segmentation_width"] as? Int, 256)
+        XCTAssertEqual(timed["segmentation_height"] as? Int, 192)
+        XCTAssertEqual(timed["segmentation_bytes_per_row"] as? Int, 320)
+        let untimed = try sidecar("untimed")
+        for key in ["auxiliary_extract_ms", "segmentation_width", "segmentation_height", "segmentation_bytes_per_row"] {
+            XCTAssertNil(untimed[key], "\(key) must be absent when nothing was measured")
+        }
+    }
+
     // Fails on the old code by behaviour: it wrote whatever it was handed, so
     // an 11-float depth plane landed beside a 4x3 sidecar that `validate()`
     // then reported, refusing the whole bundle to every replay.

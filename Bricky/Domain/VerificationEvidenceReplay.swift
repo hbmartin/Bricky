@@ -61,7 +61,11 @@ extension RegistrationFrameInput {
             colourRelativePath: keptColour == nil ? nil : "\(stem).colour",
             occluderMaskRelativePath: keptMask == nil ? nil : "\(stem).occluder",
             colourEncoding: keptColour == nil ? nil : colourEncoding,
-            coarseWorldFromModel: coarseWorldFromModel?.rowMajorValues
+            coarseWorldFromModel: coarseWorldFromModel?.rowMajorValues,
+            auxiliaryExtractMilliseconds: auxiliaryExtractMilliseconds,
+            segmentationWidth: segmentationWidth,
+            segmentationHeight: segmentationHeight,
+            segmentationBytesPerRow: segmentationBytesPerRow
         )
         let planes = EvidenceDepthPlanes(
             depth: depth,

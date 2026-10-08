@@ -94,6 +94,11 @@ final class RegistrationFrameRelay: @unchecked Sendable {
     /// tracking input (ADR 0009), the raw variant is the verifier's per-frame
     /// evidence because smoothing lags freshly placed bricks.
     private static func extract(_ frame: ARFrame, channels: AuxiliaryChannels = []) -> RegistrationFrameInput? {
+        // Read in Instruments: RelayExtract is the whole copy, RelayAuxiliary
+        // the evidence-only channels, whose budget holds with evidence
+        // capture off too (the colour term asks for colour alone).
+        let signpost = GeometrySignposts.signposter.beginInterval("RelayExtract")
+        defer { GeometrySignposts.signposter.endInterval("RelayExtract", signpost) }
         guard let smoothed = frame.smoothedSceneDepth ?? frame.sceneDepth,
               let tracking = copy(depthData: smoothed) else { return nil }
         // Only pay for a second copy when raw depth is a distinct buffer of
@@ -127,6 +132,9 @@ final class RegistrationFrameRelay: @unchecked Sendable {
             worldFromCamera: frame.camera.transform,
             timestamp: frame.timestamp
         )
+        guard !channels.isEmpty else { return input }
+        let auxiliary = GeometrySignposts.signposter.beginInterval("RelayAuxiliary")
+        let started = ContinuousClock.now
         if channels.contains(.colour),
            let sampled = ColourGridSampler.sample(frame.capturedImage, gridWidth: tracking.width, gridHeight: tracking.height) {
             input.colour = sampled.rgb
@@ -136,7 +144,13 @@ final class RegistrationFrameRelay: @unchecked Sendable {
             input.occluderMask = ColourGridSampler.occluderMask(
                 segmentation, gridWidth: tracking.width, gridHeight: tracking.height
             )
+            input.segmentationWidth = CVPixelBufferGetWidth(segmentation)
+            input.segmentationHeight = CVPixelBufferGetHeight(segmentation)
+            input.segmentationBytesPerRow = CVPixelBufferGetBytesPerRow(segmentation)
         }
+        let elapsed = started.duration(to: .now).components
+        input.auxiliaryExtractMilliseconds = Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15
+        GeometrySignposts.signposter.endInterval("RelayAuxiliary", auxiliary)
         return input
     }
 
