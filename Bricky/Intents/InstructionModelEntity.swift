@@ -73,6 +73,28 @@ enum InstructionModelSpotlight {
         UserDefaults.standard.bool(forKey: AppConfig.Defaults.spotlightModelsEnabled)
     }
 
+    /// The latest queued sync; each new request runs after it.
+    private static var tail: Task<Void, Never>?
+
+    /// Queues a sync behind every earlier one. Each reads the setting when
+    /// it runs, not when it was asked for, so the newest request runs last
+    /// and leaves Spotlight as the setting then stands: an opt-out is never
+    /// undone by an older sync resuming after it.
+    @discardableResult
+    static func requestSync(
+        context: ModelContext,
+        index: some InstructionModelIndexing = SpotlightInstructionModelIndex(),
+        setting: @escaping @MainActor () -> Bool = { isEnabled }
+    ) -> Task<Void, Never> {
+        let previous = tail
+        let next = Task { @MainActor in
+            await previous?.value
+            try? await sync(enabled: setting(), context: context, index: index)
+        }
+        tail = next
+        return next
+    }
+
     static func sync(
         enabled: Bool = isEnabled,
         context: ModelContext,
