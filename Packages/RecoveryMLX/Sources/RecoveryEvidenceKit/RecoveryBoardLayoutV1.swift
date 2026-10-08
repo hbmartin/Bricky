@@ -31,8 +31,8 @@ public enum RecoveryBoardLayoutV1 {
         }
     }
 
-    // Geometry shared with Tools/RecoveryEvaluation/make_board.py (which is
-    // deprecated as an authority in favor of this file).
+    // The single board-geometry authority: the app, bricky-harness and its
+    // synthetic bundles all draw through it.
     public static let boardSide = 1024
     public static let physicalRect = CGRect(x: 16, y: 16, width: 992, height: 420)
     public static let columns = 4

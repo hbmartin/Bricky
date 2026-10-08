@@ -94,21 +94,11 @@ threshold), then the JSON report with a `gates` summary per kind. The
 marginal precision/recall pair is `DORMANT` until the RGB support term
 exists (ADR 0008): it is reported, but never required and never fails.
 
-`make_board.py` reproduces the app's bounded 1024×1024 single-image layout for
-offline fixtures. Candidate order is the A–H slot map stored in
-`RecoveryBenchmarkV1`:
-
-```sh
-uv run python make_board.py physical.jpg step-0.png step-8.png step-16.png \
-  --step-labels 0 8 16 --out boards/case-001.jpg
-```
-
-> **Deprecated as layout authority.** The board geometry now has a single
-> authoritative implementation shared by the app and the Mac harness:
-> `RecoveryBoardLayoutV1` in `Packages/RecoveryMLX/Sources/RecoveryEvidenceKit`.
-> Use `bricky-harness recompose` to rebuild boards from evidence bundles;
-> `make_board.py` remains only for synthetic fixtures and is not kept in
-> lockstep with the app.
+Boards have one layout authority, `RecoveryBoardLayoutV1` in
+`Packages/RecoveryMLX/Sources/RecoveryEvidenceKit`, shared by the app and the
+Mac harness: `bricky-harness recompose` rebuilds boards from evidence bundles,
+and `bricky-harness synth-bundle` draws synthetic fixtures through it. The
+Python tools here need nothing beyond the standard library.
 
 ## Producing rows: the evidence workflow (ADR 0007)
 

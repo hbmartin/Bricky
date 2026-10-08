@@ -293,9 +293,10 @@ complete-recall 0.0, and the marginal gates stay dormant.
   exports (AirDrop over ~500 MB gets slow), and surfacing recorder write
   failures in `EvidenceSessionsView` (recording is deliberately best-effort
   and silent today; the session list only shows what was written).
-- **`make_board.py` retirement.** Deprecated as layout authority but still
-  used for synthetic fixtures; once synthetic fixtures go through
-  `bricky-harness recompose` or the kit directly, delete it.
+- ✅ **`make_board.py` retirement.** Done 2026-10-08: synthetic fixtures
+  already went through the kit (`bricky-harness synth-bundle`), so the
+  script and its Pillow dependency are gone and the evaluation tools are
+  stdlib-only.
 
 ## 5. Training path (after eval is trustworthy)
 
