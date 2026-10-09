@@ -90,7 +90,7 @@ These lines need no tools; they come from the bundles alone.
 | §1a.5 Suggested placement | **Deferred**: the device records no proposals yet | — |
 | §1a.6 Hands-free | **Manual**: 30 minutes of background noise, a quiet-room recall count, Siri and Spotlight checks | As listed in §1a |
 | §1a.7 Wording | **Manual**: the owner reads on screen and in VoiceOver | No forbidden words |
-| §1a.8 Colour check | `STEP colour shadow|full …`, then `compare_arms.py --primary verification_correct`; relay p95 with evidence **off** is the `RelayAuxiliary` signpost (manual `xctrace`) | ≥ 40 fixtures; Block only after replays lose no completes |
+| §1a.8 Colour check | `STEP colour shadow\|full …`, then `compare_arms.py --primary verification_correct`; relay p95 with evidence **off** is the `RelayAuxiliary` signpost (manual `xctrace`) | ≥ 40 fixtures; Block only after replays lose no completes |
 | §1a.9 Photo check geometry | `COUNTS check_geometry_traces`; the overlay is **manual** | The box frames the step's parts |
 | §1a.10 FM shadow check | `RELEASE shadow_check`, `SHADOW_ADVISOR`; Mac arm with `--fm-shadow` (informational) | 149 negatives at zero misses, per OS build |
 | §1a.11 Repair wording | `STEP wording-sheet`; rate `report/wording/sheet.csv` blind; `score_wording_ab.py --sheet … --key report/wording/key.csv` | MODEL PREFERRED |
@@ -99,7 +99,7 @@ These lines need no tools; they come from the bundles alone.
 | §1a.14 Stud labels | `STEP stud-labels …` prints refusal counts; overlay on 50 photos is **manual** | Studs correct by eye |
 | §1a.15 LoRA | `COUNTS labelled_sessions` | Nothing until 150 |
 | §1a.16 Plate offset | `VERTICAL_CONTEST device …` | ≥ 20 raised `plate_offset` and ≥ 20 `complete` windows over ≥ 3 sessions; `SEPARATES` |
-| Geometric recovery | `STEP geometric control|tiebreak …`, then `NEXT compare-geometric …` | Fits replay (the Mac rasterizer may differ from the phone's); the tie-break flips only on the paired comparison (ADR 0010) |
+| Geometric recovery | `STEP geometric control\|tiebreak …`, then `NEXT compare-geometric …` | Fits replay (the Mac rasterizer may differ from the phone's); the tie-break flips only on the paired comparison (ADR 0010) |
 
 ## Traps
 
