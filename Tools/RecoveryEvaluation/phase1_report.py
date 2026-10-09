@@ -70,6 +70,8 @@ class Session:
 class Loaded:
     sessions: list[Session] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # Row-file lines that are not JSON objects, one warning each.
+    malformed: list[str] = field(default_factory=list)
 
 
 def read_json(path: Path) -> object | None:
@@ -79,15 +81,24 @@ def read_json(path: Path) -> object | None:
         return None
 
 
-def read_ndjson(path: Path) -> list[dict[str, object]]:
+def read_ndjson(path: Path, malformed: list[str] | None = None) -> list[dict[str, object]]:
+    """The object rows in `path`. A line that is not a JSON object is
+    skipped, and named in `malformed` when given: one torn line must not
+    cost every other readout."""
     if not path.is_file():
         return []
     rows = []
-    for line in path.read_text().splitlines():
-        if line.strip():
+    for number, line in enumerate(path.read_bytes().splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
             row = json.loads(line)
-            if isinstance(row, dict):
-                rows.append(row)
+        except ValueError:
+            row = None
+        if isinstance(row, dict):
+            rows.append(row)
+        elif malformed is not None:
+            malformed.append(f"{path}: line {number} is not a JSON object; skipped")
     return rows
 
 
@@ -118,6 +129,9 @@ def load_bundles(bundles: list[Path]) -> Loaded:
                 continue
             seen.add(key)
             loaded.sessions.append(Session(bundle, directory, file, synthetic))
+            # Every reader below skips a bad line quietly; it is named once here.
+            for path in sorted(directory.glob("*.ndjson")):
+                read_ndjson(path, loaded.malformed)
     return loaded
 
 
@@ -522,9 +536,9 @@ def readout_lines(report: dict[str, object]) -> list[str]:
     return lines
 
 
-def build_report(bundles: list[Path], work: Path) -> tuple[dict[str, object], list[str]]:
+def build_report(bundles: list[Path], work: Path) -> tuple[dict[str, object], list[Session]]:
     loaded = load_bundles(bundles)
-    for warning in loaded.warnings:
+    for warning in [*loaded.warnings, *loaded.malformed]:
         print(f"warning: {warning}")
     device = [session for session in loaded.sessions if not session.synthetic]
     synthetic_ids = {session.session_id for session in loaded.sessions if session.synthetic}
@@ -542,6 +556,7 @@ def build_report(bundles: list[Path], work: Path) -> tuple[dict[str, object], li
         "sessions": len(loaded.sessions),
         "synthetic_sessions": len(synthetic_ids),
         "warnings": loaded.warnings,
+        "malformed_lines": loaded.malformed,
         "rows": {kind: len(kind_rows) for kind, kind_rows in rows.items()},
         "excluded": dict(sorted(excluded.items())),
     }
@@ -561,10 +576,9 @@ def build_report(bundles: list[Path], work: Path) -> tuple[dict[str, object], li
     report["recorder"] = recorder_readout(device)
     report["counts"] = count_readouts(device)
     report["vertical_contest"] = device_vertical_contest(device)
-    lines = readout_lines(report)
-    for line in lines:
+    for line in readout_lines(report):
         print(line)
-    return report, lines
+    return report, loaded.sessions
 
 
 # --- Mac steps ---------------------------------------------------------------
@@ -719,7 +733,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("bundles", type=Path, nargs="+", metavar="BUNDLE", help="unzipped evidence bundle directories")
     parser.add_argument("--work", type=Path, required=True, help="where merged rows and phase1_report.json go")
-    parser.add_argument("--strict", action="store_true", help="exit 1 when any release run failed or was refused")
+    parser.add_argument("--strict", action="store_true",
+                        help="exit 1 when any release run failed or was refused, or a row file had a malformed line")
     parser.add_argument("--harness", type=Path, help="the bricky-harness executable; harness steps run with it")
     parser.add_argument("--model-dir", type=Path, help="the pinned Qwen3-VL weights, for replay --checks")
     parser.add_argument("--model-revision", help="the revision of the weights in --model-dir")
@@ -730,16 +745,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fm-shadow", action="store_true", help="also run bricky-harness fm-shadow (macOS 27, informational)")
     arguments = parser.parse_args(argv)
     arguments.work.mkdir(parents=True, exist_ok=True)
-    report, _ = build_report(arguments.bundles, arguments.work)
+    report, sessions = build_report(arguments.bundles, arguments.work)
     tools = MacTools(
         harness=arguments.harness, model_dir=arguments.model_dir, model_revision=arguments.model_revision,
         synthetic_rgbd=arguments.synthetic_rgbd, ldraw_root=arguments.ldraw_root, model_ldrs=arguments.model_ldr,
         fm_shadow=arguments.fm_shadow,
     )
-    report["mac_steps"] = mac_steps(tools, arguments.bundles, load_bundles(arguments.bundles).sessions, arguments.work)
+    report["mac_steps"] = mac_steps(tools, arguments.bundles, sessions, arguments.work)
     (arguments.work / "phase1_report.json").write_text(json.dumps(report, indent=2, sort_keys=True, default=str) + "\n")
     print(f"wrote {arguments.work / 'phase1_report.json'}")
     failed = any(entry.get("status") in {"FAIL", "REFUSED"} for entry in report["release"].values())
+    failed = failed or bool(report["malformed_lines"])
     return 1 if arguments.strict and failed else 0
 
 

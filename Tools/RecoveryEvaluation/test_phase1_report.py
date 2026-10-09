@@ -200,6 +200,22 @@ class Phase1ReportTests(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertRegex(output, r"RELEASE verification (FAIL|REFUSED) \(1 rows\)")
 
+    # Fails on the old code with JSONDecodeError: one torn line ended the run.
+    def test_a_malformed_row_line_is_skipped_named_once_and_fails_strict(self) -> None:
+        bundle = self.bundles.bundle("device", {"s1": {"ndjson": {"check.ndjson": [staged_check("c1")]}}})
+        rows = bundle / "sessions" / "s1" / "check.ndjson"
+        rows.write_text(rows.read_text() + '{"kind": "vlm_check", "fixt\n' + json.dumps(staged_check("c2")) + "\n")
+        work = self.root / "relaxed"
+        code, output = run_report([bundle], work)
+        self.assertEqual(code, 0, output)
+        warning = f"warning: {rows}: line 2 is not a JSON object; skipped"
+        self.assertEqual(output.count(warning), 1, output)
+        self.assertIn("RELEASE vlm_check ACCEPTED (2 rows)", output)
+        report = json.loads((work / "phase1_report.json").read_text())
+        self.assertEqual(report["malformed_lines"], [warning.removeprefix("warning: ")])
+        code, output = run_report([bundle], self.root / "strict", "--strict")
+        self.assertEqual(code, 1, output)
+
 
 STUB = """#!/usr/bin/env python3
 import json, os, sys
