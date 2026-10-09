@@ -2,7 +2,7 @@
 name = "bricky-recovery-evaluation"
 version = "1.0.0"
 requires-python = ">=3.12"
-dependencies = ["pillow==11.3.0"]
+dependencies = []
 
 [tool.uv]
 package = false

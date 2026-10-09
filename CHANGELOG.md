@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased — Phase 1 readiness
+
+Device-free work that makes the first device sessions count. Nothing here
+changes a verdict, an estimate or a default.
+
+- **Recovery sessions record what geometric recovery starts from.**
+  - **The gap:** the manual alignment is both the estimator's ICP starting
+    pose and its pose-sanity reference, and no session kept it.
+  - **What is recorded now:** the depth sidecar carries
+    `coarse_world_from_model`, and `session.json` carries `part_pack_version`.
+    Earlier sessions cannot replay geometric recovery.
+- **Geometric recovery replays on a Mac.**
+  - **The command:** `SyntheticRGBD --replay-bundle <b> --suite recovery
+    [--recovery-arm …] [--require-match]` re-fits each session through the
+    app's estimator and compares every fit bit for bit.
+  - **Its rows:** geometric `RecoveryBenchmarkV1` rows (`replay:<mac>`).
+  - **In CI:** the recovery suite is written as a bundle (`--write-bundle`)
+    and replayed with `--require-match`, blocking; it round-trips 14/14
+    sessions on both arms.
+- **Geometric rows can enter a release corpus.**
+  - **The bug:** the release preflight required an adjacent-step candidate in
+    `candidate_slots`, which a geometric row (no board) never has.
+  - **The fix:** rows now carry `scored_step_ids`, and the rule reads both.
+- **Tied recovery candidates rank by step index,** not by dictionary order,
+  which varied per process.
+- **Depth planes are written through the evidence kit,** which refuses a
+  plane that does not fill its grid instead of writing a bundle that fails
+  validation.
+- **Recorder gaps are visible.**
+  - `session.json` records `recorder_health` (failed writes by operation,
+    windows skipped at the cap or for low space).
+  - The session list badges such sessions.
+  - Exports above 500 MB ask first.
+- **Relay timing.**
+  - The relay's extraction has `RelayExtract`/`RelayAuxiliary` signposts.
+  - Window frames record `auxiliary_extract_ms` and the segmentation
+    buffer's shape.
+- **`replay --verify-images`** decodes every image a bundle references.
+- **`make_board.py` is retired** with its Pillow dependency; the evaluation
+  tools are stdlib-only.
+- **The plate-offset false complete, measured.**
+  - **The readout:** `score_results.py` reads the build diff's ±1-plate
+    tallies (`VERTICAL_CONTEST`).
+  - **The result:** on the challenge suite the raised contest separates
+    3/3 targets from 0/7 controls, thinly.
+  - **The guard:** the challenge baseline now holds the correct controls at
+    complete, so an over-blocking fix fails CI.
+  - **The docs:** they no longer claim the diff will fix it.
+  - **Next:** NEXT_STEPS §1a item 16 collects the device windows.
+- **Phase 1 tooling.**
+  - `phase1_report.py` merges the device rows of any number of bundles,
+    scores each kind in release mode on the rows the preflight accepts, and
+    prints every readout no other tool computed. It runs, or prints, each
+    Mac step.
+  - `--require-kinds` accepts `vlm_check` and `shadow_check`.
+  - Window replay splits agreement out for strong windows.
+  - `docs/PHASE1_RUNBOOK.md` maps every checklist item to a command and a
+    pass rule.
+
 ## Unreleased — review nits
 
 - **Core AI stud detector refuses a bad output.** An empty heatmap, or one

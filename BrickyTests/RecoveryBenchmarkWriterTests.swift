@@ -143,6 +143,55 @@ final class RecoveryBenchmarkWriterTests: XCTestCase {
         XCTAssertEqual(row["top_step_index"] as? Int, 0)
     }
 
+    /// Mirrors SCORED_STEP_IDS_FIELD in score_results.py, which the release
+    /// preflight's adjacency rule reads beside `candidate_slots`.
+    private static let scorerScoredStepsField = "scored_step_ids"
+
+    private func fit(index: Int, sessionID: UUID) -> GeometricFitRecord {
+        GeometricFitRecord(
+            fitVersion: EvidenceSchema.fitVersion, fitID: UUID(), sessionID: sessionID, passIndex: 0,
+            candidateIndex: index, stepID: "main.ldr#\(index + 1)", score: 0.5, inlierFraction: 0.8,
+            visibleFraction: 0.7, unexplainedFraction: 0.1, phantomFraction: 0.05, rmsResidual: 0.002,
+            latticeMargin: 1.3, worldFromModel: Array(repeating: 0, count: 16), disqualification: .none,
+            conclusive: index == 7, createdAt: .now
+        )
+    }
+
+    // Fails on the old code by behaviour: the key was absent, so a device
+    // geometric row showed no candidate at all and the release preflight
+    // refused it.
+    func testGeometricRowRecordsTheStepsItScored() async throws {
+        let recorder = makeRecorder(staged: StagedFixtureDeclaration(
+            expectedCompletedCount: 8, lighting: .dim, occlusion: .partial, physicalCase: true, legalUseConfirmed: true
+        ))
+        let capture = try makeCapture()
+        await recorder.recordCaptures([capture])
+        // Recorded out of order, and step 8 twice (two refinement passes).
+        await recorder.recordFits([8, 6, 7].map { fit(index: $0, sessionID: recorder.sessionID) })
+        await recorder.recordFits([fit(index: 7, sessionID: recorder.sessionID)])
+        await recorder.finalize(
+            estimate: RecoveryEstimate(
+                rankedStepIDs: ["main.ldr#8", "main.ldr#7", "main.ldr#9"], certainty: .high,
+                modelRevision: "depth-icp-geometric-v1", latencyMilliseconds: 900, captureIDs: [capture.id],
+                insufficiencyCause: nil, method: .geometric
+            ),
+            analysisError: nil,
+            groundTruth: EvidenceGroundTruth(
+                kind: .staged, expectedCompletedCount: 8, expectedStepID: "main.ldr#8",
+                confirmedCompletedCount: 8, confirmedAt: .now
+            )
+        )
+        await recorder.writeBenchmarkRow(inputs: RecoveryBenchmarkInputs(
+            expectedCompletedCount: 8, expectedStepID: "main.ldr#8",
+            stepNumbersByID: ["main.ldr#7": 7, "main.ldr#8": 8, "main.ldr#9": 9]
+        ))
+        let row = try loadBenchmarkRow(recorder: recorder)
+        XCTAssertEqual(row[Self.scorerScoredStepsField] as? [String], ["main.ldr#7", "main.ldr#8", "main.ldr#9"])
+        XCTAssertEqual(row["candidate_slots"] as? [String: String], [:])
+        XCTAssertEqual(row["vlm_calls"] as? Int, 0)
+        XCTAssertEqual(row["estimator_method"] as? String, "geometric")
+    }
+
     func testUnlabeledSessionEmitsNoBenchmarkRow() async throws {
         let recorder = makeRecorder(staged: nil)
         let capture = try makeCapture()

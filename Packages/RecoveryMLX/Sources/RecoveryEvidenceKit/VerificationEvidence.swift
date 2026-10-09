@@ -285,6 +285,18 @@ public struct EvidenceDepthPlanes: Sendable {
     /// 1 where a person occludes the pixel, else 0.
     public let occluderMask: [UInt8]?
 
+    public init(
+        depth: [Float], confidence: [UInt8], rawDepth: [Float]?, rawConfidence: [UInt8]?,
+        colour: [UInt8]?, occluderMask: [UInt8]?
+    ) {
+        self.depth = depth
+        self.confidence = confidence
+        self.rawDepth = rawDepth
+        self.rawConfidence = rawConfidence
+        self.colour = colour
+        self.occluderMask = occluderMask
+    }
+
     public enum LoadError: Error, CustomStringConvertible {
         case badDimensions
         case truncated(String, expected: Int, actual: Int)
@@ -316,6 +328,50 @@ public struct EvidenceDepthPlanes: Sendable {
             colour: try record.colourRelativePath.map { try plane($0, UInt8.self, perPixel: 3) },
             occluderMask: try record.occluderMaskRelativePath.map { try plane($0, UInt8.self) }
         )
+    }
+
+    public enum WriteError: Error, CustomStringConvertible {
+        case badDimensions
+        case missingPlane(String)
+        case wrongSize(String, expected: Int, actual: Int)
+
+        public var description: String {
+            switch self {
+            case .badDimensions: "depth frame has invalid dimensions"
+            case let .missingPlane(path): "\(path) is named but has no plane"
+            case let .wrongSize(path, expected, actual): "\(path) would have \(actual) bytes, expected \(expected)"
+            }
+        }
+    }
+
+    /// The inverse of `load`: writes every plane `record` names, relative to
+    /// `directory`. Every plane is checked against the declared grid before
+    /// anything is written, so a frame that could not reload leaves no files
+    /// behind — `load` would refuse it, and one bad plane would otherwise
+    /// fail the whole bundle's validation.
+    public func write(_ record: EvidenceDepthFrameRecord, in directory: URL) throws {
+        var planes: [(path: String, data: Data)] = []
+        func add<Element>(_ values: [Element]?, at path: String?, perPixel: Int = 1) throws {
+            guard let path else { return }
+            guard let values else { throw WriteError.missingPlane(path) }
+            guard let expected = record.expectedBytes(elementSize: MemoryLayout<Element>.size * perPixel) else {
+                throw WriteError.badDimensions
+            }
+            let data = values.withUnsafeBufferPointer { Data(buffer: $0) }
+            guard data.count == expected else { throw WriteError.wrongSize(path, expected: expected, actual: data.count) }
+            planes.append((path, data))
+        }
+        try add(depth, at: record.depthRelativePath)
+        try add(confidence, at: record.confidenceRelativePath)
+        try add(rawDepth, at: record.rawDepthRelativePath)
+        try add(rawConfidence, at: record.rawConfidenceRelativePath)
+        try add(colour, at: record.colourRelativePath, perPixel: 3)
+        try add(occluderMask, at: record.occluderMaskRelativePath)
+        for plane in planes {
+            let url = directory.appendingPathComponent(plane.path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try plane.data.write(to: url, options: .atomic)
+        }
     }
 }
 

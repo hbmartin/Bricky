@@ -226,6 +226,300 @@ final class GeometricRecoveryEstimatorTests: XCTestCase {
         XCTAssertEqual(flat[15], 1)
     }
 
+    /// The ladder as an authored plan, one placement per step, whose
+    /// geometry is supplied rather than flattened from a part pack.
+    private func ladderPlan() throws -> (plan: InstructionPlan, geometry: PlacementGeometry) {
+        let main = """
+        0 Ladder
+        1 4 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        1 1 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        1 2 0 -48 0 1 0 0 0 1 0 0 0 1 3001.dat
+        0 STEP
+        """
+        let file = InstructionSourceFile(relativePath: "main.ldr", data: Data(main.utf8))
+        let document = try LDrawInstructionParser().parse(files: [file], rootRelativePath: "main.ldr")
+        let plan = try InstructionPlanBuilder().build(
+            document: document, title: "Ladder", sourceFilename: "main.ldr",
+            sourceSHA256: InstructionSourceIdentity.sha256(of: [file])
+        )
+        return (plan, PlacementGeometry(plan: plan, segments: SegmentedGeometry(segments: [[base], [brickA], [brickB]])))
+    }
+
+    private func bits(_ matrix: simd_float4x4) -> [UInt32] {
+        var values: [UInt32] = []
+        for column in 0..<4 { for row in 0..<4 { values.append(matrix[column][row].bitPattern) } }
+        return values
+    }
+
+    private func bits(_ matrix: simd_float3x3) -> [UInt32] {
+        var values: [UInt32] = []
+        for column in 0..<3 { for row in 0..<3 { values.append(matrix[column][row].bitPattern) } }
+        return values
+    }
+
+    // Fails on the old code by not compiling: sessions kept no alignment, so
+    // nothing could re-estimate a recorded recovery.
+    func testARecordedRecoveryReestimatesIdentically() async throws {
+        let (plan, geometry) = try ladderPlan()
+        XCTAssertEqual(plan.steps.count, 3)
+        let renderer = try makeRenderer()
+        let frame = try observedFrame(physical: [base, brickA])
+        // A small offset inside ICP's basin, so a pose that was dropped (and
+        // would replay from identity) cannot pass.
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4(0.002, 0, -0.001, 1)
+        let alignment = ARAlignment(id: UUID(), transform: transform, isTracking: true)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recovery-replay-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func recorder(_ name: String) -> RecoveryEvidenceRecorder {
+            RecoveryEvidenceRecorder(
+                root: root.appendingPathComponent(name, isDirectory: true), instructionSHA256: plan.sourceSHA256,
+                authoredModelID: UUID(), modelTitle: "Ladder", stepCount: plan.steps.count, staged: nil
+            )
+        }
+
+        let device = recorder("device")
+        let captureID = UUID()
+        await device.recordDepthFrame(frame, captureID: captureID, coarseWorldFromModel: alignment.transform)
+        let recorded = try await GeometricRecoveryEstimator(
+            frame: frame, sourceRoot: root, partPackRoot: root, recorder: device, renderer: renderer, geometry: geometry
+        ).estimate(model: plan, alignment: alignment, captureIDs: [captureID])
+        let deviceEstimate = try XCTUnwrap(recorded, "the ladder's middle step is conclusive")
+
+        // What the replay reads back is exactly what the device held.
+        let frames = await device.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        let sessionDirectory = root.appendingPathComponent("device")
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(device.sessionID.uuidString)
+        let reloaded = RegistrationFrameInput(record: record, planes: try EvidenceDepthPlanes.load(record, in: sessionDirectory))
+        XCTAssertEqual(reloaded.depth.map(\.bitPattern), frame.depth.map(\.bitPattern))
+        XCTAssertEqual(reloaded.rawDepth?.map(\.bitPattern), frame.rawDepth?.map(\.bitPattern))
+        XCTAssertEqual(reloaded.confidence, frame.confidence)
+        XCTAssertEqual(bits(reloaded.worldFromCamera), bits(frame.worldFromCamera))
+        XCTAssertEqual(bits(reloaded.depthIntrinsics), bits(frame.depthIntrinsics))
+        let coarse = simd_float4x4(rowMajor: try XCTUnwrap(record.coarseWorldFromModel))
+        XCTAssertEqual(bits(coarse), bits(alignment.transform))
+
+        let replay = recorder("replay")
+        let replayed = try await GeometricRecoveryEstimator(
+            frame: reloaded, sourceRoot: root, partPackRoot: root, recorder: replay, renderer: renderer, geometry: geometry
+        ).estimate(
+            model: plan, alignment: ARAlignment(id: alignment.id, transform: coarse, isTracking: true), captureIDs: [captureID]
+        )
+        let replayEstimate = try XCTUnwrap(replayed)
+        XCTAssertEqual(replayEstimate.rankedStepIDs, deviceEstimate.rankedStepIDs)
+        XCTAssertEqual(replayEstimate.certainty, deviceEstimate.certainty)
+        XCTAssertEqual(replayEstimate.modelRevision, deviceEstimate.modelRevision)
+        XCTAssertEqual(replayEstimate.method, deviceEstimate.method)
+        XCTAssertEqual(replayEstimate.captureIDs, deviceEstimate.captureIDs)
+        let deviceFits = await device.loadFitRecords()
+        let replayFits = await replay.loadFitRecords()
+        XCTAssertEqual(deviceFits.count, plan.steps.count)
+        XCTAssertEqual(replayFits.count, deviceFits.count)
+        for (original, again) in zip(deviceFits, replayFits) {
+            XCTAssertTrue(original.isSameFit(as: again), "fit for \(original.stepID) moved")
+        }
+    }
+
+    /// Records one recovery the way the app does, through the composite
+    /// estimator with no fallback, and stages the session as an exported
+    /// bundle's only session. Returns the bundle directory.
+    private func recordBundle(
+        root: URL, plan: InstructionPlan, geometry: PlacementGeometry, frame: RegistrationFrameInput?,
+        alignment: ARAlignment, recordAlignment: Bool = true
+    ) async throws -> URL {
+        let images = root.appendingPathComponent("RecoveryCaptures", isDirectory: true)
+        try FileManager.default.createDirectory(at: images, withIntermediateDirectories: true)
+        let captures = try [CaptureAngle.left, .center, .right].map { angle -> RecoveryCapture in
+            let id = UUID()
+            try Data("capture".utf8).write(to: images.appendingPathComponent("\(id.uuidString).jpg"))
+            return RecoveryCapture(
+                id: id, imageRelativePath: "RecoveryCaptures/\(id.uuidString).jpg",
+                cameraTransform: Array(repeating: 0, count: 16), cameraIntrinsics: Array(repeating: 0, count: 9),
+                cameraImageResolution: [1920, 1440], alignmentID: alignment.id, angle: angle, capturedAt: .now
+            )
+        }
+        let recorder = RecoveryEvidenceRecorder(
+            root: root, instructionSHA256: plan.sourceSHA256, authoredModelID: UUID(), modelTitle: "Ladder",
+            stepCount: plan.steps.count,
+            staged: StagedFixtureDeclaration(
+                expectedCompletedCount: 2, lighting: .bright, occlusion: .none, physicalCase: true, legalUseConfirmed: true
+            )
+        )
+        if recordAlignment {
+            await recorder.recordRecoveryInputs(captures: captures, depthFrame: frame, alignment: alignment)
+        } else {
+            await recorder.recordCaptures(captures)
+            if let frame {
+                // As a session recorded before the alignment was.
+                try await recorder.writeDepthFrame(frame, id: captures[1].id, stem: "depth/\(captures[1].id.uuidString)")
+            }
+        }
+        var estimate: RecoveryEstimate?
+        if let frame {
+            let geometric = try GeometricRecoveryEstimator(
+                frame: frame, sourceRoot: root, partPackRoot: root, recorder: recorder,
+                renderer: try makeRenderer(), geometry: geometry
+            )
+            estimate = try await CompositeRecoveryEstimator(geometric: geometric, fallback: nil)
+                .estimate(captures: captures, model: plan, alignment: alignment)
+        }
+        await recorder.finalize(
+            estimate: estimate, analysisError: nil,
+            groundTruth: EvidenceGroundTruth(kind: .staged, expectedCompletedCount: 2, expectedStepID: plan.steps[1].id)
+        )
+
+        let bundle = root.appendingPathComponent("bundle", isDirectory: true)
+        let sessions = bundle.appendingPathComponent("sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            at: root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(recorder.sessionID.uuidString),
+            to: sessions.appendingPathComponent(recorder.sessionID.uuidString)
+        )
+        try EvidenceSchema.encoder(prettyPrinted: true).encode(EvidenceBundleManifest(
+            bundleVersion: EvidenceSchema.bundleVersion, createdAt: .now, appVersion: "test", deviceModel: "iPhone18,1",
+            operatingSystem: "iOS 27.0", modelID: "none", modelRevision: "none", sessionIDs: [recorder.sessionID]
+        )).write(to: bundle.appendingPathComponent("evidence_bundle.json"))
+        return bundle
+    }
+
+    // Fails on the old code by not compiling: there was no replay entry point,
+    // and a bundle held nothing it could start from.
+    func testReplayReproducesARecordedSessionFromItsBundle() async throws {
+        let (plan, geometry) = try ladderPlan()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bundle-replay-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4(0.002, 0, -0.001, 1)
+        let alignment = ARAlignment(id: UUID(), transform: transform, isTracking: true)
+        let bundle = try await recordBundle(
+            root: root, plan: plan, geometry: geometry, frame: try observedFrame(physical: [base, brickA]), alignment: alignment
+        )
+
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        XCTAssertEqual(reader.validate(), [])
+        let session = try XCTUnwrap(try reader.loadSessions().first)
+        XCTAssertEqual(session.file.estimate?.method, .geometric)
+        XCTAssertFalse(session.fitRecords.isEmpty)
+        let input = try GeometricRecoveryReplay.input(for: session)
+        XCTAssertEqual(input.alignment.id, alignment.id)
+        let outcome = try await GeometricRecoveryReplay.replay(
+            input, sessionID: session.file.sessionID, plan: plan, geometry: geometry,
+            sourceRoot: root, partPackRoot: root, renderer: try makeRenderer()
+        )
+        XCTAssertNil(outcome.error)
+        XCTAssertTrue(GeometricRecoveryReplay.fitsMatch(recorded: session.fitRecords, replayed: outcome.fits))
+        XCTAssertEqual(GeometricRecoveryReplay.estimateMatches(outcome.estimate, recorded: session.file.estimate), true)
+        XCTAssertEqual(outcome.estimate?.rankedStepIDs.first, plan.steps[1].id)
+        XCTAssertEqual(outcome.fits.scoredStepIDs, plan.steps.map(\.id))
+
+        // A different pose is a different measurement, and the comparison says so.
+        let moved = try await GeometricRecoveryReplay.replay(
+            GeometricRecoveryReplay.Input(
+                frame: input.frame, alignment: ARAlignment(id: alignment.id, transform: matrix_identity_float4x4, isTracking: true),
+                captureIDs: input.captureIDs
+            ),
+            sessionID: session.file.sessionID, plan: plan, geometry: geometry,
+            sourceRoot: root, partPackRoot: root, renderer: try makeRenderer()
+        )
+        XCTAssertFalse(GeometricRecoveryReplay.fitsMatch(recorded: session.fitRecords, replayed: moved.fits))
+    }
+
+    func testReplaySkipsSessionsItCannotReplay() async throws {
+        let (plan, geometry) = try ladderPlan()
+        let alignment = ARAlignment(id: UUID(), transform: matrix_identity_float4x4, isTracking: true)
+        for (frame, recordAlignment, expected) in [
+            (nil, true, GeometricRecoveryReplay.Skip.noDepthFrame),
+            (try observedFrame(physical: [base, brickA]), false, .noAlignment),
+        ] as [(RegistrationFrameInput?, Bool, GeometricRecoveryReplay.Skip)] {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("bundle-skip-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let bundle = try await recordBundle(
+                root: root, plan: plan, geometry: geometry, frame: frame, alignment: alignment, recordAlignment: recordAlignment
+            )
+            let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+            XCTAssertEqual(reader.validate(), [])
+            let session = try XCTUnwrap(try reader.loadSessions().first)
+            XCTAssertThrowsError(try GeometricRecoveryReplay.input(for: session)) { error in
+                XCTAssertEqual(error as? GeometricRecoveryReplay.Skip, expected)
+            }
+        }
+    }
+
+    func testEstimateComparisonFollowsWhatTheGeometricLegConcluded() {
+        let concluded = RecoveryEstimate(
+            rankedStepIDs: ["main.ldr#2", "main.ldr#1"], certainty: .high, modelRevision: GeometricRecoveryEstimator.revision,
+            latencyMilliseconds: 10, captureIDs: [], insufficiencyCause: nil, method: .geometric
+        )
+        func summary(_ method: RecoveryMethod?, certainty: String = "high", ranked: [String] = ["main.ldr#2", "main.ldr#1"]) -> EvidenceSessionFile.EstimateSummary {
+            EvidenceSessionFile.EstimateSummary(
+                rankedStepIDs: ranked, certainty: certainty, insufficiencyCause: nil, latencyMilliseconds: 10,
+                method: method, modelRevision: GeometricRecoveryEstimator.revision
+            )
+        }
+        typealias Replay = GeometricRecoveryReplay
+        XCTAssertEqual(Replay.estimateMatches(concluded, recorded: summary(.geometric)), true)
+        XCTAssertEqual(Replay.estimateMatches(concluded, recorded: summary(.geometric, ranked: ["main.ldr#1"])), false)
+        XCTAssertEqual(Replay.estimateMatches(nil, recorded: summary(.geometric)), false)
+        // Inconclusive on the device, with or without a VLM after it.
+        XCTAssertEqual(Replay.estimateMatches(nil, recorded: summary(.geometric, certainty: "insufficient", ranked: [])), true)
+        XCTAssertEqual(Replay.estimateMatches(nil, recorded: summary(.composite)), true)
+        XCTAssertEqual(Replay.estimateMatches(concluded, recorded: summary(.composite)), false)
+        // Nothing to compare with.
+        XCTAssertNil(Replay.estimateMatches(concluded, recorded: summary(.vlm)))
+        XCTAssertNil(Replay.estimateMatches(concluded, recorded: summary(nil)))
+        XCTAssertNil(Replay.estimateMatches(concluded, recorded: nil))
+    }
+
+    private func candidate(_ index: Int, score: Float, disqualified: Bool = false) -> GeometricRecoveryEstimator.CandidateScore {
+        GeometricRecoveryEstimator.CandidateScore(
+            index: index,
+            worldFromModel: matrix_identity_float4x4,
+            quality: RegistrationQuality(rmsResidual: 0.001, inlierFraction: 1, latticeMargin: 2),
+            score: score,
+            unexplainedFraction: 0,
+            phantomFraction: 0,
+            visibleFraction: 1,
+            disqualification: disqualified ? .horizontalDeviation : .none
+        )
+    }
+
+    // Fails on the old code only by not compiling: it sorted a dictionary's
+    // values, whose order is seeded per process, so no test could force the
+    // old tie order to come out wrong.
+    func testTiedCandidatesRankByScoreThenStepIndex() {
+        let scores = [
+            candidate(5, score: -1, disqualified: true),
+            candidate(2, score: -1, disqualified: true),
+            candidate(7, score: 0.3),
+            candidate(3, score: 0.3),
+            candidate(1, score: 0.6),
+        ]
+        let byIndex = Dictionary(uniqueKeysWithValues: scores.map { ($0.index, $0) })
+        let orders: [[GeometricRecoveryEstimator.CandidateScore]] = [
+            scores, Array(scores.reversed()), [scores[2], scores[0], scores[4], scores[1], scores[3]], Array(byIndex.values),
+        ]
+        for order in orders {
+            XCTAssertEqual(GeometricRecoveryEstimator.ranking(order).map(\.index), [1, 3, 7, 2, 5])
+        }
+    }
+
+    func testARefinementLeaderTieGoesToTheEarlierStep() {
+        let scored = Dictionary(uniqueKeysWithValues: [
+            candidate(4, score: 0.5), candidate(2, score: 0.5), candidate(9, score: 0.7),
+        ].map { ($0.index, $0) })
+        // Step 9 scores higher but lies outside the interval being refined.
+        XCTAssertEqual(GeometricRecoveryEstimator.leader(of: scored, in: 0..<8)?.index, 2)
+        XCTAssertNil(GeometricRecoveryEstimator.leader(of: scored, in: 10..<12))
+    }
+
     func testUnrelatedSceneIsInconclusive() async throws {
         // Nothing brick-like on the table: no candidate may conclude.
         let ranked = try await rankedScores(physical: [])

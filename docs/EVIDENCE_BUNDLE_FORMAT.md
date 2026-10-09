@@ -70,6 +70,30 @@ Evidence/<session-uuid>/
 the VLM. A session normally has one or the other; a composite recovery has
 both.
 
+### Depth sidecars (`depth/*.json`, `windows/frames/*.json`)
+
+One `EvidenceDepthFrameRecord` per frame. All keys are snake_case; optional
+keys are absent rather than null.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `depth_version` | int | 1 |
+| `capture_id` | uuid | the capture (recovery) or the frame (windows) |
+| `width`, `height` | int | the depth grid, 256×192 on device |
+| `depth_intrinsics` | [float] | 9 values, **column-major**, already scaled to the grid |
+| `world_from_camera` | [float] | 16 values, **row-major** |
+| `timestamp` | float | ARKit seconds |
+| `depth_relative_path`, `confidence_relative_path` | string | the smoothed plane and its confidence |
+| `raw_depth_relative_path`, `raw_confidence_relative_path` | string? | the unsmoothed pair; both or neither |
+| `colour_relative_path`, `occluder_mask_relative_path`, `colour_encoding` | string? | window frames only, while evidence is on |
+| `coarse_world_from_model` | [float]? | 16 values, **row-major**, model to world: the manual alignment a geometric recovery started from (added 2026-10-08). Recovery frames only. It is both the ICP starting pose and the reference for the pose-sanity check, so with the planes it is the estimator's whole input. Not the capture record's `world_from_model`, which is column-major and is the locked registration pose. Sessions without it cannot replay geometric recovery. |
+| `auxiliary_extract_ms` | float? | window frames: how long the colour and occluder channels took to extract on device (added 2026-10-08) |
+| `segmentation_width`, `segmentation_height`, `segmentation_bytes_per_row` | int? | window frames: the person-segmentation buffer as ARKit delivered it (added 2026-10-08) |
+
+The writer (`EvidenceDepthPlanes.write`, shared by the app and SyntheticRGBD)
+refuses a frame whose planes do not fill the declared grid before writing
+anything, so such a frame is not recorded at all.
+
 An exported bundle wraps selected sessions verbatim:
 
 ```text
@@ -148,6 +172,15 @@ Mutable over the session's life:
   a physical build carry it; a confirmed recovery takes the last label
   declared for its model. Training data is split by it as well as by
   authored model, so sessions sharing either stay on one side.
+- `part_pack_version` — optional (added 2026-10-08): the LDraw part pack
+  the session's geometry came from, e.g. `2026-07`. A replay against
+  another pack renders different candidates and warns.
+- `recorder_health` — optional (added 2026-10-08), absent while nothing
+  went wrong: `write_failures`, `failed_operations` (count by operation,
+  e.g. `record captures`), `windows_skipped_at_cap` (past 48 per session)
+  and `windows_skipped_low_space` (under 2 GB free). Recording stays
+  best-effort; this is what makes its gaps visible. Error text stays in the
+  device log, because it can hold paths.
 
 ## `fits.ndjson` — GeometricFitRecord (one line per scored candidate)
 
@@ -430,6 +463,19 @@ Release rows must populate all of them. Corpus-level requirements
 (provenance, variation coverage including two elevation bands, and the
 bound-based sample sizes) are in the scorer README.
 
+`scored_step_ids` — optional (added 2026-10-08): the steps the geometric leg
+fitted, each once, in plan order, from the session's `fits.ndjson`. A
+geometric row has no board, so its `candidate_slots` is `{}`; the release
+preflight's rule that a row show an adjacent-step candidate reads both
+fields. Absent when no geometric fit ran.
+
+**Geometric replay rows** come from `SyntheticRGBD --replay-bundle <b>
+--suite recovery` (Mac): `estimator_method: geometric`,
+`device_model: "replay:<hw.model>"`, `latency_scope:
+replay_geometric_estimate`, `variant_id: recovery_arm=control|tiebreak`,
+`vlm_calls: 0`, the replayed `scored_step_ids`, and the staged fields copied
+verbatim. The replayed fits go to `<out>.fits.ndjson`.
+
 ## Benchmark-protocol telemetry (optional, added 2026-09-25)
 
 All of these fields are optional additions (no version bump). They exist so
@@ -494,6 +540,9 @@ in the app (builds the id → authored-number map including step zero) and
   `Evidence`) and swallowed so evidence can never break a recovery.
 - Export staging uses hard links (copy fallback) and is deleted after
   zipping; the zip via the share sheet is the only egress (ADR 0007).
-- `EvidenceBundleReader.validate` checks structure and file *existence*, not
-  image decodability — a bundle with corrupt JPEGs passes `--dry-run` and
-  fails at replay time.
+- `EvidenceBundleReader.validate` checks structure and file *existence*.
+  With `verifyImages` (`bricky-harness replay --dry-run --verify-images`) it
+  also decodes every board, tile, alternate tile and capture, and requires
+  a JPEG's end-of-image marker, because ImageIO renders a truncated JPEG
+  grey and calls it complete. Without the flag, a corrupt JPEG passes
+  `--dry-run` and fails at replay time.

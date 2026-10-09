@@ -27,6 +27,70 @@ extension RegistrationFrameInput {
             occluderMask: planes.occluderMask
         )
     }
+
+    /// The sidecar and planes `init(record:planes:)` reads back. Raw planes
+    /// are kept only as a pair; colour and mask only when they fill the grid,
+    /// exactly as the recorder has always written them.
+    /// - Parameter coarseWorldFromModel: the alignment a geometric recovery
+    ///   fits this frame from; recovery depth frames only.
+    func evidence(
+        id: UUID, stem: String, coarseWorldFromModel: simd_float4x4? = nil
+    ) -> (record: EvidenceDepthFrameRecord, planes: EvidenceDepthPlanes) {
+        let hasRaw = rawDepth != nil && rawConfidence != nil
+        let keptColour = colour.flatMap { $0.count == width * height * 3 ? $0 : nil }
+        let keptMask = occluderMask.flatMap { $0.count == width * height ? $0 : nil }
+        var intrinsics: [Float] = []
+        intrinsics.reserveCapacity(9)
+        for column in 0..<3 {
+            for row in 0..<3 {
+                intrinsics.append(depthIntrinsics[column][row])
+            }
+        }
+        let record = EvidenceDepthFrameRecord(
+            depthVersion: EvidenceSchema.depthVersion,
+            captureID: id,
+            width: width,
+            height: height,
+            depthIntrinsics: intrinsics,
+            worldFromCamera: worldFromCamera.rowMajorValues,
+            timestamp: timestamp,
+            depthRelativePath: "\(stem).depth",
+            confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: hasRaw ? "\(stem).raw-depth" : nil,
+            rawConfidenceRelativePath: hasRaw ? "\(stem).raw-confidence" : nil,
+            colourRelativePath: keptColour == nil ? nil : "\(stem).colour",
+            occluderMaskRelativePath: keptMask == nil ? nil : "\(stem).occluder",
+            colourEncoding: keptColour == nil ? nil : colourEncoding,
+            coarseWorldFromModel: coarseWorldFromModel?.rowMajorValues,
+            auxiliaryExtractMilliseconds: auxiliaryExtractMilliseconds,
+            segmentationWidth: segmentationWidth,
+            segmentationHeight: segmentationHeight,
+            segmentationBytesPerRow: segmentationBytesPerRow
+        )
+        let planes = EvidenceDepthPlanes(
+            depth: depth,
+            confidence: confidence,
+            rawDepth: hasRaw ? rawDepth : nil,
+            rawConfidence: hasRaw ? rawConfidence : nil,
+            colour: keptColour,
+            occluderMask: keptMask
+        )
+        return (record, planes)
+    }
+
+    /// Writes the frame's planes, then `<stem>.json` naming them, under
+    /// `directory`. Shared by the app's recorder and SyntheticRGBD, so a
+    /// synthetic bundle is written by the device's own code.
+    @discardableResult
+    func writeEvidence(
+        id: UUID, stem: String, in directory: URL, coarseWorldFromModel: simd_float4x4? = nil
+    ) throws -> EvidenceDepthFrameRecord {
+        let (record, planes) = evidence(id: id, stem: stem, coarseWorldFromModel: coarseWorldFromModel)
+        try planes.write(record, in: directory)
+        try EvidenceSchema.encoder(prettyPrinted: true).encode(record)
+            .write(to: directory.appendingPathComponent("\(stem).json"), options: .atomic)
+        return record
+    }
 }
 
 extension ModelRegistration {

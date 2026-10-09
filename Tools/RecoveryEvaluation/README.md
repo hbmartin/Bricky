@@ -79,7 +79,9 @@ perfect score.
   Clopper–Pearson bound and each median-latency gate on a distribution-free
   order-statistic bound. RMSE gates need ≥ 20 converged fits. A required gate
   that is `UNMEASURED` fails, and so does a missing required kind
-  (`--require-kinds`, default: all three). There is no fixed row minimum:
+  (`--require-kinds`, default: recovery, verification and registration; it
+  also accepts `vlm_check` and `shadow_check`, which must then be present but
+  whose gates stay informational). There is no fixed row minimum:
   each gate's bound sets it, and `--explain-minimums` prints the zero-miss
   sample every gate implies — for example 149 negatives for the 2 %
   false-complete ceiling, and 59 rows for top-3 ≥ 0.95. A perfect 40/40
@@ -94,21 +96,32 @@ threshold), then the JSON report with a `gates` summary per kind. The
 marginal precision/recall pair is `DORMANT` until the RGB support term
 exists (ADR 0008): it is reported, but never required and never fails.
 
-`make_board.py` reproduces the app's bounded 1024×1024 single-image layout for
-offline fixtures. Candidate order is the A–H slot map stored in
-`RecoveryBenchmarkV1`:
+Boards have one layout authority, `RecoveryBoardLayoutV1` in
+`Packages/RecoveryMLX/Sources/RecoveryEvidenceKit`, shared by the app and the
+Mac harness: `bricky-harness recompose` rebuilds boards from evidence bundles,
+and `bricky-harness synth-bundle` draws synthetic fixtures through it. The
+Python tools here need nothing beyond the standard library.
+
+## Phase 1 report (`phase1_report.py`)
+
+One command turns exported Phase 1 bundles into every readout
+(docs/PHASE1_RUNBOOK.md):
 
 ```sh
-uv run python make_board.py physical.jpg step-0.png step-8.png step-16.png \
-  --step-labels 0 8 16 --out boards/case-001.jpg
+python3 -I phase1_report.py bundle-a/ bundle-b/ --work report/ [--strict]
 ```
 
-> **Deprecated as layout authority.** The board geometry now has a single
-> authoritative implementation shared by the app and the Mac harness:
-> `RecoveryBoardLayoutV1` in `Packages/RecoveryMLX/Sources/RecoveryEvidenceKit`.
-> Use `bricky-harness recompose` to rebuild boards from evidence bundles;
-> `make_board.py` remains only for synthetic fixtures and is not kept in
-> lockstep with the app.
+It merges each session's device rows by kind (a session exported twice
+counts once), scores each kind in release mode in its own run on the rows the
+preflight accepts (never requiring registration rows, which the device does
+not make), and scores everything informationally. It also prints the
+readouts no other tool computes: `TERMINATION`, `ADMISSION` (the worst
+measured model cost plus 25%, ADR 0003), `SHADOW_ADVISOR` per OS build,
+`COLOUR_ENCODING`, `RELAY_AUX_EXTRACT`, `SEGMENTATION`, `RECORDER`, `COUNTS`
+and the device `VERTICAL_CONTEST`. Synthetic bundles are flagged and kept
+out of every device readout and release run. `report/phase1_report.json`
+holds everything; `--strict` exits 1 when a release run failed or was
+refused.
 
 ## Producing rows: the evidence workflow (ADR 0007)
 
@@ -239,8 +252,9 @@ gate's bound to clear its threshold. Release-gate runs must never use
 Every release row therefore also includes `physical_case: true`, a stable
 `authored_model_id`, `legal_use_confirmed: true`, and non-empty
 `lighting_condition`, `capture_angle`, and `occlusion_condition` labels. Each
-row's `candidate_slots` must contain a step adjacent to `expected_step_index`;
-the scorer requires at least two distinct lighting and occlusion labels and
+row must show a step adjacent to `expected_step_index`, either in
+`candidate_slots` (the VLM board) or in `scored_step_ids` (the steps the
+geometric leg fitted, since a geometric row has no board); the scorer requires at least two distinct lighting and occlusion labels and
 at least 6 distinct authored model IDs. `capture_angle` is the comma-joined
 set of views the session captured (normally `left,center,right`) and must
 include `center` plus a side view. Viewing variety comes from

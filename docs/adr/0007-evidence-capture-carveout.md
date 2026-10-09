@@ -181,3 +181,22 @@ are unchanged.
 Sessions may also carry `physical_build_id`, a short label the person
 declares for the build they photograph (ADR 0019). It names an object on
 their table, not a person or a place, and it is chosen, never derived.
+
+## Note (2026-10-08): the recovery alignment, and what replays it
+
+The 2026-08-07 amendment said the retained depth frame made a geometric A/B
+possible. It did not, quite. The geometric estimator fits from the manual
+ghost alignment: that alignment is both its ICP starting pose and the
+reference its pose-sanity check measures drift against, and no session
+recorded it. The recovery depth sidecar now carries
+`coarse_world_from_model`: one pose per recovery, the alignment the user
+placed, which describes their build's position on their table. Sessions
+also record the part pack version, and how many evidence writes failed or
+windows were skipped (`recorder_health`); window frames record their
+auxiliary extraction time and the segmentation buffer's shape. None of these
+is an image, depth or a new channel. Consent and egress are unchanged.
+
+`SyntheticRGBD --replay-bundle --suite recovery` re-fits each session from
+that frame and pose and compares every fit with the device's. Sessions
+recorded before this note cannot be replayed this way and are skipped and
+counted.

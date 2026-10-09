@@ -64,8 +64,12 @@ extension SyntheticRGBDMain {
     /// The recovery suite: the real geometric estimator on rendered,
     /// degraded scenes from its own RNG stream, so arms see identical
     /// frames and ghost placements and pair by fixture.
+    /// - Parameter sourceIdentity: the model's import identity, which a
+    ///   bundle written with `--write-bundle` records so `--replay-bundle`
+    ///   accepts it.
     static func runRecovery(
-        plan: InstructionPlan, renderer: ExpectedDepthRenderer, fixtureStem: String, options: Options
+        plan: InstructionPlan, renderer: ExpectedDepthRenderer, fixtureStem: String, options: Options,
+        sourceIdentity: String
     ) async throws {
         var rng = SplitMix64(seed: options.seed ^ 0x5EC0_7E2A)
         let sourceRoot = URL(fileURLWithPath: options.modelPath).deletingLastPathComponent()
@@ -74,11 +78,17 @@ extension SyntheticRGBDMain {
             for: plan, sourceRoot: sourceRoot, partPackRoot: partPackRoot
         )
         let scenarios = RecoveryScenario.all(plan: plan, index: geometry.index, rng: &rng)
-        var configuration = GeometricRecoveryEstimator.Configuration()
-        configuration.consistencyTieBreak = options.recoveryArm == .tiebreak
+        let configuration = options.recoveryArm.configuration
+        var bundle = try options.writeBundle.map {
+            try RecoveryBundleWriter(
+                directory: URL(fileURLWithPath: $0), seed: options.seed, sourceIdentity: sourceIdentity,
+                modelTitle: fixtureStem, stepCount: plan.steps.count
+            )
+        }
         var rows: [String] = []
         for scenario in scenarios {
             let step = plan.steps[scenario.stepIndex]
+            let fixtureID = "\(fixtureStem)-s\(step.index)-\(scenario.scenarioClass.rawValue)" + (scenario.missing.map { "-p\($0)" } ?? "")
             let scene = SyntheticScene(renderer: renderer, model: geometry.cumulativeSnapshot(through: step))
             var sensor = SensorModel(rng: &rng)
             let frame = try scene.frame(
@@ -92,20 +102,31 @@ extension SyntheticRGBDMain {
                 z: Float(Int(rng.next() % 11) - 5) * 0.001,
                 yawDegrees: Float(Int(rng.next() % 7) - 3)
             )
+            // Recording never changes an estimate (ADR 0007), so writing a
+            // bundle leaves the rows as they are.
+            let collector = bundle.map { GeometricFitCollector(sessionID: $0.sessionID(fixtureID: fixtureID)) }
+            let alignment = ARAlignment(
+                id: bundle?.stableID("alignment|\(fixtureID)") ?? UUID(), transform: perturbation.pose, isTracking: true
+            )
             let estimator = try GeometricRecoveryEstimator(
                 frame: frame, sourceRoot: sourceRoot, partPackRoot: partPackRoot,
-                configuration: configuration, renderer: renderer, geometry: geometry
+                configuration: configuration, recorder: collector, renderer: renderer, geometry: geometry
             )
             let started = ContinuousClock.now
-            let estimate = try await estimator.estimate(
-                model: plan, alignment: ARAlignment(id: UUID(), transform: perturbation.pose, isTracking: true), captureIDs: []
-            )
+            let estimate = try await estimator.estimate(model: plan, alignment: alignment, captureIDs: [])
+            let latency = started.duration(to: .now).milliseconds
+            if let collector {
+                try bundle?.write(RecoveryBundleWriter.Scenario(
+                    fixtureID: fixtureID, step: step, frame: frame, alignment: alignment, estimate: estimate,
+                    fits: await collector.records, latencyMilliseconds: latency
+                ))
+            }
             let ranked = estimate?.rankedStepIDs ?? []
             var row: [String: Any] = [
                 "kind": "geometric_recovery",
                 "schema_version": 1,
                 "provenance": "synthetic",
-                "fixture_id": "\(fixtureStem)-s\(step.index)-\(scenario.scenarioClass.rawValue)" + (scenario.missing.map { "-p\($0)" } ?? ""),
+                "fixture_id": fixtureID,
                 "scenario_class": scenario.scenarioClass.rawValue,
                 "arm": options.recoveryArm.rawValue,
                 "expected_step_id": step.id,
@@ -114,7 +135,7 @@ extension SyntheticRGBDMain {
                 "certainty": estimate?.certainty.rawValue ?? "insufficient",
                 "tie_break_applied": estimate?.modelRevision.hasSuffix("+pcs1") ?? false,
                 "estimator_method": "geometric",
-                "latency_ms": started.duration(to: .now).milliseconds,
+                "latency_ms": latency,
             ]
             if let top = ranked.first, let topStep = plan.steps.first(where: { $0.id == top }) {
                 row["top_step_index"] = topStep.index
@@ -122,6 +143,10 @@ extension SyntheticRGBDMain {
             rows.append(try Row.encode(row))
         }
         guard !rows.isEmpty else { throw CLIError("no recovery rows were generated from \(options.modelPath)") }
+        if let bundle {
+            try bundle.finish()
+            print("wrote a \(rows.count)-session bundle to \(bundle.directory.path)")
+        }
         let generated = rows.count
         rows.append(try Row.encode([
             "kind": "synthetic_summary",

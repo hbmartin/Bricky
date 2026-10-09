@@ -97,13 +97,32 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
     public let occluderMaskRelativePath: String?
     /// How `colour` was converted, e.g. `rgb8_bt709_full`.
     public let colourEncoding: String?
+    /// Row-major 4x4, model to world: the manual alignment a geometric
+    /// recovery started from. It is both the ICP initial pose and the
+    /// reference the pose-sanity check measures drift against, so with the
+    /// planes it is the estimator's whole input. Recovery depth frames only;
+    /// absent on window frames and on sessions recorded before 2026-10-08,
+    /// which therefore cannot replay geometric recovery. Not the capture
+    /// record's `world_from_model`, which is column-major and is the locked
+    /// registration pose.
+    public let coarseWorldFromModel: [Float]?
+    /// Window frames only, when evidence is on: how long the colour and
+    /// occluder channels took to extract on device, in milliseconds.
+    public let auxiliaryExtractMilliseconds: Double?
+    /// The person-segmentation buffer the occluder mask was resampled from,
+    /// as ARKit delivered it. Window frames only.
+    public let segmentationWidth: Int?
+    public let segmentationHeight: Int?
+    public let segmentationBytesPerRow: Int?
 
     public init(
         depthVersion: Int, captureID: UUID, width: Int, height: Int,
         depthIntrinsics: [Float], worldFromCamera: [Float], timestamp: TimeInterval,
         depthRelativePath: String, confidenceRelativePath: String,
         rawDepthRelativePath: String?, rawConfidenceRelativePath: String?,
-        colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil
+        colourRelativePath: String? = nil, occluderMaskRelativePath: String? = nil, colourEncoding: String? = nil,
+        coarseWorldFromModel: [Float]? = nil, auxiliaryExtractMilliseconds: Double? = nil,
+        segmentationWidth: Int? = nil, segmentationHeight: Int? = nil, segmentationBytesPerRow: Int? = nil
     ) {
         self.depthVersion = depthVersion
         self.captureID = captureID
@@ -119,6 +138,11 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         self.colourRelativePath = colourRelativePath
         self.occluderMaskRelativePath = occluderMaskRelativePath
         self.colourEncoding = colourEncoding
+        self.coarseWorldFromModel = coarseWorldFromModel
+        self.auxiliaryExtractMilliseconds = auxiliaryExtractMilliseconds
+        self.segmentationWidth = segmentationWidth
+        self.segmentationHeight = segmentationHeight
+        self.segmentationBytesPerRow = segmentationBytesPerRow
     }
 
     enum CodingKeys: String, CodingKey {
@@ -136,6 +160,11 @@ public struct EvidenceDepthFrameRecord: Codable, Sendable {
         case colourRelativePath = "colour_relative_path"
         case occluderMaskRelativePath = "occluder_mask_relative_path"
         case colourEncoding = "colour_encoding"
+        case coarseWorldFromModel = "coarse_world_from_model"
+        case auxiliaryExtractMilliseconds = "auxiliary_extract_ms"
+        case segmentationWidth = "segmentation_width"
+        case segmentationHeight = "segmentation_height"
+        case segmentationBytesPerRow = "segmentation_bytes_per_row"
     }
 
     /// Bytes a plane must contain to reshape cleanly. A truncated blob decodes
@@ -240,6 +269,38 @@ public struct GeometricFitRecord: Codable, Sendable {
         case conclusive
         case createdAt = "created_at"
         case latticeRunnerUp = "lattice_runner_up"
+    }
+
+    /// Whether `other` is the same measurement: every field but the record's
+    /// own identity (`fit_id`, `created_at`, `session_id`), with floats
+    /// compared bit for bit. A replay is reproducible only if this holds for
+    /// every fit.
+    public func isSameFit(as other: GeometricFitRecord) -> Bool {
+        guard fitVersion == other.fitVersion, passIndex == other.passIndex else { return false }
+        guard candidateIndex == other.candidateIndex, stepID == other.stepID else { return false }
+        guard score.bitPattern == other.score.bitPattern else { return false }
+        guard inlierFraction.bitPattern == other.inlierFraction.bitPattern else { return false }
+        guard visibleFraction.bitPattern == other.visibleFraction.bitPattern else { return false }
+        guard unexplainedFraction.bitPattern == other.unexplainedFraction.bitPattern else { return false }
+        guard phantomFraction.bitPattern == other.phantomFraction.bitPattern else { return false }
+        guard rmsResidual.bitPattern == other.rmsResidual.bitPattern else { return false }
+        guard latticeMargin.bitPattern == other.latticeMargin.bitPattern else { return false }
+        guard worldFromModel.map(\.bitPattern) == other.worldFromModel.map(\.bitPattern) else { return false }
+        guard disqualification == other.disqualification, conclusive == other.conclusive else { return false }
+        return latticeRunnerUp == other.latticeRunnerUp
+    }
+}
+
+extension Array where Element == GeometricFitRecord {
+    /// Each fitted step once, in candidate-index (plan) order: a benchmark
+    /// row's `scored_step_ids`.
+    public var scoredStepIDs: [String] {
+        var seen: Set<String> = []
+        var ordered: [String] = []
+        for fit in sorted(by: { $0.candidateIndex < $1.candidateIndex }) where seen.insert(fit.stepID).inserted {
+            ordered.append(fit.stepID)
+        }
+        return ordered
     }
 }
 
@@ -652,6 +713,14 @@ public struct EvidenceSessionFile: Codable, Sendable {
     /// authored model, so a fine-tuned model cannot learn one build instead
     /// of the task (ADR 0019). Absent when nothing was declared.
     public var physicalBuildID: String?
+    /// The LDraw part pack the session's geometry came from, e.g. `2026-07`.
+    /// A replay against a different pack renders different candidates.
+    /// Absent on sessions recorded before 2026-10-08.
+    public var partPackVersion: String?
+    /// What the recorder failed to keep. Recording is best-effort and never
+    /// breaks a recovery (ADR 0007), so without this a session with gaps
+    /// looked complete. Absent while nothing has gone wrong.
+    public var recorderHealth: RecorderHealth?
 
     /// Whether `label` is a usable physical-build slug.
     public static func isValidPhysicalBuildID(_ label: String) -> Bool {
@@ -669,7 +738,8 @@ public struct EvidenceSessionFile: Codable, Sendable {
         groundTruth: EvidenceGroundTruth, estimate: EstimateSummary?, analysisError: String?,
         osBuild: String? = nil, gpuArchitecture: String? = nil, physicalMemoryBytes: UInt64? = nil,
         admission: AdmissionSnapshot? = nil, conditionsStart: DeviceConditions? = nil,
-        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil
+        conditionsEnd: DeviceConditions? = nil, physicalBuildID: String? = nil, partPackVersion: String? = nil,
+        recorderHealth: RecorderHealth? = nil
     ) {
         self.sessionVersion = sessionVersion
         self.sessionID = sessionID
@@ -694,6 +764,8 @@ public struct EvidenceSessionFile: Codable, Sendable {
         self.conditionsStart = conditionsStart
         self.conditionsEnd = conditionsEnd
         self.physicalBuildID = physicalBuildID
+        self.partPackVersion = partPackVersion
+        self.recorderHealth = recorderHealth
     }
 
     enum CodingKeys: String, CodingKey {
@@ -720,6 +792,37 @@ public struct EvidenceSessionFile: Codable, Sendable {
         case conditionsStart = "conditions_start"
         case conditionsEnd = "conditions_end"
         case physicalBuildID = "physical_build_id"
+        case partPackVersion = "part_pack_version"
+        case recorderHealth = "recorder_health"
+    }
+}
+
+/// A session's recorder failures: writes that threw, and verification
+/// windows deliberately not written. Error text stays in the device log,
+/// because it can hold file paths.
+public struct RecorderHealth: Codable, Sendable, Equatable {
+    public var writeFailures: Int
+    /// Failed writes by operation, e.g. `record captures`.
+    public var failedOperations: [String: Int]
+    /// Windows past `maxWindowsPerSession` (48).
+    public var windowsSkippedAtCap: Int
+    /// Windows skipped because the volume had under 2 GB free.
+    public var windowsSkippedLowSpace: Int
+
+    public init(writeFailures: Int = 0, failedOperations: [String: Int] = [:], windowsSkippedAtCap: Int = 0, windowsSkippedLowSpace: Int = 0) {
+        self.writeFailures = writeFailures
+        self.failedOperations = failedOperations
+        self.windowsSkippedAtCap = windowsSkippedAtCap
+        self.windowsSkippedLowSpace = windowsSkippedLowSpace
+    }
+
+    public var windowsSkipped: Int { windowsSkippedAtCap + windowsSkippedLowSpace }
+
+    enum CodingKeys: String, CodingKey {
+        case writeFailures = "write_failures"
+        case failedOperations = "failed_operations"
+        case windowsSkippedAtCap = "windows_skipped_at_cap"
+        case windowsSkippedLowSpace = "windows_skipped_low_space"
     }
 }
 
@@ -822,6 +925,11 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
     /// What `latency_ms` measures: `estimate_wall_clock` on device; replay
     /// rows say which replayed calls they sum.
     public let latencyScope: String?
+    /// The steps the geometric leg fitted, in plan order. A geometric row
+    /// has no board slots, so without these the release preflight could not
+    /// see that the estimate was asked to tell the expected step from its
+    /// neighbour. Absent when no geometric fit ran.
+    public let scoredStepIDs: [String]?
 
     public init(
         schemaVersion: Int, fixtureID: String, instructionSHA256: String, pyldraw3Version: String,
@@ -837,7 +945,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         thermalStateStart: String? = nil, thermalStateEnd: String? = nil, secondsSinceARStart: Double? = nil,
         latencyBucket: LatencyBucket? = nil, vlmCalls: Int? = nil, prefillMillisecondsTotal: Int? = nil,
         decodeMillisecondsTotal: Int? = nil, batteryState: String? = nil, lowPowerMode: Bool? = nil,
-        latencyScope: String? = nil
+        latencyScope: String? = nil, scoredStepIDs: [String]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.fixtureID = fixtureID
@@ -878,6 +986,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         self.batteryState = batteryState
         self.lowPowerMode = lowPowerMode
         self.latencyScope = latencyScope
+        self.scoredStepIDs = scoredStepIDs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -920,6 +1029,7 @@ public struct RecoveryBenchmarkV1: Codable, Sendable {
         case batteryState = "battery_state"
         case lowPowerMode = "low_power_mode"
         case latencyScope = "latency_scope"
+        case scoredStepIDs = "scored_step_ids"
     }
 }
 

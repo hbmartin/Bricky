@@ -4,11 +4,20 @@ import Foundation
 /// recorder keeps what the verifier saw around each verdict change, confirm,
 /// override, and step exit, so verdicts can be replayed on a Mac and, with a
 /// staged declaration, scored as device verification rows.
+/// Why a verification window was not written (counted in `recorder_health`).
+enum WindowSkip: Sendable {
+    case atCap
+    case lowSpace
+}
+
 extension RecoveryEvidenceRecorder: VerificationWindowSink {
     func record(_ window: VerificationWindowCapture) async {
         let freeBytes = Self.availableBytes(at: sessionDirectory.deletingLastPathComponent())
         perform("record verification window") {
-            guard windowBudgetAllows(freeBytes: freeBytes) else { return }
+            if let skip = Self.windowSkip(windowsWritten: windowsWrittenCount, freeBytes: freeBytes) {
+                noteWindowSkipped(skip)
+                return
+            }
             try ensureStarted()
             try FileManager.default.createDirectory(
                 at: sessionDirectory.appendingPathComponent("windows/frames", isDirectory: true),
@@ -159,10 +168,13 @@ extension RecoveryEvidenceRecorder: VerificationWindowSink {
     /// Windows written to this session so far.
     var verificationWindowCount: Int { windowsWrittenCount }
 
-    private func windowBudgetAllows(freeBytes: Int64?) -> Bool {
-        guard windowsWrittenCount < Self.maxWindowsPerSession else { return false }
-        if let freeBytes, freeBytes < Self.minimumFreeBytesForWindows { return false }
-        return true
+    /// Why a window must not be written, or nil when it may. The cap is
+    /// checked first: a session at its cap would skip whatever the free
+    /// space, so each skipped window is counted once, under the cap.
+    static func windowSkip(windowsWritten: Int, freeBytes: Int64?) -> WindowSkip? {
+        if windowsWritten >= maxWindowsPerSession { return .atCap }
+        if let freeBytes, freeBytes < minimumFreeBytesForWindows { return .lowSpace }
+        return nil
     }
 
     private static func availableBytes(at url: URL) -> Int64? {

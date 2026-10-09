@@ -13,6 +13,21 @@ enum EvidenceExporter {
         let hasBenchmarkRow: Bool
         let hasCheckRows: Bool
         let byteCount: Int64
+        /// Writes the recorder could not make, and windows it skipped, so a
+        /// session with gaps is flagged before it is exported.
+        var recorderWriteFailures = 0
+        var windowsSkipped = 0
+    }
+
+    /// Above this, AirDrop gets slow enough that an export deserves a
+    /// second thought. Decimal, to match the size the button shows.
+    static let largeExportBytes: Int64 = 500_000_000
+
+    /// Whether to confirm before exporting this many bytes. Judged on the
+    /// staged size, which slightly overstates the zip (JPEGs barely
+    /// compress), so it errs early.
+    static func asksBeforeExport(byteCount: Int64) -> Bool {
+        byteCount > largeExportBytes
     }
 
     static func storeDirectory(root: URL) -> URL {
@@ -41,7 +56,9 @@ enum EvidenceExporter {
                 hasCheckRows: FileManager.default.fileExists(
                     atPath: directory.appendingPathComponent(RecoveryEvidenceRecorder.checkRowsFilename).path
                 ),
-                byteCount: RecoveryEvidenceRecorder.directorySize(directory)
+                byteCount: RecoveryEvidenceRecorder.directorySize(directory),
+                recorderWriteFailures: session.recorderHealth?.writeFailures ?? 0,
+                windowsSkipped: session.recorderHealth?.windowsSkipped ?? 0
             )
         }
         .sorted { $0.createdAt > $1.createdAt }

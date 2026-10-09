@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 /// Reads an unzipped evidence bundle. Kept in the kit (not the CLI) so
 /// bundle validation is testable without model weights.
@@ -147,7 +148,11 @@ public struct EvidenceBundleReader {
 
     /// Structural validation: versions, decodability, and referenced files.
     /// Returns human-readable issues; empty means the bundle is sound.
-    public func validate() -> [String] {
+    ///
+    /// - Parameter verifyImages: also decode every board, tile, alternate
+    ///   tile and capture. Off by default because it reads every image;
+    ///   without it a corrupt JPEG passes `--dry-run` and fails mid-replay.
+    public func validate(verifyImages: Bool = false) -> [String] {
         var issues: [String] = []
         if manifest.bundleVersion != EvidenceSchema.bundleVersion {
             issues.append("unsupported bundle_version \(manifest.bundleVersion)")
@@ -219,6 +224,13 @@ public struct EvidenceBundleReader {
                 if frame.worldFromCamera.count != 16 {
                     issues.append(
                         "\(name): depth frame \(frame.captureID) has \(frame.worldFromCamera.count) pose values, expected 16"
+                    )
+                }
+                // A coarse pose that cannot reshape would silently replay
+                // from identity, which is not what the device fit from.
+                if let coarse = frame.coarseWorldFromModel, coarse.count != 16 {
+                    issues.append(
+                        "\(name): depth frame \(frame.captureID) has \(coarse.count) coarse pose values, expected 16"
                     )
                 }
                 // Dimensions are judged before plane sizes: a zero, negative,
@@ -303,7 +315,68 @@ public struct EvidenceBundleReader {
                     issues.append("\(name): missing capture \(capture.imageRelativePath)")
                 }
             }
+            if verifyImages {
+                issues += Self.imageIssues(in: session)
+            }
         }
         return issues
+    }
+
+    /// Decodes every image a session references, each once. Files already
+    /// reported missing are not reported again; alternate tiles, which
+    /// existence checks never covered, are checked for both.
+    static func imageIssues(in session: Session) -> [String] {
+        let name = session.file.sessionID.uuidString
+        var images: [(kind: String, path: String)] = []
+        var alternates: Set<String> = []
+        for row in session.traceRows {
+            images.append(("board", row.boardRelativePath))
+            images += row.tileRelativePaths.values.sorted().map { ("tile", $0) }
+            for path in (row.alternateTileRelativePaths ?? [:]).values.sorted() {
+                images.append(("alternate tile", path))
+                alternates.insert(path)
+            }
+        }
+        images += session.file.captures.map { ("capture", $0.imageRelativePath) }
+
+        var issues: [String] = []
+        var seen: Set<String> = []
+        for image in images where seen.insert(image.path).inserted {
+            // Judged lexically: standardizing a path that does not exist
+            // keeps /private/var where an existing one drops it.
+            guard !image.path.hasPrefix("/"), !image.path.split(separator: "/").contains("..") else {
+                issues.append("\(name): \(image.kind) \(image.path) resolves outside the session")
+                continue
+            }
+            let url = session.directory.appendingPathComponent(image.path)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                if alternates.contains(image.path) {
+                    issues.append("\(name): missing alternate tile \(image.path)")
+                }
+                continue
+            }
+            if !isDecodableImage(at: url) {
+                issues.append("\(name): undecodable \(image.kind) \(image.path)")
+            }
+        }
+        return issues
+    }
+
+    /// Whether `url` holds a complete image: ImageIO decodes it in full and,
+    /// for a JPEG, the end-of-image marker is present. ImageIO renders the
+    /// missing rows of a truncated JPEG grey and still calls it complete.
+    static func isDecodableImage(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url), !data.isEmpty,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetStatus(source) == .statusComplete,
+              CGImageSourceGetCount(source) > 0,
+              let image = CGImageSourceCreateImageAtIndex(
+                  source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary
+              ),
+              image.width > 0, image.height > 0 else { return false }
+        guard data.starts(with: [0xFF, 0xD8]) else { return true }
+        // Encoders may pad after the marker; it must be near the end.
+        let tail = Array(data.suffix(16))
+        return zip(tail, tail.dropFirst()).contains { $0 == 0xFF && $1 == 0xD9 }
     }
 }

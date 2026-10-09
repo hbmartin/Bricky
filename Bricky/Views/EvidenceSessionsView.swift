@@ -8,6 +8,7 @@ struct EvidenceSessionsView: View {
     @State private var exportedBundle: ExportedBundle?
     @State private var isExporting = false
     @State private var errorMessage: String?
+    @State private var confirmingLargeExport = false
 
     private struct ExportedBundle: Identifiable {
         let url: URL
@@ -55,6 +56,16 @@ struct EvidenceSessionsView: View {
                 }
             }
         }
+        .confirmationDialog(
+            "Export \(ByteCountFormatter.string(fromByteCount: selectedByteCount, countStyle: .file))?",
+            isPresented: $confirmingLargeExport,
+            titleVisibility: .visible
+        ) {
+            Button("Export \(ByteCountFormatter.string(fromByteCount: selectedByteCount, countStyle: .file))") { export() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("AirDrop slows down above about \(ByteCountFormatter.string(fromByteCount: EvidenceExporter.largeExportBytes, countStyle: .file)). Exporting fewer sessions at a time is faster.")
+        }
         .sheet(item: $exportedBundle) { bundle in
             ShareSheet(items: [bundle.url])
         }
@@ -82,12 +93,29 @@ struct EvidenceSessionsView: View {
                     Image(systemName: "checkmark.rectangle.stack")
                         .accessibilityLabel("Has step-check rows")
                 }
+                if session.recorderWriteFailures > 0 || session.windowsSkipped > 0 {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel(Self.gapsLabel(session))
+                }
                 Text(ByteCountFormatter.string(fromByteCount: session.byteCount, countStyle: .file))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
         }
         .tag(session.id)
+    }
+
+    /// What the warning badge stands for, read aloud in full.
+    static func gapsLabel(_ session: EvidenceExporter.SessionSummary) -> String {
+        var parts: [String] = []
+        if session.recorderWriteFailures > 0 {
+            parts.append("\(session.recorderWriteFailures) evidence writes failed")
+        }
+        if session.windowsSkipped > 0 {
+            parts.append("\(session.windowsSkipped) verification windows skipped")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func badge(_ kind: EvidenceGroundTruth.Kind) -> some View {
@@ -109,7 +137,11 @@ struct EvidenceSessionsView: View {
 
     private var exportButton: some View {
         Button {
-            export()
+            if EvidenceExporter.asksBeforeExport(byteCount: selectedByteCount) {
+                confirmingLargeExport = true
+            } else {
+                export()
+            }
         } label: {
             if isExporting {
                 ProgressView()

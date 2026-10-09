@@ -208,7 +208,8 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
                 worldFromCamera: pose,
                 timestamp: 42.5
             ),
-            captureID: captureID
+            captureID: captureID,
+            coarseWorldFromModel: matrix_identity_float4x4
         )
 
         let sessionDirectory = root
@@ -249,12 +250,122 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
                 worldFromCamera: matrix_identity_float4x4,
                 timestamp: 1
             ),
-            captureID: UUID()
+            captureID: UUID(),
+            coarseWorldFromModel: matrix_identity_float4x4
         )
         let frames = await recorder.loadDepthFrames()
         let record = try XCTUnwrap(frames.first)
         XCTAssertNil(record.rawDepthRelativePath)
         XCTAssertNil(record.rawConfidenceRelativePath)
+    }
+
+    // Fails on the old code by not compiling: the recorder kept no alignment,
+    // so no recovery could be replayed from its bundle.
+    func testRecoveryInputsPutTheAlignmentBesideTheCenterDepthFrame() async throws {
+        let recorder = makeRecorder()
+        // Left first, so "the first capture" is not the center one.
+        let captures = try [CaptureAngle.left, .center, .right].map { try makeCapture(angle: $0) }
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4(0.1, 0.2, 0.3, 1)
+        let alignment = ARAlignment(id: UUID(), transform: transform, isTracking: true)
+        await recorder.recordRecoveryInputs(
+            captures: captures,
+            depthFrame: RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 6), confidence: [UInt8](repeating: 2, count: 6),
+                rawDepth: nil, rawConfidence: nil, width: 3, height: 2,
+                depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4, timestamp: 1
+            ),
+            alignment: alignment
+        )
+
+        let frames = await recorder.loadDepthFrames()
+        let record = try XCTUnwrap(frames.first)
+        XCTAssertEqual(frames.count, 1)
+        XCTAssertEqual(record.captureID, captures[1].id)
+        // Row-major like world_from_camera: translation at 3, 7 and 11.
+        let coarse = try XCTUnwrap(record.coarseWorldFromModel)
+        XCTAssertEqual(coarse.count, 16)
+        XCTAssertEqual(coarse[3], 0.1)
+        XCTAssertEqual(coarse[7], 0.2)
+        XCTAssertEqual(coarse[11], 0.3)
+        XCTAssertEqual(coarse[15], 1)
+
+        let sessionDirectory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+        let session = try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: sessionDirectory.appendingPathComponent("session.json"))
+        )
+        XCTAssertEqual(session.captures.map(\.captureID), captures.map(\.id))
+        XCTAssertEqual(session.partPackVersion, LDrawPartPackManager.version)
+
+        // Without a depth frame only the captures are recorded.
+        let photosOnly = makeRecorder()
+        await photosOnly.recordRecoveryInputs(captures: captures, depthFrame: nil, alignment: alignment)
+        let none = await photosOnly.loadDepthFrames()
+        XCTAssertTrue(none.isEmpty)
+    }
+
+    // Fails on the old code by not compiling: the relay's extraction cost and
+    // the segmentation buffer's shape were measured nowhere, so Phase 1's
+    // "p95 ≤ 3 ms" and "record the buffer's size" had no readout.
+    func testWindowFrameSidecarRecordsAuxiliaryExtractTime() async throws {
+        let recorder = makeRecorder()
+        func frame(timed: Bool) -> RegistrationFrameInput {
+            RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 6), confidence: [UInt8](repeating: 2, count: 6),
+                rawDepth: nil, rawConfidence: nil, width: 3, height: 2,
+                depthIntrinsics: matrix_identity_float3x3, worldFromCamera: matrix_identity_float4x4, timestamp: 1,
+                auxiliaryExtractMilliseconds: timed ? 1.25 : nil,
+                segmentationWidth: timed ? 256 : nil, segmentationHeight: timed ? 192 : nil,
+                segmentationBytesPerRow: timed ? 320 : nil
+            )
+        }
+        try await recorder.writeDepthFrame(frame(timed: true), id: UUID(), stem: "windows/frames/timed")
+        try await recorder.writeDepthFrame(frame(timed: false), id: UUID(), stem: "windows/frames/untimed")
+        let directory = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows/frames")
+        func sidecar(_ name: String) throws -> [String: Any] {
+            try XCTUnwrap(JSONSerialization.jsonObject(
+                with: Data(contentsOf: directory.appendingPathComponent("\(name).json"))
+            ) as? [String: Any])
+        }
+        let timed = try sidecar("timed")
+        XCTAssertEqual(timed["auxiliary_extract_ms"] as? Double, 1.25)
+        XCTAssertEqual(timed["segmentation_width"] as? Int, 256)
+        XCTAssertEqual(timed["segmentation_height"] as? Int, 192)
+        XCTAssertEqual(timed["segmentation_bytes_per_row"] as? Int, 320)
+        let untimed = try sidecar("untimed")
+        for key in ["auxiliary_extract_ms", "segmentation_width", "segmentation_height", "segmentation_bytes_per_row"] {
+            XCTAssertNil(untimed[key], "\(key) must be absent when nothing was measured")
+        }
+    }
+
+    // Fails on the old code by behaviour: it wrote whatever it was handed, so
+    // an 11-float depth plane landed beside a 4x3 sidecar that `validate()`
+    // then reported, refusing the whole bundle to every replay.
+    func testAFrameWhosePlanesDoNotFillItsGridIsNotRecorded() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordDepthFrame(
+            RegistrationFrameInput(
+                depth: [Float32](repeating: 1, count: 11),
+                confidence: [UInt8](repeating: 1, count: 12),
+                rawDepth: nil,
+                rawConfidence: nil,
+                width: 4,
+                height: 3,
+                depthIntrinsics: matrix_identity_float3x3,
+                worldFromCamera: matrix_identity_float4x4,
+                timestamp: 1
+            ),
+            captureID: UUID(),
+            coarseWorldFromModel: matrix_identity_float4x4
+        )
+        let frames = await recorder.loadDepthFrames()
+        XCTAssertTrue(frames.isEmpty)
     }
 
     func testFramesAndCapturesRecordRunnerUp() async throws {
@@ -539,6 +650,68 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         )
     }
 
+    private func sessionFile(_ recorder: RecoveryEvidenceRecorder) throws -> EvidenceSessionFile {
+        try EvidenceSchema.decoder().decode(
+            EvidenceSessionFile.self,
+            from: Data(contentsOf: root
+                .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+                .appendingPathComponent(recorder.sessionID.uuidString)
+                .appendingPathComponent("session.json"))
+        )
+    }
+
+    // Fails on the old code by not compiling, and by behaviour before that:
+    // a failed write left no trace outside the device log.
+    func testAFailedWriteIsCountedInTheSessionFile() async throws {
+        let recorder = makeRecorder()
+        var missing = try makeCapture()
+        try FileManager.default.removeItem(at: root.appendingPathComponent(missing.imageRelativePath))
+        await recorder.recordCaptures([missing])
+        var health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.writeFailures, 1)
+        XCTAssertEqual(health.failedOperations, ["record captures": 1])
+
+        // A later successful write keeps the count.
+        missing = try makeCapture()
+        await recorder.recordCaptures([missing])
+        health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.writeFailures, 1)
+        XCTAssertEqual(try sessionFile(recorder).captures.map(\.captureID), [missing.id])
+    }
+
+    func testACleanSessionRecordsNoHealth() async throws {
+        let recorder = makeRecorder()
+        await recorder.recordCaptures([try makeCapture()])
+        XCTAssertNil(try sessionFile(recorder).recorderHealth)
+    }
+
+    func testWindowsPastTheCapAreCountedNotWritten() async throws {
+        let recorder = makeRecorder()
+        for _ in 0..<(RecoveryEvidenceRecorder.maxWindowsPerSession + 2) {
+            await recorder.record(windowCapture(samples: [], trigger: .confirm, staged: nil))
+        }
+        let windows = root
+            .appendingPathComponent(RecoveryEvidenceRecorder.directoryName)
+            .appendingPathComponent(recorder.sessionID.uuidString)
+            .appendingPathComponent("windows")
+        let written = try FileManager.default.contentsOfDirectory(atPath: windows.path).filter { $0.hasSuffix(".json") }
+        XCTAssertEqual(written.count, RecoveryEvidenceRecorder.maxWindowsPerSession)
+        let health = try XCTUnwrap(try sessionFile(recorder).recorderHealth)
+        XCTAssertEqual(health.windowsSkippedAtCap, 2)
+        XCTAssertEqual(health.windowsSkippedLowSpace, 0)
+        XCTAssertEqual(health.writeFailures, 0)
+    }
+
+    func testWindowSkipReasons() {
+        let cap = RecoveryEvidenceRecorder.maxWindowsPerSession
+        let plenty = RecoveryEvidenceRecorder.minimumFreeBytesForWindows
+        XCTAssertNil(RecoveryEvidenceRecorder.windowSkip(windowsWritten: 0, freeBytes: plenty))
+        XCTAssertNil(RecoveryEvidenceRecorder.windowSkip(windowsWritten: cap - 1, freeBytes: nil))
+        XCTAssertEqual(RecoveryEvidenceRecorder.windowSkip(windowsWritten: 0, freeBytes: plenty - 1), .lowSpace)
+        // Both apply: counted once, under the cap.
+        XCTAssertEqual(RecoveryEvidenceRecorder.windowSkip(windowsWritten: cap, freeBytes: 0), .atCap)
+    }
+
     func testPurgeRemovesOldestSessionsBeyondCap() throws {
         let store = root.appendingPathComponent(RecoveryEvidenceRecorder.directoryName, isDirectory: true)
         let sessionTotal = RecoveryEvidenceRecorder.maxSessions + 5
@@ -598,7 +771,7 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
         )
     }
 
-    private func makeCapture() throws -> RecoveryCapture {
+    private func makeCapture(angle: CaptureAngle = .center) throws -> RecoveryCapture {
         let captures = root.appendingPathComponent("RecoveryCaptures", isDirectory: true)
         try FileManager.default.createDirectory(at: captures, withIntermediateDirectories: true)
         let id = UUID()
@@ -611,7 +784,7 @@ final class RecoveryEvidenceRecorderTests: XCTestCase {
             cameraIntrinsics: Array(repeating: 0, count: 9),
             cameraImageResolution: [1920, 1440],
             alignmentID: UUID(),
-            angle: .center,
+            angle: angle,
             capturedAt: .now
         )
     }

@@ -321,15 +321,14 @@ struct RecoveryFlowView: View {
             await previous?.value
             do {
                 try Task.checkCancellation()
-                await sessionRecorder?.recordCaptures(capturedViews)
-                // The depth observation the geometric pass fits against. Kept
-                // because it is the one bundle input that cannot be
-                // reconstructed later, so a corpus without it could never
-                // support a geometric A/B without re-capturing every fixture.
-                if let depthFrame = centerDepthFrame,
-                   let centerCapture = capturedViews.first(where: { $0.angle == .center }) ?? capturedViews.first {
-                    await sessionRecorder?.recordDepthFrame(depthFrame, captureID: centerCapture.id)
-                }
+                // The photos, plus the depth observation the geometric pass
+                // fits against and the alignment it fits from. Kept because
+                // they are the bundle inputs that cannot be reconstructed
+                // later, so a corpus without them could never support a
+                // geometric A/B without re-capturing every fixture.
+                await sessionRecorder?.recordRecoveryInputs(
+                    captures: capturedViews, depthFrame: centerDepthFrame, alignment: currentAlignment
+                )
                 // Nil unless the model is admitted: then an inconclusive
                 // depth fit returns insufficient and the manual picker takes
                 // over.

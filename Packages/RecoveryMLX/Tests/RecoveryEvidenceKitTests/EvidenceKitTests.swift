@@ -190,6 +190,25 @@ final class EvidenceKitTests: XCTestCase {
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 48") })
     }
 
+    // Fails on the old code by behaviour: it ignored the key, so a 15-value
+    // pose validated and would have replayed from identity.
+    func testReaderRejectsACoarsePoseThatCannotBeReshaped() throws {
+        let bundleDirectory = try makeBundle()
+        let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
+        let session = try reader.loadSessions()[0]
+        let captureID = session.file.captures[0].captureID
+        try Self.writeDepthFrame(into: session.directory, captureID: captureID)
+        let sidecar = session.directory.appendingPathComponent("depth/\(captureID.uuidString).json")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: sidecar)) as? [String: Any])
+        object["coarse_world_from_model"] = Array(repeating: 0.0, count: 15)
+        try JSONSerialization.data(withJSONObject: object).write(to: sidecar)
+        XCTAssertTrue(reader.validate().contains { $0.contains("15 coarse pose values, expected 16") }, "\(reader.validate())")
+
+        object["coarse_world_from_model"] = Array(repeating: 0.0, count: 16)
+        try JSONSerialization.data(withJSONObject: object).write(to: sidecar)
+        XCTAssertEqual(reader.validate(), [])
+    }
+
     func testReaderLoadsWindowsAndRejectsTruncatedColour() throws {
         let bundleDirectory = try makeBundle()
         let reader = try EvidenceBundleReader(bundleDirectory: bundleDirectory)
@@ -246,6 +265,113 @@ final class EvidenceKitTests: XCTestCase {
         try plane(33, "colour")
         XCTAssertTrue(reader.validate().contains { $0.contains("expected 36") })
         XCTAssertThrowsError(try EvidenceDepthPlanes.load(record, in: loaded.directory))
+    }
+
+    private func gridRecord(stem: String, raw: Bool, colour: Bool, mask: Bool) -> EvidenceDepthFrameRecord {
+        EvidenceDepthFrameRecord(
+            depthVersion: EvidenceSchema.depthVersion, captureID: UUID(), width: 4, height: 3,
+            depthIntrinsics: Array(repeating: 1, count: 9), worldFromCamera: Array(repeating: 0, count: 16),
+            timestamp: 7, depthRelativePath: "\(stem).depth", confidenceRelativePath: "\(stem).confidence",
+            rawDepthRelativePath: raw ? "\(stem).raw-depth" : nil, rawConfidenceRelativePath: raw ? "\(stem).raw-confidence" : nil,
+            colourRelativePath: colour ? "\(stem).colour" : nil, occluderMaskRelativePath: mask ? "\(stem).occluder" : nil,
+            colourEncoding: colour ? "rgb8_bt709_full" : nil
+        )
+    }
+
+    func testDepthPlanesWriteIsTheInverseOfLoad() throws {
+        let record = gridRecord(stem: "depth/frame", raw: true, colour: true, mask: true)
+        let planes = EvidenceDepthPlanes(
+            depth: (0..<12).map { Float($0) * 0.25 },
+            confidence: (0..<12).map { UInt8($0 % 3) },
+            rawDepth: (0..<12).map { Float($0) * 0.5 },
+            rawConfidence: Array(repeating: 2, count: 12),
+            colour: (0..<36).map { UInt8($0) },
+            occluderMask: (0..<12).map { UInt8($0 % 2) }
+        )
+        // The writer creates the plane's folder; the sidecar names it.
+        try planes.write(record, in: root)
+        let loaded = try EvidenceDepthPlanes.load(record, in: root)
+        XCTAssertEqual(loaded.depth, planes.depth)
+        XCTAssertEqual(loaded.confidence, planes.confidence)
+        XCTAssertEqual(loaded.rawDepth, planes.rawDepth)
+        XCTAssertEqual(loaded.rawConfidence, planes.rawConfidence)
+        XCTAssertEqual(loaded.colour, planes.colour)
+        XCTAssertEqual(loaded.occluderMask, planes.occluderMask)
+    }
+
+    func testAPlaneThatDoesNotFillItsGridIsRefusedBeforeAnythingIsWritten() throws {
+        let record = gridRecord(stem: "depth/short", raw: false, colour: true, mask: false)
+        // Depth and confidence are fine; the colour plane is one row short.
+        let planes = EvidenceDepthPlanes(
+            depth: Array(repeating: 1, count: 12), confidence: Array(repeating: 2, count: 12),
+            rawDepth: nil, rawConfidence: nil, colour: Array(repeating: 9, count: 33), occluderMask: nil
+        )
+        XCTAssertThrowsError(try planes.write(record, in: root)) { error in
+            XCTAssertTrue(String(describing: error).contains("expected 36"), "\(error)")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(record.depthRelativePath).path),
+                       "a refused frame must leave no planes behind")
+
+        // A plane the record names but the frame lacks is refused too.
+        let missing = gridRecord(stem: "depth/missing", raw: true, colour: false, mask: false)
+        let noRaw = EvidenceDepthPlanes(
+            depth: Array(repeating: 1, count: 12), confidence: Array(repeating: 2, count: 12),
+            rawDepth: nil, rawConfidence: nil, colour: nil, occluderMask: nil
+        )
+        XCTAssertThrowsError(try noRaw.write(missing, in: root))
+    }
+
+    // MARK: - Image verification
+
+    private func onlySession(_ bundle: URL) throws -> EvidenceBundleReader.Session {
+        try XCTUnwrap(try EvidenceBundleReader(bundleDirectory: bundle).loadSessions().first)
+    }
+
+    func testVerifyImagesPassesAGoodBundle() throws {
+        let reader = try EvidenceBundleReader(bundleDirectory: try makeBundle())
+        XCTAssertEqual(reader.validate(verifyImages: true), [])
+    }
+
+    // These fail on the old code by not compiling (no verifyImages).
+    func testVerifyImagesCatchesAGarbageTile() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let tile = try XCTUnwrap(session.traceRows.first?.tileRelativePaths["A"])
+        try Data("not a jpeg".utf8).write(to: session.directory.appendingPathComponent(tile))
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        // The gap this closes: existence is all plain validation checks.
+        XCTAssertEqual(reader.validate(), [])
+        XCTAssertEqual(reader.validate(verifyImages: true), ["\(session.file.sessionID.uuidString): undecodable tile \(tile)"])
+    }
+
+    func testVerifyImagesCatchesATruncatedCapture() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let capture = try XCTUnwrap(session.file.captures.first?.imageRelativePath)
+        let url = session.directory.appendingPathComponent(capture)
+        let data = try Data(contentsOf: url)
+        try data.prefix(data.count / 2).write(to: url)
+        let issues = try EvidenceBundleReader(bundleDirectory: bundle).validate(verifyImages: true)
+        XCTAssertEqual(issues, ["\(session.file.sessionID.uuidString): undecodable capture \(capture)"])
+    }
+
+    func testVerifyImagesDecodesAlternateTiles() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let traceID = try XCTUnwrap(session.traceRows.first?.traceID)
+        let garbage = "tiles/\(traceID.uuidString)/alt-A.jpg"
+        let absent = "tiles/\(traceID.uuidString)/alt-B.jpg"
+        try Data("not a jpeg".utf8).write(to: session.directory.appendingPathComponent(garbage))
+        let traces = session.directory.appendingPathComponent("traces.ndjson")
+        var row = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: traces)) as? [String: Any])
+        row["alternate_tile_relative_paths"] = ["A": garbage, "B": absent]
+        try JSONSerialization.data(withJSONObject: row).write(to: traces)
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        XCTAssertEqual(reader.validate(), [], "alternate tiles were never checked")
+        XCTAssertEqual(Set(reader.validate(verifyImages: true)), [
+            "\(session.file.sessionID.uuidString): undecodable alternate tile \(garbage)",
+            "\(session.file.sessionID.uuidString): missing alternate tile \(absent)",
+        ])
     }
 
     func testStagedVerificationTruth() {

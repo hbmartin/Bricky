@@ -225,6 +225,42 @@ class ReleaseCorpusValidationTests(unittest.TestCase):
         self.assert_rejected("unknown views", capture_angle="center,above")
         self.assert_rejected("repeats a view", capture_angle="center,center")
 
+    def test_geometric_rows_show_their_adjacent_candidate_through_scored_steps(self) -> None:
+        # A device geometric-only row has no board slots; the old preflight
+        # refused every one of them.
+        rows = self.release_rows()
+        rows[3].update(
+            estimator_method="geometric", candidate_slots={},
+            scored_step_ids=["main.ldr#1", "main.ldr#2", "main.ldr#3"],
+        )
+        validate_rows(rows)
+        validate_release_corpus(rows)
+        self.assert_rejected(
+            "no explicitly represented adjacent-step candidate",
+            estimator_method="geometric", candidate_slots={}, scored_step_ids=["main.ldr#2", "main.ldr#5"],
+        )
+        self.assert_rejected(
+            "no explicitly represented adjacent-step candidate", estimator_method="geometric", candidate_slots={},
+        )
+
+    def test_a_thermal_deferred_composite_row_counts_its_fitted_steps(self) -> None:
+        # The VLM never ran, so the row has no slots, but its geometric leg
+        # fitted the neighbours.
+        rows = self.release_rows()
+        rows[3].update(
+            estimator_method="composite", certainty="insufficient", ranked_step_ids=[], top_step_index=None,
+            candidate_slots={}, scored_step_ids=["main.ldr#3"],
+        )
+        validate_rows(rows)
+        validate_release_corpus(rows)
+
+    def test_scored_step_ids_must_be_a_list_of_step_ids(self) -> None:
+        for bad in ("main.ldr#1", [1, 2]):
+            row = benchmark_row()
+            row["scored_step_ids"] = bad
+            with self.assertRaisesRegex(SystemExit, "scored_step_ids must be a list"):
+                validate_rows([row])
+
     def test_complete_physical_corpus_passes_preflight(self) -> None:
         rows = self.release_rows()
         validate_rows(rows)
@@ -855,6 +891,18 @@ class VLMCheckTests(unittest.TestCase):
         schema = json.loads(literal.group(1))
         self.assertEqual(set(schema["properties"]["result"]["enum"]), CHECK_VERDICTS)
 
+    def test_a_required_check_kind_with_no_rows_fails_the_run(self) -> None:
+        # Fails on the old scorer by behaviour: require_kinds was only read
+        # for the three gated kinds, so a run that insisted on vlm_check rows
+        # passed with none (and the CLI refused the name outright).
+        shadow = ShadowCheckTests.shadow_row("incomplete", "incomplete", "incomplete")
+        code, output = MainTests.run_main([shadow], require_kinds={"vlm_check"})
+        self.assertEqual(code, 1, output)
+        self.assertIn("KIND vlm_check UNMEASURED (required: FAIL)", output)
+        code, output = MainTests.run_main([self.check_row("incomplete", "incomplete")], require_kinds={"vlm_check"})
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("KIND vlm_check", output)
+
     def test_vlm_check_refuses_a_step_verdict_a_check_cannot_give(self) -> None:
         code, output = MainTests.run_main([self.check_row("incomplete", "misplaced")])
         self.assertEqual(code, 1)
@@ -1123,3 +1171,71 @@ class LatticeEntryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def placement_contest_row(challenge_class: str, *, up: tuple[int, int] | None, down: tuple[int, int] | None,
+                          detectability: str = "strong") -> dict[str, object]:
+    tallies = []
+    if up is not None:
+        tallies.append({"offset": [0, 0, 1, 0], "wins_present": up[0], "wins_alternative": up[1]})
+    if down is not None:
+        tallies.append({"offset": [0, 0, -1, 0], "wins_present": down[0], "wins_alternative": down[1]})
+    return {"kind": "placement", "challenge_class": challenge_class, "detectability": detectability, "tallies": tallies}
+
+
+class VerticalContestTests(unittest.TestCase):
+    # These fail on the old code with ImportError: nothing read the ±1-plate
+    # tallies the build diff records.
+    CONTROLS = [
+        placement_contest_row("colour_swap", up=(53, 0), down=(52, 5)),
+        placement_contest_row("rot180_symmetric", up=(43, 5), down=(46, 6)),
+    ]
+
+    def report(self, rows):
+        from score_results import vertical_contest_report
+        return vertical_contest_report(rows)
+
+    def test_a_contest_that_catches_every_raised_part_and_no_control_separates(self) -> None:
+        rows = [placement_contest_row("plate_up1", up=(5, 49), down=(52, 1)),
+                placement_contest_row("plate_up1", up=(0, 36), down=(57, 0))] + self.CONTROLS
+        entry = self.report(rows)["plate_up1"]
+        self.assertEqual(entry["status"], "SEPARATES")
+        self.assertEqual((entry["decisive_cases"], entry["cases"]), (2, 2))
+        self.assertEqual(entry["evidence"], [54, 36])
+        self.assertTrue(entry["threshold_separates"])
+        self.assertEqual(entry["control_decisive_cases"], 0)
+
+    def test_a_decisive_control_overlaps_whatever_the_targets_do(self) -> None:
+        # A correct part the lowered-plate contest would block, in either direction.
+        rows = [placement_contest_row("plate_up1", up=(0, 40), down=None),
+                placement_contest_row("rot90_symmetric", up=(2, 3), down=(4, 40))]
+        self.assertEqual(self.report(rows)["plate_up1"]["status"], "OVERLAPS")
+
+    def test_thin_or_absent_evidence_is_never_decisive(self) -> None:
+        rows = [placement_contest_row("plate_down1", up=None, down=(2, 20)),  # 22 pixels, under 30
+                placement_contest_row("plate_down1", up=None, down=None)] + self.CONTROLS
+        entry = self.report(rows)["plate_down1"]
+        self.assertEqual(entry["status"], "MISSES")
+        self.assertEqual(entry["decisive_cases"], 0)
+        self.assertEqual(entry["evidence"], [22, None])
+
+    def test_only_strong_rows_count(self) -> None:
+        rows = [placement_contest_row("plate_up1", up=(0, 40), down=None, detectability="marginal")] + self.CONTROLS
+        self.assertEqual(self.report(rows)["plate_up1"]["status"], "UNMEASURED")
+
+    def test_main_prints_the_line_only_for_plate_classes(self) -> None:
+        import contextlib, io, tempfile
+        from score_results import main
+        def run(rows):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "rows.ndjson"
+                path.write_text("".join(json.dumps(dict(row, **{
+                    "schema_version": 1, "fixture_id": f"f{index}", "expected_state": "present",
+                    "produced_state": "present", "latency_ms": 1,
+                })) + "\n" for index, row in enumerate(rows)))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+                    main(path, informational=True)
+                return [line for line in out.getvalue().splitlines() if line.startswith("VERTICAL_CONTEST")]
+        self.assertEqual(len(run([placement_contest_row("plate_up1", up=(0, 40), down=None)] + self.CONTROLS)), 2)
+        self.assertEqual(run(self.CONTROLS), [])
+

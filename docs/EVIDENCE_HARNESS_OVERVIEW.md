@@ -119,8 +119,6 @@ CLI:
   scale* — on-device boards were 2–3× larger on disk than documented (the
   model still saw 1024 because inference resizes its input). The app's
   `RecoveryBoardComposer` is now a thin UIImage→CGImage wrapper over this.
-  `Tools/RecoveryEvaluation/make_board.py` is deprecated as a layout
-  authority.
 - `EvidenceBundleReader.swift` — reads an unzipped bundle, loads sessions and
   trace rows, and `validate()` returns human-readable structural issues
   (version stamps, decodability, existence of every referenced board, tile,
@@ -224,7 +222,7 @@ finalists.
 | Runtime toggle in **all** builds, off by default | MLX inference is only representative in Release; `#if DEBUG` gating was rejected (ADR 0007) |
 | Copies-only retention | Deletion sites and orphan sweep provably unchanged; evidence can never leak work files |
 | On-device format **is** the export format | Dumb files (JPEG + JSON/NDJSON, snake_case) — no SwiftData schema, no migration, Python-readable |
-| One board-layout authority in the kit | Kills hand-duplicated constant drift between app, CLI, and `make_board.py`; fixes the screen-scale bug |
+| One board-layout authority in the kit | Kills hand-duplicated constant drift between app and CLI; fixes the screen-scale bug |
 | CLI inside the MLX package | Exact device semantics — same runtime actor, same compiled grammars, same input resize |
 | Replay rows tagged `replay:` | Release mode rejects any row not from an admitted iPhone, so Mac numbers cannot contaminate a device release corpus |
 

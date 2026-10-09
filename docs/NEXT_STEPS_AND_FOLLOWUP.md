@@ -1,6 +1,6 @@
 # Evidence harness: next steps and follow-up work
 
-Last revised 2026-10-06. Companion to
+Last revised 2026-10-08. Companion to
 [EVIDENCE_HARNESS_OVERVIEW.md](EVIDENCE_HARNESS_OVERVIEW.md). The iOS 27
 program that supersedes much of the sequencing below — honest gates first,
 then device measurement, then the placement-level build diff — is
@@ -55,7 +55,9 @@ These cannot be done in this repo alone; each needs a LiDAR iPhone.
 
 Phase 2 built these without a device. Everything here is off, in shadow,
 or behind a flag until its row is measured. Record each result in the
-evidence bundle or the PR that flips the flag.
+evidence bundle or the PR that flips the flag. How each item is measured,
+and the one command that produces every readout (`phase1_report.py`), is
+in [PHASE1_RUNBOOK.md](PHASE1_RUNBOOK.md).
 
 1. **Staged photo checks, negatives included.** Run staged sessions with
    photo checks, including steps left short. The `check.ndjson` rows must
@@ -140,6 +142,18 @@ settings):
     trainer now matches the device's vision activation. Re-check the
     transfer slope on the first real run.
 
+**Added 2026-10-08** (measurement only; nothing changes a verdict):
+
+16. **Plate offset** (§2a), with evidence capture on:
+    - at least 20 staged `plate_offset` verification windows on
+      single-part steps, the part raised by one plate (never lowered, so
+      the contest's direction is known);
+    - at least 20 staged `complete` windows of the same steps, as controls;
+    - over at least 3 sessions;
+    - then read the device `VERTICAL_CONTEST` line. SEPARATES on device
+      windows is the entry evidence for the block-only contest's ADR 0008
+      amendment; OVERLAPS or MISSES keeps the class guarded and open.
+
 ## 2. Deferred, measured A/Bs (agreed 2026-08-03 — do not ship without data)
 
 Each was explicitly deferred during the design session because the harness
@@ -171,6 +185,24 @@ the placement-level diff are meant to close. On `challenge.ldr` at seed 7:
   the offset. That is a false-complete class inside today's product
   boundary. It is guarded in `fixtures/challenge/baseline.json`, so a fix
   reads as an improvement.
+  - **The build diff will not fix it as built.** It tallies a ±1-plate
+    contest on every placement and, by design, never acts on it (ADR 0008
+    amendment: "recorded, never concluded").
+  - **Measured (2026-10-08).** `score_results.py` now reads those tallies
+    (`VERTICAL_CONTEST`). Under the diff's own decisive rule, the raised
+    contest is decisive on 3 of 3 strong `plate_up1` rows and on 0 of 7
+    strong controls (colour swap, symmetric rotations): SEPARATES. The
+    margin is thin: two target rows carry only 36 and 38 contested pixels
+    against the 30-pixel floor. The lowered contest catches 1 of 3
+    `plate_down1` rows, which never read complete anyway.
+  - **The candidate fix** is a block-only vertical contest: it may take a
+    `complete` away and never concludes an offset. It needs an ADR 0008
+    amendment, and waits for device windows (§1a item 16), because real
+    depth carries a per-view bias and flying pixels at exactly the outline
+    band the contest relies on (ADR 0014).
+  - **Guarded both ways.** The challenge baseline also holds the correct
+    controls at `complete` (`higher_is_better`), so a contest that
+    over-blocks fails CI instead of reading as an improvement.
 
 `GeometricStepVerifier` still refuses `complete` under marginal
 detectability: ADR 0008 requires depth **and RGB** agreement there.
@@ -243,14 +275,19 @@ complete-recall 0.0, and the marginal gates stay dormant.
   Sessions also retain the recovery depth frame (ADR 0007 amendment), which
   is what makes a future geometric replay possible without re-collecting the
   physical corpus.
-- **Geometric replay on Mac.** Unblocked by the retained depth frames and,
-  since 2026-09-25, by the refactor it waited on: the index schedule and
-  step identities live in the Foundation-only `RecoveryIndexing`, and
-  `GeometricRecoveryEstimator` records through a `GeometricFitRecording`
-  protocol, so the estimator compiles into the macOS SyntheticRGBD tool
-  (its hand-copied `HierarchicalIndices` is gone). What remains is the
-  replay entry point itself: reading a bundle's `depth/` planes into
-  `RegistrationFrameInput` and emitting geometric benchmark rows.
+- ✅ **Geometric replay on Mac.** Done 2026-10-08:
+  - **The command:** `SyntheticRGBD --replay-bundle <b> --suite recovery`
+    re-fits each session from its depth frame and the alignment now recorded
+    beside it (`coarse_world_from_model`). That alignment was missing, so no
+    earlier session can be replayed this way.
+  - **Its output:** geometric benchmark rows, and replayed fits compared bit
+    for bit with the device's.
+  - **The rows also fix release validation.** `scored_step_ids` lets a
+    geometric row show its adjacent-step candidate, which the release
+    preflight used to refuse.
+  - **In CI:** the recovery suite round-trips through a bundle with
+    `--require-match`.
+  - **Still owed:** the device bundles to replay.
 - ✅ **Check-trace replay.** Done 2026-09-25: `bricky-harness replay
   --checks` writes `vlm_check` rows that the scorer reports (false-complete
   first). Negatives still require staged check sessions.
@@ -283,19 +320,19 @@ complete-recall 0.0, and the marginal gates stay dormant.
   re-attached, not restarted); pause for 2 hours and resume (does the
   signed Hugging Face CDN URL in the resume data expire?); and confirm that
   `RecoveryModels/` is excluded from backup.
-- **Bundle validation depth.** `EvidenceBundleReader.validate` verifies file
-  existence, not image decodability — a corrupt JPEG passes `--dry-run` and
-  fails mid-replay. Consider an opt-in `--verify-images` pass. (Depth planes
-  are now checked by *size* against their declared `width * height`, because
-  a truncated blob reshapes into silently wrong geometry rather than
-  failing; images still need the equivalent.)
-- **Export ergonomics.** Consider a size warning before staging very large
-  exports (AirDrop over ~500 MB gets slow), and surfacing recorder write
-  failures in `EvidenceSessionsView` (recording is deliberately best-effort
-  and silent today; the session list only shows what was written).
-- **`make_board.py` retirement.** Deprecated as layout authority but still
-  used for synthetic fixtures; once synthetic fixtures go through
-  `bricky-harness recompose` or the kit directly, delete it.
+- ✅ **Bundle validation depth.** Done 2026-10-08: `replay --dry-run
+  --verify-images` decodes every board, tile, alternate tile and capture, and
+  requires a JPEG's end-of-image marker (ImageIO renders a truncated JPEG grey
+  and calls it complete). Depth planes were already checked by size.
+- ✅ **Export ergonomics.** Done 2026-10-08:
+  - Exports above 500 MB ask first.
+  - `session.json` records `recorder_health` (failed writes by operation,
+    and windows skipped at the cap or for low space).
+  - The session list badges a session with gaps.
+- ✅ **`make_board.py` retirement.** Done 2026-10-08: synthetic fixtures
+  already went through the kit (`bricky-harness synth-bundle`), so the
+  script and its Pillow dependency are gone and the evaluation tools are
+  stdlib-only.
 
 ## 5. Training path (after eval is trustworthy)
 

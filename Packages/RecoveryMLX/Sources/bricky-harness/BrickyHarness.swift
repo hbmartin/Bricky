@@ -62,6 +62,9 @@ struct Replay: AsyncParsableCommand {
     @Flag(name: .customLong("dry-run"), help: "Validate bundle structure and exit without loading weights.")
     var dryRun = false
 
+    @Flag(name: .customLong("verify-images"), help: "Also decode every board, tile, alternate tile and capture while validating.")
+    var verifyImages = false
+
     @Flag(help: "Also replay step-check traces into <out>.checks.ndjson as vlm_check rows (false-complete first).")
     var checks = false
 
@@ -122,7 +125,7 @@ struct Replay: AsyncParsableCommand {
 
     mutating func run() async throws {
         let reader = try EvidenceBundleReader(bundleDirectory: URL(fileURLWithPath: bundle))
-        let issues = reader.validate()
+        let issues = reader.validate(verifyImages: verifyImages)
         guard issues.isEmpty else {
             for issue in issues { FileHandle.standardError.write(Data("invalid bundle: \(issue)\n".utf8)) }
             throw ExitCode(1)
@@ -268,9 +271,9 @@ struct Replay: AsyncParsableCommand {
                 print("session \(session.file.sessionID.uuidString.prefix(8)) is unlabeled — no benchmark row")
             } else {
                 // Corpus accounting: a labeled geometric-only session has no
-                // rank traces to replay, and geometric replay does not exist
-                // yet, so the row it would contribute is explicitly missing.
-                print("session \(session.file.sessionID.uuidString.prefix(8)) is labeled but has no replayable finalist rank traces (geometric-only) — no benchmark row")
+                // rank traces to replay here; its geometric row comes from
+                // SyntheticRGBD, which links the depth stack this tool does not.
+                print("session \(session.file.sessionID.uuidString.prefix(8)) is labeled but has no replayable finalist rank traces (geometric-only) — no benchmark row here; replay it with SyntheticRGBD <model> --ldraw-root <pack> --replay-bundle <bundle> --suite recovery")
             }
         }
 

@@ -10,6 +10,12 @@ import simd
 /// Inconclusive results return nil so the composite estimator can fall back
 /// to the VLM path; the geometric path never guesses.
 actor GeometricRecoveryEstimator {
+    /// The `model_revision` a geometric estimate carries; a replay row with
+    /// no estimate reports it too.
+    static let revision = "depth-icp-geometric-v1"
+    /// A conclusion reached by the placement-consistency tie-break (M2.6).
+    static let tieBreakRevision = revision + "+pcs1"
+
     struct Configuration: Sendable {
         /// A candidate below this score can never conclude the estimate.
         var scoreFloor: Float = 0.45
@@ -160,7 +166,7 @@ actor GeometricRecoveryEstimator {
                 passIndexByCandidate[score.index] = passIndex
             }
 
-            guard let best = scored.values.filter({ interval.contains($0.index) }).max(by: { $0.score < $1.score }) else {
+            guard let best = Self.leader(of: scored, in: interval) else {
                 await recordFits(scored: scored, passIndices: passIndexByCandidate, plan: plan, conclusiveIndex: nil)
                 return nil
             }
@@ -169,7 +175,7 @@ actor GeometricRecoveryEstimator {
             interval = max(0, best.index - spacing)..<min(plan.steps.count, best.index + spacing + 1)
         }
 
-        let ranked = scored.values.sorted { $0.score > $1.score }
+        let ranked = Self.ranking(Array(scored.values))
         guard let best = ranked.first,
               Self.isConclusive(best: best, runnerUp: ranked.dropFirst().first, configuration: configuration) else {
             if let winner = try await tieBreak(ranked: ranked, plan: plan, geometry: geometry) {
@@ -178,7 +184,7 @@ actor GeometricRecoveryEstimator {
                 return RecoveryEstimate(
                     rankedStepIDs: ([winner] + others.map(\.index)).map { RecoveryIndexing.stepID(forIndex: $0, plan: plan) },
                     certainty: .medium,
-                    modelRevision: "depth-icp-geometric-v1+pcs1",
+                    modelRevision: Self.tieBreakRevision,
                     latencyMilliseconds: Self.milliseconds(since: started),
                     captureIDs: captureIDs,
                     insufficiencyCause: nil,
@@ -199,12 +205,32 @@ actor GeometricRecoveryEstimator {
         return RecoveryEstimate(
             rankedStepIDs: ranked.prefix(3).map { RecoveryIndexing.stepID(forIndex: $0.index, plan: plan) },
             certainty: margin >= configuration.highCertaintyMargin ? .high : .medium,
-            modelRevision: "depth-icp-geometric-v1",
+            modelRevision: Self.revision,
             latencyMilliseconds: latency,
             captureIDs: captureIDs,
             insufficiencyCause: nil,
             method: .geometric
         )
+    }
+
+    /// Candidates best first: by score, then by step index. Ties are real —
+    /// the pose-sanity clamp gives disqualified candidates the same sentinel —
+    /// and a dictionary walk would order them differently in every process,
+    /// so a replay could not reproduce the device's runner-ups. The earlier
+    /// step wins: a user told one step too early re-checks a step, one told a
+    /// step too late skips it.
+    static func ranking(_ scores: [CandidateScore]) -> [CandidateScore] {
+        scores.sorted(by: precedes)
+    }
+
+    /// The best candidate inside a refinement interval, by the same order.
+    static func leader(of scored: [Int: CandidateScore], in interval: Range<Int>) -> CandidateScore? {
+        scored.values.filter { interval.contains($0.index) }.min(by: precedes)
+    }
+
+    private static func precedes(_ lhs: CandidateScore, _ rhs: CandidateScore) -> Bool {
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+        return lhs.index < rhs.index
     }
 
     /// Hands every scored candidate to the recorder, ordered by step index so
