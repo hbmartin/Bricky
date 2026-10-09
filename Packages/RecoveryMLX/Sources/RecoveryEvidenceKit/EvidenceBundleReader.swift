@@ -341,9 +341,10 @@ public struct EvidenceBundleReader {
 
         var issues: [String] = []
         var seen: Set<String> = []
+        let sessionComponents = session.directory.resolvingSymlinksInPath().pathComponents
         for image in images where seen.insert(image.path).inserted {
-            // Judged lexically: standardizing a path that does not exist
-            // keeps /private/var where an existing one drops it.
+            // Judged lexically first: standardizing a path that does not
+            // exist keeps /private/var where an existing one drops it.
             guard !image.path.hasPrefix("/"), !image.path.split(separator: "/").contains("..") else {
                 issues.append("\(name): \(image.kind) \(image.path) resolves outside the session")
                 continue
@@ -353,6 +354,12 @@ public struct EvidenceBundleReader {
                 if alternates.contains(image.path) {
                     issues.append("\(name): missing alternate tile \(image.path)")
                 }
+                continue
+            }
+            // A symlink passes the lexical check. Both ends exist here, so
+            // resolving them drops /private alike.
+            guard url.resolvingSymlinksInPath().pathComponents.starts(with: sessionComponents) else {
+                issues.append("\(name): \(image.kind) \(image.path) resolves outside the session")
                 continue
             }
             if !isDecodableImage(at: url) {

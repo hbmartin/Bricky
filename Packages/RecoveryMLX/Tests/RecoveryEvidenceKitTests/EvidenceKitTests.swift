@@ -374,6 +374,31 @@ final class EvidenceKitTests: XCTestCase {
         ])
     }
 
+    // Fails on the old code: the lexical check passed a symlink out.
+    func testVerifyImagesRefusesAnImageLinkedOutOfTheSession() throws {
+        let bundle = try makeBundle()
+        let session = try onlySession(bundle)
+        let row = try XCTUnwrap(session.traceRows.first)
+        let tile = try XCTUnwrap(row.tileRelativePaths["A"])
+        let fileManager = FileManager.default
+        // A decodable image outside the session, reached through a link.
+        let tileURL = session.directory.appendingPathComponent(tile)
+        let outside = root.appendingPathComponent("outside.jpg")
+        try fileManager.moveItem(at: tileURL, to: outside)
+        try fileManager.createSymbolicLink(at: tileURL, withDestinationURL: outside)
+        // A link that stays inside passes, temporary directory under
+        // /private/var or not.
+        let boardURL = session.directory.appendingPathComponent(row.boardRelativePath)
+        let inside = session.directory.appendingPathComponent("boards/moved.jpg")
+        try fileManager.moveItem(at: boardURL, to: inside)
+        try fileManager.createSymbolicLink(at: boardURL, withDestinationURL: inside)
+        let reader = try EvidenceBundleReader(bundleDirectory: bundle)
+        XCTAssertEqual(reader.validate(), [])
+        XCTAssertEqual(reader.validate(verifyImages: true), [
+            "\(session.file.sessionID.uuidString): tile \(tile) resolves outside the session",
+        ])
+    }
+
     func testStagedVerificationTruth() {
         func declared(_ scenario: StagedVerificationDeclaration.Scenario) -> StagedVerificationDeclaration {
             StagedVerificationDeclaration(scenario: scenario, lighting: .dim, occlusion: .partial, physicalCase: true, legalUseConfirmed: true)
