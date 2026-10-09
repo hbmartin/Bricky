@@ -55,7 +55,9 @@ Written 2026-10-08.
    - **Missing tools:** each step whose tools are missing prints as
      `NEXT <step>: <command>` instead of running.
    - **Output:** everything lands in `report/phase1_report.json`.
-   - **`--strict`:** exits 1 when a release run failed or was refused.
+   - **`--strict`:** exits 1 when a release run failed or was refused, or
+     a row file had a malformed line. The report skips such a line and
+     names it as a `warning:`.
 
 ## What each line means
 
